@@ -7,6 +7,7 @@ import {
 } from "@mg/core";
 import { noopSpan, type TraceSpan } from "@mg/harness";
 import { jsonAttribute } from "./json.js";
+import { endSpan, setSpanAttributes } from "./span-guard.js";
 import { ATTR, SPAN } from "./vocabulary.js";
 
 export type RunToolCall = typeof runToolCall;
@@ -25,17 +26,7 @@ const startToolSpan = (parent: TraceSpan, call: ToolCall): TraceSpan => {
 };
 
 const setResultAttribute = (span: TraceSpan, message: ToolMessage): void => {
-  try {
-    span.setAttributes({ [ATTR.toolResult]: message.content });
-  } catch {
-  }
-};
-
-const endSpan = (span: TraceSpan, error?: unknown): void => {
-  try {
-    span.end(error);
-  } catch {
-  }
+  setSpanAttributes(span, { [ATTR.toolResult]: message.content });
 };
 
 export const traceRunToolCall = (

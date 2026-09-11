@@ -1,9 +1,10 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, it } from "vitest";
-import { defineTool, type Tool, type ToolCall, type ToolMessage, type ToolSchema } from "@mg/core";
+import { defineTool, type ToolCall, type ToolMessage, type ToolSchema } from "@mg/core";
 import { ATTR, SPAN } from "./vocabulary.js";
 import { traceRunToolCall } from "./tools.js";
 import { RecordingSpan } from "./recording-span.test-helper.js";
+
+type Validate = ToolSchema["~standard"]["validate"];
 
 const call: ToolCall = { id: "call-1", name: "weather", arguments: { city: "tokyo" } };
 
@@ -48,22 +49,23 @@ describe("traceRunToolCall", () => {
 
   it("uses core's runToolCall by default and records its result", async () => {
     const root = new RecordingSpan("root");
+    const validate: Validate = (value) => ({ value });
     const schema: ToolSchema = {
       "~standard": {
         version: 1,
         vendor: "mg-test",
-        validate: (value: unknown): StandardSchemaV1.Result<unknown> => ({ value }),
+        validate,
         jsonSchema: {
           input: () => ({ type: "object" }),
           output: () => ({ type: "object" }),
         },
       },
     };
-    const tool: Tool = {
+    const tool = defineTool({
       name: "weather",
       input: schema,
       execute: async (value) => JSON.stringify(value),
-    };
+    });
 
     const message = await traceRunToolCall(root)([tool], call);
 

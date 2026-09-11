@@ -142,7 +142,9 @@ export const toOpenRouterRequest = (
   return body;
 };
 
-const toFinishReason = (finishReason: string | null | undefined): FinishReason => {
+export const toFinishReason = (
+  finishReason: string | null | undefined,
+): FinishReason => {
   switch (finishReason) {
     case "stop":
       return "stop";
@@ -155,7 +157,15 @@ const toFinishReason = (finishReason: string | null | undefined): FinishReason =
   }
 };
 
-const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
+export const toUsage = (usage: {
+  prompt_tokens: number;
+  completion_tokens: number;
+}): Usage => ({
+  inputTokens: usage.prompt_tokens,
+  outputTokens: usage.completion_tokens,
+});
+
+export const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
   const name = toolCall.function?.name ?? "";
   const raw = toolCall.function?.arguments;
 
@@ -203,11 +213,7 @@ export const fromOpenRouterResponse = (body: unknown): GenerateResponse => {
 
   const usage = parsed.usage;
   if (usage !== undefined && usage !== null) {
-    const mapped: Usage = {
-      inputTokens: usage.prompt_tokens,
-      outputTokens: usage.completion_tokens,
-    };
-    return { ...response, usage: mapped };
+    return { ...response, usage: toUsage(usage) };
   }
 
   return response;

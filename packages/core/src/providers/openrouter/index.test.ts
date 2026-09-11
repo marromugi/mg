@@ -4,7 +4,7 @@ import {
   ProviderTransportError,
   ToolArgumentsError,
 } from "../errors.js";
-import type { GenerateRequest } from "../types.js";
+import type { GenerateRequest, StreamEvent } from "../types.js";
 import { createOpenRouterProvider } from "./index.js";
 
 type Call = { url: string; init: RequestInit | undefined };
@@ -280,5 +280,256 @@ describe("createOpenRouterProvider", () => {
     expect(toolArgumentsError.toolName).toBe("weather");
     expect(toolArgumentsError.raw).toBe("{ not json");
     expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
+  });
+});
+
+const sseResponse = (payloads: string[]) =>
+  new Response(
+    `${payloads.map((payload) => `data: ${payload}\n\n`).join("")}data: [DONE]\n\n`,
+    { status: 200, headers: { "Content-Type": "text/event-stream" } },
+  );
+
+const erroringResponse = (failure: unknown, prelude?: string) => {
+  let sent = false;
+  return new Response(
+    new ReadableStream({
+      pull: (controller) => {
+        if (prelude !== undefined && !sent) {
+          sent = true;
+          controller.enqueue(new TextEncoder().encode(prelude));
+          return;
+        }
+        controller.error(failure);
+      },
+    }),
+    { status: 200 },
+  );
+};
+
+const collectStream = async (
+  stream: AsyncIterable<StreamEvent>,
+  into: StreamEvent[] = [],
+) => {
+  for await (const event of stream) into.push(event);
+  return into;
+};
+
+describe("createOpenRouterProvider stream", () => {
+  test("asks for a streamed answer with usage and yields the events", async () => {
+    const { fetchStub, calls } = stubFetch(() =>
+      sseResponse([
+        JSON.stringify({ choices: [{ delta: { content: "24" } }] }),
+        JSON.stringify({ choices: [{ delta: { content: " degrees" } }] }),
+        JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] }),
+        JSON.stringify({
+          choices: [],
+          usage: { prompt_tokens: 12, completion_tokens: 34 },
+        }),
+      ]),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const events = await collectStream(provider.stream(request));
+
+    expect(calls[0]!.url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      model: "openai/gpt-4o",
+      messages: [{ role: "user", content: "weather?" }],
+      stream: true,
+      stream_options: { include_usage: true },
+      temperature: 0.2,
+    });
+    expect(events).toEqual([
+      { type: "text-delta", delta: "24" },
+      { type: "text-delta", delta: " degrees" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: { inputTokens: 12, outputTokens: 34 },
+      },
+    ]);
+  });
+
+  test("sends nothing before the first event is asked for", async () => {
+    const { fetchStub, calls } = stubFetch(() => sseResponse([]));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const stream = provider.stream(request);
+    expect(calls).toHaveLength(0);
+
+    await collectStream(stream);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("assembles a tool call carried by the stream", async () => {
+    const { fetchStub } = stubFetch(() =>
+      sseResponse([
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call-1",
+                    type: "function",
+                    function: { name: "weather", arguments: '{"city"' },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [{ index: 0, function: { arguments: ':"Tokyo"}' } }],
+              },
+            },
+          ],
+        }),
+        JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+      ]),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    await expect(collectStream(provider.stream(request))).resolves.toEqual([
+      {
+        type: "tool-call",
+        toolCall: {
+          id: "call-1",
+          name: "weather",
+          arguments: { city: "Tokyo" },
+        },
+      },
+      { type: "finish", finishReason: "tool_calls" },
+    ]);
+  });
+
+  test("throws a ProviderHttpError before any event on a non-2xx", async () => {
+    const { fetchStub } = stubFetch(
+      () => new Response("rate limited", { status: 429 }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const events: StreamEvent[] = [];
+    const error = await collectStream(provider.stream(request), events).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(events).toEqual([]);
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const httpError = error as ProviderHttpError;
+    expect(httpError.message).toBe("OpenRouter request failed: 429");
+    expect(httpError.status).toBe(429);
+    expect(httpError.body).toBe("rate limited");
+  });
+
+  test("throws a ProviderHttpError when the answer carries no body", async () => {
+    const { fetchStub } = stubFetch(() => new Response(null, { status: 204 }));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await collectStream(provider.stream(request)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const httpError = error as ProviderHttpError;
+    expect(httpError.message).toBe("OpenRouter response has no body");
+    expect(httpError.status).toBe(204);
+    expect(httpError.body).toBe("");
+  });
+
+  test("throws a ProviderTransportError when the request cannot be sent", async () => {
+    const failure = new TypeError("fetch failed");
+    const { fetchStub } = stubFetch(() => {
+      throw failure;
+    });
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await collectStream(provider.stream(request)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    const transportError = error as ProviderTransportError;
+    expect(transportError.message).toBe("OpenRouter request failed to send");
+    expect(transportError.cause).toBe(failure);
+  });
+
+  test("throws a ProviderTransportError when the body fails midway", async () => {
+    const failure = new Error("connection reset");
+    const prelude = `data: ${JSON.stringify({
+      choices: [{ delta: { content: "24" } }],
+    })}\n\n`;
+    const { fetchStub } = stubFetch(() => erroringResponse(failure, prelude));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const events: StreamEvent[] = [];
+    const error = await collectStream(provider.stream(request), events).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(events).toEqual([{ type: "text-delta", delta: "24" }]);
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    const transportError = error as ProviderTransportError;
+    expect(transportError.message).toBe("OpenRouter response failed to read");
+    expect(transportError.cause).toBe(failure);
+  });
+
+  test("passes an abort from the body through without wrapping it", async () => {
+    const abort = new Error("The operation was aborted");
+    abort.name = "AbortError";
+    const { fetchStub } = stubFetch(() => erroringResponse(abort));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await collectStream(provider.stream(request)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBe(abort);
+  });
+
+  test("throws a ProviderHttpError when a streamed payload is not JSON", async () => {
+    const { fetchStub } = stubFetch(() => sseResponse(["<html>"]));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await collectStream(provider.stream(request)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const httpError = error as ProviderHttpError;
+    expect(httpError.message).toBe("OpenRouter stream chunk is not JSON");
+    expect(httpError.status).toBe(200);
+    expect(httpError.body).toBe("<html>");
   });
 });

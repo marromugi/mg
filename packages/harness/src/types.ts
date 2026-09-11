@@ -1,6 +1,7 @@
 import type { FinishReason, Message, ToolCall, ToolMessage, Usage } from "@mg/core";
+import type { TraceSpan } from "./trace.js";
 
-export type HarnessInput = { messages: Message[]; signal?: AbortSignal };
+export type HarnessInput = { messages: Message[]; signal?: AbortSignal; trace?: TraceSpan };
 
 export type HarnessStopReason = "stop" | "max-turns" | "length";
 

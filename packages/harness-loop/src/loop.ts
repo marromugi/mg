@@ -1,4 +1,3 @@
-import { runToolCall } from "@mg/core";
 import type {
   AssistantMessage,
   FinishReason,
@@ -9,7 +8,9 @@ import type {
   ToolCall,
   Usage,
 } from "@mg/core";
-import type { Harness, HarnessEvent } from "@mg/harness";
+import { noopSpan } from "@mg/harness";
+import type { Harness, HarnessEvent, TraceSpan } from "@mg/harness";
+import { ATTR, SPAN, traceProvider, traceRunToolCall } from "@mg/trace";
 import { StreamIncompleteError } from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
 
@@ -102,59 +103,89 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
   const stream = options.stream ?? true;
 
   return async function* (input) {
-    const messages: Message[] = [...input.messages];
-    let usage: Usage = { inputTokens: 0, outputTokens: 0 };
-
-    for (let turn = 1; turn <= options.maxTurns; turn++) {
-      input.signal?.throwIfAborted();
-
-      const request: GenerateRequest = {
-        model: options.model,
-        messages,
-        tools: toolDefinitions,
-      };
-      const turnResult = stream
-        ? yield* runStreamedTurn(options.provider, request)
-        : yield* runBatchTurn(options.provider, request);
-
-      if (turnResult.usage) {
-        usage = {
-          inputTokens: usage.inputTokens + turnResult.usage.inputTokens,
-          outputTokens: usage.outputTokens + turnResult.usage.outputTokens,
-        };
-      }
-
-      messages.push(turnResult.assistantMessage);
-      yield { type: "turn", finishReason: turnResult.finishReason, usage: turnResult.usage };
-
-      if (turnResult.toolCalls.length === 0) {
-        yield {
-          type: "done",
-          result: {
-            reason: turnResult.finishReason === "length" ? "length" : "stop",
-            messages,
-            usage,
-          },
-        };
-        return;
-      }
-
-      input.signal?.throwIfAborted();
-
-      const results = await Promise.all(
-        turnResult.toolCalls.map((call) =>
-          runToolCall(options.tools ?? [], call, { signal: input.signal }).catch((error: unknown) => {
-            if (error instanceof Error && error.name === "AbortError") throw error;
-            return toolErrorToMessage(call, error);
-          }),
-        ),
-      );
-      for (const result of results) {
-        messages.push(result);
-        yield { type: "tool-result", message: result };
-      }
+    const root = input.trace ?? noopSpan;
+    let span: TraceSpan;
+    try {
+      span = root.startSpan(SPAN.harness, { [ATTR.op]: "harness", [ATTR.harnessName]: "loop" });
+    } catch {
+      span = noopSpan;
     }
 
-    yield { type: "done", result: { reason: "max-turns", messages, usage } };
+    const provider = traceProvider(options.provider, span);
+    const run = traceRunToolCall(span);
+
+    let ended = false;
+    const endSpan = (error?: unknown): void => {
+      if (ended) return;
+      ended = true;
+      try {
+        span.end(error);
+      } catch {
+      }
+    };
+
+    try {
+      const messages: Message[] = [...input.messages];
+      let usage: Usage = { inputTokens: 0, outputTokens: 0 };
+
+      for (let turn = 1; turn <= options.maxTurns; turn++) {
+        input.signal?.throwIfAborted();
+
+        const request: GenerateRequest = {
+          model: options.model,
+          messages,
+          tools: toolDefinitions,
+        };
+        const turnResult = stream
+          ? yield* runStreamedTurn(provider, request)
+          : yield* runBatchTurn(provider, request);
+
+        if (turnResult.usage) {
+          usage = {
+            inputTokens: usage.inputTokens + turnResult.usage.inputTokens,
+            outputTokens: usage.outputTokens + turnResult.usage.outputTokens,
+          };
+        }
+
+        messages.push(turnResult.assistantMessage);
+        yield { type: "turn", finishReason: turnResult.finishReason, usage: turnResult.usage };
+
+        if (turnResult.toolCalls.length === 0) {
+          endSpan();
+          yield {
+            type: "done",
+            result: {
+              reason: turnResult.finishReason === "length" ? "length" : "stop",
+              messages,
+              usage,
+            },
+          };
+          return;
+        }
+
+        input.signal?.throwIfAborted();
+
+        const results = await Promise.all(
+          turnResult.toolCalls.map((call) =>
+            run(options.tools ?? [], call, { signal: input.signal }).catch((error: unknown) => {
+              if (error instanceof Error && error.name === "AbortError") throw error;
+              return toolErrorToMessage(call, error);
+            }),
+          ),
+        );
+        for (const result of results) {
+          messages.push(result);
+          yield { type: "tool-result", message: result };
+        }
+      }
+
+      endSpan();
+      yield { type: "done", result: { reason: "max-turns", messages, usage } };
+    } catch (error) {
+      endSpan(error);
+      throw error;
+    } finally {
+      endSpan();
+    }
   };
 };

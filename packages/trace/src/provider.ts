@@ -10,6 +10,7 @@ import type {
 } from "@mg/core";
 import { noopSpan, type TraceAttributes, type TraceSpan } from "@mg/harness";
 import { jsonAttribute } from "./json.js";
+import { endSpan, setSpanAttributes } from "./span-guard.js";
 import { ATTR, SPAN } from "./vocabulary.js";
 
 const startLlmSpan = (
@@ -55,17 +56,7 @@ const setOutputAttributes = (
       : {}),
   };
 
-  try {
-    span.setAttributes(attributes);
-  } catch {
-  }
-};
-
-const endSpan = (span: TraceSpan, error?: unknown): void => {
-  try {
-    span.end(error);
-  } catch {
-  }
+  setSpanAttributes(span, attributes);
 };
 
 const traceGenerate = async (

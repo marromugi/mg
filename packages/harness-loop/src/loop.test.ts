@@ -3,6 +3,7 @@ import { defineTool } from "@mg/core";
 import { collect } from "@mg/harness";
 import type { HarnessEvent, HarnessInput } from "@mg/harness";
 import { describe, expect, test, vi } from "vitest";
+import { StreamIncompleteError } from "./errors.js";
 import { createLoopHarness } from "./loop.js";
 
 const stubSchema = (): ToolSchema => ({
@@ -412,6 +413,24 @@ describe("createLoopHarness", () => {
     const error = await collect(harness({ messages: [] })).catch((thrown: unknown) => thrown);
 
     expect(error).toBe(boom);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  test("a stream that ends without a finish event rejects with StreamIncompleteError", async () => {
+    const generate = vi.fn(async (): Promise<GenerateResponse> => {
+      throw new Error("stubProvider: generate is not scripted");
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      return (async function* () {
+        yield { type: "text-delta", delta: "partial" } satisfies StreamEvent;
+      })();
+    });
+    const provider: Provider = { generate, stream };
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 1 });
+
+    const error = await collect(harness({ messages: [] })).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(StreamIncompleteError);
     expect(generate).not.toHaveBeenCalled();
   });
 

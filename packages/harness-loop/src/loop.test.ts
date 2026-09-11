@@ -46,6 +46,12 @@ describe("createLoopHarness", () => {
     expect(() => createLoopHarness({ provider, model: "m", maxTurns: 0 })).toThrow(RangeError);
   });
 
+  test("maxTurns NaN throws RangeError", () => {
+    const provider = stubProvider([]);
+
+    expect(() => createLoopHarness({ provider, model: "m", maxTurns: Number.NaN })).toThrow(RangeError);
+  });
+
   test("one turn without tool calls yields text-delta, turn, done(stop)", async () => {
     const input: HarnessInput = { messages: [{ role: "user", content: "hi" }] };
     const provider = stubProvider([
@@ -101,7 +107,12 @@ describe("createLoopHarness", () => {
       type: "tool-result",
       message: { role: "tool", toolCallId: "call-1", content: "a-result" },
     });
-    expect(events.at(-1)).toMatchObject({ type: "done", result: { reason: "max-turns" } });
+    const done = events.at(-1);
+    expect(done).toMatchObject({ type: "done", result: { reason: "max-turns" } });
+    expect((done as Extract<HarnessEvent, { type: "done" }>).result.messages).toEqual([
+      { role: "assistant", content: "", toolCalls: [toolCall] },
+      { role: "tool", toolCallId: "call-1", content: "a-result" },
+    ]);
     expect(provider.generate).toHaveBeenCalledTimes(1);
   });
 
@@ -117,6 +128,31 @@ describe("createLoopHarness", () => {
 
     expect(error).toMatchObject({ name: "AbortError" });
     expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  test("a signal aborted during generate rejects with AbortError before tools start", async () => {
+    const controller = new AbortController();
+    const toolCall: ToolCall = { id: "call-1", name: "a", arguments: {} };
+    const execute = vi.fn(async () => "a-result");
+    const tool: Tool = defineTool({ name: "a", input: stubSchema(), execute });
+
+    const generate = vi.fn(async () => {
+      controller.abort();
+      return { content: "", toolCalls: [toolCall], finishReason: "tool_calls" as const };
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      throw new Error("stubProvider: stream is not scripted");
+    });
+    const provider: Provider = { generate, stream };
+
+    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 2 });
+
+    const error = await collect(harness({ messages: [], signal: controller.signal })).catch(
+      (thrown: unknown) => thrown,
+    );
+
+    expect(error).toMatchObject({ name: "AbortError" });
+    expect(execute).not.toHaveBeenCalled();
   });
 
   test("collect returns the same result as the done event", async () => {
@@ -171,8 +207,8 @@ describe("createLoopHarness", () => {
       { id: "call-2", name: "b", arguments: {} },
     ];
     const provider = stubProvider([
-      { content: "", toolCalls, finishReason: "tool_calls" },
-      { content: "done", toolCalls: [], finishReason: "stop" },
+      { content: "", toolCalls, finishReason: "tool_calls", usage: { inputTokens: 2, outputTokens: 3 } },
+      { content: "done", toolCalls: [], finishReason: "stop", usage: { inputTokens: 4, outputTokens: 6 } },
     ]);
     const harness = createLoopHarness({ provider, model: "m", tools: [toolA, toolB], maxTurns: 5 });
     const iterator = harness({ messages: [] })[Symbol.asyncIterator]();
@@ -210,7 +246,10 @@ describe("createLoopHarness", () => {
     }
 
     expect(events.map((event) => event.type)).toEqual(["text-delta", "turn", "done"]);
-    expect(events.at(-1)).toMatchObject({ type: "done", result: { reason: "stop" } });
+    expect(events.at(-1)).toMatchObject({
+      type: "done",
+      result: { reason: "stop", usage: { inputTokens: 6, outputTokens: 9 } },
+    });
     expect(provider.generate).toHaveBeenCalledTimes(2);
   });
 });

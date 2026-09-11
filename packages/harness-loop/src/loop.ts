@@ -10,7 +10,7 @@ export type LoopHarnessOptions = {
 };
 
 export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
-  if (options.maxTurns < 1) {
+  if (!(options.maxTurns >= 1)) {
     throw new RangeError(`maxTurns must be >= 1, got ${options.maxTurns}`);
   }
 
@@ -62,6 +62,8 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
         };
         return;
       }
+
+      input.signal?.throwIfAborted();
 
       const results = await Promise.all(
         response.toolCalls.map((call) => runToolCall(options.tools ?? [], call, { signal: input.signal })),

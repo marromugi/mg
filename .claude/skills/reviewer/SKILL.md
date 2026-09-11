@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: "Review a pull request against the design agreed in its GitHub issue. Use after the implementer skill opens a PR, and whenever the developer asks to review a PR — \"PR #14 をレビューして\", \"review the PR\", a PR URL, \"check what the agent built\". Runs the code-review skill on a Fable agent for bugs, then checks the diff against the issue's design and constraints. Posts every finding as an inline comment on the PR. Fixes code-level findings on its own; brings design-level findings to the developer instead of deciding."
+description: "Review a pull request against the design agreed in its GitHub issue. Use after the implementer skill opens a PR, and whenever the developer asks to review a PR — \"PR #14 をレビューして\", \"review the PR\", a PR URL, \"check what the agent built\". Runs the code-review skill on an Opus agent for bugs, then checks the diff against the issue's design and constraints. Posts every finding as an inline comment on the PR. Fixes code-level findings on its own; brings design-level findings to the developer instead of deciding."
 ---
 
 # Reviewer
@@ -45,7 +45,7 @@ Run `git status --short` in the main checkout. Do not stash or commit
 anything; just remember whether tracked files are modified. If the scope
 check in step 2 fails, this is the first suspect and belongs in the report.
 
-### 2. Bug pass (code-review on Fable)
+### 2. Bug pass (code-review on Opus)
 
 Pick the effort level. Higher levels report more, and the extra findings
 are mostly nits the developer does not want on the PR, so start low and go
@@ -59,7 +59,7 @@ up only where bugs can actually hide:
 
 The Skill tool cannot choose a model, so wrap it in an agent:
 
-- Agent tool, `subagent_type`: `general-purpose`, `model`: `fable`
+- Agent tool, `subagent_type`: `general-purpose`, `model`: `opus`
 - Prompt, filled in with the real values:
 
 > Invoke the `code-review` skill with args `--comment <level> <PR URL>`.
@@ -167,7 +167,7 @@ that the developer decides.
 
 If the implementer agent from this session is still available, continue it
 with SendMessage: list the findings, ask it to fix, run tests, push. Otherwise
-spawn a new agent (`model`: `opus`, `isolation`: `worktree`) told to check
+spawn a new agent (`model`: `sonnet`, `isolation`: `worktree`) told to check
 out `headRefName` first. After the push, wait for CI once more as in the
 implementer skill. Do not run a second full review round on your own; one
 fix round, then report.

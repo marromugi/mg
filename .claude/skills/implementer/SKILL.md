@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: "Implement one GitHub issue that the architect skill produced. Use whenever the developer points at an issue and wants it built — \"#12 をやって\", \"issue 3 を実装して\", \"implement #7\", an issue URL, or \"start on the next issue\". Hands the issue to an Opus agent in an isolated git worktree, gets a PR opened, waits for CI, then hands the PR to the reviewer skill. Do not use for work that has no issue yet; send that to architect first."
+description: "Implement one GitHub issue that the architect skill produced. Use whenever the developer points at an issue and wants it built — \"#12 をやって\", \"issue 3 を実装して\", \"implement #7\", an issue URL, or \"start on the next issue\". Hands the issue to a Sonnet agent in an isolated git worktree, gets a PR opened, waits for CI, then hands the PR to the reviewer skill. Do not use for work that has no issue yet; send that to architect first."
 ---
 
 # Implementer
@@ -31,7 +31,7 @@ decision record the implementation must respect.
 Use the Agent tool with:
 
 - `subagent_type`: `general-purpose`
-- `model`: `opus`
+- `model`: `sonnet`
 - `isolation`: `worktree`
 
 The prompt must contain the full issue body (and the parent's decision record

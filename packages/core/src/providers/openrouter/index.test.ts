@@ -189,9 +189,9 @@ describe("createOpenRouterProvider", () => {
     const failure = new TypeError("fetch failed", {
       cause: new Error("ENOTFOUND"),
     });
-    const fetchStub: typeof fetch = async () => {
+    const { fetchStub } = stubFetch(() => {
       throw failure;
-    };
+    });
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
       fetch: fetchStub,
@@ -205,12 +205,38 @@ describe("createOpenRouterProvider", () => {
     expect(transportError.cause).toBe(failure);
   });
 
+  test("throws a ProviderTransportError when the answer cannot be read", async () => {
+    const failure = new Error("connection reset");
+    const { fetchStub } = stubFetch(
+      () =>
+        new Response(
+          new ReadableStream({
+            start: (controller) => {
+              controller.error(failure);
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    const transportError = error as ProviderTransportError;
+    expect(transportError.message).toBe("OpenRouter response failed to read");
+    expect(transportError.cause).toBe(failure);
+  });
+
   test("passes an abort through without wrapping it", async () => {
     const abort = new Error("The operation was aborted");
     abort.name = "AbortError";
-    const fetchStub: typeof fetch = async () => {
+    const { fetchStub } = stubFetch(() => {
       throw abort;
-    };
+    });
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
       fetch: fetchStub,

@@ -14,10 +14,8 @@ const isAbortError = (cause: unknown): boolean =>
   cause !== null &&
   (cause as { name?: unknown }).name === "AbortError";
 
-const sendFailure = (cause: unknown): unknown =>
-  isAbortError(cause)
-    ? cause
-    : new ProviderTransportError("OpenRouter request failed to send", { cause });
+const transportFailure = (cause: unknown, message: string): unknown =>
+  isAbortError(cause) ? cause : new ProviderTransportError(message, { cause });
 
 export type OpenRouterOptions = {
   apiKey: string;
@@ -50,14 +48,14 @@ export const createOpenRouterProvider = (
         body: requestBody,
       });
     } catch (cause) {
-      throw sendFailure(cause);
+      throw transportFailure(cause, "OpenRouter request failed to send");
     }
 
     let text: string;
     try {
       text = await response.text();
     } catch (cause) {
-      throw sendFailure(cause);
+      throw transportFailure(cause, "OpenRouter response failed to read");
     }
 
     if (!response.ok) {

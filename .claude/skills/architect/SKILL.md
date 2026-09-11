@@ -1,6 +1,6 @@
 ---
 name: architect
-description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Investigates feasibility, explains unfamiliar mechanisms (auth, sessions, caching, permissions, payments…) so the developer can decide, presents two or more design options with what each gives up, records the developer's decision, and splits the agreed work into minimal GitHub issues. Never writes implementation code; that is the implementer skill's job."
+description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Investigates feasibility, explains unfamiliar mechanisms (auth, sessions, caching, permissions, payments…) so the developer can decide, presents two or more design options with what each gives up, records the developer's decision, then splits the agreed work into minimal GitHub issues and creates them without further confirmation. Never writes implementation code; that is the implementer skill's job."
 ---
 
 # Architect
@@ -25,8 +25,15 @@ Read `references/design-principles.md` before presenting options. Read
 
 ## Flow
 
-Each phase ends at a gate. A gate means: present, then stop and wait for the
-developer. Silence is not agreement. Never carry on past a gate on your own.
+Phases 1–3 are the design discussion. Each of them ends at a gate: present,
+then stop and wait for the developer. Silence is not agreement. Never carry on
+past a gate on your own.
+
+Once the developer has picked an option at phase 3, the design is agreed. From
+there, phase 4 runs to the end without stopping: write the record, split the
+work, create the issues, report. Do not ask for confirmation of the record or
+of the issue list; the developer reads them in the final report and in the
+issues themselves.
 
 ### 1. Intake
 
@@ -73,34 +80,51 @@ Present at least two options. For each one, write:
 - What you give up, and when that loss would hurt.
 - How it scores against the qualities in `references/design-principles.md`.
 
+Put the comparison in a table, one column per option, as
+`.claude/rules/writing.md` asks for comparisons.
+
 Evaluate honestly. If one option is clearly better, say so — but say it last,
 after the trade-offs, and give the reason. The developer decides. Do not
 implement, do not create issues, do not start "preparing" code.
 
-**Gate:** developer picks an option (or asks for a variant).
+The developer's answer will not always name an option cleanly; it may describe
+a variant or answer in different terms. If the pick can be read from the answer
+with reasonable confidence, state your reading in one line and move on. Ask
+only when the answer genuinely fits more than one reading and the readings lead
+to different designs.
 
-### 4. Decision record
+**Gate:** developer picks an option (or asks for a variant). This is the last
+gate.
 
-Write the decision down in the format from `references/design-principles.md`:
-chosen option, rejected options with the reason, what was knowingly given up,
-and the constraints the implementation must respect. Show it to the developer.
-This record is what the reviewer skill will later check the implementation
-against, so it has to be precise about what was agreed.
+### 4. Record, split, create, report
 
-**Gate:** developer confirms the record.
+No gate in this phase. Run it through in one go.
 
-### 5. Split into issues
+**Record.** Write the decision down in the format from
+`references/design-principles.md`: chosen option, rejected options with the
+reason, what was knowingly given up, and the constraints the implementation
+must respect. This record is what the reviewer skill will later check the
+implementation against, so it has to be precise about what was agreed.
 
-Cut the work into the smallest units that make sense, using the criteria in
-`references/issue-format.md`. Present the list first — title plus one line
-each, and the order they should be done in — before creating anything.
+**Split.** Cut the work into the smallest units that make sense, using the
+criteria in `references/issue-format.md`, and decide the order they should be
+done in.
 
-Once approved, create the issues with `gh issue create`. If several issues
-share one design, create a parent issue that holds the decision record and
-links the children. Print the issue numbers at the end and tell the developer
-they can start with `implementer` and an issue number.
+**Create.** Create the issues with `gh issue create`. If several issues share
+one design, create a parent issue that holds the decision record and links the
+children. If there is only one issue, put the record in its body.
 
-**Gate:** developer approves the list before creation. After creation, stop.
+**Report.** One message, in this order:
+
+- The decision record, or a short summary of it with a link to the issue that
+  holds it.
+- The issues: number, title, one line each, in the order they should be done.
+- Any point where you read the developer's answer rather than taking it
+  verbatim, so they can fix an issue body with `gh issue edit` if the reading
+  was off.
+- That they can start with `implementer` and an issue number.
+
+After the report, stop.
 
 ## Things to keep in mind
 

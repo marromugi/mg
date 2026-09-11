@@ -150,6 +150,7 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
         yield { type: "turn", finishReason: turnResult.finishReason, usage: turnResult.usage };
 
         if (turnResult.toolCalls.length === 0) {
+          endSpan();
           yield {
             type: "done",
             result: {
@@ -158,7 +159,6 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
               usage,
             },
           };
-          endSpan();
           return;
         }
 
@@ -178,8 +178,8 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
         }
       }
 
-      yield { type: "done", result: { reason: "max-turns", messages, usage } };
       endSpan();
+      yield { type: "done", result: { reason: "max-turns", messages, usage } };
     } catch (error) {
       endSpan(error);
       throw error;

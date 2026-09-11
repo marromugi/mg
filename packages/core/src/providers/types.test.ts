@@ -1,3 +1,4 @@
+import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { ProviderError, ToolArgumentsError } from "./errors.js";
 import type {
@@ -15,15 +16,15 @@ const citySchema = {
     version: 1,
     vendor: "mg-test",
     jsonSchema: {
-      input: () => ({
+      input: (_options: StandardJSONSchemaV1.Options) => ({
         type: "object",
         properties: { city: { type: "string" } },
         required: ["city"],
       }),
-      output: () => ({ type: "string" }),
+      output: (_options: StandardJSONSchemaV1.Options) => ({ type: "string" }),
     },
   },
-} as const;
+} as const satisfies StandardJSONSchemaV1;
 
 describe("ToolDefinition", () => {
   test("accepts a schema exposing a JSON Schema converter", () => {
@@ -33,8 +34,21 @@ describe("ToolDefinition", () => {
       input: citySchema,
     } satisfies ToolDefinition;
 
-    expectTypeOf(weather).toExtend<ToolDefinition>();
-    expectTypeOf(weather.input).toExtend<typeof citySchema>();
+    expect(weather.input["~standard"].jsonSchema.input({ target: "draft-2020-12" })).toEqual({
+      type: "object",
+      properties: { city: { type: "string" } },
+      required: ["city"],
+    });
+  });
+
+  test("rejects a schema without a JSON Schema converter", () => {
+    // @ts-expect-error input must expose ~standard.jsonSchema
+    ({ name: "weather", input: {} }) satisfies ToolDefinition;
+
+    // @ts-expect-error input must expose ~standard.jsonSchema
+    ({ name: "weather", input: { "~standard": { version: 1, vendor: "mg-test" } } }) satisfies ToolDefinition;
+
+    expect(true).toBe(true);
   });
 });
 
@@ -47,12 +61,33 @@ describe("Message", () => {
   });
 
   test("narrows in a conditional", () => {
-    const message: Message = { role: "tool", toolCallId: "call-1", content: "24" };
+    const describeMessage = (message: Message): string => {
+      switch (message.role) {
+        case "system":
+          expectTypeOf(message).toEqualTypeOf<SystemMessage>();
+          return `system:${message.content}`;
+        case "user":
+          expectTypeOf(message).toEqualTypeOf<UserMessage>();
+          return `user:${message.content}`;
+        case "assistant":
+          expectTypeOf(message).toEqualTypeOf<AssistantMessage>();
+          return `assistant:${message.toolCalls?.length ?? 0}`;
+        case "tool":
+          expectTypeOf(message).toEqualTypeOf<ToolMessage>();
+          return `tool:${message.toolCallId}`;
+      }
+    };
 
-    if (message.role === "tool") {
-      expectTypeOf(message).toEqualTypeOf<ToolMessage>();
-      expect(message.toolCallId).toBe("call-1");
-    }
+    expect(describeMessage({ role: "system", content: "be brief" })).toBe("system:be brief");
+    expect(describeMessage({ role: "user", content: "weather?" })).toBe("user:weather?");
+    expect(
+      describeMessage({
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "call-1", name: "weather", arguments: { city: "Tokyo" } }],
+      }),
+    ).toBe("assistant:1");
+    expect(describeMessage({ role: "tool", toolCallId: "call-1", content: "24" })).toBe("tool:call-1");
   });
 });
 
@@ -67,11 +102,34 @@ describe("StreamEvent", () => {
   });
 
   test("narrows in a conditional", () => {
-    const event: StreamEvent = { type: "text-delta", delta: "hi" };
+    const describeEvent = (event: StreamEvent): string => {
+      switch (event.type) {
+        case "text-delta":
+          expectTypeOf(event).toEqualTypeOf<Extract<StreamEvent, { type: "text-delta" }>>();
+          return `text:${event.delta}`;
+        case "tool-call":
+          expectTypeOf(event).toEqualTypeOf<Extract<StreamEvent, { type: "tool-call" }>>();
+          return `call:${event.toolCall.name}`;
+        case "finish":
+          expectTypeOf(event).toEqualTypeOf<Extract<StreamEvent, { type: "finish" }>>();
+          return `finish:${event.finishReason}:${event.usage?.outputTokens ?? 0}`;
+      }
+    };
 
-    if (event.type === "text-delta") {
-      expect(event.delta).toBe("hi");
-    }
+    expect(describeEvent({ type: "text-delta", delta: "hi" })).toBe("text:hi");
+    expect(
+      describeEvent({
+        type: "tool-call",
+        toolCall: { id: "call-1", name: "weather", arguments: { city: "Tokyo" } },
+      }),
+    ).toBe("call:weather");
+    expect(
+      describeEvent({
+        type: "finish",
+        finishReason: "tool_calls",
+        usage: { inputTokens: 12, outputTokens: 34 },
+      }),
+    ).toBe("finish:tool_calls:34");
   });
 });
 

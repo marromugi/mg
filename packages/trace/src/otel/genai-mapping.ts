@@ -2,7 +2,7 @@
 // @ 0c87594975195608dc91b3f702e250a7b240c151, docs/gen-ai/gen-ai-spans.md and
 // docs/gen-ai/gen-ai-agent-spans.md.
 import type { Attributes } from "@opentelemetry/api";
-import type { Message } from "@mg/core";
+import type { ToolCall } from "@mg/core";
 import { jsonAttribute } from "../json.js";
 import { ATTR } from "../vocabulary.js";
 
@@ -34,17 +34,28 @@ type GenAiMessage = {
   finish_reason?: string;
 };
 
-const toParts = (message: Message): GenAiPart[] => {
+type MessageLike = { role: string } & Record<string, unknown>;
+
+const isMessageLike = (value: unknown): value is MessageLike =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { role?: unknown }).role === "string";
+
+const toParts = (message: MessageLike): GenAiPart[] => {
   switch (message.role) {
     case "system":
     case "user":
-      return [{ type: "text", content: message.content }];
+      return [{ type: "text", content: message.content as string }];
     case "assistant": {
       const parts: GenAiPart[] = [];
-      if (message.content !== "") {
-        parts.push({ type: "text", content: message.content });
+      const content = message.content as string;
+      if (content !== "") {
+        parts.push({ type: "text", content });
       }
-      for (const toolCall of message.toolCalls ?? []) {
+      const toolCalls = Array.isArray(message.toolCalls)
+        ? (message.toolCalls as ToolCall[])
+        : [];
+      for (const toolCall of toolCalls) {
         parts.push({
           type: "tool_call",
           id: toolCall.id,
@@ -58,23 +69,27 @@ const toParts = (message: Message): GenAiPart[] => {
       return [
         {
           type: "tool_call_response",
-          id: message.toolCallId,
+          id: message.toolCallId as string | undefined,
           response: message.content,
         },
       ];
+    default:
+      return typeof message.content === "string"
+        ? [{ type: "text", content: message.content }]
+        : [];
   }
 };
 
-const toGenAiMessage = (message: Message): GenAiMessage => ({
+const toGenAiMessage = (message: MessageLike): GenAiMessage => ({
   role: message.role,
   parts: toParts(message),
 });
 
-const parseMessages = (json: unknown): Message[] | undefined => {
+const parseMessages = (json: unknown): MessageLike[] | undefined => {
   if (typeof json !== "string") return undefined;
   try {
     const parsed = JSON.parse(json) as unknown;
-    return Array.isArray(parsed) ? (parsed as Message[]) : undefined;
+    return Array.isArray(parsed) ? parsed.filter(isMessageLike) : undefined;
   } catch {
     return undefined;
   }

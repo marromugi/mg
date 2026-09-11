@@ -3,11 +3,37 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 import { jsonAttribute } from "../json.js";
 import { ATTR, SPAN } from "../vocabulary.js";
 import { startRootSpan } from "../otel-span.js";
 import { GenAiMappingExporter } from "./genai-exporter.js";
+
+class FakeExporter implements SpanExporter {
+  shutdownCalls = 0;
+
+  export(
+    _spans: ReadableSpan[],
+    resultCallback: Parameters<SpanExporter["export"]>[1],
+  ): void {
+    resultCallback({ code: 0 });
+  }
+
+  shutdown(): Promise<void> {
+    this.shutdownCalls += 1;
+    return Promise.resolve();
+  }
+}
+
+class FakeExporterWithForceFlush extends FakeExporter {
+  forceFlushCalls = 0;
+
+  forceFlush(): Promise<void> {
+    this.forceFlushCalls += 1;
+    return Promise.resolve();
+  }
+}
 
 describe("GenAiMappingExporter", () => {
   const setup = () => {
@@ -66,12 +92,20 @@ describe("GenAiMappingExporter", () => {
   });
 
   it("delegates shutdown and forceFlush to the inner exporter", async () => {
-    const inner = new InMemorySpanExporter();
+    const inner = new FakeExporterWithForceFlush();
     const exporter = new GenAiMappingExporter(inner);
 
-    await exporter.forceFlush();
     await exporter.shutdown();
+    await exporter.forceFlush();
 
-    expect(inner.getFinishedSpans()).toEqual([]);
+    expect(inner.shutdownCalls).toBe(1);
+    expect(inner.forceFlushCalls).toBe(1);
+  });
+
+  it("resolves forceFlush when the inner exporter has no forceFlush", async () => {
+    const inner = new FakeExporter();
+    const exporter = new GenAiMappingExporter(inner);
+
+    await expect(exporter.forceFlush()).resolves.toBeUndefined();
   });
 });

@@ -97,4 +97,37 @@ describe("mapGenAiAttributes", () => {
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
     expect(mapped["gen_ai.provider.name"]).toBe("openrouter");
   });
+
+  it("drops null and non-object elements from the message array without throwing", () => {
+    const raw = JSON.stringify([null, { role: "user", content: "hi" }, "x", 42]);
+
+    expect(() =>
+      mapGenAiAttributes({ [ATTR.op]: "llm", [ATTR.llmInputMessages]: raw }),
+    ).not.toThrow();
+
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmInputMessages]: raw,
+    });
+    expect(JSON.parse(mapped["gen_ai.input.messages"] as string)).toEqual([
+      { role: "user", parts: [{ type: "text", content: "hi" }] },
+    ]);
+  });
+
+  it("emits a text part for an unknown role when content is a string, and no parts otherwise", () => {
+    const raw = JSON.stringify([
+      { role: "developer", content: "x" },
+      { role: "developer" },
+    ]);
+
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmInputMessages]: raw,
+    });
+
+    expect(JSON.parse(mapped["gen_ai.input.messages"] as string)).toEqual([
+      { role: "developer", parts: [{ type: "text", content: "x" }] },
+      { role: "developer", parts: [] },
+    ]);
+  });
 });

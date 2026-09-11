@@ -89,7 +89,7 @@ tools/
   isProviderError         絞り込み
 
 道具の実行のエラー
-  ToolRunBaseError        親
+  ToolRunBaseError        親（直接は作れない）
   ToolNotFoundError       その名前の道具がない
   ToolInputError          引数の検証に失敗した
   ToolRunError            2 つの合併型

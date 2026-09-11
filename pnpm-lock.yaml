@@ -41,6 +41,9 @@ importers:
       '@mg/tools':
         specifier: workspace:*
         version: link:../tools
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../trace
 
   packages/tools:
     dependencies:

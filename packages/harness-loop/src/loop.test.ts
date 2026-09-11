@@ -1,9 +1,35 @@
 import type { GenerateResponse, Provider, StreamEvent, Tool, ToolCall, ToolSchema } from "@mg/core";
 import { defineTool } from "@mg/core";
 import { collect } from "@mg/harness";
-import type { HarnessEvent, HarnessInput } from "@mg/harness";
+import type { HarnessEvent, HarnessInput, TraceAttributes, TraceSpan } from "@mg/harness";
 import { describe, expect, test, vi } from "vitest";
 import { createLoopHarness } from "./loop.js";
+
+class RecordingSpan implements TraceSpan {
+  readonly name: string;
+  readonly attributes: TraceAttributes;
+  readonly children: RecordingSpan[] = [];
+  readonly endCalls: unknown[] = [];
+
+  constructor(name: string, attributes?: TraceAttributes) {
+    this.name = name;
+    this.attributes = attributes ?? {};
+  }
+
+  startSpan(name: string, attributes?: TraceAttributes): TraceSpan {
+    const child = new RecordingSpan(name, attributes);
+    this.children.push(child);
+    return child;
+  }
+
+  setAttributes(): void {}
+
+  addEvent(): void {}
+
+  end(error?: unknown): void {
+    this.endCalls.push(error);
+  }
+}
 
 const stubSchema = (): ToolSchema => ({
   "~standard": {
@@ -473,5 +499,74 @@ describe("createLoopHarness", () => {
     const error = await collect(harness({ messages: [] })).catch((thrown: unknown) => thrown);
 
     expect(error).toBe(abortError);
+  });
+
+  test("with a trace, wraps the loop in one mg.harness span with an mg.llm span per turn and an mg.tool span per tool call", async () => {
+    const toolCall: ToolCall = { id: "call-1", name: "a", arguments: {} };
+    const tool: Tool = defineTool({ name: "a", input: stubSchema(), execute: async () => "a-result" });
+    const provider = stubProvider([
+      { content: "", toolCalls: [toolCall], finishReason: "tool_calls" },
+      { content: "done", toolCalls: [], finishReason: "stop" },
+    ]);
+    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 2, stream: false });
+
+    const root = new RecordingSpan("root");
+    const result = await collect(harness({ messages: [], trace: root }));
+
+    expect(result.reason).toBe("stop");
+    expect(root.children).toHaveLength(1);
+
+    const harnessSpan = root.children[0]!;
+    expect(harnessSpan.name).toBe("mg.harness");
+    expect(harnessSpan.attributes["mg.harness.name"]).toBe("loop");
+    expect(harnessSpan.children.map((child) => child.name)).toEqual(["mg.llm", "mg.tool", "mg.llm"]);
+    expect(harnessSpan.endCalls).toEqual([undefined]);
+  });
+
+  test("a provider that throws ends the mg.harness span with that error and the error propagates unchanged", async () => {
+    const boom = new Error("boom");
+    const generate = vi.fn(async (): Promise<GenerateResponse> => {
+      throw boom;
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      throw new Error("stubProvider: stream is not scripted");
+    });
+    const provider: Provider = { generate, stream };
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 1, stream: false });
+
+    const root = new RecordingSpan("root");
+    const error = await collect(harness({ messages: [], trace: root })).catch((thrown: unknown) => thrown);
+
+    expect(error).toBe(boom);
+    const harnessSpan = root.children[0]!;
+    expect(harnessSpan.endCalls).toEqual([boom]);
+  });
+
+  test("input.trace omitted leaves the loop's result unchanged from the traced case", async () => {
+    const response: GenerateResponse = {
+      content: "hi",
+      toolCalls: [],
+      finishReason: "stop",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    };
+
+    const untracedHarness = createLoopHarness({
+      provider: stubProvider([response]),
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const untracedResult = await collect(untracedHarness({ messages: [] }));
+
+    const root = new RecordingSpan("root");
+    const tracedHarness = createLoopHarness({
+      provider: stubProvider([response]),
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const tracedResult = await collect(tracedHarness({ messages: [], trace: root }));
+
+    expect(tracedResult).toEqual(untracedResult);
   });
 });

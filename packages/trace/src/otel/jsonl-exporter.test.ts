@@ -83,4 +83,22 @@ describe("JsonlSpanExporter", () => {
     await exporter.shutdown();
     await expect(exporter.shutdown()).resolves.toBeUndefined();
   });
+
+  it("creates missing parent directories before writing", async () => {
+    const nestedPath = join(dir, "nested", "spans.jsonl");
+    const exporter = new JsonlSpanExporter(nestedPath);
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    const tracer = provider.getTracer("test");
+
+    const root = startRootSpan(tracer, "root");
+    root.end();
+
+    await exporter.shutdown();
+
+    const lines = readFileSync(nestedPath, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]).name).toBe("root");
+  });
 });

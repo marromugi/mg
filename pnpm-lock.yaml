@@ -24,6 +24,12 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
 
+  packages/harness:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/tools:
     dependencies:
       '@mg/core':

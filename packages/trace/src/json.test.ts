@@ -13,4 +13,8 @@ describe("jsonAttribute", () => {
     expect(() => jsonAttribute(cyclic)).not.toThrow();
     expect(jsonAttribute(cyclic)).toBe(String(cyclic));
   });
+
+  it("falls back to String() for a value JSON.stringify returns undefined for", () => {
+    expect(jsonAttribute(undefined)).toBe("undefined");
+  });
 });

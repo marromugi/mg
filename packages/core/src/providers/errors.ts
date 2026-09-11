@@ -1,10 +1,4 @@
-export type ProviderErrorName =
-  | "ProviderHttpError"
-  | "ProviderTransportError"
-  | "ToolArgumentsError"
-  | "ToolSchemaError";
-
-export abstract class ProviderError extends Error {
+export abstract class ProviderBaseError extends Error {
   abstract override readonly name: ProviderErrorName;
 
   protected constructor(message: string, options?: { cause?: unknown }) {
@@ -12,7 +6,7 @@ export abstract class ProviderError extends Error {
   }
 }
 
-export class ProviderHttpError extends ProviderError {
+export class ProviderHttpError extends ProviderBaseError {
   override readonly name = "ProviderHttpError";
   readonly status: number;
   readonly body: string;
@@ -24,7 +18,7 @@ export class ProviderHttpError extends ProviderError {
   }
 }
 
-export class ProviderTransportError extends ProviderError {
+export class ProviderTransportError extends ProviderBaseError {
   override readonly name = "ProviderTransportError";
 
   constructor(message: string, options: { cause: unknown }) {
@@ -32,7 +26,7 @@ export class ProviderTransportError extends ProviderError {
   }
 }
 
-export class ToolArgumentsError extends ProviderError {
+export class ToolArgumentsError extends ProviderBaseError {
   override readonly name = "ToolArgumentsError";
   readonly toolCallId: string;
   readonly toolName: string;
@@ -46,7 +40,7 @@ export class ToolArgumentsError extends ProviderError {
   }
 }
 
-export class ToolSchemaError extends ProviderError {
+export class ToolSchemaError extends ProviderBaseError {
   override readonly name = "ToolSchemaError";
   readonly toolName: string;
 
@@ -55,3 +49,14 @@ export class ToolSchemaError extends ProviderError {
     this.toolName = toolName;
   }
 }
+
+export type ProviderError =
+  | ProviderHttpError
+  | ProviderTransportError
+  | ToolArgumentsError
+  | ToolSchemaError;
+
+export type ProviderErrorName = ProviderError["name"];
+
+export const isProviderError = (error: unknown): error is ProviderError =>
+  error instanceof ProviderBaseError;

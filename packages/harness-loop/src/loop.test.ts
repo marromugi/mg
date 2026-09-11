@@ -31,6 +31,24 @@ const stubProvider = (responses: readonly GenerateResponse[]): Provider => {
   return { generate, stream };
 };
 
+const stubStreamProvider = (turns: readonly StreamEvent[][]): Provider => {
+  let index = 0;
+  const generate = vi.fn(async (): Promise<GenerateResponse> => {
+    throw new Error("stubStreamProvider: generate is not scripted");
+  });
+  const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+    const events = turns[index];
+    index++;
+    if (!events) throw new Error("stubStreamProvider: no scripted turn left");
+    return (async function* () {
+      for (const event of events) {
+        yield event;
+      }
+    })();
+  });
+  return { generate, stream };
+};
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((res) => {
@@ -57,7 +75,7 @@ describe("createLoopHarness", () => {
     const provider = stubProvider([
       { content: "hello", toolCalls: [], finishReason: "stop", usage: { inputTokens: 3, outputTokens: 5 } },
     ]);
-    const harness = createLoopHarness({ provider, model: "m", maxTurns: 3 });
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 3, stream: false });
 
     const events: HarnessEvent[] = [];
     for await (const event of harness(input)) {
@@ -83,7 +101,7 @@ describe("createLoopHarness", () => {
 
   test("finishReason length without tool calls yields done(length)", async () => {
     const provider = stubProvider([{ content: "cut off", toolCalls: [], finishReason: "length" }]);
-    const harness = createLoopHarness({ provider, model: "m", maxTurns: 2 });
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 2, stream: false });
 
     const result = await collect(harness({ messages: [] }));
 
@@ -95,7 +113,7 @@ describe("createLoopHarness", () => {
     const toolCall: ToolCall = { id: "call-1", name: "a", arguments: {} };
     const tool: Tool = defineTool({ name: "a", input: stubSchema(), execute: async () => "a-result" });
     const provider = stubProvider([{ content: "", toolCalls: [toolCall], finishReason: "tool_calls" }]);
-    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 1 });
+    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 1, stream: false });
 
     const events: HarnessEvent[] = [];
     for await (const event of harness({ messages: [] })) {
@@ -145,7 +163,7 @@ describe("createLoopHarness", () => {
     });
     const provider: Provider = { generate, stream };
 
-    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 2 });
+    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 2, stream: false });
 
     const error = await collect(harness({ messages: [], signal: controller.signal })).catch(
       (thrown: unknown) => thrown,
@@ -164,7 +182,12 @@ describe("createLoopHarness", () => {
     };
 
     const eventsProvider = stubProvider([response]);
-    const eventsHarness = createLoopHarness({ provider: eventsProvider, model: "m", maxTurns: 1 });
+    const eventsHarness = createLoopHarness({
+      provider: eventsProvider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
     const events: HarnessEvent[] = [];
     for await (const event of eventsHarness({ messages: [] })) {
       events.push(event);
@@ -174,7 +197,12 @@ describe("createLoopHarness", () => {
     );
 
     const collectProvider = stubProvider([response]);
-    const collectHarness = createLoopHarness({ provider: collectProvider, model: "m", maxTurns: 1 });
+    const collectHarness = createLoopHarness({
+      provider: collectProvider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
     const result = await collect(collectHarness({ messages: [] }));
 
     expect(result).toEqual(doneEvent?.result);
@@ -210,7 +238,13 @@ describe("createLoopHarness", () => {
       { content: "", toolCalls, finishReason: "tool_calls", usage: { inputTokens: 2, outputTokens: 3 } },
       { content: "done", toolCalls: [], finishReason: "stop", usage: { inputTokens: 4, outputTokens: 6 } },
     ]);
-    const harness = createLoopHarness({ provider, model: "m", tools: [toolA, toolB], maxTurns: 5 });
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [toolA, toolB],
+      maxTurns: 5,
+      stream: false,
+    });
     const iterator = harness({ messages: [] })[Symbol.asyncIterator]();
 
     let result = await iterator.next();
@@ -251,5 +285,133 @@ describe("createLoopHarness", () => {
       result: { reason: "stop", usage: { inputTokens: 6, outputTokens: 9 } },
     });
     expect(provider.generate).toHaveBeenCalledTimes(2);
+  });
+
+  test("stream: three text deltas then finish yields three text-delta events, then turn, then done(stop)", async () => {
+    const provider = stubStreamProvider([
+      [
+        { type: "text-delta", delta: "Hel" },
+        { type: "text-delta", delta: "lo, " },
+        { type: "text-delta", delta: "world" },
+        { type: "finish", finishReason: "stop", usage: { inputTokens: 3, outputTokens: 5 } },
+      ],
+    ]);
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 3 });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [{ role: "user", content: "hi" }] })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: "text-delta", delta: "Hel" },
+      { type: "text-delta", delta: "lo, " },
+      { type: "text-delta", delta: "world" },
+      { type: "turn", finishReason: "stop", usage: { inputTokens: 3, outputTokens: 5 } },
+      {
+        type: "done",
+        result: {
+          reason: "stop",
+          messages: [
+            { role: "user", content: "hi" },
+            { role: "assistant", content: "Hello, world" },
+          ],
+          usage: { inputTokens: 3, outputTokens: 5 },
+        },
+      },
+    ]);
+    expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  test("stream: deltas then two tool calls then finish matches the batch mode events and messages", async () => {
+    const toolCallA: ToolCall = { id: "call-1", name: "a", arguments: {} };
+    const toolCallB: ToolCall = { id: "call-2", name: "b", arguments: {} };
+    const toolCalls: ToolCall[] = [toolCallA, toolCallB];
+    const toolA: Tool = defineTool({ name: "a", input: stubSchema(), execute: async () => "a-result" });
+    const toolB: Tool = defineTool({ name: "b", input: stubSchema(), execute: async () => "b-result" });
+
+    const streamProvider = stubStreamProvider([
+      [
+        { type: "text-delta", delta: "thinking" },
+        { type: "text-delta", delta: "..." },
+        { type: "tool-call", toolCall: toolCallA },
+        { type: "tool-call", toolCall: toolCallB },
+        { type: "finish", finishReason: "tool_calls" },
+      ],
+    ]);
+    const streamHarness = createLoopHarness({
+      provider: streamProvider,
+      model: "m",
+      tools: [toolA, toolB],
+      maxTurns: 1,
+    });
+    const streamEvents: HarnessEvent[] = [];
+    for await (const event of streamHarness({ messages: [] })) {
+      streamEvents.push(event);
+    }
+
+    const batchProvider = stubProvider([{ content: "thinking...", toolCalls, finishReason: "tool_calls" }]);
+    const batchHarness = createLoopHarness({
+      provider: batchProvider,
+      model: "m",
+      tools: [toolA, toolB],
+      maxTurns: 1,
+      stream: false,
+    });
+    const batchEvents: HarnessEvent[] = [];
+    for await (const event of batchHarness({ messages: [] })) {
+      batchEvents.push(event);
+    }
+
+    const typesWithoutTextDelta = (events: HarnessEvent[]) =>
+      events.filter((event) => event.type !== "text-delta").map((event) => event.type);
+
+    expect(typesWithoutTextDelta(streamEvents)).toEqual(typesWithoutTextDelta(batchEvents));
+    expect(streamEvents.filter((event) => event.type === "text-delta")).toHaveLength(2);
+    expect(batchEvents.filter((event) => event.type === "text-delta")).toHaveLength(1);
+
+    const streamDone = streamEvents.at(-1) as Extract<HarnessEvent, { type: "done" }>;
+    const batchDone = batchEvents.at(-1) as Extract<HarnessEvent, { type: "done" }>;
+    expect(streamDone.result.messages).toEqual(batchDone.result.messages);
+  });
+
+  test("stream: false uses generate and never calls stream", async () => {
+    const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 1, stream: false });
+
+    await collect(harness({ messages: [] }));
+
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    expect(provider.stream).not.toHaveBeenCalled();
+  });
+
+  test("default (stream option omitted) uses stream and never calls generate", async () => {
+    const provider = stubStreamProvider([[{ type: "finish", finishReason: "stop" }]]);
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 1 });
+
+    await collect(harness({ messages: [] }));
+
+    expect(provider.stream).toHaveBeenCalledTimes(1);
+    expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  test("a stream iterable that throws mid-way rejects with that error and never calls generate", async () => {
+    const boom = new Error("boom");
+    const generate = vi.fn(async (): Promise<GenerateResponse> => {
+      throw new Error("stubProvider: generate is not scripted");
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      return (async function* () {
+        yield { type: "text-delta", delta: "partial" } satisfies StreamEvent;
+        throw boom;
+      })();
+    });
+    const provider: Provider = { generate, stream };
+    const harness = createLoopHarness({ provider, model: "m", maxTurns: 1 });
+
+    const error = await collect(harness({ messages: [] })).catch((thrown: unknown) => thrown);
+
+    expect(error).toBe(boom);
+    expect(generate).not.toHaveBeenCalled();
   });
 });

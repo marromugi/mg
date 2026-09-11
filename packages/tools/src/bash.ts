@@ -53,7 +53,7 @@ export const createBashTool = (options: BashToolOptions): Tool<typeof bashInput>
       if (error.name === "AbortError") throw error;
       if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
         parts.push("[output truncated]");
-      } else if (error.killed === true && error.signal === "SIGTERM") {
+      } else if (error.killed === true) {
         parts.push(`[timed out after ${timeoutMs} ms]`);
       } else if (typeof error.code === "number") {
         parts.push(`[exit code: ${error.code}]`);

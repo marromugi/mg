@@ -36,10 +36,17 @@ describe("createBashTool", () => {
     );
   });
 
-  test("marks output cut at the size limit", async () => {
+  test("reports a timeout when the command handles the kill signal itself", async () => {
+    const slow = createBashTool({ cwd: dir, timeoutMs: 50 });
+    await expect(slow.execute({ command: "trap 'exit 1' TERM; sleep 0.3" }, {})).resolves.toBe(
+      "[timed out after 50 ms]",
+    );
+  });
+
+  test("returns the captured output cut at the size limit", async () => {
     const small = createBashTool({ cwd: dir, maxOutputBytes: 4 });
-    await expect(small.execute({ command: "echo 123456789" }, {})).resolves.toContain(
-      "[output truncated]",
+    await expect(small.execute({ command: "echo 123456789" }, {})).resolves.toBe(
+      "1234\n[output truncated]",
     );
   });
 

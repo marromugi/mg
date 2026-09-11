@@ -1,13 +1,22 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
-import type { Harness, HarnessEvent, HarnessResult, HarnessStopReason } from "./types.js";
+import type { Harness, HarnessEvent, HarnessInput, HarnessResult, HarnessStopReason } from "./types.js";
 
 describe("Harness", () => {
   test("accepts an async generator yielding HarnessEvent", () => {
-    async function* run(): AsyncIterable<HarnessEvent> {
-      yield { type: "text-delta", delta: "hi" };
+    async function* run(input: HarnessInput): AsyncGenerator<HarnessEvent> {
+      yield { type: "text-delta", delta: `${input.messages.length}:${input.signal?.aborted}` };
     }
 
-    expectTypeOf(run).toMatchTypeOf<Harness>();
+    expectTypeOf(run).toExtend<Harness>();
+  });
+
+  test("rejects a generator with the wrong input type", () => {
+    async function* run(input: { messages: string[] }): AsyncGenerator<HarnessEvent> {
+      yield { type: "text-delta", delta: input.messages.join() };
+    }
+
+    // @ts-expect-error input must be HarnessInput
+    expectTypeOf(run).toExtend<Harness>();
   });
 });
 

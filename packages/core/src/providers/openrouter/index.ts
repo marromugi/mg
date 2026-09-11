@@ -1,4 +1,4 @@
-import { ProviderError } from "../errors.js";
+import { ProviderHttpError } from "../errors.js";
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -39,7 +39,7 @@ export const createOpenRouterProvider = (
     const text = await response.text();
 
     if (!response.ok) {
-      throw new ProviderError(
+      throw new ProviderHttpError(
         `OpenRouter request failed: ${response.status}`,
         response.status,
         text,
@@ -50,7 +50,7 @@ export const createOpenRouterProvider = (
     try {
       body = JSON.parse(text);
     } catch {
-      throw new ProviderError(
+      throw new ProviderHttpError(
         "OpenRouter response is not JSON",
         response.status,
         text,

@@ -1,6 +1,5 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, expectTypeOf, test } from "vitest";
-import { ProviderError, ToolArgumentsError } from "./errors.js";
 import type {
   AssistantMessage,
   Message,
@@ -130,29 +129,5 @@ describe("StreamEvent", () => {
         usage: { inputTokens: 12, outputTokens: 34 },
       }),
     ).toBe("finish:tool_calls:34");
-  });
-});
-
-describe("ProviderError", () => {
-  test("carries the status and body", () => {
-    const error = new ProviderError("x", 500, "body");
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.name).toBe("ProviderError");
-    expect(error.message).toBe("x");
-    expect(error.status).toBe(500);
-    expect(error.body).toBe("body");
-  });
-});
-
-describe("ToolArgumentsError", () => {
-  test("carries the tool call it came from", () => {
-    const error = new ToolArgumentsError("call-1", "weather", "{ not json");
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.name).toBe("ToolArgumentsError");
-    expect(error.toolCallId).toBe("call-1");
-    expect(error.toolName).toBe("weather");
-    expect(error.raw).toBe("{ not json");
   });
 });

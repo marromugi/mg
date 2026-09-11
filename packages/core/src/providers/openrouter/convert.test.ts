@@ -1,6 +1,6 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, test } from "vitest";
-import { ProviderError, ToolArgumentsError } from "../errors.js";
+import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
 import type {
   FinishReason,
   GenerateRequest,
@@ -400,11 +400,11 @@ describe("fromOpenRouterResponse", () => {
       "a choice with a null message",
       { choices: [{ message: null, finish_reason: "stop" }] },
     ],
-  ])("throws a ProviderError for %s", (_label, body) => {
+  ])("throws a ProviderHttpError for %s", (_label, body) => {
     const error = thrownBy(body);
 
-    expect(error).toBeInstanceOf(ProviderError);
-    const providerError = error as ProviderError;
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const providerError = error as ProviderHttpError;
     expect(providerError.message).toBe("OpenRouter response has no choices");
     expect(providerError.status).toBe(200);
     expect(providerError.body).toBe(JSON.stringify(body));

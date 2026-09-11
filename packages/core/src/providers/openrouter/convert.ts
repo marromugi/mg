@@ -113,7 +113,7 @@ export const toOpenRouterRequest = (
     stream,
   };
 
-  if (request.tools !== undefined) {
+  if (request.tools !== undefined && request.tools.length > 0) {
     body.tools = request.tools.map(toTool);
   }
   if (request.toolChoice !== undefined) {
@@ -148,6 +148,10 @@ const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
 
   if (typeof raw !== "string") {
     throw new ToolArgumentsError(toolCall.id, name, String(raw));
+  }
+
+  if (raw.trim() === "") {
+    return { id: toolCall.id, name, arguments: {} };
   }
 
   try {

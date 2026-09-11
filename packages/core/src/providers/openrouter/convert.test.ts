@@ -173,6 +173,12 @@ describe("toOpenRouterRequest", () => {
     expect(Object.hasOwn(body, "tools")).toBe(false);
   });
 
+  test("omits tools when the tool list is empty", () => {
+    const body = toOpenRouterRequest(request({ tools: [] }), false) as RequestBody;
+
+    expect(Object.hasOwn(body, "tools")).toBe(false);
+  });
+
   test.each<[ToolChoice, unknown]>([
     ["auto", "auto"],
     ["none", "none"],
@@ -323,23 +329,27 @@ describe("fromOpenRouterResponse", () => {
     expect(toolArgumentsError.raw).toBe("{ not json");
   });
 
-  test("throws when tool call arguments are an empty string", () => {
-    const error = thrownBy(
-      responseBody({
-        content: null,
-        tool_calls: [
-          {
-            id: "call-1",
-            type: "function",
-            function: { name: "weather", arguments: "" },
-          },
-        ],
-      }),
-    );
+  test.each([["", "an empty string"], [" \n ", "only whitespace"]])(
+    "reads tool call arguments of %j (%s) as no arguments",
+    (raw) => {
+      const response = fromOpenRouterResponse(
+        responseBody({
+          content: null,
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "weather", arguments: raw },
+            },
+          ],
+        }),
+      );
 
-    expect(error).toBeInstanceOf(ToolArgumentsError);
-    expect((error as ToolArgumentsError).raw).toBe("");
-  });
+      expect(response.toolCalls).toEqual([
+        { id: "call-1", name: "weather", arguments: {} },
+      ]);
+    },
+  );
 
   test("throws when the tool call has no function", () => {
     const error = thrownBy(

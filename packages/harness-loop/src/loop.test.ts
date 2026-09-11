@@ -252,4 +252,58 @@ describe("createLoopHarness", () => {
     });
     expect(provider.generate).toHaveBeenCalledTimes(2);
   });
+
+  test("a failing tool call yields an error message and the loop continues", async () => {
+    const toolA: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute: async () => {
+        throw new Error("boom");
+      },
+    });
+    const toolB: Tool = defineTool({ name: "b", input: stubSchema(), execute: async () => "b-result" });
+
+    const toolCalls: ToolCall[] = [
+      { id: "call-1", name: "a", arguments: {} },
+      { id: "call-2", name: "b", arguments: {} },
+    ];
+    const provider = stubProvider([
+      { content: "", toolCalls, finishReason: "tool_calls" },
+      { content: "done", toolCalls: [], finishReason: "stop" },
+    ]);
+    const harness = createLoopHarness({ provider, model: "m", tools: [toolA, toolB], maxTurns: 5 });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    const toolResults = events.filter(
+      (event): event is Extract<HarnessEvent, { type: "tool-result" }> => event.type === "tool-result",
+    );
+    expect(toolResults).toEqual([
+      { type: "tool-result", message: { role: "tool", toolCallId: "call-1", content: "[Error] boom" } },
+      { type: "tool-result", message: { role: "tool", toolCallId: "call-2", content: "b-result" } },
+    ]);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: "done", result: { reason: "stop" } });
+  });
+
+  test("an AbortError thrown by execute rejects the harness with the same error", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute: async () => {
+        throw abortError;
+      },
+    });
+    const toolCall: ToolCall = { id: "call-1", name: "a", arguments: {} };
+    const provider = stubProvider([{ content: "", toolCalls: [toolCall], finishReason: "tool_calls" }]);
+    const harness = createLoopHarness({ provider, model: "m", tools: [tool], maxTurns: 2 });
+
+    const error = await collect(harness({ messages: [] })).catch((thrown: unknown) => thrown);
+
+    expect(error).toBe(abortError);
+  });
 });

@@ -1,6 +1,10 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, test } from "vitest";
-import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
+import {
+  ProviderHttpError,
+  ToolArgumentsError,
+  ToolSchemaError,
+} from "../errors.js";
 import type {
   FinishReason,
   GenerateRequest,
@@ -167,6 +171,40 @@ describe("toOpenRouterRequest", () => {
     expect(targets).toEqual(["draft-07"]);
   });
 
+  test("throws a ToolSchemaError when the schema converter throws", () => {
+    const failure = new Error("unsupported target");
+    const failingSchema = {
+      "~standard": {
+        version: 1,
+        vendor: "mg-test",
+        jsonSchema: {
+          input: (_options: StandardJSONSchemaV1.Options) => {
+            throw failure;
+          },
+          output: (_options: StandardJSONSchemaV1.Options) => ({
+            type: "string",
+          }),
+        },
+      },
+    } as const satisfies StandardJSONSchemaV1;
+    const failingTool: ToolDefinition = {
+      name: "weather",
+      input: failingSchema,
+    };
+
+    let error: unknown;
+    try {
+      toOpenRouterRequest(request({ tools: [failingTool] }), false);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(ToolSchemaError);
+    const toolSchemaError = error as ToolSchemaError;
+    expect(toolSchemaError.toolName).toBe("weather");
+    expect(toolSchemaError.cause).toBe(failure);
+  });
+
   test("omits tools when the request has none", () => {
     const body = toOpenRouterRequest(request(), false) as RequestBody;
 
@@ -327,6 +365,7 @@ describe("fromOpenRouterResponse", () => {
     expect(toolArgumentsError.toolCallId).toBe("call-1");
     expect(toolArgumentsError.toolName).toBe("weather");
     expect(toolArgumentsError.raw).toBe("{ not json");
+    expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
   });
 
   test.each([["", "an empty string"], [" \n ", "only whitespace"]])(
@@ -364,6 +403,7 @@ describe("fromOpenRouterResponse", () => {
     expect(toolArgumentsError.toolCallId).toBe("call-1");
     expect(toolArgumentsError.toolName).toBe("");
     expect(toolArgumentsError.raw).toBe("undefined");
+    expect(toolArgumentsError.cause).toBeUndefined();
   });
 
   test("throws when tool call arguments are not a string", () => {
@@ -384,6 +424,7 @@ describe("fromOpenRouterResponse", () => {
     const toolArgumentsError = error as ToolArgumentsError;
     expect(toolArgumentsError.toolName).toBe("weather");
     expect(toolArgumentsError.raw).toBe("[object Object]");
+    expect(toolArgumentsError.cause).toBeUndefined();
   });
 
   test.each<[string, unknown]>([

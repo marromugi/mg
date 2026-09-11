@@ -1,4 +1,4 @@
-import { ProviderHttpError } from "../errors.js";
+import { ProviderHttpError, ProviderTransportError } from "../errors.js";
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -8,6 +8,14 @@ import type {
 import { fromOpenRouterResponse, toOpenRouterRequest } from "./convert.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+
+const isAbortError = (cause: unknown): boolean =>
+  typeof cause === "object" &&
+  cause !== null &&
+  (cause as { name?: unknown }).name === "AbortError";
+
+const transportFailure = (cause: unknown, message: string): unknown =>
+  isAbortError(cause) ? cause : new ProviderTransportError(message, { cause });
 
 export type OpenRouterOptions = {
   apiKey: string;
@@ -30,13 +38,25 @@ export const createOpenRouterProvider = (
     headers.set("Authorization", `Bearer ${options.apiKey}`);
     headers.set("Content-Type", "application/json");
 
-    const response = await doFetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(toOpenRouterRequest(request, false)),
-    });
+    const requestBody = JSON.stringify(toOpenRouterRequest(request, false));
 
-    const text = await response.text();
+    let response: Response;
+    try {
+      response = await doFetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: requestBody,
+      });
+    } catch (cause) {
+      throw transportFailure(cause, "OpenRouter request failed to send");
+    }
+
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (cause) {
+      throw transportFailure(cause, "OpenRouter response failed to read");
+    }
 
     if (!response.ok) {
       throw new ProviderHttpError(

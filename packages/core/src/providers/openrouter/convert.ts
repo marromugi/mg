@@ -1,4 +1,8 @@
-import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
+import {
+  ProviderHttpError,
+  ToolArgumentsError,
+  ToolSchemaError,
+} from "../errors.js";
 import type {
   FinishReason,
   GenerateRequest,
@@ -87,16 +91,25 @@ const toMessage = (message: Message): OpenRouterMessage => {
   }
 };
 
-const toTool = (tool: ToolDefinition): OpenRouterTool => ({
-  type: "function",
-  function: {
-    name: tool.name,
-    description: tool.description,
-    parameters: tool.input["~standard"].jsonSchema.input({
+const toTool = (tool: ToolDefinition): OpenRouterTool => {
+  let parameters: Record<string, unknown>;
+  try {
+    parameters = tool.input["~standard"].jsonSchema.input({
       target: "draft-07",
-    }),
-  },
-});
+    });
+  } catch (cause) {
+    throw new ToolSchemaError(tool.name, { cause });
+  }
+
+  return {
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters,
+    },
+  };
+};
 
 const toToolChoice = (toolChoice: ToolChoice): OpenRouterToolChoice =>
   typeof toolChoice === "string"
@@ -156,8 +169,8 @@ const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
 
   try {
     return { id: toolCall.id, name, arguments: JSON.parse(raw) };
-  } catch {
-    throw new ToolArgumentsError(toolCall.id, name, raw);
+  } catch (cause) {
+    throw new ToolArgumentsError(toolCall.id, name, raw, { cause });
   }
 };
 

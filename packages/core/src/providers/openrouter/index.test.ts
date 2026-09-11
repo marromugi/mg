@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
+import {
+  ProviderHttpError,
+  ProviderTransportError,
+  ToolArgumentsError,
+} from "../errors.js";
 import type { GenerateRequest } from "../types.js";
 import { createOpenRouterProvider } from "./index.js";
 
@@ -181,6 +185,68 @@ describe("createOpenRouterProvider", () => {
     expect(providerError.body).toBe(JSON.stringify(body));
   });
 
+  test("throws a ProviderTransportError when the request cannot be sent", async () => {
+    const failure = new TypeError("fetch failed", {
+      cause: new Error("ENOTFOUND"),
+    });
+    const { fetchStub } = stubFetch(() => {
+      throw failure;
+    });
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    const transportError = error as ProviderTransportError;
+    expect(transportError.message).toBe("OpenRouter request failed to send");
+    expect(transportError.cause).toBe(failure);
+  });
+
+  test("throws a ProviderTransportError when the answer cannot be read", async () => {
+    const failure = new Error("connection reset");
+    const { fetchStub } = stubFetch(
+      () =>
+        new Response(
+          new ReadableStream({
+            start: (controller) => {
+              controller.error(failure);
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    const transportError = error as ProviderTransportError;
+    expect(transportError.message).toBe("OpenRouter response failed to read");
+    expect(transportError.cause).toBe(failure);
+  });
+
+  test("passes an abort through without wrapping it", async () => {
+    const abort = new Error("The operation was aborted");
+    abort.name = "AbortError";
+    const { fetchStub } = stubFetch(() => {
+      throw abort;
+    });
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toBe(abort);
+  });
+
   test("throws a ToolArgumentsError when tool call arguments are not JSON", async () => {
     const { fetchStub } = stubFetch(() =>
       jsonResponse({
@@ -213,5 +279,6 @@ describe("createOpenRouterProvider", () => {
     expect(toolArgumentsError.toolCallId).toBe("call-1");
     expect(toolArgumentsError.toolName).toBe("weather");
     expect(toolArgumentsError.raw).toBe("{ not json");
+    expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
   });
 });

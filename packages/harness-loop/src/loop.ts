@@ -10,6 +10,7 @@ import type {
   Usage,
 } from "@mg/core";
 import type { Harness, HarnessEvent } from "@mg/harness";
+import { StreamIncompleteError } from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
 
 export type LoopHarnessOptions = {
@@ -81,7 +82,7 @@ async function* runStreamedTurn(
   }
 
   if (finishReason === undefined) {
-    throw new Error("provider.stream ended without a finish event");
+    throw new StreamIncompleteError();
   }
 
   return {

@@ -1,6 +1,6 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, test } from "vitest";
-import { ToolArgumentsError } from "../errors.js";
+import { ProviderError, ToolArgumentsError } from "../errors.js";
 import type {
   FinishReason,
   GenerateRequest,
@@ -293,29 +293,110 @@ describe("fromOpenRouterResponse", () => {
     expect(Object.hasOwn(response, "usage")).toBe(false);
   });
 
-  test("throws when tool call arguments are not JSON", () => {
-    const call = () =>
-      fromOpenRouterResponse(
-        responseBody({
-          content: null,
-          tool_calls: [
-            {
-              id: "call-1",
-              type: "function",
-              function: { name: "weather", arguments: "{ not json" },
-            },
-          ],
-        }),
-      );
-
-    expect(call).toThrow(ToolArgumentsError);
+  const thrownBy = (body: unknown): unknown => {
     try {
-      call();
+      fromOpenRouterResponse(body);
     } catch (error) {
-      const toolArgumentsError = error as ToolArgumentsError;
-      expect(toolArgumentsError.toolCallId).toBe("call-1");
-      expect(toolArgumentsError.toolName).toBe("weather");
-      expect(toolArgumentsError.raw).toBe("{ not json");
+      return error;
     }
+    return undefined;
+  };
+
+  test("throws when tool call arguments are not JSON", () => {
+    const error = thrownBy(
+      responseBody({
+        content: null,
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "weather", arguments: "{ not json" },
+          },
+        ],
+      }),
+    );
+
+    expect(error).toBeInstanceOf(ToolArgumentsError);
+    const toolArgumentsError = error as ToolArgumentsError;
+    expect(toolArgumentsError.toolCallId).toBe("call-1");
+    expect(toolArgumentsError.toolName).toBe("weather");
+    expect(toolArgumentsError.raw).toBe("{ not json");
+  });
+
+  test("throws when tool call arguments are an empty string", () => {
+    const error = thrownBy(
+      responseBody({
+        content: null,
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "weather", arguments: "" },
+          },
+        ],
+      }),
+    );
+
+    expect(error).toBeInstanceOf(ToolArgumentsError);
+    expect((error as ToolArgumentsError).raw).toBe("");
+  });
+
+  test("throws when the tool call has no function", () => {
+    const error = thrownBy(
+      responseBody({
+        content: null,
+        tool_calls: [{ id: "call-1", type: "function" }],
+      }),
+    );
+
+    expect(error).toBeInstanceOf(ToolArgumentsError);
+    const toolArgumentsError = error as ToolArgumentsError;
+    expect(toolArgumentsError.toolCallId).toBe("call-1");
+    expect(toolArgumentsError.toolName).toBe("");
+    expect(toolArgumentsError.raw).toBe("undefined");
+  });
+
+  test("throws when tool call arguments are not a string", () => {
+    const error = thrownBy(
+      responseBody({
+        content: null,
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "weather", arguments: { city: "Tokyo" } },
+          },
+        ],
+      }),
+    );
+
+    expect(error).toBeInstanceOf(ToolArgumentsError);
+    const toolArgumentsError = error as ToolArgumentsError;
+    expect(toolArgumentsError.toolName).toBe("weather");
+    expect(toolArgumentsError.raw).toBe("[object Object]");
+  });
+
+  test.each<[string, unknown]>([
+    ["a body that is not an object", "not an object"],
+    ["a null body", null],
+    ["a body without choices", { id: "gen-1" }],
+    ["an empty choice list", { choices: [] }],
+    [
+      "an error envelope",
+      { error: { code: 502, message: "Provider returned error" } },
+    ],
+    ["a choice without a message", { choices: [{ finish_reason: "stop" }] }],
+    [
+      "a choice with a null message",
+      { choices: [{ message: null, finish_reason: "stop" }] },
+    ],
+  ])("throws a ProviderError for %s", (_label, body) => {
+    const error = thrownBy(body);
+
+    expect(error).toBeInstanceOf(ProviderError);
+    const providerError = error as ProviderError;
+    expect(providerError.message).toBe("OpenRouter response has no choices");
+    expect(providerError.status).toBe(200);
+    expect(providerError.body).toBe(JSON.stringify(body));
   });
 });

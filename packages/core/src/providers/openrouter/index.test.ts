@@ -46,12 +46,12 @@ describe("createOpenRouterProvider", () => {
     const call = calls[0]!;
     expect(call.url).toBe("https://openrouter.ai/api/v1/chat/completions");
     expect(call.init?.method).toBe("POST");
-    expect(call.init?.headers).toEqual({
-      Authorization: "Bearer test-key",
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://example.test",
-      "X-Title": "mg",
-    });
+    expect([...new Headers(call.init?.headers)].sort()).toEqual([
+      ["authorization", "Bearer test-key"],
+      ["content-type", "application/json"],
+      ["http-referer", "https://example.test"],
+      ["x-title", "mg"],
+    ]);
     expect(JSON.parse(String(call.init?.body))).toEqual({
       model: "openai/gpt-4o",
       messages: [{ role: "user", content: "weather?" }],
@@ -60,17 +60,54 @@ describe("createOpenRouterProvider", () => {
     });
   });
 
-  test("uses the given base URL", async () => {
+  test("keeps the fixed headers when a caller header differs only in case", async () => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
-      baseUrl: "https://proxy.test/v1",
+      headers: { authorization: "Bearer other", "content-type": "text/plain" },
       fetch: fetchStub,
     });
 
     await provider.generate(request);
 
-    expect(calls[0]!.url).toBe("https://proxy.test/v1/chat/completions");
+    const headers = [...new Headers(calls[0]!.init?.headers)];
+    expect(headers.filter(([name]) => name === "authorization")).toEqual([
+      ["authorization", "Bearer test-key"],
+    ]);
+    expect(headers.filter(([name]) => name === "content-type")).toEqual([
+      ["content-type", "application/json"],
+    ]);
+  });
+
+  test.each([
+    ["https://proxy.test/v1", "https://proxy.test/v1/chat/completions"],
+    ["https://example.test/v1/", "https://example.test/v1/chat/completions"],
+  ])("uses the given base URL %s", async (baseUrl, expected) => {
+    const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      baseUrl,
+      fetch: fetchStub,
+    });
+
+    await provider.generate(request);
+
+    expect(calls[0]!.url).toBe(expected);
+  });
+
+  test("resolves the global fetch at call time", async () => {
+    const provider = createOpenRouterProvider({ apiKey: "test-key" });
+    const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
+    const original = globalThis.fetch;
+
+    globalThis.fetch = fetchStub;
+    try {
+      await provider.generate(request);
+    } finally {
+      globalThis.fetch = original;
+    }
+
+    expect(calls).toHaveLength(1);
   });
 
   test("returns the converted response", async () => {
@@ -104,6 +141,44 @@ describe("createOpenRouterProvider", () => {
     expect(providerError.message).toBe("OpenRouter request failed: 429");
     expect(providerError.status).toBe(429);
     expect(providerError.body).toBe("rate limited");
+  });
+
+  test("throws a ProviderError when a 2xx body is not JSON", async () => {
+    const { fetchStub } = stubFetch(
+      () =>
+        new Response("<html>maintenance</html>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderError);
+    const providerError = error as ProviderError;
+    expect(providerError.message).toBe("OpenRouter response is not JSON");
+    expect(providerError.status).toBe(200);
+    expect(providerError.body).toBe("<html>maintenance</html>");
+  });
+
+  test("throws a ProviderError when the answer carries no choices", async () => {
+    const body = { error: { code: 502, message: "Provider returned error" } };
+    const { fetchStub } = stubFetch(() => jsonResponse(body));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderError);
+    const providerError = error as ProviderError;
+    expect(providerError.message).toBe("OpenRouter response has no choices");
+    expect(providerError.body).toBe(JSON.stringify(body));
   });
 
   test("throws a ToolArgumentsError when tool call arguments are not JSON", async () => {

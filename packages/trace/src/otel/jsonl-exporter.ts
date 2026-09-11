@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { dirname } from "node:path";
 import type { Attributes, HrTime } from "@opentelemetry/api";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 
@@ -50,9 +51,11 @@ const toJsonlSpan = (span: ReadableSpan): JsonlSpan => {
 type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
 
 export class JsonlSpanExporter implements SpanExporter {
-  private pending: Promise<void> = Promise.resolve();
+  private pending: Promise<void>;
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly path: string) {
+    this.pending = fs.mkdir(dirname(path), { recursive: true }).then(() => undefined);
+  }
 
   export(spans: ReadableSpan[], resultCallback: ExportResultCallback): void {
     const lines = spans.map((span) => `${JSON.stringify(toJsonlSpan(span))}\n`).join("");

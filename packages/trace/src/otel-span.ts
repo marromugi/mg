@@ -1,36 +1,38 @@
 import { ROOT_CONTEXT, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { Span, Tracer } from "@opentelemetry/api";
+import { noopSpan } from "@mg/harness";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 
-export class OtelSpan implements TraceSpan {
+class OtelSpan implements TraceSpan {
   constructor(
     private readonly tracer: Tracer,
     private readonly span: Span,
   ) {}
 
   startSpan(name: string, attributes?: TraceAttributes): TraceSpan {
-    const child = this.tracer.startSpan(
-      name,
-      { attributes },
-      trace.setSpan(ROOT_CONTEXT, this.span),
-    );
-    return new OtelSpan(this.tracer, child);
+    try {
+      const child = this.tracer.startSpan(
+        name,
+        { attributes },
+        trace.setSpan(ROOT_CONTEXT, this.span),
+      );
+      return new OtelSpan(this.tracer, child);
+    } catch {
+      return noopSpan;
+    }
   }
 
   setAttributes(attributes: TraceAttributes): void {
+    // Recording must never break the caller: every span call below is guarded.
     try {
       this.span.setAttributes(attributes);
-    } catch {
-      // recording must never break the caller
-    }
+    } catch {}
   }
 
   addEvent(name: string, attributes?: TraceAttributes): void {
     try {
       this.span.addEvent(name, attributes);
-    } catch {
-      // recording must never break the caller
-    }
+    } catch {}
   }
 
   end(error?: unknown): void {
@@ -43,10 +45,11 @@ export class OtelSpan implements TraceSpan {
           message: error instanceof Error ? error.message : String(error),
         });
       }
+    } catch {}
+
+    try {
       this.span.end();
-    } catch {
-      // recording must never break the caller
-    }
+    } catch {}
   }
 }
 
@@ -55,6 +58,10 @@ export const startRootSpan = (
   name: string,
   attributes?: TraceAttributes,
 ): TraceSpan => {
-  const span = tracer.startSpan(name, { attributes }, ROOT_CONTEXT);
-  return new OtelSpan(tracer, span);
+  try {
+    const span = tracer.startSpan(name, { attributes }, ROOT_CONTEXT);
+    return new OtelSpan(tracer, span);
+  } catch {
+    return noopSpan;
+  }
 };

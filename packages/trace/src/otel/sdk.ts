@@ -29,6 +29,9 @@ export const createTraceSdk = (options: TraceSdkOptions = {}): TraceSdk => {
 
   return {
     tracer: provider.getTracer(options.serviceName ?? "mg"),
-    shutdown: () => provider.shutdown(),
+    shutdown: async () => {
+      await provider.forceFlush();
+      await provider.shutdown();
+    },
   };
 };

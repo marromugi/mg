@@ -5,7 +5,9 @@ import type {
   Provider,
   StreamEvent,
 } from "../types.js";
+import { readSseData } from "../sse.js";
 import { fromOpenRouterResponse, toOpenRouterRequest } from "./convert.js";
+import { toStreamEvents } from "./stream.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -16,6 +18,25 @@ const isAbortError = (cause: unknown): boolean =>
 
 const transportFailure = (cause: unknown, message: string): unknown =>
   isAbortError(cause) ? cause : new ProviderTransportError(message, { cause });
+
+const readText = async (response: Response): Promise<string> => {
+  try {
+    return await response.text();
+  } catch (cause) {
+    throw transportFailure(cause, "OpenRouter response failed to read");
+  }
+};
+
+async function* readPayloads(
+  body: ReadableStream<Uint8Array> | null,
+): AsyncGenerator<string> {
+  if (body === null) return;
+  try {
+    yield* readSseData(body);
+  } catch (cause) {
+    throw transportFailure(cause, "OpenRouter stream failed to read");
+  }
+}
 
 export type OpenRouterOptions = {
   apiKey: string;
@@ -29,16 +50,17 @@ export const createOpenRouterProvider = (
 ): Provider => {
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
 
-  const generate = async (
+  const send = async (
     request: GenerateRequest,
-  ): Promise<GenerateResponse> => {
+    stream: boolean,
+  ): Promise<Response> => {
     const doFetch = options.fetch ?? globalThis.fetch;
 
     const headers = new Headers(options.headers);
     headers.set("Authorization", `Bearer ${options.apiKey}`);
     headers.set("Content-Type", "application/json");
 
-    const requestBody = JSON.stringify(toOpenRouterRequest(request, false));
+    const requestBody = JSON.stringify(toOpenRouterRequest(request, stream));
 
     let response: Response;
     try {
@@ -51,20 +73,23 @@ export const createOpenRouterProvider = (
       throw transportFailure(cause, "OpenRouter request failed to send");
     }
 
-    let text: string;
-    try {
-      text = await response.text();
-    } catch (cause) {
-      throw transportFailure(cause, "OpenRouter response failed to read");
-    }
-
     if (!response.ok) {
+      const text = await readText(response);
       throw new ProviderHttpError(
         `OpenRouter request failed: ${response.status}`,
         response.status,
         text,
       );
     }
+
+    return response;
+  };
+
+  const generate = async (
+    request: GenerateRequest,
+  ): Promise<GenerateResponse> => {
+    const response = await send(request, false);
+    const text = await readText(response);
 
     let body: unknown;
     try {
@@ -80,9 +105,10 @@ export const createOpenRouterProvider = (
     return fromOpenRouterResponse(body);
   };
 
-  const stream = (_request: GenerateRequest): AsyncIterable<StreamEvent> => {
-    throw new Error("not implemented");
-  };
+  async function* stream(request: GenerateRequest): AsyncGenerator<StreamEvent> {
+    const response = await send(request, true);
+    yield* toStreamEvents(readPayloads(response.body));
+  }
 
   return { generate, stream };
 };

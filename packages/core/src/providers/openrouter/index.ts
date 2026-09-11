@@ -39,39 +39,49 @@ export const createOpenRouterProvider = (
     return headers;
   };
 
-  const generate = async (
-    request: GenerateRequest,
-  ): Promise<GenerateResponse> => {
+  const send = async (requestBody: string): Promise<Response> => {
     const doFetch = options.fetch ?? globalThis.fetch;
-
-    const headers = buildHeaders();
-
-    const requestBody = JSON.stringify(toOpenRouterRequest(request, false));
 
     let response: Response;
     try {
       response = await doFetch(url, {
         method: "POST",
-        headers,
+        headers: buildHeaders(),
         body: requestBody,
       });
     } catch (cause) {
       throw transportFailure(cause, "OpenRouter request failed to send");
     }
 
-    let text: string;
-    try {
-      text = await response.text();
-    } catch (cause) {
-      throw transportFailure(cause, "OpenRouter response failed to read");
-    }
-
     if (!response.ok) {
+      let text: string;
+      try {
+        text = await response.text();
+      } catch (cause) {
+        throw transportFailure(cause, "OpenRouter response failed to read");
+      }
       throw new ProviderHttpError(
         `OpenRouter request failed: ${response.status}`,
         response.status,
         text,
       );
+    }
+
+    return response;
+  };
+
+  const generate = async (
+    request: GenerateRequest,
+  ): Promise<GenerateResponse> => {
+    const response = await send(
+      JSON.stringify(toOpenRouterRequest(request, false)),
+    );
+
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (cause) {
+      throw transportFailure(cause, "OpenRouter response failed to read");
     }
 
     let body: unknown;
@@ -101,39 +111,9 @@ export const createOpenRouterProvider = (
   async function* runStream(
     request: GenerateRequest,
   ): AsyncGenerator<StreamEvent> {
-    const doFetch = options.fetch ?? globalThis.fetch;
-
-    const headers = buildHeaders();
-
-    const requestBody = JSON.stringify({
-      ...toOpenRouterRequest(request, true),
-      stream_options: { include_usage: true },
-    });
-
-    let response: Response;
-    try {
-      response = await doFetch(url, {
-        method: "POST",
-        headers,
-        body: requestBody,
-      });
-    } catch (cause) {
-      throw transportFailure(cause, "OpenRouter request failed to send");
-    }
-
-    if (!response.ok) {
-      let text: string;
-      try {
-        text = await response.text();
-      } catch (cause) {
-        throw transportFailure(cause, "OpenRouter response failed to read");
-      }
-      throw new ProviderHttpError(
-        `OpenRouter request failed: ${response.status}`,
-        response.status,
-        text,
-      );
-    }
+    const response = await send(
+      JSON.stringify(toOpenRouterRequest(request, true)),
+    );
 
     const body = response.body;
     if (body === null) {

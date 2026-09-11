@@ -224,6 +224,22 @@ describe("toStreamEvents", () => {
     expect(httpError.cause).toBeInstanceOf(SyntaxError);
   });
 
+  test("throws a ProviderHttpError when a payload carries an error instead of choices", async () => {
+    const payload = JSON.stringify({
+      error: { code: 502, message: "upstream is down" },
+    });
+
+    const error = await collect([textChunk("hi"), payload]).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const httpError = error as ProviderHttpError;
+    expect(httpError.message).toBe("OpenRouter stream chunk has no choices");
+    expect(httpError.status).toBe(200);
+    expect(httpError.body).toBe(payload);
+  });
+
   test("passes an error from the payload source through untouched", async () => {
     const failure = new Error("connection reset");
     const payloads = (async function* () {

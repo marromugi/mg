@@ -60,6 +60,15 @@ describe("toOpenRouterRequest", () => {
     });
   });
 
+  test("asks for the usage only when the answer is streamed", () => {
+    expect(toOpenRouterRequest(request(), true)).toMatchObject({
+      stream_options: { include_usage: true },
+    });
+    expect(toOpenRouterRequest(request(), false)).not.toHaveProperty(
+      "stream_options",
+    );
+  });
+
   test("maps a system message", () => {
     const body = toOpenRouterRequest(
       request({ messages: [{ role: "system", content: "be brief" }] }),

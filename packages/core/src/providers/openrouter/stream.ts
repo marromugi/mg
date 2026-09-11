@@ -9,14 +9,16 @@ type OpenRouterChunkToolCall = {
   function?: { name?: string; arguments?: string } | null;
 };
 
+type OpenRouterChunkChoice = {
+  delta?: {
+    content?: string | null;
+    tool_calls?: OpenRouterChunkToolCall[] | null;
+  } | null;
+  finish_reason?: string | null;
+};
+
 type OpenRouterChunk = {
-  choices?: {
-    delta?: {
-      content?: string | null;
-      tool_calls?: OpenRouterChunkToolCall[] | null;
-    } | null;
-    finish_reason?: string | null;
-  }[];
+  choices?: OpenRouterChunkChoice[] | null;
   usage?: { prompt_tokens: number; completion_tokens: number } | null;
 };
 
@@ -55,7 +57,14 @@ export async function* toStreamEvents(
 
   for await (const payload of payloads) {
     const chunk = parseChunk(payload);
-    const choice = chunk.choices?.[0];
+    if (chunk.choices === undefined || chunk.choices === null) {
+      throw new ProviderHttpError(
+        "OpenRouter stream chunk has no choices",
+        200,
+        payload,
+      );
+    }
+    const choice = chunk.choices[0];
     const delta = choice?.delta;
 
     const content = delta?.content;
@@ -87,9 +96,8 @@ export async function* toStreamEvents(
     }
   }
 
-  const indexes = [...pending.keys()].sort((left, right) => left - right);
-  for (const index of indexes) {
-    const accumulated = pending.get(index)!;
+  const accumulatedCalls = [...pending.entries()].sort(([a], [b]) => a - b);
+  for (const [, accumulated] of accumulatedCalls) {
     yield {
       type: "tool-call",
       toolCall: toToolCall({
@@ -99,9 +107,9 @@ export async function* toStreamEvents(
     };
   }
 
-  if (usage === undefined) {
-    yield { type: "finish", finishReason: finishReason ?? "other" };
-    return;
-  }
-  yield { type: "finish", finishReason: finishReason ?? "other", usage };
+  yield {
+    type: "finish",
+    finishReason: finishReason ?? "other",
+    ...(usage !== undefined && { usage }),
+  };
 }

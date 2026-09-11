@@ -126,6 +126,9 @@ export const toOpenRouterRequest = (
     stream,
   };
 
+  if (stream) {
+    body.stream_options = { include_usage: true };
+  }
   if (request.tools !== undefined && request.tools.length > 0) {
     body.tools = request.tools.map(toTool);
   }

@@ -1,6 +1,7 @@
-import type { ExportResult } from "@opentelemetry/core";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { mapGenAiAttributes } from "./genai-mapping.js";
+
+type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
 
 const withGenAiAttributes = (span: ReadableSpan): ReadableSpan =>
   Object.create(span, {
@@ -13,10 +14,7 @@ const withGenAiAttributes = (span: ReadableSpan): ReadableSpan =>
 export class GenAiMappingExporter implements SpanExporter {
   constructor(private readonly inner: SpanExporter) {}
 
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ): void {
+  export(spans: ReadableSpan[], resultCallback: ExportResultCallback): void {
     this.inner.export(spans.map(withGenAiAttributes), resultCallback);
   }
 

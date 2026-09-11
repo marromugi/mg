@@ -26,6 +26,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/core`](packages/core/README.md) | 接続先の抽象化と、道具の共通の型 |
 | [`@mg/tools`](packages/tools/README.md) | ハーネスが共通で使う組み込みの道具 |
 | [`@mg/harness`](packages/harness/README.md) | ハーネスが従う共通の入り口と出口の型 |
+| [`@mg/trace`](packages/trace/README.md) | 記録の口の実体と、共通の語彙 |
 | [`@mg/harness-loop`](packages/harness-loop/README.md) | 道具の呼び出しを繰り返すループ型のハーネス |
 
 名前を選ぶと、各パッケージの README を読めます。
@@ -42,6 +43,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 1 つのハーネスだけで使う道具 | ハーネス（core の型で書く） |
 | 道具の呼び出しの繰り返し | harness-loop |
 | 検証の失敗を LLM にどう返すか | harness-loop |
+| 記録の語彙と保存先 | trace |
 | 形の軸のハーネスの部品（記憶、想起、振り返り、出し方） | harness-persona（これから作るもの） |
 
 迷ったときは、環境に依存するかを見ます。
@@ -54,26 +56,21 @@ LLM で動くエージェントのハーネスを試すための土台です。
 
 <table>
   <tr>
-    <td align="center" colspan="5"><code>@mg/harness-loop</code></td>
+    <td align="center" colspan="2"><code>@mg/harness-loop</code></td>
   </tr>
   <tr>
     <td align="center">↓</td>
-    <td></td>
-    <td align="center">↓</td>
-    <td></td>
     <td align="center">↓</td>
   </tr>
   <tr>
-    <td align="center"><code>@mg/tools</code></td>
-    <td align="center">→</td>
-    <td align="center"><code>@mg/core</code></td>
-    <td align="center">←</td>
-    <td align="center"><code>@mg/harness</code></td>
+    <td align="center"><code>@mg/tools</code> → <code>@mg/core</code></td>
+    <td align="center"><code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
   </tr>
 </table>
 
-- harness-loop は、core と tools と harness の 3 つを使います。
-- tools と harness は、それぞれ core を使います。
+- harness-loop は、4 つを使います。core と tools と harness と trace です。
+- trace は、harness と core を使います。
+- harness と tools は、それぞれ core を使います。
 - core は、このリポジトリの他のパッケージに依存しません。
 
 ## 開発

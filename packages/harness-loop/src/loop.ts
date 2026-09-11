@@ -11,6 +11,7 @@ import type {
 import { noopSpan } from "@mg/harness";
 import type { Harness, HarnessEvent, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN, traceProvider, traceRunToolCall } from "@mg/trace";
+import { StreamIncompleteError } from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
 
 export type LoopHarnessOptions = {
@@ -82,7 +83,7 @@ async function* runStreamedTurn(
   }
 
   if (finishReason === undefined) {
-    throw new Error("provider.stream ended without a finish event");
+    throw new StreamIncompleteError();
   }
 
   return {

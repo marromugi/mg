@@ -80,8 +80,6 @@ async function* runStreamedTurn(
   }
 
   if (finishReason === undefined) {
-    // Provider.stream's contract (packages/core/src/providers/types.ts) guarantees a
-    // "finish" event before the iterable ends; openrouter's implementation always emits one.
     throw new Error("provider.stream ended without a finish event");
   }
 

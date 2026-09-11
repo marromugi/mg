@@ -6,45 +6,40 @@ export async function* readSseData(
   const decoder = new TextDecoder();
   let buffer = "";
   let fields: string[] = [];
+  let exhausted = false;
 
-  function* flush(): Generator<string, boolean> {
-    if (fields.length === 0) return false;
+  function consume(raw: string): string | undefined {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (line !== "") {
+      if (line.startsWith("data:")) {
+        const value = line.slice("data:".length);
+        fields.push(value.startsWith(" ") ? value.slice(1) : value);
+      }
+      return undefined;
+    }
+    if (fields.length === 0) return undefined;
     const payload = fields.join("\n");
     fields = [];
-    if (payload === done) return true;
-    yield payload;
-    return false;
-  }
-
-  function* consume(raw: string): Generator<string, boolean> {
-    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    if (line === "") return yield* flush();
-    if (line.startsWith(":")) return false;
-    if (line.startsWith("data:")) {
-      const value = line.slice("data:".length);
-      fields.push(value.startsWith(" ") ? value.slice(1) : value);
-    }
-    return false;
+    return payload === "" ? undefined : payload;
   }
 
   try {
     for (;;) {
       const { value, done: finished } = await reader.read();
-      if (finished) break;
-      buffer += decoder.decode(value, { stream: true });
-      let index = buffer.indexOf("\n");
-      while (index !== -1) {
-        const line = buffer.slice(0, index);
-        buffer = buffer.slice(index + 1);
-        if (yield* consume(line)) return;
-        index = buffer.indexOf("\n");
+      exhausted ||= finished;
+      buffer += finished ? decoder.decode() : decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = finished ? "" : (lines.pop() ?? "");
+      if (finished) lines.push("");
+      for (const line of lines) {
+        const payload = consume(line);
+        if (payload === done) return;
+        if (payload !== undefined) yield payload;
       }
+      if (finished) return;
     }
-
-    buffer += decoder.decode();
-    if (buffer !== "" && (yield* consume(buffer))) return;
-    yield* flush();
   } finally {
+    if (!exhausted) await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

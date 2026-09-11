@@ -14,6 +14,24 @@ function streamOf(...chunks: Array<string | Uint8Array>): ReadableStream<Uint8Ar
   });
 }
 
+function openStreamOf(...chunks: Array<string | Uint8Array>): {
+  stream: ReadableStream<Uint8Array>;
+  cancelled: () => boolean;
+} {
+  let cancelled = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(typeof chunk === "string" ? encoder.encode(chunk) : chunk);
+      }
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  return { stream, cancelled: () => cancelled };
+}
+
 async function collect(stream: ReadableStream<Uint8Array>): Promise<string[]> {
   const payloads: string[] = [];
   for await (const payload of readSseData(stream)) {
@@ -40,6 +58,12 @@ describe("readSseData", () => {
     const stream = streamOf(bytes.slice(0, 3), bytes.slice(3, 13), bytes.slice(13));
 
     await expect(collect(stream)).resolves.toEqual(['{"t":"こんにちは"}']);
+  });
+
+  test("skips a comment between the data lines of one event", async () => {
+    const stream = streamOf("data: a\n: keepalive\ndata: b\n\n");
+
+    await expect(collect(stream)).resolves.toEqual(["a\nb"]);
   });
 
   test("skips comment lines", async () => {
@@ -74,6 +98,40 @@ describe("readSseData", () => {
 
   test("stops at the done marker and yields nothing after it", async () => {
     const stream = streamOf('data: {"n":1}\n\n', "data: [DONE]\n\n", 'data: {"n":2}\n\n');
+
+    await expect(collect(stream)).resolves.toEqual(['{"n":1}']);
+  });
+
+  test("stops at a done marker that arrives without a trailing newline", async () => {
+    const stream = streamOf('data: {"n":1}\n\ndata: [DONE]');
+
+    await expect(collect(stream)).resolves.toEqual(['{"n":1}']);
+  });
+
+  test("cancels the stream when it stops at the done marker", async () => {
+    const { stream, cancelled } = openStreamOf('data: {"n":1}\n\n', "data: [DONE]\n\n");
+
+    await expect(collect(stream)).resolves.toEqual(['{"n":1}']);
+    expect(cancelled()).toBe(true);
+    expect(stream.locked).toBe(false);
+  });
+
+  test("cancels the stream when the caller stops reading early", async () => {
+    const { stream, cancelled } = openStreamOf('data: {"n":1}\n\ndata: {"n":2}\n\n');
+
+    const seen: string[] = [];
+    for await (const payload of readSseData(stream)) {
+      seen.push(payload);
+      break;
+    }
+
+    expect(seen).toEqual(['{"n":1}']);
+    expect(cancelled()).toBe(true);
+    expect(stream.locked).toBe(false);
+  });
+
+  test("does not yield an event whose data is empty", async () => {
+    const stream = streamOf("data:\n\n", "data: \n\n", 'data: {"n":1}\n\n');
 
     await expect(collect(stream)).resolves.toEqual(['{"n":1}']);
   });

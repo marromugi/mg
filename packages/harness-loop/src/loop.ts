@@ -10,6 +10,7 @@ import type {
   Usage,
 } from "@mg/core";
 import type { Harness, HarnessEvent } from "@mg/harness";
+import { toolErrorToMessage } from "./tool-error.js";
 
 export type LoopHarnessOptions = {
   provider: Provider;
@@ -140,7 +141,12 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
       input.signal?.throwIfAborted();
 
       const results = await Promise.all(
-        turnResult.toolCalls.map((call) => runToolCall(options.tools ?? [], call, { signal: input.signal })),
+        turnResult.toolCalls.map((call) =>
+          runToolCall(options.tools ?? [], call, { signal: input.signal }).catch((error: unknown) => {
+            if (error instanceof Error && error.name === "AbortError") throw error;
+            return toolErrorToMessage(call, error);
+          }),
+        ),
       );
       for (const result of results) {
         messages.push(result);

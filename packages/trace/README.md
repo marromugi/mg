@@ -102,7 +102,9 @@ const harness = createLoopHarness({
 });
 
 const result = await collect(harness({ messages: [{ role: "user", content: "..." }], trace }));
+trace.end();
 await sdk.shutdown();
 ```
 
+根の期間は、`end` で閉じないと書き出されません。
 `sdk.shutdown()` は、たまった記録を書き出してから終わります。

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ProviderError, ToolArgumentsError } from "../errors.js";
+import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
 import type { GenerateRequest } from "../types.js";
 import { createOpenRouterProvider } from "./index.js";
 
@@ -125,7 +125,7 @@ describe("createOpenRouterProvider", () => {
     });
   });
 
-  test("throws a ProviderError carrying the status and the body", async () => {
+  test("throws a ProviderHttpError carrying the status and the body", async () => {
     const { fetchStub } = stubFetch(
       () => new Response("rate limited", { status: 429 }),
     );
@@ -136,14 +136,14 @@ describe("createOpenRouterProvider", () => {
 
     const error = await provider.generate(request).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderError);
-    const providerError = error as ProviderError;
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const providerError = error as ProviderHttpError;
     expect(providerError.message).toBe("OpenRouter request failed: 429");
     expect(providerError.status).toBe(429);
     expect(providerError.body).toBe("rate limited");
   });
 
-  test("throws a ProviderError when a 2xx body is not JSON", async () => {
+  test("throws a ProviderHttpError when a 2xx body is not JSON", async () => {
     const { fetchStub } = stubFetch(
       () =>
         new Response("<html>maintenance</html>", {
@@ -158,14 +158,14 @@ describe("createOpenRouterProvider", () => {
 
     const error = await provider.generate(request).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderError);
-    const providerError = error as ProviderError;
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const providerError = error as ProviderHttpError;
     expect(providerError.message).toBe("OpenRouter response is not JSON");
     expect(providerError.status).toBe(200);
     expect(providerError.body).toBe("<html>maintenance</html>");
   });
 
-  test("throws a ProviderError when the answer carries no choices", async () => {
+  test("throws a ProviderHttpError when the answer carries no choices", async () => {
     const body = { error: { code: 502, message: "Provider returned error" } };
     const { fetchStub } = stubFetch(() => jsonResponse(body));
     const provider = createOpenRouterProvider({
@@ -175,8 +175,8 @@ describe("createOpenRouterProvider", () => {
 
     const error = await provider.generate(request).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderError);
-    const providerError = error as ProviderError;
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const providerError = error as ProviderHttpError;
     expect(providerError.message).toBe("OpenRouter response has no choices");
     expect(providerError.body).toBe(JSON.stringify(body));
   });

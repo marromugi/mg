@@ -1,4 +1,4 @@
-import { ProviderError, ToolArgumentsError } from "../errors.js";
+import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
 import type {
   FinishReason,
   GenerateRequest,
@@ -163,7 +163,7 @@ const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
 
 export const fromOpenRouterResponse = (body: unknown): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
-    throw new ProviderError(
+    throw new ProviderHttpError(
       "OpenRouter response has no choices",
       200,
       JSON.stringify(body),
@@ -175,7 +175,7 @@ export const fromOpenRouterResponse = (body: unknown): GenerateResponse => {
   const message = choice?.message;
 
   if (message === undefined || message === null) {
-    throw new ProviderError(
+    throw new ProviderHttpError(
       "OpenRouter response has no choices",
       200,
       JSON.stringify(body),

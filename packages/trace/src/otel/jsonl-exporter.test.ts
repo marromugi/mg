@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   BasicTracerProvider,
   SimpleSpanProcessor,
@@ -25,6 +26,10 @@ describe("JsonlSpanExporter", () => {
   const setup = () => {
     const exporter = new JsonlSpanExporter(jsonlPath);
     const provider = new BasicTracerProvider({
+      resource: resourceFromAttributes({
+        "session.id": "s1",
+        "service.name": "svc",
+      }),
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     });
     const tracer = provider.getTracer("test");
@@ -76,6 +81,27 @@ describe("JsonlSpanExporter", () => {
       { name: "did-something", time: expect.any(String), attributes: { count: 3 } },
     ]);
     expect(rootLine.status).toEqual({ code: 0 });
+  });
+
+  it("carries the resource's session id and service name on every line", async () => {
+    const { tracer, exporter } = setup();
+
+    const root = startRootSpan(tracer, "root");
+    const child = root.startSpan("child");
+    child.end();
+    root.end();
+
+    await exporter.shutdown();
+
+    const lines = readFileSync(jsonlPath, "utf8").trim().split("\n");
+    const spans = lines.map((line) => JSON.parse(line));
+    const rootLine = spans.find((span) => span.name === "root");
+    const childLine = spans.find((span) => span.name === "child");
+
+    expect(rootLine.sessionId).toBe("s1");
+    expect(rootLine.serviceName).toBe("svc");
+    expect(childLine.sessionId).toBe(rootLine.sessionId);
+    expect(childLine.serviceName).toBe(rootLine.serviceName);
   });
 
   it("resolves shutdown and can be called once more without error", async () => {

@@ -19,7 +19,7 @@ describe("createTraceSdk", () => {
 
   it("writes root and child spans to the jsonl file with matching parent/child ids", async () => {
     const jsonlPath = join(dir, "spans.jsonl");
-    const sdk = createTraceSdk({ jsonlPath });
+    const sdk = createTraceSdk({ jsonlPath, sessionId: "s1", serviceName: "svc" });
 
     const root = startRootSpan(sdk.tracer, "root", { "start.attr": "a" });
     root.addEvent("did-something", { count: 1 });
@@ -48,6 +48,9 @@ describe("createTraceSdk", () => {
     expect(typeof rootLine.startTime).toBe("string");
     expect(typeof rootLine.endTime).toBe("string");
     expect(rootLine.status.code).toBe(0);
+    expect(rootLine.sessionId).toBe("s1");
+    expect(rootLine.serviceName).toBe("svc");
+    expect(childLine.sessionId).toBe(rootLine.sessionId);
   });
 
   it("sends the same spans to additional exporters", async () => {
@@ -67,5 +70,37 @@ describe("createTraceSdk", () => {
   it("resolves shutdown and can be called once without error", async () => {
     const sdk = createTraceSdk();
     await expect(sdk.shutdown()).resolves.toBeUndefined();
+  });
+
+  it("puts the given session id and service name on every span's resource", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = createTraceSdk({ sessionId: "s1", serviceName: "svc", exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "root");
+    const child = root.startSpan("child");
+    child.end();
+    root.end();
+
+    const spans = inMemory.getFinishedSpans();
+    expect(spans).toHaveLength(2);
+    for (const span of spans) {
+      expect(span.resource.attributes["session.id"]).toBe("s1");
+      expect(span.resource.attributes["service.name"]).toBe("svc");
+    }
+    expect(sdk.sessionId).toBe("s1");
+
+    await sdk.shutdown();
+  });
+
+  it("generates a session id automatically when none is given", async () => {
+    const sdkA = createTraceSdk();
+    const sdkB = createTraceSdk();
+
+    expect(typeof sdkA.sessionId).toBe("string");
+    expect(sdkA.sessionId.length).toBeGreaterThan(0);
+    expect(sdkA.sessionId).not.toBe(sdkB.sessionId);
+
+    await sdkA.shutdown();
+    await sdkB.shutdown();
   });
 });

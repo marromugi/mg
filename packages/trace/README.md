@@ -41,13 +41,14 @@ LLM の呼び出しの記録は、接続先を包む部品が書きます。
 ### 語彙
 
 記録に書く名前は、`mg.` で始まるものだけです。
-期間の名前は、共通のものが 3 つあります。
+期間の名前は、共通のものが 4 つあります。
 
 | 定数 | 名前 | 意味 |
 | --- | --- | --- |
 | `SPAN.harness` | `mg.harness` | ハーネス全体の期間 |
 | `SPAN.llm` | `mg.llm` | LLM の呼び出しの期間 |
 | `SPAN.tool` | `mg.tool` | 道具の実行の期間 |
+| `SPAN.run` | `mg.run` | 走った 1 回分の期間 |
 
 ハーネス固有の期間は、`mg.<ハーネス名>.` で始めます。
 
@@ -55,8 +56,10 @@ LLM の呼び出しの記録は、接続先を包む部品が書きます。
 
 | 定数 | 名前 | 意味 |
 | --- | --- | --- |
-| `ATTR.op` | `mg.op` | 期間の種類（harness / llm / tool） |
+| `ATTR.op` | `mg.op` | 期間の種類（harness / llm / tool / run） |
 | `ATTR.harnessName` | `mg.harness.name` | ハーネスの名前 |
+| `ATTR.runName` | `mg.run.name` | 設定の名前 |
+| `ATTR.runCase` | `mg.run.case` | 件の ID |
 | `ATTR.llmModel` | `mg.llm.model` | 使ったモデルの名前 |
 | `ATTR.llmStream` | `mg.llm.stream` | 細切れで受け取ったか |
 | `ATTR.llmFinishReason` | `mg.llm.finish_reason` | 終わった理由 |

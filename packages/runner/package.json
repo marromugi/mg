@@ -1,0 +1,21 @@
+{
+  "name": "@mg/runner",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mg/core": "workspace:*",
+    "@mg/harness": "workspace:*",
+    "@mg/harness-loop": "workspace:*",
+    "@mg/trace": "workspace:*"
+  }
+}

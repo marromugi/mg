@@ -15,7 +15,7 @@ const messages: Message[] = [
 ];
 
 describe("mapGenAiAttributes", () => {
-  it("maps all six rows plus provider.name for an mg.llm span", () => {
+  it("maps all seven rows plus provider.name for an mg.llm span", () => {
     const mapped = mapGenAiAttributes({
       [ATTR.op]: "llm",
       [ATTR.llmModel]: "gpt-4",
@@ -33,6 +33,7 @@ describe("mapGenAiAttributes", () => {
     expect(mapped["gen_ai.request.model"]).toBe("gpt-4");
     expect(mapped["gen_ai.usage.input_tokens"]).toBe(10);
     expect(mapped["gen_ai.usage.output_tokens"]).toBe(20);
+    expect(mapped["gen_ai.response.finish_reasons"]).toEqual(["stop"]);
 
     expect(JSON.parse(mapped["gen_ai.input.messages"] as string)).toEqual([
       { role: "user", parts: [{ type: "text", content: "what's the weather in Paris?" }] },
@@ -43,13 +44,23 @@ describe("mapGenAiAttributes", () => {
       { role: "tool", parts: [{ type: "tool_call_response", id: "call1", response: "rainy, 57F" }] },
     ]);
 
-    expect(JSON.parse(mapped["gen_ai.output.messages"] as string)).toEqual([
+    const outputMessages = JSON.parse(mapped["gen_ai.output.messages"] as string);
+    expect(outputMessages).toEqual([
       {
         role: "assistant",
         parts: [{ type: "text", content: "it's rainy" }],
-        finish_reason: "stop",
       },
     ]);
+    expect(outputMessages[0]).not.toHaveProperty("finish_reason");
+  });
+
+  it("omits gen_ai.response.finish_reasons when mg.llm.finish_reason is absent", () => {
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmModel]: "gpt-4",
+    });
+
+    expect(mapped["gen_ai.response.finish_reasons"]).toBeUndefined();
   });
 
   it("maps only operation.name for an mg.harness span", () => {

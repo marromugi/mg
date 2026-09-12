@@ -14,6 +14,7 @@ const GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens";
 const GEN_AI_TOOL_NAME = "gen_ai.tool.name";
 const GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages";
 const GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages";
+const GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons";
 
 const PROVIDER_NAME = "openrouter";
 
@@ -31,7 +32,6 @@ type GenAiPart =
 type GenAiMessage = {
   role: string;
   parts: GenAiPart[];
-  finish_reason?: string;
 };
 
 type MessageLike = { role: string } & Record<string, unknown>;
@@ -104,14 +104,7 @@ const mapInputMessages = (attributes: Attributes): string | undefined => {
 const mapOutputMessages = (attributes: Attributes): string | undefined => {
   const messages = parseMessages(attributes[ATTR.llmOutputMessages]);
   if (messages === undefined) return undefined;
-  const finishReason = attributes[ATTR.llmFinishReason];
-  const mapped = messages.map((message): GenAiMessage => {
-    const base = toGenAiMessage(message);
-    return typeof finishReason === "string"
-      ? { ...base, finish_reason: finishReason }
-      : base;
-  });
-  return jsonAttribute(mapped);
+  return jsonAttribute(messages.map(toGenAiMessage));
 };
 
 const mapLlmAttributes = (attributes: Attributes): Attributes => {
@@ -132,6 +125,11 @@ const mapLlmAttributes = (attributes: Attributes): Attributes => {
   const outputTokens = attributes[ATTR.llmOutputTokens];
   if (typeof outputTokens === "number") {
     mapped[GEN_AI_USAGE_OUTPUT_TOKENS] = outputTokens; // gen_ai.usage.output_tokens
+  }
+
+  const finishReason = attributes[ATTR.llmFinishReason];
+  if (typeof finishReason === "string") {
+    mapped[GEN_AI_RESPONSE_FINISH_REASONS] = [finishReason]; // gen_ai.response.finish_reasons
   }
 
   const inputMessages = mapInputMessages(attributes);

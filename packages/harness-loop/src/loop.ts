@@ -8,6 +8,7 @@ import type {
   ToolCall,
   Usage,
 } from "@mg/core";
+import { runToolCall } from "@mg/core";
 import { noopSpan } from "@mg/harness";
 import type { Harness, HarnessEvent, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN, traceProvider, traceRunToolCall } from "@mg/trace";
@@ -103,16 +104,26 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
   const stream = options.stream ?? true;
 
   return async function* (input) {
-    const root = input.trace ?? noopSpan;
     let span: TraceSpan;
-    try {
-      span = root.startSpan(SPAN.harness, { [ATTR.op]: "harness", [ATTR.harnessName]: "loop" });
-    } catch {
-      span = noopSpan;
-    }
+    let provider: Provider;
+    let run: typeof runToolCall;
 
-    const provider = traceProvider(options.provider, span);
-    const run = traceRunToolCall(span);
+    if (input.trace === undefined) {
+      span = noopSpan;
+      provider = options.provider;
+      run = runToolCall;
+    } else {
+      try {
+        span = input.trace.startSpan(SPAN.harness, {
+          [ATTR.op]: "harness",
+          [ATTR.harnessName]: "loop",
+        });
+      } catch {
+        span = noopSpan;
+      }
+      provider = traceProvider(options.provider, span);
+      run = traceRunToolCall(span);
+    }
 
     let ended = false;
     const endSpan = (error?: unknown): void => {

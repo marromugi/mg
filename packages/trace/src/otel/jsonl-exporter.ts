@@ -24,7 +24,12 @@ type JsonlSpan = {
   attributes: Attributes;
   events: JsonlSpanEvent[];
   status: { code: number; message?: string };
+  sessionId?: string;
+  serviceName?: string;
 };
+
+const asString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
 
 const toJsonlSpan = (span: ReadableSpan): JsonlSpan => {
   const context = span.spanContext();
@@ -45,6 +50,8 @@ const toJsonlSpan = (span: ReadableSpan): JsonlSpan => {
       code: span.status.code,
       message: span.status.message,
     },
+    sessionId: asString(span.resource.attributes["session.id"]),
+    serviceName: asString(span.resource.attributes["service.name"]),
   };
 };
 

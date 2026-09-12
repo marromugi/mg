@@ -2,9 +2,12 @@ import type { GenerateResponse, Provider, StreamEvent, Tool, ToolCall, ToolSchem
 import { defineTool } from "@mg/core";
 import { collect } from "@mg/harness";
 import type { HarnessEvent, HarnessInput, TraceAttributes, TraceSpan } from "@mg/harness";
-import { describe, expect, test, vi } from "vitest";
+import { traceProvider, traceRunToolCall } from "@mg/trace";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { StreamIncompleteError } from "./errors.js";
 import { createLoopHarness } from "./loop.js";
+
+vi.mock("@mg/trace", { spy: true });
 
 class RecordingSpan implements TraceSpan {
   readonly name: string;
@@ -85,6 +88,10 @@ const deferred = <T>() => {
 };
 
 describe("createLoopHarness", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("maxTurns 0 throws RangeError", () => {
     const provider = stubProvider([]);
 
@@ -587,5 +594,26 @@ describe("createLoopHarness", () => {
     const tracedResult = await collect(tracedHarness({ messages: [], trace: root }));
 
     expect(tracedResult).toEqual(untracedResult);
+  });
+
+  test("input.trace omitted does not call traceProvider or traceRunToolCall", async () => {
+    const response: GenerateResponse = { content: "hi", toolCalls: [], finishReason: "stop" };
+    const harness = createLoopHarness({ provider: stubProvider([response]), model: "m", maxTurns: 1, stream: false });
+
+    await collect(harness({ messages: [] }));
+
+    expect(traceProvider).not.toHaveBeenCalled();
+    expect(traceRunToolCall).not.toHaveBeenCalled();
+  });
+
+  test("input.trace passed calls traceProvider and traceRunToolCall once each", async () => {
+    const response: GenerateResponse = { content: "hi", toolCalls: [], finishReason: "stop" };
+    const harness = createLoopHarness({ provider: stubProvider([response]), model: "m", maxTurns: 1, stream: false });
+    const root = new RecordingSpan("root");
+
+    await collect(harness({ messages: [], trace: root }));
+
+    expect(traceProvider).toHaveBeenCalledTimes(1);
+    expect(traceRunToolCall).toHaveBeenCalledTimes(1);
   });
 });

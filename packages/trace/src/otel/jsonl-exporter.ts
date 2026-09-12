@@ -1,57 +1,38 @@
 import { promises as fs } from "node:fs";
 import { dirname } from "node:path";
-import type { Attributes, HrTime } from "@opentelemetry/api";
+import type { HrTime } from "@opentelemetry/api";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type { SpanRecord } from "../store/record.js";
 
 const hrTimeToIsoString = (time: HrTime): string => {
   const [seconds, nanoseconds] = time;
   return new Date(seconds * 1000 + nanoseconds / 1e6).toISOString();
 };
 
-type JsonlSpanEvent = {
-  name: string;
-  time: string;
-  attributes?: Attributes;
-};
+const asString = (value: unknown): string =>
+  typeof value === "string" ? value : "";
 
-type JsonlSpan = {
-  traceId: string;
-  spanId: string;
-  parentSpanId?: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  attributes: Attributes;
-  events: JsonlSpanEvent[];
-  status: { code: number; message?: string };
-  sessionId?: string;
-  serviceName?: string;
-};
-
-const asString = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
-
-const toJsonlSpan = (span: ReadableSpan): JsonlSpan => {
+const toSpanRecord = (span: ReadableSpan): SpanRecord => {
   const context = span.spanContext();
   return {
+    sessionId: asString(span.resource.attributes["session.id"]),
+    serviceName: asString(span.resource.attributes["service.name"]),
     traceId: context.traceId,
     spanId: context.spanId,
     parentSpanId: span.parentSpanContext?.spanId,
     name: span.name,
     startTime: hrTimeToIsoString(span.startTime),
     endTime: hrTimeToIsoString(span.endTime),
-    attributes: span.attributes,
+    attributes: span.attributes as SpanRecord["attributes"],
     events: span.events.map((event) => ({
       name: event.name,
       time: hrTimeToIsoString(event.time),
-      attributes: event.attributes,
+      attributes: event.attributes as SpanRecord["attributes"] | undefined,
     })),
     status: {
       code: span.status.code,
       message: span.status.message,
     },
-    sessionId: asString(span.resource.attributes["session.id"]),
-    serviceName: asString(span.resource.attributes["service.name"]),
   };
 };
 
@@ -65,7 +46,7 @@ export class JsonlSpanExporter implements SpanExporter {
   }
 
   export(spans: ReadableSpan[], resultCallback: ExportResultCallback): void {
-    const lines = spans.map((span) => `${JSON.stringify(toJsonlSpan(span))}\n`).join("");
+    const lines = spans.map((span) => `${JSON.stringify(toSpanRecord(span))}\n`).join("");
     const write = this.pending.then(() => fs.appendFile(this.path, lines));
     this.pending = write.then(
       () => undefined,

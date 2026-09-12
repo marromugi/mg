@@ -1,5 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
-import { resourceFromAttributes } from "@opentelemetry/resources";
+import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
 import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { nanoid } from "nanoid";
@@ -34,10 +34,12 @@ export const createTraceSdk = (options: TraceSdkOptions = {}): TraceSdk => {
   const sessionId = options.sessionId ?? nanoid();
 
   const provider = new BasicTracerProvider({
-    resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: serviceName,
-      [ATTR_SESSION_ID]: sessionId,
-    }),
+    resource: defaultResource().merge(
+      resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: serviceName,
+        [ATTR_SESSION_ID]: sessionId,
+      }),
+    ),
     spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
   });
 

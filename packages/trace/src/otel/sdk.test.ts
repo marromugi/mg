@@ -86,6 +86,7 @@ describe("createTraceSdk", () => {
     for (const span of spans) {
       expect(span.resource.attributes["session.id"]).toBe("s1");
       expect(span.resource.attributes["service.name"]).toBe("svc");
+      expect(span.resource.attributes["telemetry.sdk.language"]).toBe("nodejs");
     }
     expect(sdk.sessionId).toBe("s1");
 

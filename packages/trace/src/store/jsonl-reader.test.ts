@@ -102,4 +102,60 @@ describe("JsonlTraceReader", () => {
     expect(oldSession?.traces).toHaveLength(1);
     expect(oldSession?.traces[0]?.root.spanId).toBe("s1");
   });
+
+  it("treats a missing file as having no records", async () => {
+    const reader = new JsonlTraceReader(jsonlPath);
+
+    expect(await reader.listSessions()).toEqual([]);
+    expect(await reader.readSession("session-1")).toBeUndefined();
+  });
+
+  it("skips lines that parse but have the wrong shape", async () => {
+    const sdk = createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const root = startRootSpan(sdk.tracer, "root");
+    root.end();
+    await sdk.shutdown();
+
+    appendFileSync(jsonlPath, "null\n{}\n");
+
+    const reader = new JsonlTraceReader(jsonlPath);
+    const tree = await reader.readSession("session-1");
+    expect(tree?.traces).toHaveLength(1);
+  });
+
+  it("keeps traceCount from listSessions in sync with traces.length from readSession", async () => {
+    const orphan = JSON.stringify({
+      sessionId: "session-1",
+      serviceName: "svc",
+      traceId: "t1",
+      spanId: "orphan",
+      parentSpanId: "missing-parent",
+      name: "orphan",
+      startTime: "2026-01-01T00:00:00.000Z",
+      endTime: "2026-01-01T00:00:01.000Z",
+      attributes: {},
+      events: [],
+      status: { code: 0 },
+    });
+    const root = JSON.stringify({
+      sessionId: "session-1",
+      serviceName: "svc",
+      traceId: "t1",
+      spanId: "root",
+      name: "root",
+      startTime: "2026-01-01T00:00:02.000Z",
+      endTime: "2026-01-01T00:00:03.000Z",
+      attributes: {},
+      events: [],
+      status: { code: 0 },
+    });
+    writeFileSync(jsonlPath, `${orphan}\n${root}\n`);
+
+    const reader = new JsonlTraceReader(jsonlPath);
+    const summaries = await reader.listSessions();
+    const tree = await reader.readSession("session-1");
+
+    expect(tree?.traces).toHaveLength(2);
+    expect(summaries[0]?.traceCount).toBe(tree?.traces.length);
+  });
 });

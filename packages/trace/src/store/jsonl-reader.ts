@@ -4,11 +4,36 @@ import type { SpanRecord } from "./record.js";
 import { buildSessionTree } from "./tree.js";
 import type { SessionTree } from "./tree.js";
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isSpanRecordShape = (value: unknown): value is SpanRecord =>
+  isPlainObject(value) &&
+  typeof value.sessionId === "string" &&
+  typeof value.serviceName === "string" &&
+  typeof value.traceId === "string" &&
+  typeof value.spanId === "string" &&
+  typeof value.name === "string" &&
+  typeof value.startTime === "string" &&
+  typeof value.endTime === "string" &&
+  isPlainObject(value.attributes) &&
+  Array.isArray(value.events) &&
+  isPlainObject(value.status);
+
 export class JsonlTraceReader implements TraceReader {
   constructor(private readonly path: string) {}
 
   private async readRecords(): Promise<SpanRecord[]> {
-    const content = await fs.readFile(this.path, "utf8");
+    let content: string;
+    try {
+      content = await fs.readFile(this.path, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return [];
+      }
+      throw error;
+    }
+
     const records: SpanRecord[] = [];
 
     for (const line of content.split("\n")) {
@@ -16,11 +41,16 @@ export class JsonlTraceReader implements TraceReader {
       if (trimmed === "") {
         continue;
       }
+      let parsed: unknown;
       try {
-        records.push(JSON.parse(trimmed) as SpanRecord);
+        parsed = JSON.parse(trimmed);
       } catch {
         continue;
       }
+      if (!isSpanRecordShape(parsed)) {
+        continue;
+      }
+      records.push(parsed);
     }
 
     return records;
@@ -39,26 +69,20 @@ export class JsonlTraceReader implements TraceReader {
       }
     }
 
-    const summaries = Array.from(recordsBySessionId.entries()).map(
-      ([sessionId, sessionRecords]): SessionSummary => {
-        const traceIds = new Set(sessionRecords.map((record) => record.traceId));
-        const startTime = sessionRecords.reduce(
-          (earliest, record) => (record.startTime < earliest ? record.startTime : earliest),
-          sessionRecords[0].startTime,
-        );
-        const endTime = sessionRecords.reduce(
-          (latest, record) => (record.endTime > latest ? record.endTime : latest),
-          sessionRecords[0].endTime,
-        );
-        return {
-          sessionId,
-          serviceName: sessionRecords[0].serviceName,
-          startTime,
-          endTime,
-          traceCount: traceIds.size,
-        };
-      },
-    );
+    const summaries: SessionSummary[] = [];
+    for (const [sessionId, sessionRecords] of recordsBySessionId) {
+      const tree = buildSessionTree(sessionRecords);
+      if (tree === undefined) {
+        continue;
+      }
+      summaries.push({
+        sessionId,
+        serviceName: tree.serviceName,
+        startTime: tree.startTime,
+        endTime: tree.endTime,
+        traceCount: tree.traces.length,
+      });
+    }
 
     return summaries.sort((a, b) => b.startTime.localeCompare(a.startTime));
   }

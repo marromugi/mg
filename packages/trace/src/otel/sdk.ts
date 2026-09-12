@@ -3,13 +3,16 @@ import { defaultResource, resourceFromAttributes } from "@opentelemetry/resource
 import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { nanoid } from "nanoid";
+import { openTraceDb } from "../store/sqlite.js";
 import { JsonlSpanExporter } from "./jsonl-exporter.js";
+import { SqliteSpanExporter } from "./sqlite-exporter.js";
 
 const ATTR_SESSION_ID = "session.id";
 const ATTR_SERVICE_NAME = "service.name";
 
 export type TraceSdkOptions = {
   jsonlPath?: string;
+  sqlitePath?: string;
   exporters?: SpanExporter[];
   serviceName?: string;
   sessionId?: string;
@@ -25,6 +28,9 @@ export const createTraceSdk = (options: TraceSdkOptions = {}): TraceSdk => {
   const exporters: SpanExporter[] = [];
   if (options.jsonlPath !== undefined) {
     exporters.push(new JsonlSpanExporter(options.jsonlPath));
+  }
+  if (options.sqlitePath !== undefined) {
+    exporters.push(new SqliteSpanExporter(openTraceDb(options.sqlitePath)));
   }
   if (options.exporters !== undefined) {
     exporters.push(...options.exporters);

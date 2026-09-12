@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startRootSpan } from "../otel-span.js";
+import { spans } from "../store/schema.js";
+import { openTraceDb } from "../store/sqlite.js";
 import { createTraceSdk } from "./sdk.js";
 
 describe("createTraceSdk", () => {
@@ -103,5 +105,36 @@ describe("createTraceSdk", () => {
 
     await sdkA.shutdown();
     await sdkB.shutdown();
+  });
+
+  it("writes root and child spans to the sqlite database with matching parent/child ids", async () => {
+    const sqlitePath = join(dir, "spans.db");
+    const sdk = createTraceSdk({ sqlitePath, sessionId: "s1", serviceName: "svc" });
+
+    const root = startRootSpan(sdk.tracer, "root", { "start.attr": "a" });
+    root.addEvent("did-something", { count: 1 });
+    const child = root.startSpan("child");
+    child.end();
+    root.end();
+
+    await sdk.shutdown();
+
+    const db = await openTraceDb(sqlitePath);
+    const rows = await db.select().from(spans);
+    expect(rows).toHaveLength(2);
+
+    const rootRow = rows.find((row) => row.name === "root");
+    const childRow = rows.find((row) => row.name === "child");
+
+    expect(rootRow).toBeDefined();
+    expect(childRow).toBeDefined();
+    expect(rootRow?.parentSpanId).toBeNull();
+    expect(childRow?.parentSpanId).toBe(rootRow?.spanId);
+    expect(rootRow?.traceId).toBe(childRow?.traceId);
+    expect(JSON.parse(rootRow?.attributes ?? "{}")["start.attr"]).toBe("a");
+    expect(rootRow?.sessionId).toBe("s1");
+    expect(rootRow?.serviceName).toBe("svc");
+
+    await db.$client.close();
   });
 });

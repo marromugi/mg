@@ -13,6 +13,8 @@ import { jsonAttribute } from "./json.js";
 import { endSpan, setSpanAttributes } from "./span-guard.js";
 import { ATTR, SPAN } from "./vocabulary.js";
 
+export const STREAM_INCOMPLETE_MESSAGE = "stream ended without finish";
+
 const startLlmSpan = (
   parent: TraceSpan,
   request: GenerateRequest,
@@ -35,7 +37,7 @@ const setOutputAttributes = (
   outcome: {
     content: string;
     toolCalls: ToolCall[];
-    finishReason: FinishReason;
+    finishReason?: FinishReason;
     usage?: Usage;
   },
 ): void => {
@@ -46,7 +48,9 @@ const setOutputAttributes = (
   };
 
   const attributes: TraceAttributes = {
-    [ATTR.llmFinishReason]: outcome.finishReason,
+    ...(outcome.finishReason !== undefined
+      ? { [ATTR.llmFinishReason]: outcome.finishReason }
+      : {}),
     [ATTR.llmOutputMessages]: jsonAttribute([message]),
     ...(outcome.usage !== undefined
       ? {
@@ -91,8 +95,9 @@ async function* traceStream(
 
   let content = "";
   const toolCalls: ToolCall[] = [];
-  let finishReason: FinishReason = "other";
+  let finishReason: FinishReason | undefined;
   let usage: Usage | undefined;
+  let finished = false;
   let ended = false;
 
   try {
@@ -102,6 +107,7 @@ async function* traceStream(
       } else if (event.type === "tool-call") {
         toolCalls.push(event.toolCall);
       } else if (event.type === "finish") {
+        finished = true;
         finishReason = event.finishReason;
         usage = event.usage;
       }
@@ -110,7 +116,7 @@ async function* traceStream(
 
     ended = true;
     setOutputAttributes(span, { content, toolCalls, finishReason, usage });
-    endSpan(span);
+    endSpan(span, finished ? undefined : new Error(STREAM_INCOMPLETE_MESSAGE));
   } catch (error) {
     ended = true;
     endSpan(span, error);

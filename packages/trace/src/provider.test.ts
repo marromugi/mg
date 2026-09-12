@@ -6,7 +6,7 @@ import type {
   StreamEvent,
 } from "@mg/core";
 import { ATTR, SPAN } from "./vocabulary.js";
-import { traceProvider } from "./provider.js";
+import { STREAM_INCOMPLETE_MESSAGE, traceProvider } from "./provider.js";
 import { RecordingSpan } from "./recording-span.test-helper.js";
 
 const request: GenerateRequest = {
@@ -250,6 +250,45 @@ describe("traceProvider / stream", () => {
     expect(returned).toBe(true);
     const span = root.children[0];
     expect(span?.endCalls).toEqual([undefined]);
+  });
+
+  it("ends the span with a stream-incomplete error when the inner iterable ends without a finish event", async () => {
+    const root = new RecordingSpan("root");
+    const provider: Provider = {
+      generate: async () => {
+        throw new Error("unused");
+      },
+      stream: async function* () {
+        yield { type: "text-delta", delta: "hel" } satisfies StreamEvent;
+        yield { type: "text-delta", delta: "lo" } satisfies StreamEvent;
+      },
+    };
+
+    const events = await collect(traceProvider(provider, root).stream(request));
+
+    expect(events).toEqual([
+      { type: "text-delta", delta: "hel" },
+      { type: "text-delta", delta: "lo" },
+    ]);
+
+    const span = root.children[0];
+    expect(span?.endCalls).toHaveLength(1);
+    const error = span?.endCalls[0];
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe(STREAM_INCOMPLETE_MESSAGE);
+
+    expect(span?.mergedAttributes[ATTR.llmFinishReason]).toBeUndefined();
+    expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBeUndefined();
+    expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBeUndefined();
+    expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
+      JSON.stringify([
+        {
+          role: "assistant",
+          content: "hello",
+          toolCalls: [],
+        },
+      ]),
+    );
   });
 
   it("starts no span until iteration begins", () => {

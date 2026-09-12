@@ -8,11 +8,12 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm and tool spans", () => {
+  it("has the harness, llm, tool and run spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
       tool: "mg.tool",
+      run: "mg.run",
     });
   });
 });
@@ -33,5 +34,10 @@ describe("ATTR", () => {
     expect(ATTR.llmOutputTokens).toBe("mg.llm.usage.output_tokens");
     expect(ATTR.llmInputMessages).toBe("mg.llm.messages.input");
     expect(ATTR.llmOutputMessages).toBe("mg.llm.messages.output");
+  });
+
+  it("has the run attributes", () => {
+    expect(ATTR.runName).toBe("mg.run.name");
+    expect(ATTR.runCase).toBe("mg.run.case");
   });
 });

@@ -40,4 +40,30 @@ describe("openTraceDb", () => {
 
     await db.$client.close();
   });
+
+  it("creates missing parent folders before opening the file", async () => {
+    const path = join(dir, "nested", "deeper", "spans.db");
+    const db = await openTraceDb(path);
+
+    const tables = await db.all<{ name: string }>(
+      sql`select name from sqlite_master where type = 'table' and name = 'spans'`,
+    );
+
+    expect(tables).toEqual([{ name: "spans" }]);
+
+    await db.$client.close();
+  });
+
+  it("opens a path whose folder name contains a #", async () => {
+    const path = join(dir, "a #b", "spans.db");
+    const db = await openTraceDb(path);
+
+    const tables = await db.all<{ name: string }>(
+      sql`select name from sqlite_master where type = 'table' and name = 'spans'`,
+    );
+
+    expect(tables).toEqual([{ name: "spans" }]);
+
+    await db.$client.close();
+  });
 });

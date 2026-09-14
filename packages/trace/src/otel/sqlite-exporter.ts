@@ -9,10 +9,18 @@ export class SqliteSpanExporter implements SpanExporter {
   private pending: Promise<void>;
 
   constructor(private readonly db: TraceDb | Promise<TraceDb>) {
-    this.pending = Promise.resolve();
+    this.pending = Promise.resolve(db).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   export(readableSpans: ReadableSpan[], resultCallback: ExportResultCallback): void {
+    if (readableSpans.length === 0) {
+      resultCallback({ code: 0 });
+      return;
+    }
+
     const rows = readableSpans.map((span) => {
       const record = toSpanRecord(span);
       return {

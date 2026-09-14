@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { countDistinct, desc, eq, max, min } from "drizzle-orm";
 import type { SessionSummary, TraceReader } from "./reader.js";
 import type { SpanRecord } from "./record.js";
 import { spans } from "./schema.js";
@@ -24,35 +24,25 @@ export class SqliteTraceReader implements TraceReader {
   constructor(private readonly db: TraceDb) {}
 
   async listSessions(): Promise<SessionSummary[]> {
-    const rows = await this.db.select().from(spans);
-    const recordsBySessionId = new Map<string, SpanRecord[]>();
+    const rows = await this.db
+      .select({
+        sessionId: spans.sessionId,
+        serviceName: min(spans.serviceName),
+        startTime: min(spans.startTime),
+        endTime: max(spans.endTime),
+        traceCount: countDistinct(spans.traceId),
+      })
+      .from(spans)
+      .groupBy(spans.sessionId)
+      .orderBy(desc(min(spans.startTime)));
 
-    for (const row of rows) {
-      const record = toSpanRecord(row);
-      const siblings = recordsBySessionId.get(record.sessionId);
-      if (siblings) {
-        siblings.push(record);
-      } else {
-        recordsBySessionId.set(record.sessionId, [record]);
-      }
-    }
-
-    const summaries: SessionSummary[] = [];
-    for (const [sessionId, sessionRecords] of recordsBySessionId) {
-      const tree = buildSessionTree(sessionRecords);
-      if (tree === undefined) {
-        continue;
-      }
-      summaries.push({
-        sessionId,
-        serviceName: tree.serviceName,
-        startTime: tree.startTime,
-        endTime: tree.endTime,
-        traceCount: tree.traces.length,
-      });
-    }
-
-    return summaries.sort((a, b) => b.startTime.localeCompare(a.startTime));
+    return rows.map((row) => ({
+      sessionId: row.sessionId,
+      serviceName: row.serviceName ?? "",
+      startTime: row.startTime ?? "",
+      endTime: row.endTime ?? "",
+      traceCount: Number(row.traceCount),
+    }));
   }
 
   async readSession(sessionId: string): Promise<SessionTree | undefined> {

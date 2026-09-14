@@ -107,4 +107,40 @@ describe("SqliteSpanExporter", () => {
     await exporter.shutdown();
     await expect(exporter.shutdown()).resolves.toBeUndefined();
   });
+
+  it("resolves an empty span list with code 0 without inserting", async () => {
+    const { exporter } = await setup();
+    const results: number[] = [];
+
+    exporter.export([], (result) => {
+      results.push(result.code);
+    });
+
+    expect(results).toEqual([0]);
+
+    await exporter.shutdown();
+    const readDb = await openTraceDb(dbPath);
+    const rows = await readDb.select().from(spans);
+    expect(rows).toHaveLength(0);
+    await readDb.$client.close();
+  });
+
+  it("does not raise an unhandled rejection when the db promise rejects, and surfaces the error from export and shutdown", async () => {
+    const dbPromise = Promise.reject(new Error("boom"));
+    const exporter = new SqliteSpanExporter(dbPromise);
+
+    // The constructor must attach a handler to dbPromise synchronously; this
+    // await just gives the runtime a chance to flag an unhandled rejection
+    // if it did not.
+    await Promise.resolve();
+
+    const provider = new BasicTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    const tracer = provider.getTracer("test");
+    const root = startRootSpan(tracer, "root");
+    root.end();
+
+    await expect(exporter.shutdown()).rejects.toThrow("boom");
+  });
 });

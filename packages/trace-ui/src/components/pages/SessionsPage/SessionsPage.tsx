@@ -1,6 +1,6 @@
 import type { SessionSummary } from "@mg/trace/store";
 import { SessionList } from "../../feature/SessionList/index.js";
-import { Layout } from "../../ui/index.js";
+import { Heading, Layout } from "../../ui/index.js";
 
 export const SessionsPage = ({
   sessions,
@@ -8,7 +8,7 @@ export const SessionsPage = ({
   sessions: SessionSummary[];
 }) => (
   <Layout title="Sessions">
-    <h1 className="my-4 text-heading font-bold">Sessions</h1>
+    <Heading>Sessions</Heading>
     <SessionList sessions={sessions} />
   </Layout>
 );

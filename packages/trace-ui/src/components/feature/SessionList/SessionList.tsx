@@ -1,37 +1,36 @@
 import type { SessionSummary } from "@mg/trace/store";
-
-const CELL = "border-b border-edge px-2.5 py-1.5 text-left";
+import { Table } from "../../ui/index.js";
 
 export const SessionList = ({
   sessions,
 }: {
   sessions: SessionSummary[];
 }) => (
-  <table className="w-full">
-    <thead>
-      <tr>
-        <th className={CELL}>Session</th>
-        <th className={CELL}>Start</th>
-        <th className={CELL}>End</th>
-        <th className={CELL}>Traces</th>
-      </tr>
-    </thead>
-    <tbody>
+  <Table>
+    <Table.Head>
+      <Table.Row>
+        <Table.HeaderCell>Session</Table.HeaderCell>
+        <Table.HeaderCell>Start</Table.HeaderCell>
+        <Table.HeaderCell>End</Table.HeaderCell>
+        <Table.HeaderCell>Traces</Table.HeaderCell>
+      </Table.Row>
+    </Table.Head>
+    <Table.Body>
       {sessions.map((session) => (
-        <tr key={session.sessionId}>
-          <td className={CELL}>
+        <Table.Row key={session.sessionId}>
+          <Table.Cell>
             <a
               href={`/sessions/${encodeURIComponent(session.sessionId)}`}
               className="underline"
             >
               {session.sessionId}
             </a>
-          </td>
-          <td className={CELL}>{session.startTime}</td>
-          <td className={CELL}>{session.endTime}</td>
-          <td className={CELL}>{session.traceCount}</td>
-        </tr>
+          </Table.Cell>
+          <Table.Cell>{session.startTime}</Table.Cell>
+          <Table.Cell>{session.endTime}</Table.Cell>
+          <Table.Cell>{session.traceCount}</Table.Cell>
+        </Table.Row>
       ))}
-    </tbody>
-  </table>
+    </Table.Body>
+  </Table>
 );

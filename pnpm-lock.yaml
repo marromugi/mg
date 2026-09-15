@@ -107,6 +107,28 @@ importers:
         specifier: 0.31.10
         version: 0.31.10
 
+  runs:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@mg/harness-loop':
+        specifier: workspace:*
+        version: link:../packages/harness-loop
+      '@mg/runner':
+        specifier: workspace:*
+        version: link:../packages/runner
+      '@mg/tools':
+        specifier: workspace:*
+        version: link:../packages/tools
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../packages/trace
+    devDependencies:
+      '@types/node':
+        specifier: 25.9.6
+        version: 25.9.6
+
 packages:
 
   '@drizzle-team/brocli@0.10.2':

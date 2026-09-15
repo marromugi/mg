@@ -1,4 +1,7 @@
-import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type {
+  ReadableSpan,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace-base";
 import { spans } from "../store/schema.js";
 import type { TraceDb } from "../store/sqlite.js";
 import { toSpanRecord } from "./record.js";
@@ -10,7 +13,10 @@ export class SqliteSpanExporter implements SpanExporter {
 
   constructor(private readonly db: TraceDb) {}
 
-  export(readableSpans: ReadableSpan[], resultCallback: ExportResultCallback): void {
+  export(
+    readableSpans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
     if (readableSpans.length === 0) {
       resultCallback({ code: 0 });
       return;
@@ -34,7 +40,12 @@ export class SqliteSpanExporter implements SpanExporter {
       };
     });
 
-    const write = this.pending.then(() => this.db.insert(spans).values(rows).then(() => undefined));
+    const write = this.pending.then(() =>
+      this.db
+        .insert(spans)
+        .values(rows)
+        .then(() => undefined),
+    );
     this.pending = write.then(
       () => undefined,
       () => undefined,
@@ -44,7 +55,8 @@ export class SqliteSpanExporter implements SpanExporter {
       (error: unknown) =>
         resultCallback({
           code: 1,
-          error: error instanceof Error ? error : new Error(String(error)),
+          error:
+            error instanceof Error ? error : new Error(String(error)),
         }),
     );
   }

@@ -75,7 +75,9 @@ describe("openTraceDb", () => {
   it("opens the same new path from 5 concurrent calls in-process without failing", async () => {
     const path = join(dir, "concurrent.db");
 
-    const dbs = await Promise.all(Array.from({ length: 5 }, () => openTraceDb(path)));
+    const dbs = await Promise.all(
+      Array.from({ length: 5 }, () => openTraceDb(path)),
+    );
 
     const tables = await dbs[0]?.all<{ name: string }>(
       sql`select name from sqlite_master where type = 'table' and name = 'spans'`,
@@ -87,7 +89,9 @@ describe("openTraceDb", () => {
     }
   });
 
-  const distSqlitePath = fileURLToPath(new URL("../../dist/store/sqlite.js", import.meta.url));
+  const distSqlitePath = fileURLToPath(
+    new URL("../../dist/store/sqlite.js", import.meta.url),
+  );
 
   it.skipIf(!existsSync(distSqlitePath))(
     "opens the same new path from 3 concurrent child processes without failing",
@@ -102,9 +106,13 @@ describe("openTraceDb", () => {
 
       const results = await Promise.all(
         Array.from({ length: 3 }, () =>
-          execFileAsync(process.execPath, ["--input-type=module", "-e", script], {
-            timeout: 10_000,
-          }),
+          execFileAsync(
+            process.execPath,
+            ["--input-type=module", "-e", script],
+            {
+              timeout: 10_000,
+            },
+          ),
         ),
       );
 

@@ -46,7 +46,9 @@ runner の役割は 4 つです。
 import { run } from "@mg/runner";
 import config from "./loop-bash.config.ts";
 
-const { sessionId } = await run(config, [{ role: "user", content: "..." }]);
+const { sessionId } = await run(config, [
+  { role: "user", content: "..." },
+]);
 ```
 
 複数件をまとめて走らせるときは `runMany` を使います。

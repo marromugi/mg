@@ -9,7 +9,13 @@ const messages: Message[] = [
   {
     role: "assistant",
     content: "",
-    toolCalls: [{ id: "call1", name: "get_weather", arguments: { location: "Paris" } }],
+    toolCalls: [
+      {
+        id: "call1",
+        name: "get_weather",
+        arguments: { location: "Paris" },
+      },
+    ],
   },
   { role: "tool", toolCallId: "call1", content: "rainy, 57F" },
 ];
@@ -35,16 +41,41 @@ describe("mapGenAiAttributes", () => {
     expect(mapped["gen_ai.usage.output_tokens"]).toBe(20);
     expect(mapped["gen_ai.response.finish_reasons"]).toEqual(["stop"]);
 
-    expect(JSON.parse(mapped["gen_ai.input.messages"] as string)).toEqual([
-      { role: "user", parts: [{ type: "text", content: "what's the weather in Paris?" }] },
+    expect(
+      JSON.parse(mapped["gen_ai.input.messages"] as string),
+    ).toEqual([
+      {
+        role: "user",
+        parts: [
+          { type: "text", content: "what's the weather in Paris?" },
+        ],
+      },
       {
         role: "assistant",
-        parts: [{ type: "tool_call", id: "call1", name: "get_weather", arguments: { location: "Paris" } }],
+        parts: [
+          {
+            type: "tool_call",
+            id: "call1",
+            name: "get_weather",
+            arguments: { location: "Paris" },
+          },
+        ],
       },
-      { role: "tool", parts: [{ type: "tool_call_response", id: "call1", response: "rainy, 57F" }] },
+      {
+        role: "tool",
+        parts: [
+          {
+            type: "tool_call_response",
+            id: "call1",
+            response: "rainy, 57F",
+          },
+        ],
+      },
     ]);
 
-    const outputMessages = JSON.parse(mapped["gen_ai.output.messages"] as string);
+    const outputMessages = JSON.parse(
+      mapped["gen_ai.output.messages"] as string,
+    );
     expect(outputMessages).toEqual([
       {
         role: "assistant",
@@ -89,7 +120,9 @@ describe("mapGenAiAttributes", () => {
   });
 
   it("returns no attributes when mg.op is absent", () => {
-    expect(mapGenAiAttributes({ [ATTR.llmModel]: "gpt-4" })).toEqual({});
+    expect(mapGenAiAttributes({ [ATTR.llmModel]: "gpt-4" })).toEqual(
+      {},
+    );
   });
 
   it("skips message mapping when the JSON is unparseable, without throwing", () => {
@@ -110,17 +143,27 @@ describe("mapGenAiAttributes", () => {
   });
 
   it("drops null and non-object elements from the message array without throwing", () => {
-    const raw = JSON.stringify([null, { role: "user", content: "hi" }, "x", 42]);
+    const raw = JSON.stringify([
+      null,
+      { role: "user", content: "hi" },
+      "x",
+      42,
+    ]);
 
     expect(() =>
-      mapGenAiAttributes({ [ATTR.op]: "llm", [ATTR.llmInputMessages]: raw }),
+      mapGenAiAttributes({
+        [ATTR.op]: "llm",
+        [ATTR.llmInputMessages]: raw,
+      }),
     ).not.toThrow();
 
     const mapped = mapGenAiAttributes({
       [ATTR.op]: "llm",
       [ATTR.llmInputMessages]: raw,
     });
-    expect(JSON.parse(mapped["gen_ai.input.messages"] as string)).toEqual([
+    expect(
+      JSON.parse(mapped["gen_ai.input.messages"] as string),
+    ).toEqual([
       { role: "user", parts: [{ type: "text", content: "hi" }] },
     ]);
   });
@@ -136,7 +179,9 @@ describe("mapGenAiAttributes", () => {
       [ATTR.llmInputMessages]: raw,
     });
 
-    expect(JSON.parse(mapped["gen_ai.input.messages"] as string)).toEqual([
+    expect(
+      JSON.parse(mapped["gen_ai.input.messages"] as string),
+    ).toEqual([
       { role: "developer", parts: [{ type: "text", content: "x" }] },
       { role: "developer", parts: [] },
     ]);

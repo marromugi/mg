@@ -3,7 +3,9 @@ import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
 import type { StreamEvent } from "../types.js";
 import { toStreamEvents } from "./stream.js";
 
-const payloadsOf = async function* (chunks: unknown[]): AsyncGenerator<string> {
+const payloadsOf = async function* (
+  chunks: unknown[],
+): AsyncGenerator<string> {
   for (const chunk of chunks) {
     yield typeof chunk === "string" ? chunk : JSON.stringify(chunk);
   }
@@ -34,7 +36,10 @@ const toolFragment = (
             index,
             id: fragment.id,
             type: "function",
-            function: { name: fragment.name, arguments: fragment.arguments },
+            function: {
+              name: fragment.name,
+              arguments: fragment.arguments,
+            },
           },
         ],
       },
@@ -108,8 +113,16 @@ describe("toStreamEvents", () => {
 
   test("yields interleaved tool calls in index order", async () => {
     const events = await collect([
-      toolFragment(1, { id: "call-2", name: "clock", arguments: '{"tz":' }),
-      toolFragment(0, { id: "call-1", name: "weather", arguments: '{"city":' }),
+      toolFragment(1, {
+        id: "call-2",
+        name: "clock",
+        arguments: '{"tz":',
+      }),
+      toolFragment(0, {
+        id: "call-1",
+        name: "weather",
+        arguments: '{"city":',
+      }),
       toolFragment(1, { arguments: '"UTC"}' }),
       toolFragment(0, { arguments: '"Tokyo"}' }),
       finishChunk("tool_calls"),
@@ -126,7 +139,11 @@ describe("toStreamEvents", () => {
       },
       {
         type: "tool-call",
-        toolCall: { id: "call-2", name: "clock", arguments: { tz: "UTC" } },
+        toolCall: {
+          id: "call-2",
+          name: "clock",
+          arguments: { tz: "UTC" },
+        },
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
@@ -135,7 +152,11 @@ describe("toStreamEvents", () => {
   test("yields the text first and the tool calls afterwards", async () => {
     const events = await collect([
       textChunk("checking"),
-      toolFragment(0, { id: "call-1", name: "weather", arguments: "{}" }),
+      toolFragment(0, {
+        id: "call-1",
+        name: "weather",
+        arguments: "{}",
+      }),
       textChunk(" now"),
       finishChunk("tool_calls"),
       usageChunk,
@@ -169,7 +190,10 @@ describe("toStreamEvents", () => {
   });
 
   test("finishes without usage when no usage chunk arrives", async () => {
-    const events = await collect([textChunk("hi"), finishChunk("stop")]);
+    const events = await collect([
+      textChunk("hi"),
+      finishChunk("stop"),
+    ]);
 
     expect(events).toEqual([
       { type: "text-delta", delta: "hi" },
@@ -193,12 +217,18 @@ describe("toStreamEvents", () => {
   ])("maps the finish reason %s to %s", async (reason, expected) => {
     const events = await collect([finishChunk(reason)]);
 
-    expect(events).toEqual([{ type: "finish", finishReason: expected }]);
+    expect(events).toEqual([
+      { type: "finish", finishReason: expected },
+    ]);
   });
 
   test("throws a ToolArgumentsError when the arguments are not JSON", async () => {
     const error = await collect([
-      toolFragment(0, { id: "call-1", name: "weather", arguments: "{ not" }),
+      toolFragment(0, {
+        id: "call-1",
+        name: "weather",
+        arguments: "{ not",
+      }),
       toolFragment(0, { arguments: " json" }),
       finishChunk("tool_calls"),
     ]).catch((caught: unknown) => caught);
@@ -218,7 +248,9 @@ describe("toStreamEvents", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("OpenRouter stream chunk is not JSON");
+    expect(httpError.message).toBe(
+      "OpenRouter stream chunk is not JSON",
+    );
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe("<html>");
     expect(httpError.cause).toBeInstanceOf(SyntaxError);
@@ -235,7 +267,9 @@ describe("toStreamEvents", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("OpenRouter stream chunk has no choices");
+    expect(httpError.message).toBe(
+      "OpenRouter stream chunk has no choices",
+    );
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe(payload);
   });
@@ -249,7 +283,8 @@ describe("toStreamEvents", () => {
 
     const events: StreamEvent[] = [];
     const error = await (async () => {
-      for await (const event of toStreamEvents(payloads)) events.push(event);
+      for await (const event of toStreamEvents(payloads))
+        events.push(event);
     })().catch((caught: unknown) => caught);
 
     expect(error).toBe(failure);

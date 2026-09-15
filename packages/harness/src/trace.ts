@@ -1,5 +1,7 @@
 export type TraceAttributeValue = string | number | boolean;
-export type TraceAttributes = Readonly<Record<string, TraceAttributeValue>>;
+export type TraceAttributes = Readonly<
+  Record<string, TraceAttributeValue>
+>;
 
 export interface TraceSpan {
   startSpan(name: string, attributes?: TraceAttributes): TraceSpan;

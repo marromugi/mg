@@ -26,7 +26,8 @@ if (values.db === undefined) {
   process.exit(1);
 }
 
-const port = values.port !== undefined ? Number(values.port) : DEFAULT_PORT;
+const port =
+  values.port !== undefined ? Number(values.port) : DEFAULT_PORT;
 
 if (!Number.isInteger(port) || port <= 0 || port >= MAX_PORT) {
   console.error(`Invalid --port value: ${values.port}`);

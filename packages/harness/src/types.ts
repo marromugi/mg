@@ -1,7 +1,17 @@
-import type { FinishReason, Message, ToolCall, ToolMessage, Usage } from "@mg/core";
+import type {
+  FinishReason,
+  Message,
+  ToolCall,
+  ToolMessage,
+  Usage,
+} from "@mg/core";
 import type { TraceSpan } from "./trace.js";
 
-export type HarnessInput = { messages: Message[]; signal?: AbortSignal; trace?: TraceSpan };
+export type HarnessInput = {
+  messages: Message[];
+  signal?: AbortSignal;
+  trace?: TraceSpan;
+};
 
 export type HarnessStopReason = "stop" | "max-turns" | "length";
 
@@ -18,4 +28,6 @@ export type HarnessEvent =
   | { type: "turn"; finishReason: FinishReason; usage?: Usage }
   | { type: "done"; result: HarnessResult };
 
-export type Harness = (input: HarnessInput) => AsyncIterable<HarnessEvent>;
+export type Harness = (
+  input: HarnessInput,
+) => AsyncIterable<HarnessEvent>;

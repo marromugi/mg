@@ -1,4 +1,7 @@
-import { ProviderHttpError, ProviderTransportError } from "../errors.js";
+import {
+  ProviderHttpError,
+  ProviderTransportError,
+} from "../errors.js";
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -6,7 +9,10 @@ import type {
   StreamEvent,
 } from "../types.js";
 import { readSseData } from "../sse.js";
-import { fromOpenRouterResponse, toOpenRouterRequest } from "./convert.js";
+import {
+  fromOpenRouterResponse,
+  toOpenRouterRequest,
+} from "./convert.js";
 import { toStreamEvents } from "./stream.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
@@ -17,7 +23,9 @@ const isAbortError = (cause: unknown): boolean =>
   (cause as { name?: unknown }).name === "AbortError";
 
 const transportFailure = (cause: unknown, message: string): unknown =>
-  isAbortError(cause) ? cause : new ProviderTransportError(message, { cause });
+  isAbortError(cause)
+    ? cause
+    : new ProviderTransportError(message, { cause });
 
 export type OpenRouterOptions = {
   apiKey: string;
@@ -29,7 +37,10 @@ export type OpenRouterOptions = {
 export const createOpenRouterProvider = (
   options: OpenRouterOptions,
 ): Provider => {
-  const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(
+    /\/$/,
+    "",
+  );
   const url = `${baseUrl}/chat/completions`;
 
   const buildHeaders = (): Headers => {
@@ -50,7 +61,10 @@ export const createOpenRouterProvider = (
         body: requestBody,
       });
     } catch (cause) {
-      throw transportFailure(cause, "OpenRouter request failed to send");
+      throw transportFailure(
+        cause,
+        "OpenRouter request failed to send",
+      );
     }
 
     if (!response.ok) {
@@ -58,7 +72,10 @@ export const createOpenRouterProvider = (
       try {
         text = await response.text();
       } catch (cause) {
-        throw transportFailure(cause, "OpenRouter response failed to read");
+        throw transportFailure(
+          cause,
+          "OpenRouter response failed to read",
+        );
       }
       throw new ProviderHttpError(
         `OpenRouter request failed: ${response.status}`,
@@ -81,7 +98,10 @@ export const createOpenRouterProvider = (
     try {
       text = await response.text();
     } catch (cause) {
-      throw transportFailure(cause, "OpenRouter response failed to read");
+      throw transportFailure(
+        cause,
+        "OpenRouter response failed to read",
+      );
     }
 
     let body: unknown;
@@ -104,7 +124,10 @@ export const createOpenRouterProvider = (
     try {
       yield* readSseData(body);
     } catch (cause) {
-      throw transportFailure(cause, "OpenRouter response failed to read");
+      throw transportFailure(
+        cause,
+        "OpenRouter response failed to read",
+      );
     }
   }
 
@@ -127,8 +150,9 @@ export const createOpenRouterProvider = (
     yield* toStreamEvents(readPayloads(body));
   }
 
-  const stream = (request: GenerateRequest): AsyncIterable<StreamEvent> =>
-    runStream(request);
+  const stream = (
+    request: GenerateRequest,
+  ): AsyncIterable<StreamEvent> => runStream(request);
 
   return { generate, stream };
 };

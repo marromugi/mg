@@ -7,10 +7,15 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 
 export type TraceDb = ReturnType<typeof drizzle>;
 
-const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
+const migrationsFolder = fileURLToPath(
+  new URL("../../drizzle", import.meta.url),
+);
 
 export const openTraceDb = async (path: string): Promise<TraceDb> => {
-  const url = path === ":memory:" ? "file::memory:" : pathToFileURL(resolve(path)).href;
+  const url =
+    path === ":memory:"
+      ? "file::memory:"
+      : pathToFileURL(resolve(path)).href;
   if (path !== ":memory:") {
     await fs.mkdir(dirname(path), { recursive: true });
   }

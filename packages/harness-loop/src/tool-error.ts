@@ -1,9 +1,16 @@
 import type { ToolCall, ToolMessage } from "@mg/core";
 import { ToolInputError } from "@mg/core";
 
-export const toolErrorToMessage = (call: ToolCall, error: unknown): ToolMessage => {
+export const toolErrorToMessage = (
+  call: ToolCall,
+  error: unknown,
+): ToolMessage => {
   if (!(error instanceof Error)) {
-    return { role: "tool", toolCallId: call.id, content: `[error] ${String(error)}` };
+    return {
+      role: "tool",
+      toolCallId: call.id,
+      content: `[error] ${String(error)}`,
+    };
   }
 
   let content = `[${error.name}] ${error.message}`;

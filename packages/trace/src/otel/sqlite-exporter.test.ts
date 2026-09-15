@@ -2,7 +2,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import {
+  BasicTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startRootSpan } from "../otel-span.js";
 import { spans } from "../store/schema.js";
@@ -70,9 +73,15 @@ describe("SqliteSpanExporter", () => {
     expect(rootRow?.parentSpanId).toBeNull();
     expect(childRow?.parentSpanId).toBe(rootRow?.spanId);
     expect(rootRow?.traceId).toBe(childRow?.traceId);
-    expect(JSON.parse(rootRow?.attributes ?? "{}")["start.attr"]).toBe("a");
+    expect(JSON.parse(rootRow?.attributes ?? "{}")["start.attr"]).toBe(
+      "a",
+    );
     expect(JSON.parse(rootRow?.events ?? "[]")).toEqual([
-      { name: "did-something", time: expect.any(String), attributes: { count: 3 } },
+      {
+        name: "did-something",
+        time: expect.any(String),
+        attributes: { count: 3 },
+      },
     ]);
     expect(rootRow?.statusCode).toBe(0);
     expect(rootRow?.sessionId).toBe("s1");

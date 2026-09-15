@@ -13,7 +13,8 @@ import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
-if (apiKey === undefined) throw new Error("OPENROUTER_API_KEY is not set");
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
 
 export default defineRun({
   name: "loop-bash",
@@ -28,54 +29,55 @@ export default defineRun({
 
 ### `RunConfig` (`packages/runner/src/config.ts`)
 
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `name` | `string` | yes | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules). |
-| `provider` | `Provider` (from `@mg/core`) | yes | LLM connection the harness calls. |
-| `harness` | `HarnessConfig` | yes | Harness settings, picked by `kind`. See the per-kind table below. |
-| `tools` | `readonly Tool[]` | no | Tools the harness may call. |
-| `trace` | `Omit<TraceSdkOptions, "sessionId">` | no | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`. |
+| Field      | Type                                 | Required | Meaning                                                                                                              |
+| ---------- | ------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `name`     | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules). |
+| `provider` | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                    |
+| `harness`  | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                    |
+| `tools`    | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                          |
+| `trace`    | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.              |
 
 ### `HarnessConfig`: kind `"loop"` (`LoopHarnessConfig`)
 
 `HarnessConfig` is currently just `LoopHarnessConfig`. If a new harness kind exists and isn't
 listed here, check `packages/runner/src/config.ts` and the matching harness package's README.
 
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `kind` | `"loop"` | yes | Selects the loop harness (`@mg/harness-loop`). |
-| `model` | `string` | yes | Model name passed to `provider`. |
-| `maxTurns` | `number` | yes | Max tool-call turns before the harness stops. |
-| `stream` | `boolean` | no (default `true`) | Whether the provider is called in streaming mode. |
+| Field      | Type      | Required            | Meaning                                           |
+| ---------- | --------- | ------------------- | ------------------------------------------------- |
+| `kind`     | `"loop"`  | yes                 | Selects the loop harness (`@mg/harness-loop`).    |
+| `model`    | `string`  | yes                 | Model name passed to `provider`.                  |
+| `maxTurns` | `number`  | yes                 | Max tool-call turns before the harness stops.     |
+| `stream`   | `boolean` | no (default `true`) | Whether the provider is called in streaming mode. |
 
 ### `trace` (`TraceSdkOptions`, minus `sessionId`)
 
 `sessionId` is not settable here — the runner supplies it (`RunOptions.sessionId`, or a
 generated id if you don't pass one) and merges it in itself.
 
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `jsonlPath` | `string` | no | Append spans as JSON Lines to this file. |
-| `sqlitePath` | `string` | no | Write spans to a SQLite database at this path. Cannot be `":memory:"`. |
-| `exporters` | `SpanExporter[]` | no | Extra OpenTelemetry exporters (e.g. OTLP). The runner does not close these — whoever constructed them owns closing them. |
-| `serviceName` | `string` | no (default `"mg"`) | Resource `service.name` attribute. |
+| Field         | Type             | Required            | Meaning                                                                                                                  |
+| ------------- | ---------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `jsonlPath`   | `string`         | no                  | Append spans as JSON Lines to this file.                                                                                 |
+| `sqlitePath`  | `string`         | no                  | Write spans to a SQLite database at this path. Cannot be `":memory:"`.                                                   |
+| `exporters`   | `SpanExporter[]` | no                  | Extra OpenTelemetry exporters (e.g. OTLP). The runner does not close these — whoever constructed them owns closing them. |
+| `serviceName` | `string`         | no (default `"mg"`) | Resource `service.name` attribute.                                                                                       |
 
 Field meanings, how they combine, and how to read the output back are in
 `packages/trace/README.md` — this table only tracks the shape.
 
 ## 3. Building blocks
 
-| Kind | Factory | Import from |
-| --- | --- | --- |
-| Provider | `createOpenRouterProvider(options)` | `@mg/core` |
-| Tool | `createBashTool(options)` | `@mg/tools` |
+| Kind     | Factory                             | Import from |
+| -------- | ----------------------------------- | ----------- |
+| Provider | `createOpenRouterProvider(options)` | `@mg/core`  |
+| Tool     | `createBashTool(options)`           | `@mg/tools` |
 
 ```ts
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
-if (apiKey === undefined) throw new Error("OPENROUTER_API_KEY is not set");
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
 
 const provider = createOpenRouterProvider({ apiKey });
 const tool = createBashTool({ cwd: process.cwd() });
@@ -112,7 +114,9 @@ import type { Message } from "@mg/core";
 import { run } from "@mg/runner";
 import config from "./loop-bash.config.ts";
 
-const messages: Message[] = [{ role: "user", content: "ls の結果を教えて" }];
+const messages: Message[] = [
+  { role: "user", content: "ls の結果を教えて" },
+];
 const { sessionId, result } = await run(config, messages);
 console.log(sessionId, result);
 ```
@@ -142,7 +146,9 @@ Picking a config by path instead of a static import, with `loadRun`:
 import { loadRun, run } from "@mg/runner";
 
 const config = await loadRun("./loop-bash.config.ts");
-const { sessionId } = await run(config, [{ role: "user", content: "hello" }]);
+const { sessionId } = await run(config, [
+  { role: "user", content: "hello" },
+]);
 console.log(sessionId);
 ```
 

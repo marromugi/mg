@@ -1,4 +1,9 @@
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -20,7 +25,11 @@ describe("JsonlTraceReader", () => {
   });
 
   it("round-trips a session written by createTraceSdk", async () => {
-    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1", serviceName: "svc" });
+    const sdk = await createTraceSdk({
+      jsonlPath,
+      sessionId: "session-1",
+      serviceName: "svc",
+    });
     const root = startRootSpan(sdk.tracer, "root");
     const child = root.startSpan("child");
     child.end();
@@ -44,7 +53,10 @@ describe("JsonlTraceReader", () => {
   });
 
   it("returns undefined for a session that is not in the file", async () => {
-    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({
+      jsonlPath,
+      sessionId: "session-1",
+    });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();
@@ -54,7 +66,10 @@ describe("JsonlTraceReader", () => {
   });
 
   it("skips lines that fail to parse", async () => {
-    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({
+      jsonlPath,
+      sessionId: "session-1",
+    });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();
@@ -96,7 +111,10 @@ describe("JsonlTraceReader", () => {
     const reader = new JsonlTraceReader(jsonlPath);
     const summaries = await reader.listSessions();
 
-    expect(summaries.map((summary) => summary.sessionId)).toEqual(["session-new", "session-old"]);
+    expect(summaries.map((summary) => summary.sessionId)).toEqual([
+      "session-new",
+      "session-old",
+    ]);
 
     const oldSession = await reader.readSession("session-old");
     expect(oldSession?.traces).toHaveLength(1);
@@ -111,7 +129,10 @@ describe("JsonlTraceReader", () => {
   });
 
   it("skips lines that parse but have the wrong shape", async () => {
-    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({
+      jsonlPath,
+      sessionId: "session-1",
+    });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();

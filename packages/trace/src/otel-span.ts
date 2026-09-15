@@ -1,4 +1,8 @@
-import { ROOT_CONTEXT, SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  ROOT_CONTEXT,
+  SpanStatusCode,
+  trace,
+} from "@opentelemetry/api";
 import type { Span, Tracer } from "@opentelemetry/api";
 import { noopSpan } from "@mg/harness";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
@@ -38,11 +42,13 @@ class OtelSpan implements TraceSpan {
   end(error?: unknown): void {
     try {
       if (error !== undefined) {
-        const exception = error instanceof Error ? error : String(error);
+        const exception =
+          error instanceof Error ? error : String(error);
         this.span.recordException(exception);
         this.span.setStatus({
           code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
+          message:
+            error instanceof Error ? error.message : String(error),
         });
       }
     } catch {}

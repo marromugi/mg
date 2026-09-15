@@ -26,7 +26,12 @@ const OPERATION_NAMES: Record<string, string> = {
 
 type GenAiPart =
   | { type: "text"; content: string }
-  | { type: "tool_call"; id?: string; name: string; arguments?: unknown }
+  | {
+      type: "tool_call";
+      id?: string;
+      name: string;
+      arguments?: unknown;
+    }
   | { type: "tool_call_response"; id?: string; response: unknown };
 
 type GenAiMessage = {
@@ -89,19 +94,25 @@ const parseMessages = (json: unknown): MessageLike[] | undefined => {
   if (typeof json !== "string") return undefined;
   try {
     const parsed = JSON.parse(json) as unknown;
-    return Array.isArray(parsed) ? parsed.filter(isMessageLike) : undefined;
+    return Array.isArray(parsed)
+      ? parsed.filter(isMessageLike)
+      : undefined;
   } catch {
     return undefined;
   }
 };
 
-const mapInputMessages = (attributes: Attributes): string | undefined => {
+const mapInputMessages = (
+  attributes: Attributes,
+): string | undefined => {
   const messages = parseMessages(attributes[ATTR.llmInputMessages]);
   if (messages === undefined) return undefined;
   return jsonAttribute(messages.map(toGenAiMessage));
 };
 
-const mapOutputMessages = (attributes: Attributes): string | undefined => {
+const mapOutputMessages = (
+  attributes: Attributes,
+): string | undefined => {
   const messages = parseMessages(attributes[ATTR.llmOutputMessages]);
   if (messages === undefined) return undefined;
   return jsonAttribute(messages.map(toGenAiMessage));
@@ -145,7 +156,9 @@ const mapLlmAttributes = (attributes: Attributes): Attributes => {
   return mapped;
 };
 
-export const mapGenAiAttributes = (attributes: Attributes): Attributes => {
+export const mapGenAiAttributes = (
+  attributes: Attributes,
+): Attributes => {
   const op = attributes[ATTR.op];
   if (typeof op !== "string") return {};
 

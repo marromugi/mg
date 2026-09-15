@@ -4,7 +4,9 @@ import type { SpanRecord } from "./record.js";
 import { buildSessionTree } from "./tree.js";
 import type { SessionTree } from "./tree.js";
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+const isPlainObject = (
+  value: unknown,
+): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isSpanRecordShape = (value: unknown): value is SpanRecord =>
@@ -84,11 +86,17 @@ export class JsonlTraceReader implements TraceReader {
       });
     }
 
-    return summaries.sort((a, b) => b.startTime.localeCompare(a.startTime));
+    return summaries.sort((a, b) =>
+      b.startTime.localeCompare(a.startTime),
+    );
   }
 
-  async readSession(sessionId: string): Promise<SessionTree | undefined> {
+  async readSession(
+    sessionId: string,
+  ): Promise<SessionTree | undefined> {
     const records = await this.readRecords();
-    return buildSessionTree(records.filter((record) => record.sessionId === sessionId));
+    return buildSessionTree(
+      records.filter((record) => record.sessionId === sessionId),
+    );
   }
 }

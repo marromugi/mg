@@ -55,13 +55,13 @@ harness-loop の役割は 4 つです。
 
 作るときに渡すものを表にまとめます。
 
-| 名前 | 内容 |
-| --- | --- |
-| `provider` | 使う接続先 |
-| `model` | 使うモデルの名前 |
-| `tools` | 使わせる道具の一覧（省略できる） |
-| `maxTurns` | 繰り返しの回数の上限 |
-| `stream` | 細切れで受け取るか（省くと true） |
+| 名前       | 内容                              |
+| ---------- | --------------------------------- |
+| `provider` | 使う接続先                        |
+| `model`    | 使うモデルの名前                  |
+| `tools`    | 使わせる道具の一覧（省略できる）  |
+| `maxTurns` | 繰り返しの回数の上限              |
+| `stream`   | 細切れで受け取るか（省くと true） |
 
 ```ts
 import { createLoopHarness } from "@mg/harness-loop";
@@ -74,5 +74,7 @@ const harness = createLoopHarness({
   maxTurns: 10,
 });
 
-const result = await collect(harness({ messages: [{ role: "user", content: "..." }] }));
+const result = await collect(
+  harness({ messages: [{ role: "user", content: "..." }] }),
+);
 ```

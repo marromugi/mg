@@ -6,7 +6,11 @@ import { runToolCall } from "./run.js";
 import type { Tool, ToolSchema } from "./types.js";
 
 const stubSchema = (
-  validate: (value: unknown) => StandardSchemaV1.Result<unknown> | Promise<StandardSchemaV1.Result<unknown>>,
+  validate: (
+    value: unknown,
+  ) =>
+    | StandardSchemaV1.Result<unknown>
+    | Promise<StandardSchemaV1.Result<unknown>>,
 ): ToolSchema => ({
   "~standard": {
     version: 1,
@@ -19,14 +23,20 @@ const stubSchema = (
   },
 });
 
-const upperCity = (value: unknown) => ({ value: { city: (value as { city: string }).city.toUpperCase() } });
+const upperCity = (value: unknown) => ({
+  value: { city: (value as { city: string }).city.toUpperCase() },
+});
 
 const stubTool = (
   input: ToolSchema,
   execute: Tool["execute"] = async (value) => JSON.stringify(value),
 ): Tool => ({ name: "weather", input, execute: vi.fn(execute) });
 
-const call: ToolCall = { id: "call-1", name: "weather", arguments: { city: "tokyo" } };
+const call: ToolCall = {
+  id: "call-1",
+  name: "weather",
+  arguments: { city: "tokyo" },
+};
 
 describe("runToolCall", () => {
   test("returns a tool message with the executed content", async () => {
@@ -49,37 +59,63 @@ describe("runToolCall", () => {
   });
 
   test("picks the tool whose name matches the call", async () => {
-    const other: Tool = { ...stubTool(stubSchema(upperCity), async () => "other"), name: "clock" };
-    const weather = stubTool(stubSchema(upperCity), async () => "weather");
+    const other: Tool = {
+      ...stubTool(stubSchema(upperCity), async () => "other"),
+      name: "clock",
+    };
+    const weather = stubTool(
+      stubSchema(upperCity),
+      async () => "weather",
+    );
 
-    await expect(runToolCall([other, weather], call)).resolves.toMatchObject({ content: "weather" });
+    await expect(
+      runToolCall([other, weather], call),
+    ).resolves.toMatchObject({
+      content: "weather",
+    });
     expect(other.execute).not.toHaveBeenCalled();
   });
 
   test("throws ToolNotFoundError when no tool has the name", async () => {
     const tool = stubTool(stubSchema(upperCity));
-    const unknown: ToolCall = { id: "call-2", name: "missing", arguments: {} };
+    const unknown: ToolCall = {
+      id: "call-2",
+      name: "missing",
+      arguments: {},
+    };
 
-    const error = await runToolCall([tool], unknown).catch((thrown: unknown) => thrown);
+    const error = await runToolCall([tool], unknown).catch(
+      (thrown: unknown) => thrown,
+    );
 
     expect(error).toBeInstanceOf(ToolNotFoundError);
-    expect(error).toMatchObject({ toolCallId: "call-2", toolName: "missing" });
+    expect(error).toMatchObject({
+      toolCallId: "call-2",
+      toolName: "missing",
+    });
   });
 
   test("throws ToolInputError with the issues and skips execute", async () => {
     const issues = [{ message: "Expected string", path: ["city"] }];
     const tool = stubTool(stubSchema(() => ({ issues })));
 
-    const error = await runToolCall([tool], call).catch((thrown: unknown) => thrown);
+    const error = await runToolCall([tool], call).catch(
+      (thrown: unknown) => thrown,
+    );
 
     expect(error).toBeInstanceOf(ToolInputError);
-    expect(error).toMatchObject({ toolCallId: "call-1", toolName: "weather" });
+    expect(error).toMatchObject({
+      toolCallId: "call-1",
+      toolName: "weather",
+    });
     expect((error as ToolInputError).issues).toBe(issues);
     expect(tool.execute).not.toHaveBeenCalled();
   });
 
   test("handles a validate that returns a promise", async () => {
-    const tool = stubTool(stubSchema(async (value) => upperCity(value)));
+    const tool = stubTool(
+      stubSchema(async (value) => upperCity(value)),
+    );
 
     await expect(runToolCall([tool], call)).resolves.toMatchObject({
       content: JSON.stringify({ city: "TOKYO" }),
@@ -91,7 +127,9 @@ describe("runToolCall", () => {
     const issues = [{ message: "Expected string" }];
     const tool = stubTool(stubSchema(async () => ({ issues })));
 
-    const error = await runToolCall([tool], call).catch((thrown: unknown) => thrown);
+    const error = await runToolCall([tool], call).catch(
+      (thrown: unknown) => thrown,
+    );
 
     expect(error).toBeInstanceOf(ToolInputError);
     expect((error as ToolInputError).issues).toBe(issues);
@@ -114,7 +152,12 @@ describe("runToolCall", () => {
 
     await runToolCall([tool], call, { signal: controller.signal });
 
-    expect(tool.execute).toHaveBeenCalledWith({ city: "TOKYO" }, { signal: controller.signal });
-    expect(vi.mocked(tool.execute).mock.calls[0]?.[1].signal).toBe(controller.signal);
+    expect(tool.execute).toHaveBeenCalledWith(
+      { city: "TOKYO" },
+      { signal: controller.signal },
+    );
+    expect(vi.mocked(tool.execute).mock.calls[0]?.[1].signal).toBe(
+      controller.signal,
+    );
   });
 });

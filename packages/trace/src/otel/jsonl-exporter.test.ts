@@ -52,7 +52,13 @@ describe("JsonlSpanExporter", () => {
       expect(() => JSON.parse(line)).not.toThrow();
     }
     const names = lines.map((line) => JSON.parse(line).name).sort();
-    expect(names).toEqual(["span-0", "span-1", "span-2", "span-3", "span-4"]);
+    expect(names).toEqual([
+      "span-0",
+      "span-1",
+      "span-2",
+      "span-3",
+      "span-4",
+    ]);
   });
 
   it("round-trips traceId, spanId, parentSpanId, attributes and events", async () => {
@@ -78,7 +84,11 @@ describe("JsonlSpanExporter", () => {
     expect(rootLine.attributes["start.attr"]).toBe("a");
     expect(rootLine.attributes["later.attr"]).toBe(1);
     expect(rootLine.events).toEqual([
-      { name: "did-something", time: expect.any(String), attributes: { count: 3 } },
+      {
+        name: "did-something",
+        time: expect.any(String),
+        attributes: { count: 3 },
+      },
     ]);
     expect(rootLine.status).toEqual({ code: 0 });
   });

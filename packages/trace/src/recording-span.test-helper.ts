@@ -4,7 +4,8 @@ export class RecordingSpan implements TraceSpan {
   readonly name: string;
   readonly attributes: TraceAttributes;
   readonly children: RecordingSpan[] = [];
-  readonly events: { name: string; attributes?: TraceAttributes }[] = [];
+  readonly events: { name: string; attributes?: TraceAttributes }[] =
+    [];
   readonly setAttributesCalls: TraceAttributes[] = [];
   readonly endCalls: unknown[] = [];
 
@@ -36,6 +37,10 @@ export class RecordingSpan implements TraceSpan {
   }
 
   get mergedAttributes(): TraceAttributes {
-    return Object.assign({}, this.attributes, ...this.setAttributesCalls);
+    return Object.assign(
+      {},
+      this.attributes,
+      ...this.setAttributesCalls,
+    );
   }
 }

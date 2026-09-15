@@ -40,7 +40,9 @@ describe("collect", () => {
       yield { type: "text-delta", delta: "hi" };
     }
 
-    await expect(collect(run())).rejects.toBeInstanceOf(HarnessIncompleteError);
+    await expect(collect(run())).rejects.toBeInstanceOf(
+      HarnessIncompleteError,
+    );
   });
 
   test("propagates an error thrown by the iterable", async () => {

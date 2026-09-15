@@ -1,7 +1,11 @@
 import type { SessionSummary } from "@mg/trace/store";
 import { Layout } from "./layout.js";
 
-export const SessionsPage = ({ sessions }: { sessions: SessionSummary[] }) => (
+export const SessionsPage = ({
+  sessions,
+}: {
+  sessions: SessionSummary[];
+}) => (
   <Layout title="Sessions">
     <h1>Sessions</h1>
     <table>
@@ -17,7 +21,11 @@ export const SessionsPage = ({ sessions }: { sessions: SessionSummary[] }) => (
         {sessions.map((session) => (
           <tr key={session.sessionId}>
             <td>
-              <a href={`/sessions/${encodeURIComponent(session.sessionId)}`}>{session.sessionId}</a>
+              <a
+                href={`/sessions/${encodeURIComponent(session.sessionId)}`}
+              >
+                {session.sessionId}
+              </a>
             </td>
             <td>{session.startTime}</td>
             <td>{session.endTime}</td>

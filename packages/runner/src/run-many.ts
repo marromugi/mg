@@ -6,7 +6,10 @@ import { run } from "./run.js";
 
 export type RunCase = { id: string; messages: Message[] };
 
-export type RunManyOptions = { signal?: AbortSignal; concurrency?: number };
+export type RunManyOptions = {
+  signal?: AbortSignal;
+  concurrency?: number;
+};
 
 export type RunManyOutcome =
   | { id: string; sessionId: string; result: HarnessResult }
@@ -19,12 +22,16 @@ export const runMany = async (
 ): Promise<RunManyOutcome[]> => {
   const concurrency = options?.concurrency ?? 1;
   if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw new RangeError(`concurrency must be an integer >= 1, got ${concurrency}`);
+    throw new RangeError(
+      `concurrency must be an integer >= 1, got ${concurrency}`,
+    );
   }
 
   const signal = options?.signal;
   const sessionIds = cases.map(() => nanoid());
-  const outcomes: RunManyOutcome[] = new Array(cases.length);
+  const outcomes: RunManyOutcome[] = Array.from({
+    length: cases.length,
+  });
 
   let nextIndex = 0;
   const worker = async () => {
@@ -33,10 +40,14 @@ export const runMany = async (
       nextIndex++;
       if (index >= cases.length) return;
 
-      const runCase = cases[index]!;
-      const sessionId = sessionIds[index]!;
+      const runCase = cases[index];
+      const sessionId = sessionIds[index];
       if (signal?.aborted) {
-        outcomes[index] = { id: runCase.id, sessionId, error: signal.reason };
+        outcomes[index] = {
+          id: runCase.id,
+          sessionId,
+          error: signal.reason,
+        };
         continue;
       }
 
@@ -46,14 +57,21 @@ export const runMany = async (
           sessionId,
           caseId: runCase.id,
         });
-        outcomes[index] = { id: runCase.id, sessionId, result: result.result };
+        outcomes[index] = {
+          id: runCase.id,
+          sessionId,
+          result: result.result,
+        };
       } catch (error) {
         outcomes[index] = { id: runCase.id, sessionId, error };
       }
     }
   };
 
-  const workers = Array.from({ length: Math.min(concurrency, cases.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, cases.length) },
+    () => worker(),
+  );
   await Promise.all(workers);
 
   return outcomes;

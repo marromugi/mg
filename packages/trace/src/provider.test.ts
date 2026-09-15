@@ -6,7 +6,10 @@ import type {
   StreamEvent,
 } from "@mg/core";
 import { ATTR, SPAN } from "./vocabulary.js";
-import { STREAM_INCOMPLETE_MESSAGE, traceProvider } from "./provider.js";
+import {
+  STREAM_INCOMPLETE_MESSAGE,
+  traceProvider,
+} from "./provider.js";
 import { RecordingSpan } from "./recording-span.test-helper.js";
 
 const request: GenerateRequest = {
@@ -54,7 +57,9 @@ describe("traceProvider / generate", () => {
       stream: async function* () {},
     };
 
-    const result = await traceProvider(provider, root).generate(request);
+    const result = await traceProvider(provider, root).generate(
+      request,
+    );
     const span = root.children[0];
 
     expect(result).toBe(response);
@@ -88,7 +93,9 @@ describe("traceProvider / generate", () => {
     const span = root.children[0];
 
     expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBeUndefined();
-    expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBeUndefined();
+    expect(
+      span?.mergedAttributes[ATTR.llmOutputTokens],
+    ).toBeUndefined();
   });
 
   it("ends the span with the error and rethrows it unchanged when the provider throws", async () => {
@@ -101,9 +108,9 @@ describe("traceProvider / generate", () => {
       stream: async function* () {},
     };
 
-    await expect(traceProvider(provider, root).generate(request)).rejects.toBe(
-      error,
-    );
+    await expect(
+      traceProvider(provider, root).generate(request),
+    ).rejects.toBe(error);
 
     const span = root.children[0];
     expect(span?.endCalls).toEqual([error]);
@@ -164,7 +171,9 @@ describe("traceProvider / stream", () => {
       },
     };
 
-    const events = await collect(traceProvider(provider, root).stream(request));
+    const events = await collect(
+      traceProvider(provider, root).stream(request),
+    );
 
     expect(events).toEqual(streamEvents);
   });
@@ -187,7 +196,9 @@ describe("traceProvider / stream", () => {
 
     expect(span?.name).toBe(SPAN.llm);
     expect(span?.attributes[ATTR.llmStream]).toBe(true);
-    expect(span?.mergedAttributes[ATTR.llmFinishReason]).toBe("tool_calls");
+    expect(span?.mergedAttributes[ATTR.llmFinishReason]).toBe(
+      "tool_calls",
+    );
     expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBe(2);
     expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBe(4);
     expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
@@ -210,7 +221,7 @@ describe("traceProvider / stream", () => {
         throw new Error("unused");
       },
       stream: async function* () {
-        yield streamEvents[0] as StreamEvent;
+        yield streamEvents[0];
         throw error;
       },
     };
@@ -259,12 +270,17 @@ describe("traceProvider / stream", () => {
         throw new Error("unused");
       },
       stream: async function* () {
-        yield { type: "text-delta", delta: "hel" } satisfies StreamEvent;
+        yield {
+          type: "text-delta",
+          delta: "hel",
+        } satisfies StreamEvent;
         yield { type: "text-delta", delta: "lo" } satisfies StreamEvent;
       },
     };
 
-    const events = await collect(traceProvider(provider, root).stream(request));
+    const events = await collect(
+      traceProvider(provider, root).stream(request),
+    );
 
     expect(events).toEqual([
       { type: "text-delta", delta: "hel" },
@@ -277,9 +293,13 @@ describe("traceProvider / stream", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe(STREAM_INCOMPLETE_MESSAGE);
 
-    expect(span?.mergedAttributes[ATTR.llmFinishReason]).toBeUndefined();
+    expect(
+      span?.mergedAttributes[ATTR.llmFinishReason],
+    ).toBeUndefined();
     expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBeUndefined();
-    expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBeUndefined();
+    expect(
+      span?.mergedAttributes[ATTR.llmOutputTokens],
+    ).toBeUndefined();
     expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
       JSON.stringify([
         {

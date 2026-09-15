@@ -12,7 +12,10 @@ import { ATTR, SPAN } from "./vocabulary.js";
 
 export type RunToolCall = typeof runToolCall;
 
-const startToolSpan = (parent: TraceSpan, call: ToolCall): TraceSpan => {
+const startToolSpan = (
+  parent: TraceSpan,
+  call: ToolCall,
+): TraceSpan => {
   try {
     return parent.startSpan(SPAN.tool, {
       [ATTR.op]: "tool",
@@ -25,7 +28,10 @@ const startToolSpan = (parent: TraceSpan, call: ToolCall): TraceSpan => {
   }
 };
 
-const setResultAttribute = (span: TraceSpan, message: ToolMessage): void => {
+const setResultAttribute = (
+  span: TraceSpan,
+  message: ToolMessage,
+): void => {
   setSpanAttributes(span, { [ATTR.toolResult]: message.content });
 };
 

@@ -30,11 +30,20 @@ const STYLE = `
   .children { margin-left: 20px; }
 `;
 
-export const Layout = ({ title, children }: { title: string; children: ReactNode }) => (
+export const Layout = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) => (
   <html lang="ja">
     <head>
       <meta charSet="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+      />
       <title>{title}</title>
       <style>{STYLE}</style>
     </head>

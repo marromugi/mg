@@ -8,7 +8,11 @@ import type {
   ToolCall,
   Usage,
 } from "@mg/core";
-import { noopSpan, type TraceAttributes, type TraceSpan } from "@mg/harness";
+import {
+  noopSpan,
+  type TraceAttributes,
+  type TraceSpan,
+} from "@mg/harness";
 import { jsonAttribute } from "./json.js";
 import { endSpan, setSpanAttributes } from "./span-guard.js";
 import { ATTR, SPAN } from "./vocabulary.js";
@@ -115,8 +119,16 @@ async function* traceStream(
     }
 
     ended = true;
-    setOutputAttributes(span, { content, toolCalls, finishReason, usage });
-    endSpan(span, finished ? undefined : new Error(STREAM_INCOMPLETE_MESSAGE));
+    setOutputAttributes(span, {
+      content,
+      toolCalls,
+      finishReason,
+      usage,
+    });
+    endSpan(
+      span,
+      finished ? undefined : new Error(STREAM_INCOMPLETE_MESSAGE),
+    );
   } catch (error) {
     ended = true;
     endSpan(span, error);

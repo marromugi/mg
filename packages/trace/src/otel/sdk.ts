@@ -1,7 +1,16 @@
 import type { Tracer } from "@opentelemetry/api";
-import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
-import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
+import {
+  defaultResource,
+  resourceFromAttributes,
+} from "@opentelemetry/resources";
+import {
+  BasicTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import type {
+  ReadableSpan,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace-base";
 import { nanoid } from "nanoid";
 import type { TraceDb } from "../store/sqlite.js";
 import { openTraceDb } from "../store/sqlite.js";
@@ -32,7 +41,10 @@ type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
 class NonClosingExporter implements SpanExporter {
   constructor(private readonly inner: SpanExporter) {}
 
-  export(spans: ReadableSpan[], resultCallback: ExportResultCallback): void {
+  export(
+    spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
     this.inner.export(spans, resultCallback);
   }
 
@@ -45,7 +57,9 @@ class NonClosingExporter implements SpanExporter {
   }
 }
 
-export const createTraceSdk = async (options: TraceSdkOptions = {}): Promise<TraceSdk> => {
+export const createTraceSdk = async (
+  options: TraceSdkOptions = {},
+): Promise<TraceSdk> => {
   const exporters: SpanExporter[] = [];
   let sqliteDb: TraceDb | undefined;
 
@@ -62,7 +76,11 @@ export const createTraceSdk = async (options: TraceSdkOptions = {}): Promise<Tra
     exporters.push(new JsonlSpanExporter(options.jsonlPath));
   }
   if (options.exporters !== undefined) {
-    exporters.push(...options.exporters.map((exporter) => new NonClosingExporter(exporter)));
+    exporters.push(
+      ...options.exporters.map(
+        (exporter) => new NonClosingExporter(exporter),
+      ),
+    );
   }
 
   const serviceName = options.serviceName ?? "mg";
@@ -75,7 +93,9 @@ export const createTraceSdk = async (options: TraceSdkOptions = {}): Promise<Tra
         [ATTR_SESSION_ID]: sessionId,
       }),
     ),
-    spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
+    spanProcessors: exporters.map(
+      (exporter) => new SimpleSpanProcessor(exporter),
+    ),
   });
 
   return {

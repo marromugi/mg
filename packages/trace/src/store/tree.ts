@@ -1,6 +1,8 @@
 import type { SpanRecord } from "./record.js";
 
-export type SpanNode = Omit<SpanRecord, "parentSpanId"> & { children: SpanNode[] };
+export type SpanNode = Omit<SpanRecord, "parentSpanId"> & {
+  children: SpanNode[];
+};
 
 export type TraceTree = { traceId: string; root: SpanNode };
 
@@ -12,10 +14,15 @@ export type SessionTree = {
   traces: TraceTree[];
 };
 
-const byStartTime = (a: { startTime: string }, b: { startTime: string }): number =>
-  a.startTime.localeCompare(b.startTime);
+const byStartTime = (
+  a: { startTime: string },
+  b: { startTime: string },
+): number => a.startTime.localeCompare(b.startTime);
 
-const toNode = (record: SpanRecord, childrenByParentId: Map<string, SpanRecord[]>): SpanNode => {
+const toNode = (
+  record: SpanRecord,
+  childrenByParentId: Map<string, SpanRecord[]>,
+): SpanNode => {
   const { parentSpanId: _parentSpanId, ...rest } = record;
   const children = (childrenByParentId.get(record.spanId) ?? [])
     .map((child) => toNode(child, childrenByParentId))
@@ -23,13 +30,19 @@ const toNode = (record: SpanRecord, childrenByParentId: Map<string, SpanRecord[]
   return { ...rest, children };
 };
 
-const buildTraceTrees = (traceId: string, records: SpanRecord[]): TraceTree[] => {
+const buildTraceTrees = (
+  traceId: string,
+  records: SpanRecord[],
+): TraceTree[] => {
   const spanIds = new Set(records.map((record) => record.spanId));
   const childrenByParentId = new Map<string, SpanRecord[]>();
   const roots: SpanRecord[] = [];
 
   for (const record of records) {
-    if (record.parentSpanId !== undefined && spanIds.has(record.parentSpanId)) {
+    if (
+      record.parentSpanId !== undefined &&
+      spanIds.has(record.parentSpanId)
+    ) {
       const siblings = childrenByParentId.get(record.parentSpanId);
       if (siblings) {
         siblings.push(record);
@@ -41,10 +54,15 @@ const buildTraceTrees = (traceId: string, records: SpanRecord[]): TraceTree[] =>
     }
   }
 
-  return roots.map((root) => ({ traceId, root: toNode(root, childrenByParentId) }));
+  return roots.map((root) => ({
+    traceId,
+    root: toNode(root, childrenByParentId),
+  }));
 };
 
-export const buildSessionTree = (records: SpanRecord[]): SessionTree | undefined => {
+export const buildSessionTree = (
+  records: SpanRecord[],
+): SessionTree | undefined => {
   if (records.length === 0) {
     return undefined;
   }
@@ -60,15 +78,19 @@ export const buildSessionTree = (records: SpanRecord[]): SessionTree | undefined
   }
 
   const traces = Array.from(recordsByTraceId.entries())
-    .flatMap(([traceId, traceRecords]) => buildTraceTrees(traceId, traceRecords))
+    .flatMap(([traceId, traceRecords]) =>
+      buildTraceTrees(traceId, traceRecords),
+    )
     .sort((a, b) => byStartTime(a.root, b.root));
 
   const startTime = records.reduce(
-    (earliest, record) => (record.startTime < earliest ? record.startTime : earliest),
+    (earliest, record) =>
+      record.startTime < earliest ? record.startTime : earliest,
     records[0].startTime,
   );
   const endTime = records.reduce(
-    (latest, record) => (record.endTime > latest ? record.endTime : latest),
+    (latest, record) =>
+      record.endTime > latest ? record.endTime : latest,
     records[0].endTime,
   );
 

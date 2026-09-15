@@ -14,7 +14,9 @@ export const createHarness = (config: RunConfig): Harness => {
       });
     default: {
       const unknown = config.harness as { kind: unknown };
-      throw new RangeError(`unknown harness kind: ${String(unknown.kind)}`);
+      throw new RangeError(
+        `unknown harness kind: ${String(unknown.kind)}`,
+      );
     }
   }
 };

@@ -20,7 +20,9 @@ const citySchema = {
         properties: { city: { type: "string" } },
         required: ["city"],
       }),
-      output: (_options: StandardJSONSchemaV1.Options) => ({ type: "string" }),
+      output: (_options: StandardJSONSchemaV1.Options) => ({
+        type: "string",
+      }),
     },
   },
 } as const satisfies StandardJSONSchemaV1;
@@ -33,7 +35,11 @@ describe("ToolDefinition", () => {
       input: citySchema,
     } satisfies ToolDefinition;
 
-    expect(weather.input["~standard"].jsonSchema.input({ target: "draft-2020-12" })).toEqual({
+    expect(
+      weather.input["~standard"].jsonSchema.input({
+        target: "draft-2020-12",
+      }),
+    ).toEqual({
       type: "object",
       properties: { city: { type: "string" } },
       required: ["city"],
@@ -44,8 +50,12 @@ describe("ToolDefinition", () => {
     // @ts-expect-error input must expose ~standard.jsonSchema
     ({ name: "weather", input: {} }) satisfies ToolDefinition;
 
+    const withoutJsonSchema = {
+      name: "weather",
+      input: { "~standard": { version: 1, vendor: "mg-test" } },
+    };
     // @ts-expect-error input must expose ~standard.jsonSchema
-    ({ name: "weather", input: { "~standard": { version: 1, vendor: "mg-test" } } }) satisfies ToolDefinition;
+    withoutJsonSchema satisfies ToolDefinition;
 
     expect(true).toBe(true);
   });
@@ -53,10 +63,18 @@ describe("ToolDefinition", () => {
 
 describe("Message", () => {
   test("discriminates on role", () => {
-    expectTypeOf<Extract<Message, { role: "system" }>>().toEqualTypeOf<SystemMessage>();
-    expectTypeOf<Extract<Message, { role: "user" }>>().toEqualTypeOf<UserMessage>();
-    expectTypeOf<Extract<Message, { role: "assistant" }>>().toEqualTypeOf<AssistantMessage>();
-    expectTypeOf<Extract<Message, { role: "tool" }>>().toEqualTypeOf<ToolMessage>();
+    expectTypeOf<
+      Extract<Message, { role: "system" }>
+    >().toEqualTypeOf<SystemMessage>();
+    expectTypeOf<
+      Extract<Message, { role: "user" }>
+    >().toEqualTypeOf<UserMessage>();
+    expectTypeOf<
+      Extract<Message, { role: "assistant" }>
+    >().toEqualTypeOf<AssistantMessage>();
+    expectTypeOf<
+      Extract<Message, { role: "tool" }>
+    >().toEqualTypeOf<ToolMessage>();
   });
 
   test("narrows in a conditional", () => {
@@ -77,49 +95,83 @@ describe("Message", () => {
       }
     };
 
-    expect(describeMessage({ role: "system", content: "be brief" })).toBe("system:be brief");
-    expect(describeMessage({ role: "user", content: "weather?" })).toBe("user:weather?");
+    expect(
+      describeMessage({ role: "system", content: "be brief" }),
+    ).toBe("system:be brief");
+    expect(describeMessage({ role: "user", content: "weather?" })).toBe(
+      "user:weather?",
+    );
     expect(
       describeMessage({
         role: "assistant",
         content: "",
-        toolCalls: [{ id: "call-1", name: "weather", arguments: { city: "Tokyo" } }],
+        toolCalls: [
+          {
+            id: "call-1",
+            name: "weather",
+            arguments: { city: "Tokyo" },
+          },
+        ],
       }),
     ).toBe("assistant:1");
-    expect(describeMessage({ role: "tool", toolCallId: "call-1", content: "24" })).toBe("tool:call-1");
+    expect(
+      describeMessage({
+        role: "tool",
+        toolCallId: "call-1",
+        content: "24",
+      }),
+    ).toBe("tool:call-1");
   });
 });
 
 describe("StreamEvent", () => {
   test("discriminates on type", () => {
-    expectTypeOf<Extract<StreamEvent, { type: "text-delta" }>>().toEqualTypeOf<{
+    expectTypeOf<
+      Extract<StreamEvent, { type: "text-delta" }>
+    >().toEqualTypeOf<{
       type: "text-delta";
       delta: string;
     }>();
-    expectTypeOf<Extract<StreamEvent, { type: "tool-call" }>>().toHaveProperty("toolCall");
-    expectTypeOf<Extract<StreamEvent, { type: "finish" }>>().toHaveProperty("finishReason");
+    expectTypeOf<
+      Extract<StreamEvent, { type: "tool-call" }>
+    >().toHaveProperty("toolCall");
+    expectTypeOf<
+      Extract<StreamEvent, { type: "finish" }>
+    >().toHaveProperty("finishReason");
   });
 
   test("narrows in a conditional", () => {
     const describeEvent = (event: StreamEvent): string => {
       switch (event.type) {
         case "text-delta":
-          expectTypeOf(event).toEqualTypeOf<Extract<StreamEvent, { type: "text-delta" }>>();
+          expectTypeOf(event).toEqualTypeOf<
+            Extract<StreamEvent, { type: "text-delta" }>
+          >();
           return `text:${event.delta}`;
         case "tool-call":
-          expectTypeOf(event).toEqualTypeOf<Extract<StreamEvent, { type: "tool-call" }>>();
+          expectTypeOf(event).toEqualTypeOf<
+            Extract<StreamEvent, { type: "tool-call" }>
+          >();
           return `call:${event.toolCall.name}`;
         case "finish":
-          expectTypeOf(event).toEqualTypeOf<Extract<StreamEvent, { type: "finish" }>>();
+          expectTypeOf(event).toEqualTypeOf<
+            Extract<StreamEvent, { type: "finish" }>
+          >();
           return `finish:${event.finishReason}:${event.usage?.outputTokens ?? 0}`;
       }
     };
 
-    expect(describeEvent({ type: "text-delta", delta: "hi" })).toBe("text:hi");
+    expect(describeEvent({ type: "text-delta", delta: "hi" })).toBe(
+      "text:hi",
+    );
     expect(
       describeEvent({
         type: "tool-call",
-        toolCall: { id: "call-1", name: "weather", arguments: { city: "Tokyo" } },
+        toolCall: {
+          id: "call-1",
+          name: "weather",
+          arguments: { city: "Tokyo" },
+        },
       }),
     ).toBe("call:weather");
     expect(

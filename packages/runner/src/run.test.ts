@@ -4,17 +4,27 @@ import { join } from "node:path";
 import type { GenerateResponse, Provider, StreamEvent } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vitest";
 import type { RunConfig } from "./config.js";
 import { run } from "./run.js";
 
-const stubProvider = (responses: readonly GenerateResponse[]): Provider => {
+const stubProvider = (
+  responses: readonly GenerateResponse[],
+): Provider => {
   let index = 0;
   return {
     generate: async () => {
       const response = responses[index];
       index++;
-      if (!response) throw new Error("stubProvider: no scripted response left");
+      if (!response)
+        throw new Error("stubProvider: no scripted response left");
       return response;
     },
     stream: () => {
@@ -23,7 +33,9 @@ const stubProvider = (responses: readonly GenerateResponse[]): Provider => {
   };
 };
 
-const stubStreamProvider = (turns: readonly StreamEvent[][]): Provider => {
+const stubStreamProvider = (
+  turns: readonly StreamEvent[][],
+): Provider => {
   let index = 0;
   return {
     generate: async () => {
@@ -32,7 +44,8 @@ const stubStreamProvider = (turns: readonly StreamEvent[][]): Provider => {
     stream: () => {
       const events = turns[index];
       index++;
-      if (!events) throw new Error("stubStreamProvider: no scripted turn left");
+      if (!events)
+        throw new Error("stubStreamProvider: no scripted turn left");
       return (async function* () {
         for (const event of events) {
           yield event;
@@ -63,7 +76,9 @@ describe("run", () => {
   });
 
   test("returns the last result and a non-empty session id", async () => {
-    const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
+    const provider = stubProvider([
+      { content: "hi", toolCalls: [], finishReason: "stop" },
+    ]);
     const config: RunConfig = {
       name: "example",
       provider,
@@ -78,7 +93,9 @@ describe("run", () => {
 
   test("exports an mg.run root span carrying the run name, with mg.harness as its child", async () => {
     const exporter = new InMemorySpanExporter();
-    const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
+    const provider = stubProvider([
+      { content: "hi", toolCalls: [], finishReason: "stop" },
+    ]);
     const config: RunConfig = {
       name: "example",
       provider,
@@ -90,13 +107,19 @@ describe("run", () => {
 
     const spans = exporter.getFinishedSpans();
     const rootSpan = spans.find((span) => span.name === "mg.run");
-    const harnessSpan = spans.find((span) => span.name === "mg.harness");
+    const harnessSpan = spans.find(
+      (span) => span.name === "mg.harness",
+    );
 
     expect(rootSpan).toBeDefined();
     expect(harnessSpan).toBeDefined();
     expect(rootSpan?.attributes["mg.run.name"]).toBe("example");
-    expect(harnessSpan?.parentSpanContext?.spanId).toBe(rootSpan?.spanContext().spanId);
-    expect(harnessSpan?.spanContext().traceId).toBe(rootSpan?.spanContext().traceId);
+    expect(harnessSpan?.parentSpanContext?.spanId).toBe(
+      rootSpan?.spanContext().spanId,
+    );
+    expect(harnessSpan?.spanContext().traceId).toBe(
+      rootSpan?.spanContext().traceId,
+    );
   });
 
   test("onEvent sees text-delta, turn, done in order", async () => {
@@ -113,7 +136,9 @@ describe("run", () => {
     };
 
     const seen: HarnessEvent["type"][] = [];
-    await run(config, [], { onEvent: (event) => seen.push(event.type) });
+    await run(config, [], {
+      onEvent: (event) => seen.push(event.type),
+    });
 
     expect(seen).toEqual(["text-delta", "turn", "done"]);
   });
@@ -131,14 +156,18 @@ describe("run", () => {
 
     await expect(run(config, [])).rejects.toThrow(error);
 
-    const rootSpan = exporter.getFinishedSpans().find((span) => span.name === "mg.run");
+    const rootSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.run");
     expect(rootSpan).toBeDefined();
     expect(rootSpan?.status.code).toBe(2);
   });
 
   test("the sessionId option is honoured on every exported span", async () => {
     const exporter = new InMemorySpanExporter();
-    const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
+    const provider = stubProvider([
+      { content: "hi", toolCalls: [], finishReason: "stop" },
+    ]);
     const config: RunConfig = {
       name: "example",
       provider,
@@ -160,29 +189,42 @@ describe("run", () => {
     const exporter = new InMemorySpanExporter();
     const config: RunConfig = {
       name: "example",
-      provider: stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]),
+      provider: stubProvider([
+        { content: "hi", toolCalls: [], finishReason: "stop" },
+      ]),
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       trace: { exporters: [exporter] },
     };
 
     const first = await run(config, []);
     const second = await run(
-      { ...config, provider: stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]) },
+      {
+        ...config,
+        provider: stubProvider([
+          { content: "hi", toolCalls: [], finishReason: "stop" },
+        ]),
+      },
       [],
     );
 
     expect(first.sessionId).not.toBe(second.sessionId);
 
-    const rootSpans = exporter.getFinishedSpans().filter((span) => span.name === "mg.run");
+    const rootSpans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.name === "mg.run");
     expect(rootSpans).toHaveLength(2);
-    const sessionIds = rootSpans.map((span) => span.resource.attributes["session.id"]);
+    const sessionIds = rootSpans.map(
+      (span) => span.resource.attributes["session.id"],
+    );
     expect(sessionIds).toEqual([first.sessionId, second.sessionId]);
   });
 
   test("an unopenable trace destination rejects run before onEvent runs", async () => {
     const blocker = join(dir, "blocker");
     writeFileSync(blocker, "");
-    const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
+    const provider = stubProvider([
+      { content: "hi", toolCalls: [], finishReason: "stop" },
+    ]);
     const config: RunConfig = {
       name: "example",
       provider,

@@ -4,7 +4,9 @@ import { createOtlpExporter } from "./otlp.js";
 
 describe("createOtlpExporter", () => {
   it("returns a GenAiMappingExporter wrapping an OTLP exporter, without network I/O", () => {
-    const exporter = createOtlpExporter("http://localhost:4318/v1/traces");
+    const exporter = createOtlpExporter(
+      "http://localhost:4318/v1/traces",
+    );
     expect(exporter).toBeInstanceOf(GenAiMappingExporter);
   });
 });

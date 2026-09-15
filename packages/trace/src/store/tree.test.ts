@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { SpanRecord } from "./record.js";
 import { buildSessionTree } from "./tree.js";
 
-const record = (overrides: Partial<SpanRecord> & Pick<SpanRecord, "spanId">): SpanRecord => ({
+const record = (
+  overrides: Partial<SpanRecord> & Pick<SpanRecord, "spanId">,
+): SpanRecord => ({
   sessionId: "session-1",
   serviceName: "svc",
   traceId: "trace-1",
@@ -22,7 +24,10 @@ describe("buildSessionTree", () => {
   });
 
   it("nests children under their parent by parentSpanId", () => {
-    const root = record({ spanId: "root", startTime: "2026-01-01T00:00:00.000Z" });
+    const root = record({
+      spanId: "root",
+      startTime: "2026-01-01T00:00:00.000Z",
+    });
     const child = record({
       spanId: "child",
       parentSpanId: "root",
@@ -40,7 +45,9 @@ describe("buildSessionTree", () => {
     expect(tree?.traces[0]?.root.spanId).toBe("root");
     expect(tree?.traces[0]?.root.children).toHaveLength(1);
     expect(tree?.traces[0]?.root.children[0]?.spanId).toBe("child");
-    expect(tree?.traces[0]?.root.children[0]?.children[0]?.spanId).toBe("grandchild");
+    expect(tree?.traces[0]?.root.children[0]?.children[0]?.spanId).toBe(
+      "grandchild",
+    );
   });
 
   it("drops parentSpanId from tree nodes", () => {
@@ -49,11 +56,16 @@ describe("buildSessionTree", () => {
 
     const tree = buildSessionTree([root, child]);
 
-    expect(tree?.traces[0]?.root.children[0]).not.toHaveProperty("parentSpanId");
+    expect(tree?.traces[0]?.root.children[0]).not.toHaveProperty(
+      "parentSpanId",
+    );
   });
 
   it("sorts children of the same parent by startTime", () => {
-    const root = record({ spanId: "root", startTime: "2026-01-01T00:00:00.000Z" });
+    const root = record({
+      spanId: "root",
+      startTime: "2026-01-01T00:00:00.000Z",
+    });
     const late = record({
       spanId: "late",
       parentSpanId: "root",
@@ -67,10 +79,9 @@ describe("buildSessionTree", () => {
 
     const tree = buildSessionTree([root, late, early]);
 
-    expect(tree?.traces[0]?.root.children.map((child) => child.spanId)).toEqual([
-      "early",
-      "late",
-    ]);
+    expect(
+      tree?.traces[0]?.root.children.map((child) => child.spanId),
+    ).toEqual(["early", "late"]);
   });
 
   it("sorts traces by root startTime", () => {
@@ -87,7 +98,10 @@ describe("buildSessionTree", () => {
 
     const tree = buildSessionTree([rootB, rootA]);
 
-    expect(tree?.traces.map((trace) => trace.traceId)).toEqual(["trace-a", "trace-b"]);
+    expect(tree?.traces.map((trace) => trace.traceId)).toEqual([
+      "trace-a",
+      "trace-b",
+    ]);
   });
 
   it("keeps a span whose parent is missing as the root of its own trace", () => {

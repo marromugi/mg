@@ -23,7 +23,11 @@ type OpenRouterToolCall = {
 type OpenRouterMessage =
   | { role: "system"; content: string }
   | { role: "user"; content: string }
-  | { role: "assistant"; content: string; tool_calls?: OpenRouterToolCall[] }
+  | {
+      role: "assistant";
+      content: string;
+      tool_calls?: OpenRouterToolCall[];
+    }
   | { role: "tool"; tool_call_id: string; content: string };
 
 type OpenRouterTool = {
@@ -168,7 +172,9 @@ export const toUsage = (usage: {
   outputTokens: usage.completion_tokens,
 });
 
-export const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
+export const toToolCall = (
+  toolCall: OpenRouterResponseToolCall,
+): ToolCall => {
   const name = toolCall.function?.name ?? "";
   const raw = toolCall.function?.arguments;
 
@@ -187,7 +193,9 @@ export const toToolCall = (toolCall: OpenRouterResponseToolCall): ToolCall => {
   }
 };
 
-export const fromOpenRouterResponse = (body: unknown): GenerateResponse => {
+export const fromOpenRouterResponse = (
+  body: unknown,
+): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
     throw new ProviderHttpError(
       "OpenRouter response has no choices",

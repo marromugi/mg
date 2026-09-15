@@ -4,35 +4,59 @@ import { MessagesView } from "./messages.js";
 
 const ERROR_STATUS_CODE = 2;
 
-const attrString = (attributes: SpanRecord["attributes"], key: string): string | undefined => {
+const attrString = (
+  attributes: SpanRecord["attributes"],
+  key: string,
+): string | undefined => {
   const value = attributes[key];
   return typeof value === "string" ? value : undefined;
 };
 
-const attrNumber = (attributes: SpanRecord["attributes"], key: string): number | undefined => {
+const attrNumber = (
+  attributes: SpanRecord["attributes"],
+  key: string,
+): number | undefined => {
   const value = attributes[key];
   return typeof value === "number" ? value : undefined;
 };
 
 const LlmDetails = ({ node }: { node: SpanNode }) => {
   const model = attrString(node.attributes, ATTR.llmModel);
-  const finishReason = attrString(node.attributes, ATTR.llmFinishReason);
+  const finishReason = attrString(
+    node.attributes,
+    ATTR.llmFinishReason,
+  );
   const inputTokens = attrNumber(node.attributes, ATTR.llmInputTokens);
-  const outputTokens = attrNumber(node.attributes, ATTR.llmOutputTokens);
-  const inputMessages = attrString(node.attributes, ATTR.llmInputMessages);
-  const outputMessages = attrString(node.attributes, ATTR.llmOutputMessages);
+  const outputTokens = attrNumber(
+    node.attributes,
+    ATTR.llmOutputTokens,
+  );
+  const inputMessages = attrString(
+    node.attributes,
+    ATTR.llmInputMessages,
+  );
+  const outputMessages = attrString(
+    node.attributes,
+    ATTR.llmOutputMessages,
+  );
 
   return (
     <div className="llm">
       {model !== undefined ? <div>Model: {model}</div> : null}
-      {finishReason !== undefined ? <div>Finish reason: {finishReason}</div> : null}
+      {finishReason !== undefined ? (
+        <div>Finish reason: {finishReason}</div>
+      ) : null}
       {inputTokens !== undefined || outputTokens !== undefined ? (
         <div>
           Tokens: {inputTokens ?? "?"} in / {outputTokens ?? "?"} out
         </div>
       ) : null}
-      {inputMessages !== undefined ? <MessagesView label="Input" raw={inputMessages} /> : null}
-      {outputMessages !== undefined ? <MessagesView label="Output" raw={outputMessages} /> : null}
+      {inputMessages !== undefined ? (
+        <MessagesView label="Input" raw={inputMessages} />
+      ) : null}
+      {outputMessages !== undefined ? (
+        <MessagesView label="Output" raw={outputMessages} />
+      ) : null}
     </div>
   );
 };
@@ -70,7 +94,9 @@ export const SpanNodeView = ({ node }: { node: SpanNode }) => {
           {node.startTime} – {node.endTime}
         </span>
       </div>
-      {isError ? <div className="error">Error: {node.status.message ?? ""}</div> : null}
+      {isError ? (
+        <div className="error">Error: {node.status.message ?? ""}</div>
+      ) : null}
       {node.name === SPAN.llm ? <LlmDetails node={node} /> : null}
       {node.name === SPAN.tool ? <ToolDetails node={node} /> : null}
       {node.children.length > 0 ? (

@@ -3,3 +3,4 @@ export * from "./harness.js";
 export * from "./errors.js";
 export * from "./load.js";
 export * from "./run.js";
+export * from "./run-many.js";

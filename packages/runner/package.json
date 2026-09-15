@@ -16,7 +16,8 @@
     "@mg/core": "workspace:*",
     "@mg/harness": "workspace:*",
     "@mg/harness-loop": "workspace:*",
-    "@mg/trace": "workspace:*"
+    "@mg/trace": "workspace:*",
+    "nanoid": "5.1.16"
   },
   "devDependencies": {
     "@opentelemetry/sdk-trace-base": "2.11.0"

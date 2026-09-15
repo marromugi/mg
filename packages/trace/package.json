@@ -21,12 +21,17 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@libsql/client": "0.18.0",
     "@mg/core": "workspace:*",
     "@mg/harness": "workspace:*",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/exporter-trace-otlp-http": "0.222.0",
     "@opentelemetry/resources": "2.11.0",
     "@opentelemetry/sdk-trace-base": "2.11.0",
+    "drizzle-orm": "0.45.2",
     "nanoid": "5.1.16"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
   }
 }

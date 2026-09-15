@@ -20,7 +20,7 @@ describe("JsonlTraceReader", () => {
   });
 
   it("round-trips a session written by createTraceSdk", async () => {
-    const sdk = createTraceSdk({ jsonlPath, sessionId: "session-1", serviceName: "svc" });
+    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1", serviceName: "svc" });
     const root = startRootSpan(sdk.tracer, "root");
     const child = root.startSpan("child");
     child.end();
@@ -44,7 +44,7 @@ describe("JsonlTraceReader", () => {
   });
 
   it("returns undefined for a session that is not in the file", async () => {
-    const sdk = createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1" });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();
@@ -54,7 +54,7 @@ describe("JsonlTraceReader", () => {
   });
 
   it("skips lines that fail to parse", async () => {
-    const sdk = createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1" });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();
@@ -111,7 +111,7 @@ describe("JsonlTraceReader", () => {
   });
 
   it("skips lines that parse but have the wrong shape", async () => {
-    const sdk = createTraceSdk({ jsonlPath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({ jsonlPath, sessionId: "session-1" });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();

@@ -24,7 +24,7 @@ trace の役割は 4 つです。
 | --- | --- | --- |
 | `@mg/trace` | 口の実体、語彙、包む部品 | OpenTelemetry の API、harness、core |
 | `@mg/trace/otel` | 組み立てと保存先 | `@mg/trace`、OpenTelemetry の SDK |
-| `@mg/trace/store` | 木の型、読み手の口、JSONL の読み手 | なし |
+| `@mg/trace/store` | 木の型、読み手の口、JSONL の読み手、SQLite の読み手 | drizzle、libsql |
 
 trace は、harness と core を使います。
 harness は、trace を知りません。
@@ -97,7 +97,7 @@ import { startRootSpan } from "@mg/trace";
 import { collect } from "@mg/harness";
 import { createLoopHarness } from "@mg/harness-loop";
 
-const sdk = createTraceSdk({ jsonlPath: "./trace.jsonl" });
+const sdk = await createTraceSdk({ jsonlPath: "./trace.jsonl" });
 const trace = startRootSpan(sdk.tracer, "run");
 
 const harness = createLoopHarness({

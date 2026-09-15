@@ -1,11 +1,8 @@
 import type { SpanNode } from "@mg/trace/store";
-import { ATTR } from "../../../vocabulary.js";
-import { attrString } from "./SpanTree.js";
+import { useToolSpan } from "./hooks/useToolSpan.js";
 
 export const ToolDetails = ({ node }: { node: SpanNode }) => {
-  const name = attrString(node.attributes, ATTR.toolName);
-  const args = attrString(node.attributes, ATTR.toolArguments);
-  const result = attrString(node.attributes, ATTR.toolResult);
+  const { name, arguments: args, result } = useToolSpan(node);
 
   return (
     <div className="tool">

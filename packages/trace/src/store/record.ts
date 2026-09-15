@@ -7,7 +7,14 @@ export type SpanRecord = {
   name: string;
   startTime: string;
   endTime: string;
-  attributes: Record<string, string | number | boolean | (string | number | boolean)[]>;
-  events: { name: string; time: string; attributes?: SpanRecord["attributes"] }[];
+  attributes: Record<
+    string,
+    string | number | boolean | (string | number | boolean)[]
+  >;
+  events: {
+    name: string;
+    time: string;
+    attributes?: SpanRecord["attributes"];
+  }[];
   status: { code: number; message?: string };
 };

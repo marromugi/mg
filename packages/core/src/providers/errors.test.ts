@@ -45,7 +45,11 @@ describe("ProviderTransportError", () => {
 
 describe("ToolArgumentsError", () => {
   test("carries the tool call it came from", () => {
-    const error = new ToolArgumentsError("call-1", "weather", "{ not json");
+    const error = new ToolArgumentsError(
+      "call-1",
+      "weather",
+      "{ not json",
+    );
 
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(ProviderBaseError);
@@ -58,7 +62,12 @@ describe("ToolArgumentsError", () => {
 
   test("keeps the original exception when given one", () => {
     const cause = new SyntaxError("Unexpected token");
-    const error = new ToolArgumentsError("call-1", "weather", "{ not json", { cause });
+    const error = new ToolArgumentsError(
+      "call-1",
+      "weather",
+      "{ not json",
+      { cause },
+    );
 
     expect(error.cause).toBe(cause);
   });
@@ -105,10 +114,18 @@ describe("ProviderBaseError", () => {
 
     const cause = new Error("boom");
 
-    expect(describeError(new ProviderHttpError("x", 429, "body"))).toBe("http:429");
-    expect(describeError(new ProviderTransportError("offline", { cause }))).toBe("transport:offline");
-    expect(describeError(new ToolArgumentsError("call-1", "weather", "{"))).toBe("arguments:call-1");
-    expect(describeError(new ToolSchemaError("weather", { cause }))).toBe("schema:weather");
+    expect(describeError(new ProviderHttpError("x", 429, "body"))).toBe(
+      "http:429",
+    );
+    expect(
+      describeError(new ProviderTransportError("offline", { cause })),
+    ).toBe("transport:offline");
+    expect(
+      describeError(new ToolArgumentsError("call-1", "weather", "{")),
+    ).toBe("arguments:call-1");
+    expect(
+      describeError(new ToolSchemaError("weather", { cause })),
+    ).toBe("schema:weather");
   });
 });
 
@@ -116,10 +133,18 @@ describe("isProviderError", () => {
   test("accepts every subclass", () => {
     const cause = new Error("boom");
 
-    expect(isProviderError(new ProviderHttpError("x", 500, "body"))).toBe(true);
-    expect(isProviderError(new ProviderTransportError("x", { cause }))).toBe(true);
-    expect(isProviderError(new ToolArgumentsError("call-1", "weather", "{"))).toBe(true);
-    expect(isProviderError(new ToolSchemaError("weather", { cause }))).toBe(true);
+    expect(
+      isProviderError(new ProviderHttpError("x", 500, "body")),
+    ).toBe(true);
+    expect(
+      isProviderError(new ProviderTransportError("x", { cause })),
+    ).toBe(true);
+    expect(
+      isProviderError(new ToolArgumentsError("call-1", "weather", "{")),
+    ).toBe(true);
+    expect(
+      isProviderError(new ToolSchemaError("weather", { cause })),
+    ).toBe(true);
   });
 
   test("rejects anything else", () => {
@@ -138,7 +163,9 @@ describe("isProviderError", () => {
               expectTypeOf(error).toEqualTypeOf<ProviderHttpError>();
               return `http:${error.status}`;
             case "ProviderTransportError":
-              expectTypeOf(error).toEqualTypeOf<ProviderTransportError>();
+              expectTypeOf(
+                error,
+              ).toEqualTypeOf<ProviderTransportError>();
               return `transport:${error.message}`;
             case "ToolArgumentsError":
               expectTypeOf(error).toEqualTypeOf<ToolArgumentsError>();
@@ -156,10 +183,18 @@ describe("isProviderError", () => {
 
     const cause = new Error("boom");
 
-    expect(describeThrown(new ProviderHttpError("x", 503, "body"))).toBe("http:503");
-    expect(describeThrown(new ProviderTransportError("offline", { cause }))).toBe("transport:offline");
-    expect(describeThrown(new ToolArgumentsError("call-1", "weather", "{"))).toBe("arguments:call-1");
-    expect(describeThrown(new ToolSchemaError("weather", { cause }))).toBe("schema:weather");
+    expect(
+      describeThrown(new ProviderHttpError("x", 503, "body")),
+    ).toBe("http:503");
+    expect(
+      describeThrown(new ProviderTransportError("offline", { cause })),
+    ).toBe("transport:offline");
+    expect(
+      describeThrown(new ToolArgumentsError("call-1", "weather", "{")),
+    ).toBe("arguments:call-1");
+    expect(
+      describeThrown(new ToolSchemaError("weather", { cause })),
+    ).toBe("schema:weather");
     expect(describeThrown(new Error("plain"))).toBe("other");
   });
 });

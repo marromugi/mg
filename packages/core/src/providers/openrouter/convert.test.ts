@@ -11,7 +11,10 @@ import type {
   ToolChoice,
   ToolDefinition,
 } from "../types.js";
-import { fromOpenRouterResponse, toOpenRouterRequest } from "./convert.js";
+import {
+  fromOpenRouterResponse,
+  toOpenRouterRequest,
+} from "./convert.js";
 
 const cityJsonSchema = {
   type: "object",
@@ -30,7 +33,9 @@ const citySchema = {
         targets.push(options.target);
         return cityJsonSchema;
       },
-      output: (_options: StandardJSONSchemaV1.Options) => ({ type: "string" }),
+      output: (_options: StandardJSONSchemaV1.Options) => ({
+        type: "string",
+      }),
     },
   },
 } as const satisfies StandardJSONSchemaV1;
@@ -41,7 +46,9 @@ const weatherTool: ToolDefinition = {
   input: citySchema,
 };
 
-const request = (overrides: Partial<GenerateRequest> = {}): GenerateRequest => ({
+const request = (
+  overrides: Partial<GenerateRequest> = {},
+): GenerateRequest => ({
   model: "openai/gpt-4o",
   messages: [{ role: "user", content: "weather?" }],
   ...overrides,
@@ -75,7 +82,9 @@ describe("toOpenRouterRequest", () => {
       false,
     ) as RequestBody;
 
-    expect(body.messages).toEqual([{ role: "system", content: "be brief" }]);
+    expect(body.messages).toEqual([
+      { role: "system", content: "be brief" },
+    ]);
   });
 
   test("maps a user message", () => {
@@ -84,7 +93,9 @@ describe("toOpenRouterRequest", () => {
       false,
     ) as RequestBody;
 
-    expect(body.messages).toEqual([{ role: "user", content: "weather?" }]);
+    expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
+    ]);
   });
 
   test("maps an assistant message with tool calls", () => {
@@ -95,8 +106,16 @@ describe("toOpenRouterRequest", () => {
             role: "assistant",
             content: "",
             toolCalls: [
-              { id: "call-1", name: "weather", arguments: { city: "Tokyo" } },
-              { id: "call-2", name: "weather", arguments: { city: "Osaka" } },
+              {
+                id: "call-1",
+                name: "weather",
+                arguments: { city: "Tokyo" },
+              },
+              {
+                id: "call-2",
+                name: "weather",
+                arguments: { city: "Osaka" },
+              },
             ],
           },
         ],
@@ -112,12 +131,18 @@ describe("toOpenRouterRequest", () => {
           {
             id: "call-1",
             type: "function",
-            function: { name: "weather", arguments: '{"city":"Tokyo"}' },
+            function: {
+              name: "weather",
+              arguments: '{"city":"Tokyo"}',
+            },
           },
           {
             id: "call-2",
             type: "function",
-            function: { name: "weather", arguments: '{"city":"Osaka"}' },
+            function: {
+              name: "weather",
+              arguments: '{"city":"Osaka"}',
+            },
           },
         ],
       },
@@ -130,17 +155,21 @@ describe("toOpenRouterRequest", () => {
       false,
     ) as RequestBody;
     const withEmptyList = toOpenRouterRequest(
-      request({ messages: [{ role: "assistant", content: "hi", toolCalls: [] }] }),
+      request({
+        messages: [{ role: "assistant", content: "hi", toolCalls: [] }],
+      }),
       false,
     ) as RequestBody;
 
-    expect(withoutKey.messages).toEqual([{ role: "assistant", content: "hi" }]);
+    expect(withoutKey.messages).toEqual([
+      { role: "assistant", content: "hi" },
+    ]);
     expect(withEmptyList.messages).toEqual([
       { role: "assistant", content: "hi" },
     ]);
     expect(
       Object.hasOwn(
-        (withoutKey.messages as Record<string, unknown>[])[0]!,
+        (withoutKey.messages as Record<string, unknown>[])[0],
         "tool_calls",
       ),
     ).toBe(false);
@@ -149,7 +178,9 @@ describe("toOpenRouterRequest", () => {
   test("maps a tool message", () => {
     const body = toOpenRouterRequest(
       request({
-        messages: [{ role: "tool", toolCallId: "call-1", content: "24" }],
+        messages: [
+          { role: "tool", toolCallId: "call-1", content: "24" },
+        ],
       }),
       false,
     ) as RequestBody;
@@ -221,7 +252,10 @@ describe("toOpenRouterRequest", () => {
   });
 
   test("omits tools when the tool list is empty", () => {
-    const body = toOpenRouterRequest(request({ tools: [] }), false) as RequestBody;
+    const body = toOpenRouterRequest(
+      request({ tools: [] }),
+      false,
+    ) as RequestBody;
 
     expect(Object.hasOwn(body, "tools")).toBe(false);
   });
@@ -235,7 +269,10 @@ describe("toOpenRouterRequest", () => {
       { type: "function", function: { name: "weather" } },
     ],
   ])("maps the tool choice %j", (toolChoice, expected) => {
-    const body = toOpenRouterRequest(request({ toolChoice }), false) as RequestBody;
+    const body = toOpenRouterRequest(
+      request({ toolChoice }),
+      false,
+    ) as RequestBody;
 
     expect(body.tool_choice).toEqual(expected);
   });
@@ -274,19 +311,19 @@ const responseBody = (
 
 describe("fromOpenRouterResponse", () => {
   test("maps a text-only answer", () => {
-    expect(fromOpenRouterResponse(responseBody({ content: "24 degrees" }))).toEqual(
-      {
-        content: "24 degrees",
-        toolCalls: [],
-        finishReason: "stop",
-      },
-    );
+    expect(
+      fromOpenRouterResponse(responseBody({ content: "24 degrees" })),
+    ).toEqual({
+      content: "24 degrees",
+      toolCalls: [],
+      finishReason: "stop",
+    });
   });
 
   test("falls back to an empty string when the content is null", () => {
-    expect(fromOpenRouterResponse(responseBody({ content: null })).content).toBe(
-      "",
-    );
+    expect(
+      fromOpenRouterResponse(responseBody({ content: null })).content,
+    ).toBe("");
   });
 
   test("maps two tool calls", () => {
@@ -297,12 +334,18 @@ describe("fromOpenRouterResponse", () => {
           {
             id: "call-1",
             type: "function",
-            function: { name: "weather", arguments: '{"city":"Tokyo"}' },
+            function: {
+              name: "weather",
+              arguments: '{"city":"Tokyo"}',
+            },
           },
           {
             id: "call-2",
             type: "function",
-            function: { name: "weather", arguments: '{"city":"Osaka"}' },
+            function: {
+              name: "weather",
+              arguments: '{"city":"Osaka"}',
+            },
           },
         ],
       }),
@@ -337,11 +380,16 @@ describe("fromOpenRouterResponse", () => {
       ),
     );
 
-    expect(response.usage).toEqual({ inputTokens: 12, outputTokens: 34 });
+    expect(response.usage).toEqual({
+      inputTokens: 12,
+      outputTokens: 34,
+    });
   });
 
   test("omits the usage when it is absent", () => {
-    const response = fromOpenRouterResponse(responseBody({ content: "hi" }));
+    const response = fromOpenRouterResponse(
+      responseBody({ content: "hi" }),
+    );
 
     expect(Object.hasOwn(response, "usage")).toBe(false);
   });
@@ -377,27 +425,27 @@ describe("fromOpenRouterResponse", () => {
     expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
   });
 
-  test.each([["", "an empty string"], [" \n ", "only whitespace"]])(
-    "reads tool call arguments of %j (%s) as no arguments",
-    (raw) => {
-      const response = fromOpenRouterResponse(
-        responseBody({
-          content: null,
-          tool_calls: [
-            {
-              id: "call-1",
-              type: "function",
-              function: { name: "weather", arguments: raw },
-            },
-          ],
-        }),
-      );
+  test.each([
+    ["", "an empty string"],
+    [" \n ", "only whitespace"],
+  ])("reads tool call arguments of %j (%s) as no arguments", (raw) => {
+    const response = fromOpenRouterResponse(
+      responseBody({
+        content: null,
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "weather", arguments: raw },
+          },
+        ],
+      }),
+    );
 
-      expect(response.toolCalls).toEqual([
-        { id: "call-1", name: "weather", arguments: {} },
-      ]);
-    },
-  );
+    expect(response.toolCalls).toEqual([
+      { id: "call-1", name: "weather", arguments: {} },
+    ]);
+  });
 
   test("throws when the tool call has no function", () => {
     const error = thrownBy(
@@ -445,7 +493,10 @@ describe("fromOpenRouterResponse", () => {
       "an error envelope",
       { error: { code: 502, message: "Provider returned error" } },
     ],
-    ["a choice without a message", { choices: [{ finish_reason: "stop" }] }],
+    [
+      "a choice without a message",
+      { choices: [{ finish_reason: "stop" }] },
+    ],
     [
       "a choice with a null message",
       { choices: [{ message: null, finish_reason: "stop" }] },
@@ -455,7 +506,9 @@ describe("fromOpenRouterResponse", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe("OpenRouter response has no choices");
+    expect(providerError.message).toBe(
+      "OpenRouter response has no choices",
+    );
     expect(providerError.status).toBe(200);
     expect(providerError.body).toBe(JSON.stringify(body));
   });

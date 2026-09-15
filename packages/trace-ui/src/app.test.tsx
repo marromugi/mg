@@ -1,4 +1,8 @@
-import type { SessionTree, SpanNode, TraceReader } from "@mg/trace/store";
+import type {
+  SessionTree,
+  SpanNode,
+  TraceReader,
+} from "@mg/trace/store";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { ATTR, SPAN } from "./vocabulary.js";
@@ -39,12 +43,20 @@ const llmNode: SpanNode = {
     [ATTR.llmFinishReason]: "tool_calls",
     [ATTR.llmInputTokens]: 10,
     [ATTR.llmOutputTokens]: 5,
-    [ATTR.llmInputMessages]: JSON.stringify([{ role: "user", content: "Hello there" }]),
+    [ATTR.llmInputMessages]: JSON.stringify([
+      { role: "user", content: "Hello there" },
+    ]),
     [ATTR.llmOutputMessages]: JSON.stringify([
       {
         role: "assistant",
         content: "",
-        toolCalls: [{ id: "call-1", name: "web-search", arguments: { query: "weather" } }],
+        toolCalls: [
+          {
+            id: "call-1",
+            name: "web-search",
+            arguments: { query: "weather" },
+          },
+        ],
       },
     ]),
   },
@@ -88,7 +100,9 @@ const objectContentLlmNode: SpanNode = {
   endTime: END_TIME,
   attributes: {
     [ATTR.llmModel]: "gpt-test",
-    [ATTR.llmInputMessages]: JSON.stringify([{ role: "user", content: { text: "hi" } }]),
+    [ATTR.llmInputMessages]: JSON.stringify([
+      { role: "user", content: { text: "hi" } },
+    ]),
   },
   events: [],
   status: { code: 0 },
@@ -114,7 +128,9 @@ const objectContentSessionTree: SessionTree = {
   serviceName: "svc",
   startTime: START_TIME,
   endTime: END_TIME,
-  traces: [{ traceId: OBJECT_CONTENT_TRACE_ID, root: objectContentRootNode }],
+  traces: [
+    { traceId: OBJECT_CONTENT_TRACE_ID, root: objectContentRootNode },
+  ],
 };
 
 const sessionsById = new Map<string, SessionTree>([
@@ -166,7 +182,9 @@ describe("createApp", () => {
 
   it("returns 200 for a span whose message content is not a string", async () => {
     const app = createApp(new FakeTraceReader());
-    const res = await app.request(`/sessions/${OBJECT_CONTENT_SESSION_ID}`);
+    const res = await app.request(
+      `/sessions/${OBJECT_CONTENT_SESSION_ID}`,
+    );
 
     expect(res.status).toBe(200);
   });

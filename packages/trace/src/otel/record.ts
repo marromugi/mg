@@ -25,7 +25,8 @@ export const toSpanRecord = (span: ReadableSpan): SpanRecord => {
     events: span.events.map((event) => ({
       name: event.name,
       time: hrTimeToIsoString(event.time),
-      attributes: event.attributes as SpanRecord["attributes"] | undefined,
+      attributes: event.attributes as
+        SpanRecord["attributes"] | undefined,
     })),
     status: {
       code: span.status.code,

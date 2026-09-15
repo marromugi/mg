@@ -3,7 +3,10 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type {
+  ReadableSpan,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 import { jsonAttribute } from "../json.js";
 import { ATTR, SPAN } from "../vocabulary.js";
@@ -55,8 +58,12 @@ describe("GenAiMappingExporter", () => {
       [ATTR.llmInputTokens]: 10,
       [ATTR.llmOutputTokens]: 20,
       [ATTR.llmFinishReason]: "stop",
-      [ATTR.llmInputMessages]: jsonAttribute([{ role: "user", content: "hi" }]),
-      [ATTR.llmOutputMessages]: jsonAttribute([{ role: "assistant", content: "hello" }]),
+      [ATTR.llmInputMessages]: jsonAttribute([
+        { role: "user", content: "hi" },
+      ]),
+      [ATTR.llmOutputMessages]: jsonAttribute([
+        { role: "assistant", content: "hello" },
+      ]),
     };
 
     const span = startRootSpan(tracer, SPAN.llm, mgAttributes);
@@ -73,7 +80,9 @@ describe("GenAiMappingExporter", () => {
     }
 
     expect(exported.attributes["gen_ai.operation.name"]).toBe("chat");
-    expect(exported.attributes["gen_ai.provider.name"]).toBe("openrouter");
+    expect(exported.attributes["gen_ai.provider.name"]).toBe(
+      "openrouter",
+    );
     expect(exported.attributes["gen_ai.request.model"]).toBe("gpt-4");
     expect(exported.attributes["gen_ai.usage.input_tokens"]).toBe(10);
     expect(exported.attributes["gen_ai.usage.output_tokens"]).toBe(20);
@@ -84,7 +93,9 @@ describe("GenAiMappingExporter", () => {
   it("leaves attributes unchanged for a span with an unknown mg.op", async () => {
     const { inner, tracer } = setup();
 
-    const span = startRootSpan(tracer, "other", { [ATTR.op]: "unknown" });
+    const span = startRootSpan(tracer, "other", {
+      [ATTR.op]: "unknown",
+    });
     span.end();
 
     const [exported] = inner.getFinishedSpans();

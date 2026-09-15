@@ -1,7 +1,12 @@
 import type { Provider, Tool } from "@mg/core";
 import type { TraceSdkOptions } from "@mg/trace/otel";
 
-export type LoopHarnessConfig = { kind: "loop"; model: string; maxTurns: number; stream?: boolean };
+export type LoopHarnessConfig = {
+  kind: "loop";
+  model: string;
+  maxTurns: number;
+  stream?: boolean;
+};
 export type HarnessConfig = LoopHarnessConfig;
 
 export type RunConfig = {

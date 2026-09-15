@@ -45,7 +45,7 @@ const parseChunk = (payload: string): OpenRouterChunk => {
     );
   }
 
-  return parsed as OpenRouterChunk;
+  return parsed;
 };
 
 export async function* toStreamEvents(
@@ -96,13 +96,18 @@ export async function* toStreamEvents(
     }
   }
 
-  const accumulatedCalls = [...pending.entries()].sort(([a], [b]) => a - b);
+  const accumulatedCalls = [...pending.entries()].sort(
+    ([a], [b]) => a - b,
+  );
   for (const [, accumulated] of accumulatedCalls) {
     yield {
       type: "tool-call",
       toolCall: toToolCall({
         id: accumulated.id,
-        function: { name: accumulated.name, arguments: accumulated.arguments },
+        function: {
+          name: accumulated.name,
+          arguments: accumulated.arguments,
+        },
       }),
     };
   }

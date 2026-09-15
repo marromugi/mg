@@ -30,7 +30,10 @@ type TurnResult = {
   usage?: Usage;
 };
 
-const toAssistantMessage = (content: string, toolCalls: ToolCall[]): AssistantMessage => ({
+const toAssistantMessage = (
+  content: string,
+  toolCalls: ToolCall[],
+): AssistantMessage => ({
   role: "assistant",
   content,
   ...(toolCalls.length > 0 ? { toolCalls } : {}),
@@ -50,7 +53,10 @@ async function* runBatchTurn(
   }
 
   return {
-    assistantMessage: toAssistantMessage(response.content, response.toolCalls),
+    assistantMessage: toAssistantMessage(
+      response.content,
+      response.toolCalls,
+    ),
     toolCalls: response.toolCalls,
     finishReason: response.finishReason,
     usage: response.usage,
@@ -95,12 +101,18 @@ async function* runStreamedTurn(
   };
 }
 
-export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
+export const createLoopHarness = (
+  options: LoopHarnessOptions,
+): Harness => {
   if (!(options.maxTurns >= 1)) {
-    throw new RangeError(`maxTurns must be >= 1, got ${options.maxTurns}`);
+    throw new RangeError(
+      `maxTurns must be >= 1, got ${options.maxTurns}`,
+    );
   }
 
-  const toolDefinitions = options.tools ? [...options.tools] : undefined;
+  const toolDefinitions = options.tools
+    ? [...options.tools]
+    : undefined;
   const stream = options.stream ?? true;
 
   return async function* (input) {
@@ -131,8 +143,7 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
       ended = true;
       try {
         span.end(error);
-      } catch {
-      }
+      } catch {}
     };
 
     try {
@@ -153,20 +164,29 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
 
         if (turnResult.usage) {
           usage = {
-            inputTokens: usage.inputTokens + turnResult.usage.inputTokens,
-            outputTokens: usage.outputTokens + turnResult.usage.outputTokens,
+            inputTokens:
+              usage.inputTokens + turnResult.usage.inputTokens,
+            outputTokens:
+              usage.outputTokens + turnResult.usage.outputTokens,
           };
         }
 
         messages.push(turnResult.assistantMessage);
-        yield { type: "turn", finishReason: turnResult.finishReason, usage: turnResult.usage };
+        yield {
+          type: "turn",
+          finishReason: turnResult.finishReason,
+          usage: turnResult.usage,
+        };
 
         if (turnResult.toolCalls.length === 0) {
           endSpan();
           yield {
             type: "done",
             result: {
-              reason: turnResult.finishReason === "length" ? "length" : "stop",
+              reason:
+                turnResult.finishReason === "length"
+                  ? "length"
+                  : "stop",
               messages,
               usage,
             },
@@ -178,8 +198,11 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
 
         const results = await Promise.all(
           turnResult.toolCalls.map((call) =>
-            run(options.tools ?? [], call, { signal: input.signal }).catch((error: unknown) => {
-              if (error instanceof Error && error.name === "AbortError") throw error;
+            run(options.tools ?? [], call, {
+              signal: input.signal,
+            }).catch((error: unknown) => {
+              if (error instanceof Error && error.name === "AbortError")
+                throw error;
               return toolErrorToMessage(call, error);
             }),
           ),
@@ -191,7 +214,10 @@ export const createLoopHarness = (options: LoopHarnessOptions): Harness => {
       }
 
       endSpan();
-      yield { type: "done", result: { reason: "max-turns", messages, usage } };
+      yield {
+        type: "done",
+        result: { reason: "max-turns", messages, usage },
+      };
     } catch (error) {
       endSpan(error);
       throw error;

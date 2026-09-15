@@ -27,7 +27,9 @@ export async function* readSseData(
     for (;;) {
       const { value, done: finished } = await reader.read();
       exhausted ||= finished;
-      buffer += finished ? decoder.decode() : decoder.decode(value, { stream: true });
+      buffer += finished
+        ? decoder.decode()
+        : decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = finished ? "" : (lines.pop() ?? "");
       if (finished) lines.push("");

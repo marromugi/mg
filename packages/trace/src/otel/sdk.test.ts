@@ -1,7 +1,15 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type {
+  ReadableSpan,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startRootSpan } from "../otel-span.js";
@@ -22,9 +30,15 @@ describe("createTraceSdk", () => {
 
   it("writes root and child spans to the jsonl file with matching parent/child ids", async () => {
     const jsonlPath = join(dir, "spans.jsonl");
-    const sdk = await createTraceSdk({ jsonlPath, sessionId: "s1", serviceName: "svc" });
+    const sdk = await createTraceSdk({
+      jsonlPath,
+      sessionId: "s1",
+      serviceName: "svc",
+    });
 
-    const root = startRootSpan(sdk.tracer, "root", { "start.attr": "a" });
+    const root = startRootSpan(sdk.tracer, "root", {
+      "start.attr": "a",
+    });
     root.addEvent("did-something", { count: 1 });
     const child = root.startSpan("child");
     child.end();
@@ -35,9 +49,9 @@ describe("createTraceSdk", () => {
     const lines = readFileSync(jsonlPath, "utf8").trim().split("\n");
     expect(lines).toHaveLength(2);
 
-    const spans = lines.map((line) => JSON.parse(line));
-    const rootLine = spans.find((span) => span.name === "root");
-    const childLine = spans.find((span) => span.name === "child");
+    const parsed = lines.map((line) => JSON.parse(line));
+    const rootLine = parsed.find((span) => span.name === "root");
+    const childLine = parsed.find((span) => span.name === "child");
 
     expect(rootLine).toBeDefined();
     expect(childLine).toBeDefined();
@@ -63,9 +77,9 @@ describe("createTraceSdk", () => {
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
 
-    const spans = inMemory.getFinishedSpans();
-    expect(spans).toHaveLength(1);
-    expect(spans[0]?.name).toBe("root");
+    const finished = inMemory.getFinishedSpans();
+    expect(finished).toHaveLength(1);
+    expect(finished[0]?.name).toBe("root");
 
     await sdk.shutdown();
   });
@@ -77,19 +91,25 @@ describe("createTraceSdk", () => {
 
   it("puts the given session id and service name on every span's resource", async () => {
     const inMemory = new InMemorySpanExporter();
-    const sdk = await createTraceSdk({ sessionId: "s1", serviceName: "svc", exporters: [inMemory] });
+    const sdk = await createTraceSdk({
+      sessionId: "s1",
+      serviceName: "svc",
+      exporters: [inMemory],
+    });
 
     const root = startRootSpan(sdk.tracer, "root");
     const child = root.startSpan("child");
     child.end();
     root.end();
 
-    const spans = inMemory.getFinishedSpans();
-    expect(spans).toHaveLength(2);
-    for (const span of spans) {
+    const finished = inMemory.getFinishedSpans();
+    expect(finished).toHaveLength(2);
+    for (const span of finished) {
       expect(span.resource.attributes["session.id"]).toBe("s1");
       expect(span.resource.attributes["service.name"]).toBe("svc");
-      expect(span.resource.attributes["telemetry.sdk.language"]).toBe("nodejs");
+      expect(span.resource.attributes["telemetry.sdk.language"]).toBe(
+        "nodejs",
+      );
     }
     expect(sdk.sessionId).toBe("s1");
 
@@ -110,9 +130,15 @@ describe("createTraceSdk", () => {
 
   it("writes root and child spans to the sqlite database with matching parent/child ids", async () => {
     const sqlitePath = join(dir, "spans.db");
-    const sdk = await createTraceSdk({ sqlitePath, sessionId: "s1", serviceName: "svc" });
+    const sdk = await createTraceSdk({
+      sqlitePath,
+      sessionId: "s1",
+      serviceName: "svc",
+    });
 
-    const root = startRootSpan(sdk.tracer, "root", { "start.attr": "a" });
+    const root = startRootSpan(sdk.tracer, "root", {
+      "start.attr": "a",
+    });
     root.addEvent("did-something", { count: 1 });
     const child = root.startSpan("child");
     child.end();
@@ -132,7 +158,9 @@ describe("createTraceSdk", () => {
     expect(rootRow?.parentSpanId).toBeNull();
     expect(childRow?.parentSpanId).toBe(rootRow?.spanId);
     expect(rootRow?.traceId).toBe(childRow?.traceId);
-    expect(JSON.parse(rootRow?.attributes ?? "{}")["start.attr"]).toBe("a");
+    expect(JSON.parse(rootRow?.attributes ?? "{}")["start.attr"]).toBe(
+      "a",
+    );
     expect(rootRow?.sessionId).toBe("s1");
     expect(rootRow?.serviceName).toBe("svc");
 
@@ -148,7 +176,9 @@ describe("createTraceSdk", () => {
   });
 
   it("rejects with a RangeError when sqlitePath is :memory:", async () => {
-    await expect(createTraceSdk({ sqlitePath: ":memory:" })).rejects.toThrow(RangeError);
+    await expect(
+      createTraceSdk({ sqlitePath: ":memory:" }),
+    ).rejects.toThrow(RangeError);
   });
 
   it("does not shutdown externally provided exporters, but does export to them, across multiple SDKs", async () => {

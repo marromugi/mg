@@ -7,12 +7,13 @@ export type AssistantMessage = {
   content: string;
   toolCalls?: ToolCall[];
 };
-export type ToolMessage = { role: "tool"; toolCallId: string; content: string };
+export type ToolMessage = {
+  role: "tool";
+  toolCallId: string;
+  content: string;
+};
 export type Message =
-  | SystemMessage
-  | UserMessage
-  | AssistantMessage
-  | ToolMessage;
+  SystemMessage | UserMessage | AssistantMessage | ToolMessage;
 
 export type ToolCall = { id: string; name: string; arguments: unknown };
 
@@ -25,10 +26,7 @@ export type ToolDefinition<
 };
 
 export type ToolChoice =
-  | "auto"
-  | "none"
-  | "required"
-  | { type: "tool"; name: string };
+  "auto" | "none" | "required" | { type: "tool"; name: string };
 
 export type GenerateRequest = {
   model: string;

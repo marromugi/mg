@@ -1,7 +1,12 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { ProviderBaseError } from "../providers/errors.js";
 import type { ToolRunError } from "./errors.js";
-import { isToolRunError, ToolInputError, ToolNotFoundError, ToolRunBaseError } from "./errors.js";
+import {
+  isToolRunError,
+  ToolInputError,
+  ToolNotFoundError,
+  ToolRunBaseError,
+} from "./errors.js";
 
 const issues = [{ message: "Expected string", path: ["city"] }];
 
@@ -34,8 +39,9 @@ describe("ToolInputError", () => {
 
 describe("ToolRunBaseError", () => {
   test("cannot be constructed directly", () => {
-    // @ts-expect-error ToolRunBaseError is abstract
-    const construct = () => new ToolRunBaseError("x", "call-1", "weather");
+    const construct = () =>
+      // @ts-expect-error ToolRunBaseError is abstract
+      new ToolRunBaseError("x", "call-1", "weather");
 
     expect(construct).toBeTypeOf("function");
   });
@@ -52,15 +58,23 @@ describe("ToolRunBaseError", () => {
       }
     };
 
-    expect(describeError(new ToolNotFoundError("call-1", "weather"))).toBe("not-found:weather");
-    expect(describeError(new ToolInputError("call-1", "weather", issues))).toBe("input:1");
+    expect(
+      describeError(new ToolNotFoundError("call-1", "weather")),
+    ).toBe("not-found:weather");
+    expect(
+      describeError(new ToolInputError("call-1", "weather", issues)),
+    ).toBe("input:1");
   });
 });
 
 describe("isToolRunError", () => {
   test("accepts every subclass", () => {
-    expect(isToolRunError(new ToolNotFoundError("call-1", "weather"))).toBe(true);
-    expect(isToolRunError(new ToolInputError("call-1", "weather", issues))).toBe(true);
+    expect(
+      isToolRunError(new ToolNotFoundError("call-1", "weather")),
+    ).toBe(true);
+    expect(
+      isToolRunError(new ToolInputError("call-1", "weather", issues)),
+    ).toBe(true);
   });
 
   test("rejects anything else", () => {
@@ -89,8 +103,12 @@ describe("isToolRunError", () => {
       }
     };
 
-    expect(describeThrown(new ToolNotFoundError("call-1", "weather"))).toBe("not-found:weather");
-    expect(describeThrown(new ToolInputError("call-1", "weather", issues))).toBe("input:1");
+    expect(
+      describeThrown(new ToolNotFoundError("call-1", "weather")),
+    ).toBe("not-found:weather");
+    expect(
+      describeThrown(new ToolInputError("call-1", "weather", issues)),
+    ).toBe("input:1");
     expect(describeThrown(new Error("plain"))).toBe("other");
   });
 });

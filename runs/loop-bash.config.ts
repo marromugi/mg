@@ -4,7 +4,8 @@ import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
-if (apiKey === undefined) throw new Error("OPENROUTER_API_KEY is not set");
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
 
 export default defineRun({
   name: "loop-bash",

@@ -30,11 +30,16 @@ export const run = async (
   messages: Message[],
   options?: RunOptions,
 ): Promise<RunOutcome> => {
-  const sdk = await createTraceSdk({ ...config.trace, sessionId: options?.sessionId });
+  const sdk = await createTraceSdk({
+    ...config.trace,
+    sessionId: options?.sessionId,
+  });
   const root = startRootSpan(sdk.tracer, SPAN.run, {
     [ATTR.op]: "run",
     [ATTR.runName]: config.name,
-    ...(options?.caseId !== undefined ? { [ATTR.runCase]: options.caseId } : {}),
+    ...(options?.caseId !== undefined
+      ? { [ATTR.runCase]: options.caseId }
+      : {}),
   });
 
   let result: HarnessResult;

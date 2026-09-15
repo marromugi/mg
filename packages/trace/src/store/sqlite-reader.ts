@@ -17,7 +17,10 @@ const toSpanRecord = (row: typeof spans.$inferSelect): SpanRecord => ({
   endTime: row.endTime,
   attributes: JSON.parse(row.attributes) as SpanRecord["attributes"],
   events: JSON.parse(row.events) as SpanRecord["events"],
-  status: { code: row.statusCode, message: row.statusMessage ?? undefined },
+  status: {
+    code: row.statusCode,
+    message: row.statusMessage ?? undefined,
+  },
 });
 
 export class SqliteTraceReader implements TraceReader {
@@ -41,12 +44,17 @@ export class SqliteTraceReader implements TraceReader {
       serviceName: row.serviceName ?? "",
       startTime: row.startTime ?? "",
       endTime: row.endTime ?? "",
-      traceCount: Number(row.traceCount),
+      traceCount: row.traceCount,
     }));
   }
 
-  async readSession(sessionId: string): Promise<SessionTree | undefined> {
-    const rows = await this.db.select().from(spans).where(eq(spans.sessionId, sessionId));
+  async readSession(
+    sessionId: string,
+  ): Promise<SessionTree | undefined> {
+    const rows = await this.db
+      .select()
+      .from(spans)
+      .where(eq(spans.sessionId, sessionId));
     return buildSessionTree(rows.map(toSpanRecord));
   }
 }

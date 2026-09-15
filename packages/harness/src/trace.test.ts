@@ -1,6 +1,11 @@
 import { describe, expect, expectTypeOf, test, vi } from "vitest";
 import type { HarnessInput } from "./types.js";
-import { noopSpan, type TraceAttributes, type TraceSpan, withSpan } from "./trace.js";
+import {
+  noopSpan,
+  type TraceAttributes,
+  type TraceSpan,
+  withSpan,
+} from "./trace.js";
 
 describe("noopSpan", () => {
   test("startSpan returns itself", () => {
@@ -45,7 +50,9 @@ describe("withSpan", () => {
     const result = await withSpan(parent, "name", { a: 1 }, fn);
 
     expect(result).toBe("result");
-    expect(parent.startSpanCalls).toEqual([{ name: "name", attributes: { a: 1 } }]);
+    expect(parent.startSpanCalls).toEqual([
+      { name: "name", attributes: { a: 1 } },
+    ]);
     expect(fn).toHaveBeenCalledTimes(1);
     expect(parent.endCalls).toEqual([undefined]);
   });
@@ -57,7 +64,9 @@ describe("withSpan", () => {
       throw error;
     };
 
-    await expect(withSpan(parent, "name", undefined, fn)).rejects.toBe(error);
+    await expect(withSpan(parent, "name", undefined, fn)).rejects.toBe(
+      error,
+    );
     expect(parent.endCalls).toEqual([error]);
     expect(parent.endCalls).toHaveLength(1);
   });

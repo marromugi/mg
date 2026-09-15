@@ -36,7 +36,9 @@ describe("startRootSpan / OtelSpan", () => {
     const spans = ctx.exporter.getFinishedSpans();
     expect(spans).toHaveLength(3);
 
-    const byName = Object.fromEntries(spans.map((span) => [span.name, span]));
+    const byName = Object.fromEntries(
+      spans.map((span) => [span.name, span]),
+    );
     expect(byName["root"]).toBeDefined();
     expect(byName["child"]).toBeDefined();
     expect(byName["grandchild"]).toBeDefined();
@@ -51,7 +53,9 @@ describe("startRootSpan / OtelSpan", () => {
   });
 
   it("records attributes given at start and via setAttributes", async () => {
-    const root = startRootSpan(ctx.tracer, "root", { "start.attr": "a" });
+    const root = startRootSpan(ctx.tracer, "root", {
+      "start.attr": "a",
+    });
     root.setAttributes({ "later.attr": 1 });
     root.end();
 

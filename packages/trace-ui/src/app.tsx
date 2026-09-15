@@ -4,8 +4,9 @@ import { renderToString } from "react-dom/server";
 import { SessionPage } from "./pages/session.js";
 import { SessionsPage } from "./pages/sessions.js";
 
-const renderPage = (element: Parameters<typeof renderToString>[0]): string =>
-  `<!DOCTYPE html>${renderToString(element)}`;
+const renderPage = (
+  element: Parameters<typeof renderToString>[0],
+): string => `<!DOCTYPE html>${renderToString(element)}`;
 
 export const createApp = (reader: TraceReader): Hono => {
   const app = new Hono();

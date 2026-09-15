@@ -1,17 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { defineTool, type ToolCall, type ToolMessage, type ToolSchema } from "@mg/core";
+import {
+  defineTool,
+  type ToolCall,
+  type ToolMessage,
+  type ToolSchema,
+} from "@mg/core";
 import { ATTR, SPAN } from "./vocabulary.js";
 import { traceRunToolCall } from "./tools.js";
 import { RecordingSpan } from "./recording-span.test-helper.js";
 
 type Validate = ToolSchema["~standard"]["validate"];
 
-const call: ToolCall = { id: "call-1", name: "weather", arguments: { city: "tokyo" } };
+const call: ToolCall = {
+  id: "call-1",
+  name: "weather",
+  arguments: { city: "tokyo" },
+};
 
 describe("traceRunToolCall", () => {
   it("records name, call id and arguments before running, and the result after", async () => {
     const root = new RecordingSpan("root");
-    const message: ToolMessage = { role: "tool", toolCallId: "call-1", content: "sunny" };
+    const message: ToolMessage = {
+      role: "tool",
+      toolCallId: "call-1",
+      content: "sunny",
+    };
     let startedBefore: RecordingSpan | undefined;
     const run = async () => {
       startedBefore = root.children[0];
@@ -41,7 +54,9 @@ describe("traceRunToolCall", () => {
       throw error;
     };
 
-    await expect(traceRunToolCall(root, run)([], call)).rejects.toBe(error);
+    await expect(traceRunToolCall(root, run)([], call)).rejects.toBe(
+      error,
+    );
 
     const span = root.children[0];
     expect(span?.endCalls).toEqual([error]);
@@ -76,7 +91,9 @@ describe("traceRunToolCall", () => {
     });
 
     const span = root.children[0];
-    expect(span?.mergedAttributes[ATTR.toolResult]).toBe(JSON.stringify(call.arguments));
+    expect(span?.mergedAttributes[ATTR.toolResult]).toBe(
+      JSON.stringify(call.arguments),
+    );
     expect(span?.endCalls).toEqual([undefined]);
   });
 });

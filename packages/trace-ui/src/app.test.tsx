@@ -108,4 +108,36 @@ describe("createApp", () => {
     const setCookie = res.headers.get("Set-Cookie");
     expect(setCookie).toContain("scheme=;");
   });
+
+  it("redirects to / when the Referer origin only shares a prefix with the request origin", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("http://localhost:3998/theme", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "http://localhost:39985/x",
+      },
+      body: "scheme=dark",
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get("Location")).toBe("/");
+  });
+
+  it("redirects to the Referer when its origin matches the request origin", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("http://localhost:3998/theme", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "http://localhost:3998/sessions/abc",
+      },
+      body: "scheme=dark",
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get("Location")).toBe(
+      "http://localhost:3998/sessions/abc",
+    );
+  });
 });

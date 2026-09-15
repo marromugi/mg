@@ -42,7 +42,7 @@ export const Layout = ({
       <style>{css}</style>
     </head>
     <body className="max-w-page px-8 py-6 font-sans">
-      <nav className="flex gap-2">
+      <nav className="flex gap-2" aria-label="配色">
         <form method="post" action="/theme">
           <input type="hidden" name="scheme" value="system" />
           <Button

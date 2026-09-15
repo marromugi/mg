@@ -22,10 +22,18 @@ export const registerThemeRoute = (app: Hono): void => {
 
     const referer = c.req.header("Referer");
     const origin = new URL(c.req.url).origin;
+    const refererOrigin = (() => {
+      if (referer === undefined) {
+        return undefined;
+      }
+      try {
+        return new URL(referer).origin;
+      } catch {
+        return undefined;
+      }
+    })();
     const location =
-      referer !== undefined && referer.startsWith(origin)
-        ? referer
-        : "/";
+      refererOrigin === origin && referer !== undefined ? referer : "/";
 
     return c.redirect(location, 303);
   });

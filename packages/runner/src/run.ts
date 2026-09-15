@@ -9,6 +9,7 @@ import { createHarness } from "./harness.js";
 export type RunOptions = {
   signal?: AbortSignal;
   sessionId?: string;
+  caseId?: string;
   onEvent?: (event: HarnessEvent) => void;
 };
 
@@ -33,6 +34,7 @@ export const run = async (
   const root = startRootSpan(sdk.tracer, SPAN.run, {
     [ATTR.op]: "run",
     [ATTR.runName]: config.name,
+    ...(options?.caseId !== undefined ? { [ATTR.runCase]: options.caseId } : {}),
   });
 
   let result: HarnessResult;

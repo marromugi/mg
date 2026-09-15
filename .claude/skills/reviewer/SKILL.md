@@ -72,22 +72,6 @@ The Skill tool cannot choose a model, so wrap it in an agent:
 > rerun; report the mismatch and what the skill said its scope was.
 > Otherwise return the findings exactly as reported, with file and line for
 > each, and confirm that the inline comments were posted.
->
-> Keep at most 5 subagents in flight at any moment. This covers every
-> Agent call the skill asks for: the finder angles in phase 1 and the
-> one-per-candidate verifiers in phase 2. Launch them in groups of no more
-> than 5 per message, wait for the whole group to return, then launch the
-> next group. Never launch all finders or all verifiers in one message.
-
-The skill launches its finders and verifiers as subagents and says nothing
-about how many at once, so the model's default is all of them in one
-message: 8 finders, then one verifier per candidate, nested two levels
-below this session. Runs of 10 to 14 concurrent agents have frozen the
-session, so the prompt caps the group size. The skill runs in a fork that
-inherits the wrapper's context, which is why the cap can live in this
-prompt. If the freeze persists, the next step is `model`: `sonnet` on the
-skill's subagents, or a custom agent definition without the Agent tool,
-which makes the skill run every angle inline with no subagents at all.
 
 Keep `--comment` at the start or the end of the args; the skill only
 recognises the flag at either end. With it, the skill posts each of its

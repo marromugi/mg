@@ -127,9 +127,8 @@ the batch's implementer agents in one message, so they run at the same
 time, each in its own worktree branched from the current main. Then wait.
 
 As each agent reports, carry on with the rest of implementer for that issue
-(CI wait, then `reviewer`), one issue at a time. Reviews are not run in
-parallel: reviewer's Opus pass fans out into its own subagents, and two of
-those at once have frozen sessions before. Do not shortcut either skill or
+(CI wait, then `reviewer`), one issue at a time, so that each merge lands
+before the next review starts. Do not shortcut either skill or
 do their work inline; the point of this loop is that each issue gets the
 same treatment it would get alone.
 

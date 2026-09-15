@@ -10,7 +10,8 @@ trace-ui の役割は 3 つです。
 - セッションを選ぶと、木の形にして会話の流れを見せます。
 - `@mg/trace/store` の読み手を使い、記録を取り出します。
 
-trace-ui は、`@mg/trace/store` だけに依存します。
+trace-ui は、`@mg/trace/store` に加えて `@mg/term` に依存します。
+端末への出力を、`@mg/term` で色付けします。
 OpenTelemetry の SDK や、保存の仕組みは持ちません。
 
 画面は Hono で作り、react-dom でサーバー側に描きます。

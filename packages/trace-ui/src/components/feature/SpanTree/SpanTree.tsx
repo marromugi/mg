@@ -23,7 +23,7 @@ export const SpanTree = ({ node }: { node: SpanNode }) => {
     <div className={spanBox({ tone: isError ? "error" : "normal" })}>
       <div className="flex justify-between gap-3 font-semibold">
         <span>{node.name}</span>
-        <span className="text-sm font-normal opacity-70">
+        <span className="text-meta font-normal opacity-70">
           {node.startTime} – {node.endTime}
         </span>
       </div>

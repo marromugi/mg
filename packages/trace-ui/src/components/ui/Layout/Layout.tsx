@@ -7,7 +7,10 @@ try {
     new URL("../../../../dist/styles.css", import.meta.url),
     "utf-8",
   );
-} catch {
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+    throw error;
+  }
   console.warn("trace-ui: dist/styles.css not found; run `pnpm build`");
 }
 

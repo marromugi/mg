@@ -13,4 +13,6 @@
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --container-page: 60rem;
+  --text-heading: 1.4rem;
+  --text-meta: 0.85rem;
 }

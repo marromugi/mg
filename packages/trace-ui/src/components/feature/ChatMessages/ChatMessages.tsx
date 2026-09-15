@@ -26,7 +26,7 @@ export const ChatMessages = ({
       <div className="mt-2 font-semibold">{label}</div>
       {result.messages.map((message, index) => (
         <div
-          className="my-1.5 border-l-2 border-edge px-2.5 py-1"
+          className="my-1.5 border-l-3 border-edge px-2.5 py-1"
           key={index}
         >
           <div className="text-xs font-semibold uppercase opacity-70">

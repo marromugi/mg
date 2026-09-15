@@ -9,8 +9,8 @@ export const SessionPage = ({ session }: { session: SessionTree }) => (
         ← Sessions
       </a>
     </p>
-    <h1 className="text-2xl font-bold">{session.sessionId}</h1>
-    <p className="text-sm font-normal opacity-70">
+    <h1 className="my-4 text-heading font-bold">{session.sessionId}</h1>
+    <p className="text-meta font-normal opacity-70">
       {session.startTime} – {session.endTime}
     </p>
     {session.traces.map((trace) => (

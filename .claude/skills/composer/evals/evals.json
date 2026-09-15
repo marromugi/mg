@@ -1,0 +1,23 @@
+{
+  "skill_name": "composer",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "packages/trace-ui にセッション一覧の絞り込みフォームを足したい。保存先の名前（serviceName）で絞れるテキスト入力と送信ボタンがあって、GET /?service=xxx で一覧が絞られる形。コンポーネントとロジックとテストと story まで含めて設計して、ファイル構成と主要なコードを出して。",
+      "expected_output": "Route parses the query and passes it to the page; a feature component (e.g. SessionFilter) composed of ui Button/TextField; filtering logic in a colocated hook with tests; stories with fixtures; no client JS; no className passthrough; no bracket values.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "この SpanTree コンポーネント、レビューして。属性の取り出しと失敗判定が render の中にあるのと、isError みたいな boolean props が増えてきてる。どう直すべき？\n\n```tsx\nexport const SpanNodeView = ({ node, compact }: { node: SpanNode; compact?: boolean }) => {\n  const isError = node.status.code === 2;\n  const model = typeof node.attributes[\"mg.llm.model\"] === \"string\" ? node.attributes[\"mg.llm.model\"] : undefined;\n  const tokens = JSON.parse(String(node.attributes[\"mg.llm.usage\"] ?? \"{}\"));\n  return (\n    <div className={isError ? \"span span-error\" : compact ? \"span span-compact\" : \"span\"} style={{ borderColor: isError ? \"#d33\" : undefined }}>\n      ...\n    </div>\n  );\n};\n```",
+      "expected_output": "Points out: attribute reads and JSON.parse move to hooks (useLlmSpan, useSpanStatus) with tests; boolean compact becomes a size/density union; inline style hex colour replaced by a Card ui variant with a token; suggests stories.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "trace-ui に Badge を追加して。成功と失敗と進行中の 3 種類の見た目が要る。",
+      "expected_output": "ui/Badge/Badge.tsx with tv() variants tone: ok | error | pending using tokens; no className prop; index.ts export and ui/index.ts re-export; Badge.stories.tsx with one story per tone; no test file needed beyond snapshots; mentions adding tokens if missing.",
+      "files": []
+    }
+  ]
+}

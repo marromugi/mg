@@ -5,16 +5,20 @@ export const ToolDetails = ({ node }: { node: SpanNode }) => {
   const { name, arguments: args, result } = useToolSpan(node);
 
   return (
-    <div className="tool">
+    <div>
       {name !== undefined ? <div>Tool: {name}</div> : null}
       {args !== undefined ? (
         <div>
-          Arguments: <code>{args}</code>
+          Arguments:{" "}
+          <code className="break-all whitespace-pre-wrap">{args}</code>
         </div>
       ) : null}
       {result !== undefined ? (
         <div>
-          Result: <code>{result}</code>
+          Result:{" "}
+          <code className="break-all whitespace-pre-wrap">
+            {result}
+          </code>
         </div>
       ) : null}
     </div>

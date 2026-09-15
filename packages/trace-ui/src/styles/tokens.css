@@ -1,0 +1,16 @@
+/* Clears Tailwind's default color palette so every color comes from a named token below; spacing, radius, and type-scale defaults stay. */
+@import "tailwindcss";
+
+@theme {
+  --color-*: initial;
+
+  --color-edge: #8884;
+  --color-error: #d33;
+  --color-error-bg: #fde8e6;
+  --color-error-fg: #3b0d0a;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --container-page: 60rem;
+}

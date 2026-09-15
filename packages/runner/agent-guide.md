@@ -5,7 +5,7 @@ This file is the copy-pasteable reference for writing that config.
 
 ## 1. Complete example
 
-Exact copy of `runs/loop-bash.config.ts`:
+Example config (see `runs/loop-bash.config.ts` for the file in the repo):
 
 ```ts
 import { defineRun } from "@mg/runner";

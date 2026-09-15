@@ -44,10 +44,12 @@ base. If the check fails, say which one and stop; do not stash or reset.
 
 Then settle the scope. The developer may have said a parent issue (「#111 の
 子」), a list of numbers, or nothing. With nothing, the queue is every ready
-issue. The default cap is 5 issues per invocation; the developer can say a
-number or 「全部」 to change it. The cap exists because each issue runs a
-Sonnet implementer plus an Opus review with its own subagents, and the
-transcripts pile up in this session.
+issue. There is no cap by default: the loop runs until the queue is empty,
+including issues that become ready because of merges made during the run.
+The developer can name a number to stop earlier. Each issue runs a Sonnet
+implementer plus an Opus review with its own subagents, so a long run is
+expensive in transcripts; that is the developer's call, not a reason to
+stop on your own.
 
 ## Step 1: Find the ready issues
 
@@ -138,6 +140,12 @@ When reviewer's report for an issue is in, gather from the run:
 - The PR number and the Deviations section.
 - reviewer's design-level findings (the `[design]` ones), and whether the
   code-level fixes were pushed.
+- Findings, from either pass, that ask for something the issue or its
+  parent already decided against: a different return shape than the
+  issue's interface, a fallback the issue prescribed, a trade-off listed
+  under 承知の上で手放したもの. These are not defects in the PR. Reply on
+  the thread with the issue or parent section that decides it, do not fix,
+  and keep them for the report as questions the developer may reopen.
 - Whether CI ran, and its final result.
 
 Then decide for that PR (step 4) before reviewing the next one in the
@@ -150,8 +158,18 @@ stays open. When something does not fit either way cleanly, leave it open;
 that is the cheap mistake.
 
 - implementer opened a PR (it did not stop on a design question).
-- Deviations is `none`.
-- reviewer posted zero design-level findings.
+- Deviations is `none`, or every deviation listed is a mechanics detail
+  that the issue's own constraints or the tooling forced (a config key the
+  tool spells differently, a lint rule that rejects the issue's literal
+  snippet, a cast the type definitions need) and that changes no
+  interface, dependency, scope, or behaviour the issue specifies. Say in
+  the report which deviations you read that way. A deviation that picks
+  an option, adds or drops a dependency, widens scope, or changes what the
+  developer would see is a design change, and the PR stays open.
+- reviewer posted zero design-level findings that need the developer.
+  A finding answered on its thread with the issue section that already
+  decides it (step 3) does not count; a finding that the issue is silent
+  on does.
 - Every code-level finding is fixed and pushed, or there were none.
 - The final head is verified. If the repo has CI checks, they are green on
   that head. If `gh pr checks` reports no checks configured, run the checks
@@ -207,11 +225,25 @@ After the whole batch is decided, go back to step 1 with the same scope.
 Re-read the queue rather than reusing the plan: merges and open PRs have
 changed what is ready.
 
+**Close finished parents.** When a parent's `子 issue` list is entirely
+closed and no PR for any child is left open, close the parent too, with
+one comment listing each child and the PR that closed it:
+
+```
+gh issue close <parent> --comment "$(printf '子 issue がすべて閉じました。\n\n- #<child> → PR #<pr>\n...')"
+```
+
+The parent holds the decision record; closing it does not change that,
+the record stays readable. Do this whenever a merge completes a parent,
+not only at the end, so the queue reads true while the loop runs. Do not
+close a parent whose children are only partly done, or one that is a
+方針 issue with no `子 issue` list.
+
 ## Stop conditions
 
 Stop the whole loop, report what was done, and say why, when:
 
-- The queue is empty, or the cap is reached.
+- The queue is empty, or the number the developer named is reached.
 - A merge fails, or `git pull --ff-only` fails. Something changed under the
   loop; the developer needs to look before anything else is built on it.
 - The main checkout is no longer clean on main.
@@ -224,13 +256,20 @@ Stop the whole loop, report what was done, and say why, when:
 Japanese, following `.claude/rules/writing.md`. Order:
 
 1. One line: how many merged, how many left open, and why the loop stopped
-   (queue empty, cap, or a stop condition).
-2. Merged: issue number, PR number, one line each.
+   (queue empty, the developer's number, or a stop condition).
+2. Merged: issue number, PR number, one line each. Name any deviation you
+   read as mechanics (step 4) so the developer can disagree.
 3. Left open: issue number, PR number if any, the reason in a few words,
    and what the developer decides. Point at the PR comments rather than
    repeating them. A design question with no PR is quoted here in full.
-4. What is ready next, if anything remains, and any parent whose children
-   are all closed now. Closing a parent is the developer's call; say it,
-   do not do it.
+4. Questions the developer may reopen: the findings answered on their
+   threads because the issue already decided them (step 3), one line each
+   with the PR number. These merged; they are listed so the developer can
+   change the design if the reviewer had a point.
+5. Parents closed during the run, and what is ready next if anything
+   remains.
 
-Then stop.
+Then stop. If the developer answers the questions in item 4, those answers
+are new design decisions with no issue yet: take them through `architect`,
+which records them and creates the issues, and then run dispatcher again.
+Do not implement an answer straight from the chat.

@@ -65,4 +65,79 @@ describe("createApp", () => {
 
     expect(res.status).toBe(404);
   });
+
+  it("renders the scheme-dark html class on GET / with a scheme cookie", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("/", {
+      headers: { Cookie: "scheme=dark" },
+    });
+    const text = await res.text();
+
+    expect(text).toContain('class="scheme-dark"');
+  });
+
+  it("renders the scheme-light-dark html class on GET / without a scheme cookie", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("/");
+    const text = await res.text();
+
+    expect(text).toContain('class="scheme-light-dark"');
+  });
+
+  it("sets a scheme cookie and redirects on POST /theme", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "scheme=dark",
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get("Set-Cookie")).toContain("scheme=dark");
+  });
+
+  it("deletes the scheme cookie on POST /theme with an unknown value", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "scheme=bogus",
+    });
+
+    expect(res.status).toBe(303);
+    const setCookie = res.headers.get("Set-Cookie");
+    expect(setCookie).toContain("scheme=;");
+  });
+
+  it("redirects to / when the Referer origin only shares a prefix with the request origin", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("http://localhost:3998/theme", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "http://localhost:39985/x",
+      },
+      body: "scheme=dark",
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get("Location")).toBe("/");
+  });
+
+  it("redirects to the Referer when its origin matches the request origin", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request("http://localhost:3998/theme", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "http://localhost:3998/sessions/abc",
+      },
+      body: "scheme=dark",
+    });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.get("Location")).toBe(
+      "http://localhost:3998/sessions/abc",
+    );
+  });
 });

@@ -1,7 +1,9 @@
 import type { TraceReader } from "@mg/trace/store";
 import type { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { renderPage } from "../app.js";
 import { SessionPage } from "../components/pages/SessionPage/index.js";
+import { SCHEME_COOKIE, parseScheme } from "../scheme.js";
 
 export const registerSessionRoute = (
   app: Hono,
@@ -12,6 +14,9 @@ export const registerSessionRoute = (
     if (session === undefined) {
       return c.notFound();
     }
-    return c.html(renderPage(<SessionPage session={session} />));
+    const scheme = parseScheme(getCookie(c, SCHEME_COOKIE));
+    return c.html(
+      renderPage(<SessionPage session={session} scheme={scheme} />),
+    );
   });
 };

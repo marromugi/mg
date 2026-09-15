@@ -1,3 +1,4 @@
+// 書き方は packages/runner/agent-guide.md を見てください。
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";

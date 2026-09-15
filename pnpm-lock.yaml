@@ -157,6 +157,9 @@ importers:
       '@mg/runner':
         specifier: workspace:*
         version: link:../packages/runner
+      '@mg/term':
+        specifier: workspace:*
+        version: link:../packages/term
       '@mg/tools':
         specifier: workspace:*
         version: link:../packages/tools

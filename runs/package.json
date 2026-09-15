@@ -10,6 +10,7 @@
     "@mg/tools": "workspace:*",
     "@mg/harness-loop": "workspace:*",
     "@mg/runner": "workspace:*",
+    "@mg/term": "workspace:*",
     "@mg/trace": "workspace:*"
   },
   "devDependencies": {

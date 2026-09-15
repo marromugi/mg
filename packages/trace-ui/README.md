@@ -25,7 +25,7 @@ OpenTelemetry の SDK や、保存の仕組みは持ちません。
 - セッションを絞り込む機能は、まだありません。
 - クライアント側で動く JS は持ちません。画面はサーバーだけで描きます。
 
-## 使い方
+## 動かし方
 
 見る記録が入った SQLite のパスを指定して、起動します。
 
@@ -34,18 +34,143 @@ pnpm --filter @mg/trace-ui start -- --db <path>
 ```
 
 待ち受けるポートは、既定で 3210 です。
-`--port` を付けると、別のポートに変えられます。
+別のポートに変えるには、起動のコマンドに次の指定を足します。
 
-待ち受けは `127.0.0.1` だけです。
-他のマシンからは、つなげません。
+```
+--port <port>
+```
 
-`--db` に渡したファイルが無いと、起動を拒みます。
+待ち受けは `127.0.0.1` だけです。他のマシンからはつなげません。
+
+指定したパスにファイルが無いと、起動を拒みます。
 正しいパスを渡すよう、メッセージで知らせます。
 
-## story のスナップショット
+部品を 1 つずつ確かめるには、Storybook を動かします。
 
-部品ごとの story を HTML の文字列にして、保存した文字列と比べます。
+```sh
+pnpm --filter @mg/trace-ui storybook
+```
+
+待ち受けるポートは 6006 です。
+
+## ディレクトリ
+
+`src` の下の置き場所を、1 ディレクトリ 1 行で表します。
+
+```
+src/
+├── routes/       読み手を呼び、結果を頁に渡します
+├── components/
+│   ├── ui/       記録の意味を知らない部品
+│   ├── feature/  記録の意味を持つ部品
+│   └── pages/    1 頁 1 部品で feature を並べます
+├── hooks/        複数の部品で使う hooks
+├── styles/       tokens.css
+└── stories/      story で使う共通の fixture
+```
+
+`app.tsx`、`server.ts`、`vocabulary.ts`、`index.ts` は `src` の直下にあります。
+それぞれ、画面の組み立て、起動、記録の語彙、パッケージの入り口です。
+
+部品のディレクトリの中身は、どの層でも同じ形です。
+`ChatMessages` を例にします。
+
+```
+ChatMessages/
+├── ChatMessages.tsx
+├── ChatMessages.stories.tsx
+├── index.ts
+└── hooks/
+    ├── useChatMessages.ts
+    └── useChatMessages.test.ts
+```
+
+## 置き場所
+
+3 層それぞれの役割と、置くものを表にします。
+
+| 層      | 役割                   | 置くもの                            |
+| ------- | ---------------------- | ----------------------------------- |
+| ui      | 記録の意味を知りません | Badge、Button、Card など汎用の部品  |
+| feature | 記録の意味を持ちます   | ChatMessages、SessionList、SpanTree |
+| pages   | 1 頁につき 1 部品です  | SessionsPage、SessionPage           |
+
+3 層とも、表示に関わる処理だけを持ちます。
+表示に関わらない処理は、hooks に出します。
+
+- 1 つの部品だけで使う処理は、その部品の `hooks/` に置きます。
+- 複数の部品で使う処理は、`src/hooks/` に置きます。
+- テストは、hooks と同じ場所に置きます。
+
+hooks は、描画中に呼ぶ普通の関数です。React の状態は持ちません。
+名前は `use` で始めます。例えば `useChatMessages` です。
+
+読み手を呼ぶのは `routes/` だけです。部品は読み手を知りません。
+頁は、入力（props）でデータを受け取ります。
+経路は、読み手の結果を頁に渡すだけです。変換は hooks が持ちます。
+
+ファイル名とディレクトリ名は、部品名と同じにします。
+各部品のディレクトリに `index.ts` を置き、外へ出すものだけ並べます。
+`components/ui/index.ts` は、ui の部品をまとめて出します。
+feature と pages は、部品のディレクトリごとに出します。
+
+足したいものごとに、置く場所を表にまとめます。
+
+| 足したいもの                             | 置く場所              |
+| ---------------------------------------- | --------------------- |
+| 記録の意味を知らない汎用の部品           | components/ui         |
+| 記録の意味を持つ部品                     | components/feature    |
+| 1 頁 1 部品の画面                        | components/pages      |
+| 1 つの部品だけで使う表示に関わらない処理 | その部品の hooks/     |
+| 複数の部品で使う表示に関わらない処理     | src/hooks/            |
+| 読み手を呼ぶ処理                         | src/routes/           |
+| 色や字体や影や角丸の値                   | src/styles/tokens.css |
+
+## 見た目の決まり
+
+色と字体と影と角丸は、`src/styles/tokens.css` の `@theme` に集めます。
+部品は、ここにある名前だけを使います。
+
+部品は Tailwind の class で書きます。
+状態ごとの切り替えは、tailwind-variants で持ちます。
+
+CSS はビルドで生成します。
+サーバーは起動時にその CSS を読み、`<style>` に埋めます。
+サーバーにバンドラーは入れません。
+
+lint は oxlint-tailwindcss を使い、次を止めます。
+
+| ルール                 | 止めるもの              |
+| ---------------------- | ----------------------- |
+| no-unknown-classes     | tokens.css に無い class |
+| no-conflicting-classes | 競合する class          |
+| no-arbitrary-value     | 任意の値を使った class  |
+| no-hardcoded-colors    | 直接書いた色の値        |
+
+次の 2 つは警告です。
+
+- no-duplicate-classes
+- enforce-sort-order
+
+次を実行すると、並び順が直ります。
+
+```sh
+pnpm lint:fix
+```
+
+これらの決まりの理由は、[issue #100](https://github.com/marromugi/mg/issues/100) にまとめてあります。
+
+## 試験
+
+部品ごとの story を、Node の中で HTML の文字列にします。
+その文字列を、保存した文字列と比べます。ブラウザは使いません。
 見た目が変わると、テストが落ちます。
+
+比べる前に、両方の文字列から `<style>` の中身を空にします。
+生成される CSS は、保存する文字列に含めません。
+
+story は、Storybook での表示と、この比較の入力を兼ねます。
+`Badge.stories.tsx` のように、部品のそばに置きます。
 
 確かめるには、次を実行します。
 
@@ -59,3 +184,6 @@ pnpm --filter @mg/trace-ui test
 ```sh
 pnpm --filter @mg/trace-ui test -u
 ```
+
+経路の試験は、偽の読み手を渡して `app.request` を叩きます。
+`src/app.test.tsx` がその形です。

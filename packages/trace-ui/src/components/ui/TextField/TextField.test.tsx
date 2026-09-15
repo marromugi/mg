@@ -56,4 +56,20 @@ describe("TextField", () => {
       'aria-describedby="field-query-hint field-query-error"',
     );
   });
+
+  it("wires the label, hint, and error to a given id", () => {
+    const html = renderToStaticMarkup(
+      <TextField
+        id="q2"
+        name="query"
+        label="Search"
+        hint="Matches span name."
+        error="Required."
+      />,
+    );
+
+    expect(html).toContain('for="q2"');
+    expect(html).toContain('id="q2"');
+    expect(html).toContain('aria-describedby="q2-hint q2-error"');
+  });
 });

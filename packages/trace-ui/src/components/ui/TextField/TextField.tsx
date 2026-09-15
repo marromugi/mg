@@ -12,6 +12,7 @@ const input = tv({
 });
 
 type TextFieldProps = {
+  id?: string;
   name: string;
   label: string;
   type?: "text" | "search";
@@ -22,17 +23,18 @@ type TextFieldProps = {
   disabled?: boolean;
 };
 
-export const TextField = ({
-  name,
-  label,
-  type = "text",
-  defaultValue,
-  placeholder,
-  hint,
-  error,
-  disabled,
-}: TextFieldProps) => {
-  const id = `field-${name}`;
+export const TextField = (props: TextFieldProps) => {
+  const {
+    name,
+    label,
+    type = "text",
+    defaultValue,
+    placeholder,
+    hint,
+    error,
+    disabled,
+  } = props;
+  const id = props.id ?? `field-${name}`;
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy =

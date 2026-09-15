@@ -14,7 +14,8 @@ try {
     onEvent: (event) => {
       if (event.type === "text-delta") {
         process.stdout.write(event.delta);
-        atLineStart = event.delta.endsWith("\n");
+        if (event.delta !== "")
+          atLineStart = event.delta.endsWith("\n");
       } else if (event.type === "tool-call") {
         if (!atLineStart) process.stdout.write("\n");
         const { name, arguments: args } = event.toolCall;
@@ -25,6 +26,7 @@ try {
     },
   });
 
+  if (!atLineStart) process.stdout.write("\n");
   const line = `${term.mark.success} sessionId: ${sessionId}`;
   console.log(term.paint("success", line));
 } catch (error) {

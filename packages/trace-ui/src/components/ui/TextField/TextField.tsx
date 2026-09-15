@@ -1,7 +1,7 @@
 import { tv } from "tailwind-variants";
 
 const input = tv({
-  base: "block w-full rounded-md border border-edge bg-transparent px-3.5 py-2 font-sans text-base transition-colors placeholder:opacity-50 hover:bg-edge/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50",
+  base: "block w-full rounded-md border border-edge bg-transparent px-3.5 py-2 font-sans text-base transition-colors placeholder:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent enabled:hover:bg-edge/15 disabled:cursor-not-allowed disabled:opacity-50",
   variants: {
     invalid: {
       true: "border-error focus-visible:outline-error",

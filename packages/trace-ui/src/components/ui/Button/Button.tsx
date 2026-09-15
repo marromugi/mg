@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { tv } from "tailwind-variants";
 
 const button = tv({
-  base: "inline-flex items-center justify-center gap-2 rounded-md border font-sans font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+  base: "inline-flex items-center justify-center gap-2 rounded-md border font-sans font-semibold transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
   variants: {
     tone: {
       primary:

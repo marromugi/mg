@@ -3,9 +3,7 @@ import type { ReactNode } from "react";
 const CELL = "border-b border-edge px-2.5 py-1.5 text-left";
 
 const Head = ({ children }: { children: ReactNode }) => (
-  <thead>
-    <tr>{children}</tr>
-  </thead>
+  <thead>{children}</thead>
 );
 
 const Body = ({ children }: { children: ReactNode }) => (

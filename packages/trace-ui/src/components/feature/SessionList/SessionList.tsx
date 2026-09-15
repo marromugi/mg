@@ -8,10 +8,12 @@ export const SessionList = ({
 }) => (
   <Table>
     <Table.Head>
-      <Table.HeaderCell>Session</Table.HeaderCell>
-      <Table.HeaderCell>Start</Table.HeaderCell>
-      <Table.HeaderCell>End</Table.HeaderCell>
-      <Table.HeaderCell>Traces</Table.HeaderCell>
+      <Table.Row>
+        <Table.HeaderCell>Session</Table.HeaderCell>
+        <Table.HeaderCell>Start</Table.HeaderCell>
+        <Table.HeaderCell>End</Table.HeaderCell>
+        <Table.HeaderCell>Traces</Table.HeaderCell>
+      </Table.Row>
     </Table.Head>
     <Table.Body>
       {sessions.map((session) => (

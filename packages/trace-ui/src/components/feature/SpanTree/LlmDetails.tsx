@@ -13,7 +13,7 @@ export const LlmDetails = ({ node }: { node: SpanNode }) => {
   } = useLlmSpan(node);
 
   return (
-    <div className="llm">
+    <div>
       {model !== undefined ? <div>Model: {model}</div> : null}
       {finishReason !== undefined ? (
         <div>Finish reason: {finishReason}</div>

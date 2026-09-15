@@ -8,7 +8,7 @@ export const SessionsPage = ({
   sessions: SessionSummary[];
 }) => (
   <Layout title="Sessions">
-    <h1>Sessions</h1>
+    <h1 className="my-4 text-heading font-bold">Sessions</h1>
     <SessionList sessions={sessions} />
   </Layout>
 );

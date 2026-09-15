@@ -29,6 +29,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/trace`](packages/trace/README.md) | 記録の口の実体と、共通の語彙 |
 | [`@mg/harness-loop`](packages/harness-loop/README.md) | 道具の呼び出しを繰り返すループ型のハーネス |
 | [`@mg/runner`](packages/runner/README.md) | 設定からハーネスを組み立て、記録を開いて走らせる |
+| [`@mg/trace-ui`](packages/trace-ui/README.md) | 保存した記録を見る画面 |
 | [`runs/`](runs/) | 検証ごとの設定ファイルの置き場所 |
 
 名前を選ぶと、詳しい説明を読めます。
@@ -46,6 +47,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 道具の呼び出しの繰り返し | harness-loop |
 | 検証の失敗を LLM にどう返すか | harness-loop |
 | 記録の語彙と保存先 | trace |
+| 記録を見る画面 | trace-ui |
 | 検証ごとの組み立ての設定 | runs |
 | 走らせ方そのもの（記録の開閉、複数件、読み込み） | runner |
 | 形の軸のハーネスの部品（記憶、想起、振り返り、出し方） | harness-persona（これから作るもの） |
@@ -79,12 +81,22 @@ LLM で動くエージェントのハーネスを試すための土台です。
   </tr>
 </table>
 
+trace-ui は、走らせる流れの外にいます。
+記録を見るときだけ、trace とつながります。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/trace-ui</code> → <code>@mg/trace</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。harness-loop と trace も使います。
 - runner は、core と harness を使います。harness-loop と trace も使います。
 - runner は、tools を使いません。
 - harness-loop は、4 つを使います。core と tools と harness と trace です。
 - trace は、harness と core を使います。
+- trace-ui は、trace を使います。
 - harness と tools は、それぞれ core を使います。
 - core は、このリポジトリの他のパッケージに依存しません。
 

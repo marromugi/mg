@@ -1,15 +1,15 @@
-/* Clears Tailwind's default color palette so every color comes from a named token below; spacing, radius, and type-scale defaults stay. */
+/* Clears Tailwind's default color palette so every color comes from a named token below; spacing, radius, and type-scale defaults stay. Each color token carries both a light and a dark value via light-dark(). */
 @import "tailwindcss";
 
 @theme {
   --color-*: initial;
 
-  --color-accent: #2f5bea;
-  --color-on-accent: #ffffff;
-  --color-edge: #8884;
-  --color-error: #d33;
-  --color-error-bg: #fde8e6;
-  --color-error-fg: #3b0d0a;
+  --color-accent: light-dark(#2f5bea, #7a9bff);
+  --color-on-accent: light-dark(#ffffff, #0b1533);
+  --color-edge: light-dark(#8884, #8884);
+  --color-error: light-dark(#d33, #f66);
+  --color-error-bg: light-dark(#fde8e6, #3b0d0a);
+  --color-error-fg: light-dark(#3b0d0a, #fde8e6);
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -17,4 +17,10 @@
   --container-page: 60rem;
   --text-heading: 1.4rem;
   --text-meta: 0.85rem;
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
 }

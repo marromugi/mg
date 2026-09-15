@@ -13,7 +13,7 @@ export const ChatMessages = ({
   }
 
   const result = useChatMessages(raw);
-  if (!("messages" in result)) {
+  if (result.kind === "raw") {
     return (
       <div>
         <div className="mt-2 font-semibold">{label}</div>

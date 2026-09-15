@@ -12,7 +12,8 @@ export type ChatMessage = {
 };
 
 export type ChatMessagesResult =
-  { messages: ChatMessage[] } | { raw: string };
+  | { kind: "messages"; messages: ChatMessage[] }
+  | { kind: "raw"; raw: string };
 
 const isChatMessage = (value: unknown): value is ChatMessage => {
   if (typeof value !== "object" || value === null) {
@@ -32,10 +33,10 @@ export const useChatMessages = (raw: string): ChatMessagesResult => {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.every(isChatMessage)) {
-      return { messages: parsed };
+      return { kind: "messages", messages: parsed };
     }
   } catch {
-    return { raw };
+    return { kind: "raw", raw };
   }
-  return { raw };
+  return { kind: "raw", raw };
 };

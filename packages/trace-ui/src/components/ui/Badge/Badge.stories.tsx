@@ -9,6 +9,13 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+export const Default: Story = {
+  args: {
+    tone: "default",
+    children: "Badge content",
+  },
+};
+
 export const ErrorTone: Story = {
   args: {
     tone: "error",

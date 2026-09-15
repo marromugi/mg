@@ -4,6 +4,8 @@
 @theme {
   --color-*: initial;
 
+  --color-accent: #2f5bea;
+  --color-on-accent: #ffffff;
   --color-edge: #8884;
   --color-error: #d33;
   --color-error-bg: #fde8e6;

@@ -26,6 +26,7 @@
     "tailwind-variants": "3.3.1"
   },
   "devDependencies": {
+    "@storybook/react": "9.1.20",
     "@storybook/react-vite": "9.1.20",
     "@tailwindcss/cli": "4.3.3",
     "@tailwindcss/vite": "4.3.3",

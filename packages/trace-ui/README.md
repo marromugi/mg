@@ -57,5 +57,5 @@ pnpm --filter @mg/trace-ui test
 崩れがないと分かったら、保存した文字列を更新します。
 
 ```sh
-pnpm --filter @mg/trace-ui test -- -u
+pnpm --filter @mg/trace-ui test -u
 ```

@@ -6,6 +6,7 @@ import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-tra
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startRootSpan } from "../otel-span.js";
 import { spans } from "../store/schema.js";
+import { SqliteTraceReader } from "../store/sqlite-reader.js";
 import { openTraceDb } from "../store/sqlite.js";
 import { SqliteSpanExporter } from "./sqlite-exporter.js";
 
@@ -33,11 +34,11 @@ describe("SqliteSpanExporter", () => {
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     });
     const tracer = provider.getTracer("test");
-    return { exporter, provider, tracer };
+    return { db, exporter, provider, tracer };
   };
 
   it("inserts one row per span", async () => {
-    const { exporter, tracer } = await setup();
+    const { db, exporter, tracer } = await setup();
 
     for (let i = 0; i < 5; i++) {
       const span = startRootSpan(tracer, `span-${i}`);
@@ -46,14 +47,13 @@ describe("SqliteSpanExporter", () => {
 
     await exporter.shutdown();
 
-    const readDb = await openTraceDb(dbPath);
-    const rows = await readDb.select().from(spans);
+    const rows = await db.select().from(spans);
     expect(rows).toHaveLength(5);
-    await readDb.$client.close();
+    await db.$client.close();
   });
 
   it("round-trips traceId, spanId, parentSpanId, attributes, events and status", async () => {
-    const { tracer, exporter } = await setup();
+    const { db, tracer, exporter } = await setup();
 
     const root = startRootSpan(tracer, "root", { "start.attr": "a" });
     root.addEvent("did-something", { count: 3 });
@@ -63,8 +63,7 @@ describe("SqliteSpanExporter", () => {
 
     await exporter.shutdown();
 
-    const readDb = await openTraceDb(dbPath);
-    const rows = await readDb.select().from(spans);
+    const rows = await db.select().from(spans);
     const rootRow = rows.find((row) => row.name === "root");
     const childRow = rows.find((row) => row.name === "child");
 
@@ -79,27 +78,7 @@ describe("SqliteSpanExporter", () => {
     expect(rootRow?.sessionId).toBe("s1");
     expect(rootRow?.serviceName).toBe("svc");
 
-    await readDb.$client.close();
-  });
-
-  it("accepts a promise of the db and awaits it before inserting", async () => {
-    const dbPromise = openTraceDb(dbPath);
-    const exporter = new SqliteSpanExporter(dbPromise);
-    const provider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(exporter)],
-    });
-    const tracer = provider.getTracer("test");
-
-    const root = startRootSpan(tracer, "root");
-    root.end();
-
-    await exporter.shutdown();
-
-    const readDb = await openTraceDb(dbPath);
-    const rows = await readDb.select().from(spans);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.name).toBe("root");
-    await readDb.$client.close();
+    await db.$client.close();
   });
 
   it("resolves shutdown and can be called once more without error", async () => {
@@ -109,7 +88,7 @@ describe("SqliteSpanExporter", () => {
   });
 
   it("resolves an empty span list with code 0 without inserting", async () => {
-    const { exporter } = await setup();
+    const { db, exporter } = await setup();
     const results: number[] = [];
 
     exporter.export([], (result) => {
@@ -119,28 +98,31 @@ describe("SqliteSpanExporter", () => {
     expect(results).toEqual([0]);
 
     await exporter.shutdown();
-    const readDb = await openTraceDb(dbPath);
-    const rows = await readDb.select().from(spans);
+    const rows = await db.select().from(spans);
     expect(rows).toHaveLength(0);
-    await readDb.$client.close();
+    await db.$client.close();
   });
 
-  it("does not raise an unhandled rejection when the db promise rejects, and surfaces the error from export and shutdown", async () => {
-    const dbPromise = Promise.reject(new Error("boom"));
-    const exporter = new SqliteSpanExporter(dbPromise);
+  it("does not close the db on shutdown, so a reader sharing the same db can still read afterward", async () => {
+    const { db, exporter, tracer } = await setup();
 
-    // The constructor must attach a handler to dbPromise synchronously; this
-    // await just gives the runtime a chance to flag an unhandled rejection
-    // if it did not.
-    await Promise.resolve();
-
-    const provider = new BasicTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(exporter)],
-    });
-    const tracer = provider.getTracer("test");
-    const root = startRootSpan(tracer, "root");
+    const root = startRootSpan(tracer, "root", { "start.attr": "a" });
+    const child = root.startSpan("child");
+    child.end();
     root.end();
 
-    await expect(exporter.shutdown()).rejects.toThrow("boom");
+    await exporter.shutdown();
+
+    // The db connection stays open; a reader built on the same TraceDb can
+    // still query it after the exporter that wrote to it has shut down.
+    const reader = new SqliteTraceReader(db);
+    const tree = await reader.readSession("s1");
+
+    expect(tree?.traces).toHaveLength(1);
+    expect(tree?.traces[0]?.root.name).toBe("root");
+    expect(tree?.traces[0]?.root.children).toHaveLength(1);
+    expect(tree?.traces[0]?.root.children[0]?.name).toBe("child");
+
+    await db.$client.close();
   });
 });

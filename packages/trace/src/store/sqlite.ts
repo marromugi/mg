@@ -14,7 +14,7 @@ export const openTraceDb = async (path: string): Promise<TraceDb> => {
   if (path !== ":memory:") {
     await fs.mkdir(dirname(path), { recursive: true });
   }
-  const client = createClient({ url });
+  const client = createClient({ url, timeout: 5000 });
   const db = drizzle(client);
   await migrate(db, { migrationsFolder });
   return db;

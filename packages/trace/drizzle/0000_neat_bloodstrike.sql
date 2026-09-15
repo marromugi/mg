@@ -1,4 +1,4 @@
-CREATE TABLE `spans` (
+CREATE TABLE IF NOT EXISTS `spans` (
 	`session_id` text NOT NULL,
 	`service_name` text NOT NULL,
 	`trace_id` text NOT NULL,
@@ -13,5 +13,5 @@ CREATE TABLE `spans` (
 	`status_message` text
 );
 --> statement-breakpoint
-CREATE INDEX `spans_session_id_idx` ON `spans` (`session_id`);--> statement-breakpoint
-CREATE INDEX `spans_trace_id_idx` ON `spans` (`trace_id`);
+CREATE INDEX IF NOT EXISTS `spans_session_id_idx` ON `spans` (`session_id`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `spans_trace_id_idx` ON `spans` (`trace_id`);

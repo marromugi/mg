@@ -6,14 +6,9 @@ import { toSpanRecord } from "./record.js";
 type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
 
 export class SqliteSpanExporter implements SpanExporter {
-  private pending: Promise<void>;
+  private pending: Promise<void> = Promise.resolve();
 
-  constructor(private readonly db: TraceDb | Promise<TraceDb>) {
-    this.pending = Promise.resolve(db).then(
-      () => undefined,
-      () => undefined,
-    );
-  }
+  constructor(private readonly db: TraceDb) {}
 
   export(readableSpans: ReadableSpan[], resultCallback: ExportResultCallback): void {
     if (readableSpans.length === 0) {
@@ -39,10 +34,7 @@ export class SqliteSpanExporter implements SpanExporter {
       };
     });
 
-    const write = this.pending.then(async () => {
-      const db = await this.db;
-      await db.insert(spans).values(rows);
-    });
+    const write = this.pending.then(() => this.db.insert(spans).values(rows).then(() => undefined));
     this.pending = write.then(
       () => undefined,
       () => undefined,
@@ -59,7 +51,5 @@ export class SqliteSpanExporter implements SpanExporter {
 
   async shutdown(): Promise<void> {
     await this.pending;
-    const db = await this.db;
-    await db.$client.close();
   }
 }

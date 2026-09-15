@@ -1,8 +1,9 @@
 import type { Tracer } from "@opentelemetry/api";
 import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
 import { BasicTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { nanoid } from "nanoid";
+import type { TraceDb } from "../store/sqlite.js";
 import { openTraceDb } from "../store/sqlite.js";
 import { JsonlSpanExporter } from "./jsonl-exporter.js";
 import { SqliteSpanExporter } from "./sqlite-exporter.js";
@@ -24,16 +25,39 @@ export type TraceSdk = {
   shutdown: () => Promise<void>;
 };
 
-export const createTraceSdk = (options: TraceSdkOptions = {}): TraceSdk => {
+type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
+
+// Externally provided exporters were not opened by this SDK, so shutdown
+// must not close them; export and forceFlush still delegate.
+class NonClosingExporter implements SpanExporter {
+  constructor(private readonly inner: SpanExporter) {}
+
+  export(spans: ReadableSpan[], resultCallback: ExportResultCallback): void {
+    this.inner.export(spans, resultCallback);
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  forceFlush(): Promise<void> {
+    return this.inner.forceFlush?.() ?? Promise.resolve();
+  }
+}
+
+export const createTraceSdk = async (options: TraceSdkOptions = {}): Promise<TraceSdk> => {
   const exporters: SpanExporter[] = [];
+  let sqliteDb: TraceDb | undefined;
+
   if (options.jsonlPath !== undefined) {
     exporters.push(new JsonlSpanExporter(options.jsonlPath));
   }
   if (options.sqlitePath !== undefined) {
-    exporters.push(new SqliteSpanExporter(openTraceDb(options.sqlitePath)));
+    sqliteDb = await openTraceDb(options.sqlitePath);
+    exporters.push(new SqliteSpanExporter(sqliteDb));
   }
   if (options.exporters !== undefined) {
-    exporters.push(...options.exporters);
+    exporters.push(...options.exporters.map((exporter) => new NonClosingExporter(exporter)));
   }
 
   const serviceName = options.serviceName ?? "mg";
@@ -55,6 +79,9 @@ export const createTraceSdk = (options: TraceSdkOptions = {}): TraceSdk => {
     shutdown: async () => {
       await provider.forceFlush();
       await provider.shutdown();
+      if (sqliteDb !== undefined) {
+        await sqliteDb.$client.close();
+      }
     },
   };
 };

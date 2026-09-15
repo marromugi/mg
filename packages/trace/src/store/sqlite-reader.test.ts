@@ -23,7 +23,7 @@ describe("SqliteTraceReader", () => {
     const jsonlPath = join(dir, "spans.jsonl");
     const sqlitePath = join(dir, "spans.db");
 
-    const sdk = createTraceSdk({ jsonlPath, sqlitePath, sessionId: "session-1", serviceName: "svc" });
+    const sdk = await createTraceSdk({ jsonlPath, sqlitePath, sessionId: "session-1", serviceName: "svc" });
     const root = startRootSpan(sdk.tracer, "root");
     root.addEvent("did-something", { count: 1 });
     const child = root.startSpan("child");
@@ -48,7 +48,7 @@ describe("SqliteTraceReader", () => {
 
   it("returns undefined for a session that is not in the database", async () => {
     const sqlitePath = join(dir, "spans.db");
-    const sdk = createTraceSdk({ sqlitePath, sessionId: "session-1" });
+    const sdk = await createTraceSdk({ sqlitePath, sessionId: "session-1" });
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
     await sdk.shutdown();
@@ -62,14 +62,14 @@ describe("SqliteTraceReader", () => {
   it("lists sessions from two different SDKs newest first", async () => {
     const sqlitePath = join(dir, "spans.db");
 
-    const sdkOld = createTraceSdk({ sqlitePath, sessionId: "session-old", serviceName: "svc" });
+    const sdkOld = await createTraceSdk({ sqlitePath, sessionId: "session-old", serviceName: "svc" });
     const rootOld = startRootSpan(sdkOld.tracer, "root");
     rootOld.end();
     await sdkOld.shutdown();
 
     await new Promise((resolve) => setTimeout(resolve, 5));
 
-    const sdkNew = createTraceSdk({ sqlitePath, sessionId: "session-new", serviceName: "svc" });
+    const sdkNew = await createTraceSdk({ sqlitePath, sessionId: "session-new", serviceName: "svc" });
     const rootNew = startRootSpan(sdkNew.tracer, "root");
     rootNew.end();
     await sdkNew.shutdown();

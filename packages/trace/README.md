@@ -97,7 +97,7 @@ import { startRootSpan } from "@mg/trace";
 import { collect } from "@mg/harness";
 import { createLoopHarness } from "@mg/harness-loop";
 
-const sdk = createTraceSdk({ jsonlPath: "./trace.jsonl" });
+const sdk = await createTraceSdk({ jsonlPath: "./trace.jsonl" });
 const trace = startRootSpan(sdk.tracer, "run");
 
 const harness = createLoopHarness({

@@ -1,6 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startRootSpan } from "../otel-span.js";
@@ -21,7 +22,7 @@ describe("createTraceSdk", () => {
 
   it("writes root and child spans to the jsonl file with matching parent/child ids", async () => {
     const jsonlPath = join(dir, "spans.jsonl");
-    const sdk = createTraceSdk({ jsonlPath, sessionId: "s1", serviceName: "svc" });
+    const sdk = await createTraceSdk({ jsonlPath, sessionId: "s1", serviceName: "svc" });
 
     const root = startRootSpan(sdk.tracer, "root", { "start.attr": "a" });
     root.addEvent("did-something", { count: 1 });
@@ -57,7 +58,7 @@ describe("createTraceSdk", () => {
 
   it("sends the same spans to additional exporters", async () => {
     const inMemory = new InMemorySpanExporter();
-    const sdk = createTraceSdk({ exporters: [inMemory] });
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
 
     const root = startRootSpan(sdk.tracer, "root");
     root.end();
@@ -70,13 +71,13 @@ describe("createTraceSdk", () => {
   });
 
   it("resolves shutdown and can be called once without error", async () => {
-    const sdk = createTraceSdk();
+    const sdk = await createTraceSdk();
     await expect(sdk.shutdown()).resolves.toBeUndefined();
   });
 
   it("puts the given session id and service name on every span's resource", async () => {
     const inMemory = new InMemorySpanExporter();
-    const sdk = createTraceSdk({ sessionId: "s1", serviceName: "svc", exporters: [inMemory] });
+    const sdk = await createTraceSdk({ sessionId: "s1", serviceName: "svc", exporters: [inMemory] });
 
     const root = startRootSpan(sdk.tracer, "root");
     const child = root.startSpan("child");
@@ -96,8 +97,8 @@ describe("createTraceSdk", () => {
   });
 
   it("generates a session id automatically when none is given", async () => {
-    const sdkA = createTraceSdk();
-    const sdkB = createTraceSdk();
+    const sdkA = await createTraceSdk();
+    const sdkB = await createTraceSdk();
 
     expect(typeof sdkA.sessionId).toBe("string");
     expect(sdkA.sessionId.length).toBeGreaterThan(0);
@@ -109,7 +110,7 @@ describe("createTraceSdk", () => {
 
   it("writes root and child spans to the sqlite database with matching parent/child ids", async () => {
     const sqlitePath = join(dir, "spans.db");
-    const sdk = createTraceSdk({ sqlitePath, sessionId: "s1", serviceName: "svc" });
+    const sdk = await createTraceSdk({ sqlitePath, sessionId: "s1", serviceName: "svc" });
 
     const root = startRootSpan(sdk.tracer, "root", { "start.attr": "a" });
     root.addEvent("did-something", { count: 1 });
@@ -136,5 +137,43 @@ describe("createTraceSdk", () => {
     expect(rootRow?.serviceName).toBe("svc");
 
     await db.$client.close();
+  });
+
+  it("rejects when the sqlite path's parent is a file, not a folder", async () => {
+    const blockerPath = join(dir, "blocker");
+    writeFileSync(blockerPath, "");
+    const sqlitePath = join(blockerPath, "spans.db");
+
+    await expect(createTraceSdk({ sqlitePath })).rejects.toThrow();
+  });
+
+  it("does not shutdown externally provided exporters, but does export to them, across multiple SDKs", async () => {
+    const shutdownCalls: number[] = [];
+    const exportedNames: string[] = [];
+    const fakeExporter: SpanExporter = {
+      export: (readableSpans: ReadableSpan[], resultCallback) => {
+        exportedNames.push(...readableSpans.map((span) => span.name));
+        resultCallback({ code: 0 });
+      },
+      shutdown: async () => {
+        shutdownCalls.push(1);
+      },
+    };
+
+    const sdk1 = await createTraceSdk({ exporters: [fakeExporter] });
+    const root1 = startRootSpan(sdk1.tracer, "root1");
+    root1.end();
+    await sdk1.shutdown();
+
+    expect(shutdownCalls).toHaveLength(0);
+    expect(exportedNames).toContain("root1");
+
+    const sdk2 = await createTraceSdk({ exporters: [fakeExporter] });
+    const root2 = startRootSpan(sdk2.tracer, "root2");
+    root2.end();
+    await sdk2.shutdown();
+
+    expect(shutdownCalls).toHaveLength(0);
+    expect(exportedNames).toContain("root2");
   });
 });

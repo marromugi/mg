@@ -1,43 +1,4 @@
-export type ChatToolCall = {
-  id?: string;
-  name?: string;
-  arguments?: unknown;
-};
-
-export type ChatMessage = {
-  role: string;
-  content?: string;
-  toolCalls?: ChatToolCall[];
-  toolCallId?: string;
-};
-
-const isChatMessage = (value: unknown): value is ChatMessage => {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const { role, content } = value as {
-    role?: unknown;
-    content?: unknown;
-  };
-  return (
-    typeof role === "string" &&
-    (content === undefined || typeof content === "string")
-  );
-};
-
-export const parseMessages = (
-  raw: string,
-): ChatMessage[] | undefined => {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.every(isChatMessage)) {
-      return parsed;
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-};
+import { useChatMessages } from "./hooks/useChatMessages.js";
 
 export const ChatMessages = ({
   label,
@@ -50,12 +11,12 @@ export const ChatMessages = ({
     return null;
   }
 
-  const messages = parseMessages(raw);
-  if (messages === undefined) {
+  const result = useChatMessages(raw);
+  if (!("messages" in result)) {
     return (
       <div>
         <div className="label">{label}</div>
-        <pre>{raw}</pre>
+        <pre>{result.raw}</pre>
       </div>
     );
   }
@@ -63,7 +24,7 @@ export const ChatMessages = ({
   return (
     <div>
       <div className="label">{label}</div>
-      {messages.map((message, index) => (
+      {result.messages.map((message, index) => (
         <div className="message" key={index}>
           <div className="role">
             {message.role}

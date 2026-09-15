@@ -1,28 +1,11 @@
-import type { SpanNode, SpanRecord } from "@mg/trace/store";
+import type { SpanNode } from "@mg/trace/store";
 import { SPAN } from "../../../vocabulary.js";
+import { useSpanStatus } from "./hooks/useSpanStatus.js";
 import { LlmDetails } from "./LlmDetails.js";
 import { ToolDetails } from "./ToolDetails.js";
 
-const ERROR_STATUS_CODE = 2;
-
-export const attrString = (
-  attributes: SpanRecord["attributes"],
-  key: string,
-): string | undefined => {
-  const value = attributes[key];
-  return typeof value === "string" ? value : undefined;
-};
-
-export const attrNumber = (
-  attributes: SpanRecord["attributes"],
-  key: string,
-): number | undefined => {
-  const value = attributes[key];
-  return typeof value === "number" ? value : undefined;
-};
-
 export const SpanTree = ({ node }: { node: SpanNode }) => {
-  const isError = node.status.code === ERROR_STATUS_CODE;
+  const { isError, message } = useSpanStatus(node);
 
   return (
     <div className={isError ? "span span-error" : "span"}>
@@ -33,7 +16,7 @@ export const SpanTree = ({ node }: { node: SpanNode }) => {
         </span>
       </div>
       {isError ? (
-        <div className="error">Error: {node.status.message ?? ""}</div>
+        <div className="error">Error: {message ?? ""}</div>
       ) : null}
       {node.name === SPAN.llm ? <LlmDetails node={node} /> : null}
       {node.name === SPAN.tool ? <ToolDetails node={node} /> : null}

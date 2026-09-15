@@ -136,7 +136,7 @@ describe("createTraceSdk", () => {
     expect(rootRow?.sessionId).toBe("s1");
     expect(rootRow?.serviceName).toBe("svc");
 
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("rejects when the sqlite path's parent is a file, not a folder", async () => {
@@ -145,6 +145,10 @@ describe("createTraceSdk", () => {
     const sqlitePath = join(blockerPath, "spans.db");
 
     await expect(createTraceSdk({ sqlitePath })).rejects.toThrow();
+  });
+
+  it("rejects with a RangeError when sqlitePath is :memory:", async () => {
+    await expect(createTraceSdk({ sqlitePath: ":memory:" })).rejects.toThrow(RangeError);
   });
 
   it("does not shutdown externally provided exporters, but does export to them, across multiple SDKs", async () => {

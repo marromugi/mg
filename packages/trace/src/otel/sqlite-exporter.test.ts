@@ -49,7 +49,7 @@ describe("SqliteSpanExporter", () => {
 
     const rows = await db.select().from(spans);
     expect(rows).toHaveLength(5);
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("round-trips traceId, spanId, parentSpanId, attributes, events and status", async () => {
@@ -78,7 +78,7 @@ describe("SqliteSpanExporter", () => {
     expect(rootRow?.sessionId).toBe("s1");
     expect(rootRow?.serviceName).toBe("svc");
 
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("resolves shutdown and can be called once more without error", async () => {
@@ -100,7 +100,7 @@ describe("SqliteSpanExporter", () => {
     await exporter.shutdown();
     const rows = await db.select().from(spans);
     expect(rows).toHaveLength(0);
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("does not close the db on shutdown, so a reader sharing the same db can still read afterward", async () => {
@@ -123,6 +123,6 @@ describe("SqliteSpanExporter", () => {
     expect(tree?.traces[0]?.root.children).toHaveLength(1);
     expect(tree?.traces[0]?.root.children[0]?.name).toBe("child");
 
-    await db.$client.close();
+    db.$client.close();
   });
 });

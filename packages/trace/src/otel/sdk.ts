@@ -49,12 +49,17 @@ export const createTraceSdk = async (options: TraceSdkOptions = {}): Promise<Tra
   const exporters: SpanExporter[] = [];
   let sqliteDb: TraceDb | undefined;
 
-  if (options.jsonlPath !== undefined) {
-    exporters.push(new JsonlSpanExporter(options.jsonlPath));
-  }
   if (options.sqlitePath !== undefined) {
+    if (options.sqlitePath === ":memory:") {
+      throw new RangeError(
+        'sqlitePath cannot be ":memory:": each connection gets its own database, so nothing written through the SDK could ever be read back',
+      );
+    }
     sqliteDb = await openTraceDb(options.sqlitePath);
     exporters.push(new SqliteSpanExporter(sqliteDb));
+  }
+  if (options.jsonlPath !== undefined) {
+    exporters.push(new JsonlSpanExporter(options.jsonlPath));
   }
   if (options.exporters !== undefined) {
     exporters.push(...options.exporters.map((exporter) => new NonClosingExporter(exporter)));
@@ -80,7 +85,7 @@ export const createTraceSdk = async (options: TraceSdkOptions = {}): Promise<Tra
       await provider.forceFlush();
       await provider.shutdown();
       if (sqliteDb !== undefined) {
-        await sqliteDb.$client.close();
+        sqliteDb.$client.close();
       }
     },
   };

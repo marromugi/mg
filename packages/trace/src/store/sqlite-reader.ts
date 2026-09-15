@@ -1,4 +1,4 @@
-import { countDistinct, desc, eq, max, min } from "drizzle-orm";
+import { desc, eq, max, min, sql } from "drizzle-orm";
 import type { SessionSummary, TraceReader } from "./reader.js";
 import type { SpanRecord } from "./record.js";
 import { spans } from "./schema.js";
@@ -30,7 +30,7 @@ export class SqliteTraceReader implements TraceReader {
         serviceName: min(spans.serviceName),
         startTime: min(spans.startTime),
         endTime: max(spans.endTime),
-        traceCount: countDistinct(spans.traceId),
+        traceCount: sql<number>`count(*) filter (where parent_span_id is null or not exists (select 1 from spans p where p.session_id = spans.session_id and p.span_id = spans.parent_span_id))`,
       })
       .from(spans)
       .groupBy(spans.sessionId)

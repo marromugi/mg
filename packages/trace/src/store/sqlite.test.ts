@@ -31,7 +31,7 @@ describe("openTraceDb", () => {
 
     expect(tables).toEqual([{ name: "spans" }]);
 
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("opens an in-memory database for tests", async () => {
@@ -43,7 +43,7 @@ describe("openTraceDb", () => {
 
     expect(tables).toEqual([{ name: "spans" }]);
 
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("creates missing parent folders before opening the file", async () => {
@@ -56,7 +56,7 @@ describe("openTraceDb", () => {
 
     expect(tables).toEqual([{ name: "spans" }]);
 
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("opens a path whose folder name contains a #", async () => {
@@ -69,7 +69,7 @@ describe("openTraceDb", () => {
 
     expect(tables).toEqual([{ name: "spans" }]);
 
-    await db.$client.close();
+    db.$client.close();
   });
 
   it("opens the same new path from 5 concurrent calls in-process without failing", async () => {
@@ -82,7 +82,9 @@ describe("openTraceDb", () => {
     );
     expect(tables).toEqual([{ name: "spans" }]);
 
-    await Promise.all(dbs.map((db) => db.$client.close()));
+    for (const db of dbs) {
+      db.$client.close();
+    }
   });
 
   const distSqlitePath = fileURLToPath(new URL("../../dist/store/sqlite.js", import.meta.url));
@@ -94,7 +96,7 @@ describe("openTraceDb", () => {
       const script = `
         import { openTraceDb } from ${JSON.stringify(distSqlitePath)};
         const db = await openTraceDb(${JSON.stringify(path)});
-        await db.$client.close();
+        db.$client.close();
         console.log("ok");
       `;
 
@@ -115,7 +117,7 @@ describe("openTraceDb", () => {
         sql`select name from sqlite_master where type = 'table' and name = 'spans'`,
       );
       expect(tables).toEqual([{ name: "spans" }]);
-      await db.$client.close();
+      db.$client.close();
     },
   );
 });

@@ -18,7 +18,9 @@ export const runMany = async (
   options?: RunManyOptions,
 ): Promise<RunManyOutcome[]> => {
   const concurrency = options?.concurrency ?? 1;
-  if (concurrency < 1) throw new RangeError(`concurrency must be >= 1, got ${concurrency}`);
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new RangeError(`concurrency must be an integer >= 1, got ${concurrency}`);
+  }
 
   const signal = options?.signal;
   const sessionIds = cases.map(() => nanoid());

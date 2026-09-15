@@ -80,9 +80,11 @@ describe("runMany", () => {
     }
     let active = 0;
     let maxActive = 0;
+    const calls: string[] = [];
     const provider: Provider = {
       generate: async (request) => {
         const id = lastUserContent(request.messages);
+        calls.push(id);
         active++;
         maxActive = Math.max(maxActive, active);
         try {
@@ -100,9 +102,11 @@ describe("runMany", () => {
 
     const resultPromise = runMany(config, cases, { concurrency: 2 });
 
-    await waitFor(() => active === 2);
+    await waitFor(() => calls.length === 2);
+    expect(active).toBe(2);
     controllers.get("a")!.resolve({ content: "a", toolCalls: [], finishReason: "stop" });
-    await waitFor(() => active === 2);
+    await waitFor(() => calls.includes("c"));
+    expect(active).toBe(2);
     controllers.get("b")!.resolve({ content: "b", toolCalls: [], finishReason: "stop" });
     controllers.get("c")!.resolve({ content: "c", toolCalls: [], finishReason: "stop" });
 
@@ -139,6 +143,32 @@ describe("runMany", () => {
     const config = baseConfig(provider);
 
     await expect(runMany(config, [makeCase("a")], { concurrency: 0 })).rejects.toThrow(RangeError);
+  });
+
+  test("concurrency: NaN rejects with a RangeError", async () => {
+    const provider = providerByLastMessage((id) => ({
+      content: id,
+      toolCalls: [],
+      finishReason: "stop",
+    }));
+    const config = baseConfig(provider);
+
+    await expect(runMany(config, [makeCase("a")], { concurrency: Number.NaN })).rejects.toThrow(
+      RangeError,
+    );
+  });
+
+  test("concurrency: 1.5 rejects with a RangeError", async () => {
+    const provider = providerByLastMessage((id) => ({
+      content: id,
+      toolCalls: [],
+      finishReason: "stop",
+    }));
+    const config = baseConfig(provider);
+
+    await expect(runMany(config, [makeCase("a")], { concurrency: 1.5 })).rejects.toThrow(
+      RangeError,
+    );
   });
 
   test("aborting after the first case starts leaves the rest unstarted, as error outcomes", async () => {

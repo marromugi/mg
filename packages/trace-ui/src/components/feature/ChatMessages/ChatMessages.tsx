@@ -1,3 +1,4 @@
+import { Quote, Role } from "../../ui/index.js";
 import { useChatMessages } from "./hooks/useChatMessages.js";
 
 export const ChatMessages = ({
@@ -25,16 +26,13 @@ export const ChatMessages = ({
     <div>
       <div className="mt-2 font-semibold">{label}</div>
       {result.messages.map((message, index) => (
-        <div
-          className="my-1.5 border-l-3 border-edge px-2.5 py-1"
-          key={index}
-        >
-          <div className="text-xs font-semibold uppercase opacity-70">
+        <Quote key={index}>
+          <Role>
             {message.role}
             {message.toolCallId !== undefined
               ? ` (${message.toolCallId})`
               : ""}
-          </div>
+          </Role>
           {message.content !== undefined && message.content !== "" ? (
             <div className="whitespace-pre-wrap">{message.content}</div>
           ) : null}
@@ -51,7 +49,7 @@ export const ChatMessages = ({
               ))}
             </ul>
           ) : null}
-        </div>
+        </Quote>
       ))}
     </div>
   );

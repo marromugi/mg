@@ -1,6 +1,6 @@
 import type { SessionTree } from "@mg/trace/store";
 import { SpanTree } from "../../feature/SpanTree/index.js";
-import { Layout } from "../../ui/index.js";
+import { Heading, Layout, Meta } from "../../ui/index.js";
 
 export const SessionPage = ({ session }: { session: SessionTree }) => (
   <Layout title={`Session ${session.sessionId}`}>
@@ -9,10 +9,10 @@ export const SessionPage = ({ session }: { session: SessionTree }) => (
         ← Sessions
       </a>
     </p>
-    <h1 className="my-4 text-heading font-bold">{session.sessionId}</h1>
-    <p className="text-meta font-normal opacity-70">
+    <Heading>{session.sessionId}</Heading>
+    <Meta>
       {session.startTime} – {session.endTime}
-    </p>
+    </Meta>
     {session.traces.map((trace) => (
       <section key={trace.root.spanId}>
         <SpanTree node={trace.root} />

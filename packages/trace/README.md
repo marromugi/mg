@@ -24,10 +24,43 @@ trace の役割は 4 つです。
 | --- | --- | --- |
 | `@mg/trace` | 口の実体、語彙、包む部品 | OpenTelemetry の API、harness、core |
 | `@mg/trace/otel` | 組み立てと保存先 | `@mg/trace`、OpenTelemetry の SDK |
-| `@mg/trace/store` | 木の型、読み手の口、JSONL の読み手、SQLite の読み手 | drizzle、libsql |
+| `@mg/trace/store` | 記録と木の型、読み手の口、表の定義 | drizzle、libsql |
+
+この入口は、OpenTelemetry の SDK を読み込みません。
+保存先とは切り離して、記録の形だけを扱えます。
 
 trace は、harness と core を使います。
 harness は、trace を知りません。
+
+### セッション
+
+記録は、セッションという単位で束ねます。
+セッション id は `createTraceSdk` を組み立てるときに決まります。
+
+入力で渡せばその値を使い、渡さなければ新しく作ります。
+同じ会話の続きは、同じ SDK を使い続けます。
+
+セッション id は、資源の属性に入ります。
+サービス名と合わせて、表にまとめます。
+
+| 属性 | 意味 |
+| --- | --- |
+| `session.id` | セッションの id |
+| `service.name` | サービスの名前 |
+
+### 読み手
+
+保存先ごとに、記録を読む役目があります。
+読み手の口は `TraceReader` です。
+`@mg/trace/store` にあります。
+
+読み手は、セッション一つ分の記録を木の形にして返します。
+保存先が違っても、返る形は同じです。
+
+| 読み手 | 対象 |
+| --- | --- |
+| `JsonlTraceReader` | JSONL のファイル |
+| `SqliteTraceReader` | SQLite のデータベース |
 
 ### 記録を書く場所
 
@@ -90,6 +123,7 @@ trace が扱わないことをまとめます。
 ## 使い方
 
 組み立てから記録の相手を作り、ハーネスに渡す例です。
+SQLite に保存し、あとで画面から見られるようにします。
 
 ```ts
 import { createTraceSdk } from "@mg/trace/otel";
@@ -97,7 +131,7 @@ import { startRootSpan } from "@mg/trace";
 import { collect } from "@mg/harness";
 import { createLoopHarness } from "@mg/harness-loop";
 
-const sdk = await createTraceSdk({ jsonlPath: "./trace.jsonl" });
+const sdk = await createTraceSdk({ sqlitePath: "./trace.db" });
 const trace = startRootSpan(sdk.tracer, "run");
 
 const harness = createLoopHarness({
@@ -113,3 +147,6 @@ await sdk.shutdown();
 
 根の期間は、`end` で閉じないと書き出されません。
 `sdk.shutdown()` は、たまった記録を書き出してから終わります。
+
+保存した記録は、`@mg/trace-ui` の画面から見られます。
+見る画面の起動の仕方は、そちらの README にあります。

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",
+    "@mg/term": "workspace:*",
     "@mg/trace": "workspace:*",
     "hono": "4.13.7",
     "react": "19.3.0",

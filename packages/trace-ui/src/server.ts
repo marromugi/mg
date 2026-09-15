@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { openTraceDb, SqliteTraceReader } from "@mg/trace/store";
+import { term } from "@mg/term";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 
@@ -22,7 +23,12 @@ const { values } = parseArgs({
 });
 
 if (values.db === undefined) {
-  console.error("Missing required option: --db <path>");
+  console.error(
+    term.paint(
+      "error",
+      `${term.mark.error} Missing required option: --db <path>`,
+    ),
+  );
   process.exit(1);
 }
 
@@ -30,13 +36,21 @@ const port =
   values.port !== undefined ? Number(values.port) : DEFAULT_PORT;
 
 if (!Number.isInteger(port) || port <= 0 || port >= MAX_PORT) {
-  console.error(`Invalid --port value: ${values.port}`);
+  console.error(
+    term.paint(
+      "error",
+      `${term.mark.error} Invalid --port value: ${values.port}`,
+    ),
+  );
   process.exit(1);
 }
 
 if (!existsSync(values.db)) {
   console.error(
-    `No trace database at ${values.db}. Pass --db with the path of a SQLite file written by the trace SDK.`,
+    term.paint(
+      "error",
+      `${term.mark.error} No trace database at ${values.db}. Pass --db with the path of a SQLite file written by the trace SDK.`,
+    ),
   );
   process.exit(1);
 }
@@ -46,5 +60,10 @@ const reader = new SqliteTraceReader(db);
 const app = createApp(reader);
 
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
-  console.log(`trace-ui listening on http://localhost:${info.port}`);
+  console.log(
+    term.paint(
+      "success",
+      `${term.mark.success} trace-ui listening on http://localhost:${info.port}`,
+    ),
+  );
 });

@@ -126,6 +126,9 @@ importers:
       '@hono/node-server':
         specifier: 2.1.1
         version: 2.1.1(hono@4.13.7)
+      '@mg/term':
+        specifier: workspace:*
+        version: link:../term
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace

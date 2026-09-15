@@ -76,6 +76,8 @@ importers:
         specifier: 2.11.0
         version: 2.11.0(@opentelemetry/api@1.9.1)
 
+  packages/term: {}
+
   packages/tools:
     dependencies:
       '@mg/core':

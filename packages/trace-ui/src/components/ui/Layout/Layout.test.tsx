@@ -14,7 +14,7 @@ describe("Layout", () => {
     () => {
       const css = readFileSync(distStylesPath, "utf-8");
       const html = renderToString(
-        <Layout title="Sessions">
+        <Layout title="Sessions" scheme="system">
           <p>content</p>
         </Layout>,
       );

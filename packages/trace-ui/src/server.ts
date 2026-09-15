@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { openTraceDb, SqliteTraceReader } from "@mg/trace/store";
 import { serve } from "@hono/node-server";
@@ -29,6 +30,13 @@ const port = values.port !== undefined ? Number(values.port) : DEFAULT_PORT;
 
 if (!Number.isInteger(port) || port <= 0 || port >= MAX_PORT) {
   console.error(`Invalid --port value: ${values.port}`);
+  process.exit(1);
+}
+
+if (!existsSync(values.db)) {
+  console.error(
+    `No trace database at ${values.db}. Pass --db with the path of a SQLite file written by the trace SDK.`,
+  );
   process.exit(1);
 }
 

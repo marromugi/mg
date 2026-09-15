@@ -29,7 +29,7 @@ export const run = async (
   messages: Message[],
   options?: RunOptions,
 ): Promise<RunOutcome> => {
-  const sdk = createTraceSdk({ ...config.trace, sessionId: options?.sessionId });
+  const sdk = await createTraceSdk({ ...config.trace, sessionId: options?.sessionId });
   const root = startRootSpan(sdk.tracer, SPAN.run, {
     [ATTR.op]: "run",
     [ATTR.runName]: config.name,

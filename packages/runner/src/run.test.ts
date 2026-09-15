@@ -1,24 +1,12 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { GenerateResponse, Provider, StreamEvent } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
-import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
-import { describe, expect, test } from "vitest";
+import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RunConfig } from "./config.js";
 import { run } from "./run.js";
-
-// createTraceSdk shuts the exporter down before `run` returns, and
-// @opentelemetry/sdk-trace-base's InMemorySpanExporter clears its buffer on
-// shutdown - so tests capture spans as they are exported instead.
-const capturingExporter = (): { exporter: SpanExporter; spans: ReadableSpan[] } => {
-  const spans: ReadableSpan[] = [];
-  const exporter: SpanExporter = {
-    export: (batch, resultCallback) => {
-      spans.push(...batch);
-      resultCallback({ code: 0 });
-    },
-    shutdown: async () => {},
-  };
-  return { exporter, spans };
-};
 
 const stubProvider = (responses: readonly GenerateResponse[]): Provider => {
   let index = 0;
@@ -64,6 +52,16 @@ const throwingProvider = (error: Error): Provider => ({
 });
 
 describe("run", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "mg-run-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   test("returns the last result and a non-empty session id", async () => {
     const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
     const config: RunConfig = {
@@ -79,7 +77,7 @@ describe("run", () => {
   });
 
   test("exports an mg.run root span carrying the run name, with mg.harness as its child", async () => {
-    const { exporter, spans } = capturingExporter();
+    const exporter = new InMemorySpanExporter();
     const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
     const config: RunConfig = {
       name: "example",
@@ -90,6 +88,7 @@ describe("run", () => {
 
     await run(config, []);
 
+    const spans = exporter.getFinishedSpans();
     const rootSpan = spans.find((span) => span.name === "mg.run");
     const harnessSpan = spans.find((span) => span.name === "mg.harness");
 
@@ -120,7 +119,7 @@ describe("run", () => {
   });
 
   test("a provider that throws rejects run, ends the root span with an error, and still exports it", async () => {
-    const { exporter, spans } = capturingExporter();
+    const exporter = new InMemorySpanExporter();
     const error = new Error("provider blew up");
     const provider = throwingProvider(error);
     const config: RunConfig = {
@@ -132,13 +131,13 @@ describe("run", () => {
 
     await expect(run(config, [])).rejects.toThrow(error);
 
-    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const rootSpan = exporter.getFinishedSpans().find((span) => span.name === "mg.run");
     expect(rootSpan).toBeDefined();
     expect(rootSpan?.status.code).toBe(2);
   });
 
   test("the sessionId option is honoured on every exported span", async () => {
-    const { exporter, spans } = capturingExporter();
+    const exporter = new InMemorySpanExporter();
     const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
     const config: RunConfig = {
       name: "example",
@@ -150,9 +149,50 @@ describe("run", () => {
     const outcome = await run(config, [], { sessionId: "s1" });
 
     expect(outcome.sessionId).toBe("s1");
+    const spans = exporter.getFinishedSpans();
     expect(spans.length).toBeGreaterThan(0);
     for (const span of spans) {
       expect(span.resource.attributes["session.id"]).toBe("s1");
     }
+  });
+
+  test("running twice with the same exporter delivers both mg.run spans under different session ids", async () => {
+    const exporter = new InMemorySpanExporter();
+    const config: RunConfig = {
+      name: "example",
+      provider: stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]),
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      trace: { exporters: [exporter] },
+    };
+
+    const first = await run(config, []);
+    const second = await run(
+      { ...config, provider: stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]) },
+      [],
+    );
+
+    expect(first.sessionId).not.toBe(second.sessionId);
+
+    const rootSpans = exporter.getFinishedSpans().filter((span) => span.name === "mg.run");
+    expect(rootSpans).toHaveLength(2);
+    const sessionIds = rootSpans.map((span) => span.resource.attributes["session.id"]);
+    expect(sessionIds).toEqual([first.sessionId, second.sessionId]);
+  });
+
+  test("an unopenable trace destination rejects run before onEvent runs", async () => {
+    const blocker = join(dir, "blocker");
+    writeFileSync(blocker, "");
+    const provider = stubProvider([{ content: "hi", toolCalls: [], finishReason: "stop" }]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      trace: { sqlitePath: join(blocker, "db.sqlite") },
+    };
+    const onEvent = vi.fn();
+
+    await expect(run(config, [], { onEvent })).rejects.toThrow();
+
+    expect(onEvent).not.toHaveBeenCalled();
   });
 });

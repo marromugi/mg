@@ -59,6 +59,12 @@
         "typescript/unbound-method": "off",
         "unicorn/consistent-function-scoping": "off"
       }
+    },
+    {
+      "files": ["packages/trace-ui/.storybook/**"],
+      "rules": {
+        "import/no-unassigned-import": "off"
+      }
     }
   ],
   "ignorePatterns": ["**/dist/**", "**/drizzle/**", ".claude/**"]

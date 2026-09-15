@@ -7,8 +7,13 @@ export type ChatMessage = {
   toolCallId?: string;
 };
 
-const isChatMessage = (value: unknown): value is ChatMessage =>
-  typeof value === "object" && value !== null && typeof (value as { role?: unknown }).role === "string";
+const isChatMessage = (value: unknown): value is ChatMessage => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const { role, content } = value as { role?: unknown; content?: unknown };
+  return typeof role === "string" && (content === undefined || typeof content === "string");
+};
 
 export const parseMessages = (raw: string): ChatMessage[] | undefined => {
   try {

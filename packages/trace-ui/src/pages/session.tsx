@@ -12,7 +12,7 @@ export const SessionPage = ({ session }: { session: SessionTree }) => (
       {session.startTime} – {session.endTime}
     </p>
     {session.traces.map((trace) => (
-      <section key={trace.traceId}>
+      <section key={trace.root.spanId}>
         <SpanNodeView node={trace.root} />
       </section>
     ))}

@@ -75,6 +75,53 @@ const sessionTree: SessionTree = {
   traces: [{ traceId: TRACE_ID, root: rootNode }],
 };
 
+const OBJECT_CONTENT_SESSION_ID = "session-object-content";
+const OBJECT_CONTENT_TRACE_ID = "trace-object-content";
+
+const objectContentLlmNode: SpanNode = {
+  sessionId: OBJECT_CONTENT_SESSION_ID,
+  serviceName: "svc",
+  traceId: OBJECT_CONTENT_TRACE_ID,
+  spanId: "span-llm-object-content",
+  name: SPAN.llm,
+  startTime: START_TIME,
+  endTime: END_TIME,
+  attributes: {
+    [ATTR.llmModel]: "gpt-test",
+    [ATTR.llmInputMessages]: JSON.stringify([{ role: "user", content: { text: "hi" } }]),
+  },
+  events: [],
+  status: { code: 0 },
+  children: [],
+};
+
+const objectContentRootNode: SpanNode = {
+  sessionId: OBJECT_CONTENT_SESSION_ID,
+  serviceName: "svc",
+  traceId: OBJECT_CONTENT_TRACE_ID,
+  spanId: "span-root-object-content",
+  name: SPAN.harness,
+  startTime: START_TIME,
+  endTime: END_TIME,
+  attributes: {},
+  events: [],
+  status: { code: 0 },
+  children: [objectContentLlmNode],
+};
+
+const objectContentSessionTree: SessionTree = {
+  sessionId: OBJECT_CONTENT_SESSION_ID,
+  serviceName: "svc",
+  startTime: START_TIME,
+  endTime: END_TIME,
+  traces: [{ traceId: OBJECT_CONTENT_TRACE_ID, root: objectContentRootNode }],
+};
+
+const sessionsById = new Map<string, SessionTree>([
+  [SESSION_ID, sessionTree],
+  [OBJECT_CONTENT_SESSION_ID, objectContentSessionTree],
+]);
+
 class FakeTraceReader implements TraceReader {
   async listSessions() {
     return [
@@ -89,7 +136,7 @@ class FakeTraceReader implements TraceReader {
   }
 
   async readSession(sessionId: string) {
-    return sessionId === SESSION_ID ? sessionTree : undefined;
+    return sessionsById.get(sessionId);
   }
 }
 
@@ -115,6 +162,13 @@ describe("createApp", () => {
     expect(text).toContain("Hello there");
     expect(text).toContain("web-search");
     expect(text).toContain("search failed: timeout");
+  });
+
+  it("returns 200 for a span whose message content is not a string", async () => {
+    const app = createApp(new FakeTraceReader());
+    const res = await app.request(`/sessions/${OBJECT_CONTENT_SESSION_ID}`);
+
+    expect(res.status).toBe(200);
   });
 
   it("returns 404 for an unknown session id", async () => {

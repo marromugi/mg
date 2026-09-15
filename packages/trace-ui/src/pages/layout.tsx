@@ -18,7 +18,7 @@ const STYLE = `
     padding: 10px 14px;
     margin: 10px 0;
   }
-  .span-error { border-color: #d33; background: #d3311a; }
+  .span-error { border-color: #d33; background: #fde8e6; }
   .span-header { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
   .span-time { font-weight: 400; opacity: 0.7; font-size: 0.85rem; }
   .error { color: #d33; font-weight: 600; }

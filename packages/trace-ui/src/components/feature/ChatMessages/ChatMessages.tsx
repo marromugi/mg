@@ -39,7 +39,7 @@ export const parseMessages = (
   }
 };
 
-export const MessagesView = ({
+export const ChatMessages = ({
   label,
   raw,
 }: {

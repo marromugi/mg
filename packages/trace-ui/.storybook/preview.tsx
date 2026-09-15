@@ -29,7 +29,7 @@ const preview: Preview = {
     (Story, context) => {
       if (typeof document !== "undefined") {
         document.documentElement.style.colorScheme =
-          colorScheme[context.globals.scheme as string];
+          colorScheme[context.globals.scheme as string] ?? "light dark";
       }
       return <Story />;
     },

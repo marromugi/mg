@@ -1,0 +1,212 @@
+/* chord — design tokens
+ *
+ * Drop this file in as-is (or paste it into a global stylesheet / Tailwind
+ * @theme block). Everything downstream derives from these variables, so
+ * changing --accent alone restyles the whole UI.
+ *
+ * Light values live on :root. Dark values are redefined twice: once under
+ * prefers-color-scheme (system setting) and once under [data-theme="dark"]
+ * (explicit toggle), so both routes to dark mode work and a toggle always wins.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- accent: the one decision the user makes ------------------------- */
+  /* Default is Cobalt Blue. See palettes.md for other presets or a custom hex. */
+  --accent: oklch(52% 0.23 262);
+  --on-accent: #fff;                         /* text on top of --accent */
+
+  /* Derived from --accent (mixed in oklab: oklch would swing hue on tints).
+     Hover/active move *toward the foreground text*,
+     which darkens the accent in light mode and lightens it in dark mode. */
+  --accent-hover:  color-mix(in oklab, var(--accent), var(--text) 12%);
+  --accent-active: color-mix(in oklab, var(--accent), var(--text) 22%);
+  --accent-soft:   color-mix(in oklab, var(--accent) 14%, var(--surface));
+  --accent-soft-hover: color-mix(in oklab, var(--accent) 20%, var(--surface));
+  --accent-ring:   color-mix(in oklab, var(--accent) 45%, transparent);
+  --accent-text:   color-mix(in oklab, var(--accent), var(--text) 10%);
+
+  /* ---- semantic colors (fixed, Bauhaus primaries) ---------------------- */
+  --danger: oklch(58% 0.22 27);
+  --warn:   oklch(80% 0.17 85);
+  --ok:     oklch(60% 0.17 150);
+  --info:   oklch(55% 0.2 250);
+  --danger-soft: color-mix(in oklab, var(--danger) 14%, var(--surface));
+  --warn-soft:   color-mix(in oklab, var(--warn) 22%, var(--surface));
+  --ok-soft:     color-mix(in oklab, var(--ok) 14%, var(--surface));
+  --info-soft:   color-mix(in oklab, var(--info) 14%, var(--surface));
+
+  /* ---- neutrals (slightly cool, never pure gray) ----------------------- */
+  --bg:        oklch(96.5% 0.004 260);   /* page canvas */
+  --surface:   oklch(99.2% 0.002 260);   /* cards, popovers, inputs */
+  --surface-2: oklch(94% 0.006 260);     /* wells, inset areas, secondary buttons */
+  --surface-3: oklch(90.5% 0.008 260);   /* pressed secondary, track of toggles */
+  --text:      oklch(20% 0.012 260);
+  --text-2:    oklch(46% 0.016 260);
+  --text-3:    oklch(64% 0.014 260);
+  --line:      oklch(0% 0 0 / 0.08);
+  --line-strong: oklch(0% 0 0 / 0.14);
+  --highlight: oklch(100% 0 0 / 0.75);   /* light catching the top edge of a surface */
+  --scrim:     oklch(15% 0.02 260 / 0.45);
+
+  /* ---- depth ------------------------------------------------------------ */
+  /* Two-layer shadows: a tight contact shadow plus a wide, soft ambient one.
+     Light comes from above, so offsets are vertical only. */
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.06), 0 2px 8px oklch(0% 0 0 / 0.05);
+  --shadow-md: 0 2px 4px oklch(0% 0 0 / 0.05), 0 10px 28px oklch(0% 0 0 / 0.09);
+  --shadow-lg: 0 4px 10px oklch(0% 0 0 / 0.06), 0 28px 60px oklch(0% 0 0 / 0.14);
+  --shadow-inset: inset 0 2px 4px oklch(0% 0 0 / 0.06);
+  --edge: inset 0 1px 0 var(--highlight);  /* neumorphic top highlight */
+  --glass-bg: color-mix(in oklab, var(--surface) 70%, transparent);
+  --glass-blur: blur(20px) saturate(1.4);
+
+  /* ---- shape ------------------------------------------------------------ */
+  --r-sm: 10px;    /* chips, small controls, checkboxes */
+  --r-md: 16px;    /* buttons, inputs, list rows */
+  --r-lg: 24px;    /* cards, popovers, toasts */
+  --r-xl: 32px;    /* dialogs, sheets, hero panels */
+  --r-full: 999px;
+
+  /* ---- space (8pt grid, generous defaults) ----------------------------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+  --measure: 64ch; /* max line length for body copy */
+
+  /* ---- type ------------------------------------------------------------- */
+  --font: "Manrope", "Space Grotesk", "Plus Jakarta Sans", ui-sans-serif, system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fs-xs: 0.8125rem;  /* 13 */
+  --fs-sm: 0.875rem;   /* 14 */
+  --fs-md: 1rem;       /* 16 */
+  --fs-lg: 1.125rem;   /* 18 */
+  --fs-xl: 1.5rem;     /* 24 */
+  --fs-2xl: 2rem;      /* 32 */
+  --fs-3xl: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.04em;
+
+  /* ---- motion ----------------------------------------------------------- */
+  --dur-1: 300ms;   /* hover/color changes, exits */
+  --dur-2: 380ms;   /* fades, small moves */
+  --dur-3: 450ms;   /* popups, dialogs, large moves */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);  /* overshoot ~10%, for pop-ins */
+  --ease-in:     cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* ---- focus ------------------------------------------------------------ */
+  --ring: 0 0 0 4px var(--accent-ring);
+}
+
+/* ---- dark mode ----------------------------------------------------------- */
+/* Keep these two blocks identical. Shadows get deeper (there is no bright
+   canvas to fall on) and the top-edge highlight does most of the work of
+   showing that a surface is raised. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        oklch(17% 0.012 260);
+    --surface:   oklch(24% 0.012 260);
+    --surface-2: oklch(28.5% 0.012 260);
+    --surface-3: oklch(33% 0.012 260);
+    --text:      oklch(95% 0.006 260);
+    --text-2:    oklch(73% 0.012 260);
+    --text-3:    oklch(56% 0.012 260);
+    --line:      oklch(100% 0 0 / 0.09);
+    --line-strong: oklch(100% 0 0 / 0.16);
+    --highlight: oklch(100% 0 0 / 0.09);
+    --scrim:     oklch(5% 0.02 260 / 0.6);
+    --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3), 0 2px 8px oklch(0% 0 0 / 0.25);
+    --shadow-md: 0 2px 4px oklch(0% 0 0 / 0.3), 0 10px 28px oklch(0% 0 0 / 0.4);
+    --shadow-lg: 0 4px 10px oklch(0% 0 0 / 0.35), 0 28px 60px oklch(0% 0 0 / 0.5);
+    --shadow-inset: inset 0 2px 4px oklch(0% 0 0 / 0.35);
+    --glass-bg: color-mix(in oklab, var(--surface) 65%, transparent);
+    --warn: oklch(84% 0.17 88);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:        oklch(17% 0.012 260);
+  --surface:   oklch(24% 0.012 260);
+  --surface-2: oklch(28.5% 0.012 260);
+  --surface-3: oklch(33% 0.012 260);
+  --text:      oklch(95% 0.006 260);
+  --text-2:    oklch(73% 0.012 260);
+  --text-3:    oklch(56% 0.012 260);
+  --line:      oklch(100% 0 0 / 0.09);
+  --line-strong: oklch(100% 0 0 / 0.16);
+  --highlight: oklch(100% 0 0 / 0.09);
+  --scrim:     oklch(5% 0.02 260 / 0.6);
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3), 0 2px 8px oklch(0% 0 0 / 0.25);
+  --shadow-md: 0 2px 4px oklch(0% 0 0 / 0.3), 0 10px 28px oklch(0% 0 0 / 0.4);
+  --shadow-lg: 0 4px 10px oklch(0% 0 0 / 0.35), 0 28px 60px oklch(0% 0 0 / 0.5);
+  --shadow-inset: inset 0 2px 4px oklch(0% 0 0 / 0.35);
+  --glass-bg: color-mix(in oklab, var(--surface) 65%, transparent);
+  --warn: oklch(84% 0.17 88);
+}
+
+/* ---- base ---------------------------------------------------------------- */
+html { background: var(--bg); color: var(--text); font-family: var(--font); }
+body {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: var(--tracking-tight); font-weight: 800; text-wrap: balance; }
+h1 { font-size: var(--fs-3xl); }
+h2 { font-size: var(--fs-2xl); }
+h3 { font-size: var(--fs-xl); font-weight: 700; }
+p  { margin: 0; max-width: var(--measure); text-wrap: pretty; }
+* { min-width: 0; }  /* grid/flex children shrink instead of overflowing the page */
+
+/* Japanese text: no negative tracking, looser leading, break between phrases
+   (auto-phrase falls back to normal where unsupported). Applies when the
+   page or an element carries lang="ja". */
+:lang(ja) { letter-spacing: 0; word-break: auto-phrase; overflow-wrap: anywhere; }
+:lang(ja) body, body:lang(ja) { line-height: 1.8; }
+h1:lang(ja), h2:lang(ja), h3:lang(ja) { line-height: 1.3; font-weight: 700; }
+h1:lang(ja) { font-size: clamp(2rem, 1.6rem + 2vw, 3.25rem); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 2px; }
+
+/* ---- keyframes ----------------------------------------------------------- */
+/* Pop-ins bounce (ease-bounce, dur-3). Fades ease out (ease-out, dur-2).
+   Exits are quicker and never bounce (dur-1). */
+@keyframes chord-fade-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes chord-fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes chord-pop-in {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes chord-pop-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.96); }
+}
+@keyframes chord-rise-in {   /* toasts, bottom sheets */
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes chord-drop-in {   /* dropdowns / menus hanging from a trigger */
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---- accessibility ------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-bg: var(--surface); --glass-blur: none; }
+}

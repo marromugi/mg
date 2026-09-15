@@ -1,0 +1,23 @@
+{
+  "skill_name": "chord",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "LLM ハーネスの実行結果を眺めるダッシュボード画面を、1 つの HTML ファイルで作ってください。左にサイドバー（ナビ 5 項目、現在ページが分かるように）、上部に統計カード 4 枚（実行数、成功率、平均トークン、平均時間）、その下に直近の実行一覧のテーブル（10 行くらい、状態バッジ付き）。右下に「保存しました」のトースト通知を出すボタンも置いてください。ライト/ダークの切り替えボタンをヘッダーに付けてください。アクセントカラーは赤でお願いします。外部ライブラリなし、CSS と JS はファイル内に書いてください。",
+      "expected_output": "index.html: sidebar layout, 4 stat cards, table with status badges, toast on button, theme toggle, red accent, both themes designed.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "Web アプリの設定画面を 1 つの HTML ファイルで作ってください。プロフィール（表示名、メール、自己紹介のテキストエリア）、通知設定（トグルスイッチ 3 つ）、外観（ライト/ダーク/システムを選ぶセグメントコントロール）、保存ボタン。一番下に「アカウントを削除」ボタンがあり、押すと確認ダイアログがアニメーションで開いて、キャンセルか削除を選べるようにしてください。フレームワークは使わず、CSS と JS はファイル内に書いてください。アクセントカラーはおまかせします。",
+      "expected_output": "index.html: settings page with fields, 3 switches, segmented control that actually switches theme, confirm dialog with animated open/close, all states styled.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "個人開発しているノートアプリ「Tessera」のランディングページを 1 つの HTML ファイルで作ってください。内容は、ヒーロー、主な機能 3 つ、料金プラン 3 つ（Free / Pro / Team、Pro をおすすめ）、最後に登録への誘導。アクセントカラーは #F5B000 の黄色を使ってください。ダークモードにも対応してください。ライブラリは使わず、CSS はファイル内に書いてください。",
+      "expected_output": "index.html: landing page with hero, features, pricing (Pro highlighted), CTA. Yellow accent with legible on-accent text, both themes, not the generic gradient/blob/emoji template.",
+      "files": []
+    }
+  ]
+}

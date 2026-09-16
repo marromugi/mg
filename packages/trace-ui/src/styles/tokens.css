@@ -1,4 +1,4 @@
-/* Clears Tailwind's default color palette so every color comes from a named token below; spacing and type-scale defaults stay; the radius scale is overridden below. Each color token carries both a light and a dark value via light-dark(). */
+/* Clears Tailwind's default color palette so every color comes from a named token below; spacing and type-scale defaults stay; corners are never taken from the radius scale, see the utilities below. Each color token carries both a light and a dark value via light-dark(). */
 @import "tailwindcss";
 
 @theme {
@@ -27,19 +27,19 @@
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --radius-sm: 0.625rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.5rem;
-  --radius-xl: 2rem;
-
   --container-page: 60rem;
   --text-heading: 1.4rem;
   --text-meta: 0.85rem;
 }
 
-/* Control corners are a third of the control's height. The height is never set; it follows from the line height plus the vertical padding, which each control declares as --control-py. Computed here, not in @theme, so 1lh and --control-py resolve on the element itself. */
+/* Corners are derived, never picked. A control's corner is a third of its height; the height is never set, it follows from the line height plus the vertical padding, which each control declares as --control-py. A container's corner is the corner of the control it holds plus its own padding, declared as --container-p; a container that holds only text takes the text line itself as the inner shape (--control-py stays 0), so its corner is a third of the line height plus the padding. A container around real controls sets --control-py to match them. Computed in utilities, not in @theme, so 1lh and the variables resolve on the element itself. */
 @utility rounded-control {
   border-radius: calc((1lh + 2 * var(--control-py)) / 3);
+}
+@utility rounded-container {
+  border-radius: calc(
+    (1lh + 2 * var(--control-py, 0px)) / 3 + var(--container-p)
+  );
 }
 
 @layer base {

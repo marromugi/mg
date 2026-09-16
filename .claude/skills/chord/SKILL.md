@@ -1,20 +1,22 @@
 ---
 name: chord
-description: "Visual design system for any user-facing UI: soft, translucent surfaces with generous rounding and calm 300–450ms motion, paired with flat Bauhaus-clear color and full hover/active/focus states, in light and dark mode. Use this whenever you write or restyle HTML, CSS, Tailwind, React, Vue, Svelte, or any component, page, dashboard, form, landing page, modal, or prototype that a person will look at — even if the user only says 「画面を作って」「UI を作って」「見た目を整えて」「コンポーネントを書いて」「デザインして」 or just asks for a page and never mentions design. Also use it when the user complains that a UI looks generic, template-like, or 'AI っぽい'. Not for terminal output, logs, or non-visual code."
+description: "Visual design system for any user-facing UI: soft, translucent surfaces with generous rounding, quick 150–200ms answers to the user and calm 300–450ms arrivals, paired with flat Bauhaus-clear color and full hover/active/focus states, in light and dark mode. Use this whenever you write or restyle HTML, CSS, Tailwind, React, Vue, Svelte, or any component, page, dashboard, form, landing page, modal, or prototype that a person will look at — even if the user only says 「画面を作って」「UI を作って」「見た目を整えて」「コンポーネントを書いて」「デザインして」 or just asks for a page and never mentions design. Also use it when the user complains that a UI looks generic, template-like, or 'AI っぽい'. Not for terminal output, logs, or non-visual code."
 ---
 
 # chord
 
 chord is a house style for interfaces. The short version:
 
-> Soft in form, confident in color, unhurried in motion.
+> Soft in form, confident in color, quick to answer, unhurried to arrive.
 
 Surfaces are rounded, slightly translucent, and lifted by layered shadows,
 close to neumorphism but with real contrast. Color is the opposite of soft:
 one flat, saturated accent in the spirit of Bauhaus primaries, on a calm
-near-white or near-black canvas. Motion takes its time (300–450ms), pops in
-with a small bounce, fades out gently. Every interactive element answers the
-pointer: hover, active, focus, disabled.
+near-white or near-black canvas. Motion has two speeds: a direct answer to
+the user (focus, hover, press) is quick, and something arriving on screen
+(menu, dialog, toast) takes its time and lands with a small bounce. Every
+interactive element answers the pointer, and the answer is chosen per
+element: hover, active, focus, disabled.
 
 The reason this exists: generated UIs default to a recognizable template
 (gradient buttons, blurred blobs, glass on glass, emoji icons, three feature
@@ -64,12 +66,26 @@ Think of the page as a few physical layers under a soft light from above.
   blur on a bar with content moving under it is information.
 
 Shadows are two layers (tight contact + wide ambient), vertical offset only.
-Radius is a scale, and the size of the thing decides the size of the corner:
 
-| Element | Radius |
+Corners have a tone, and the tone is the ratio of the corner to the thing it
+sits on, not the corner's size. A fixed 16px is nearly a pill on a small
+button and nearly square on a large one; the same design reads differently
+at every size. So corners are derived, not picked, and split by what the
+element is:
+
+- **Controls** (buttons, inputs, chips, nav items) come in sizes, so their
+  corner is a fraction of their height: **one third**. The height itself is
+  never set (see Space), so the corner is computed from the same two things
+  the height comes from, the line height and the vertical padding. A 50px
+  button gets 16–17px, a 38px button 12–13px, and they look like the same
+  family.
+- **Containers** (cards, popovers, dialogs, sheets) have no natural height,
+  so their corner follows the scale below. The bigger and more enclosing the
+  thing, the larger the corner.
+- **Pills** (badges, switches, avatars) are fully round.
+
+| Container | Radius |
 | --- | --- |
-| chips, checkboxes, small controls | `--r-sm` 10px |
-| buttons, inputs, list rows, nav items | `--r-md` 16px |
 | cards, popovers, toasts | `--r-lg` 24px |
 | dialogs, sheets, hero panels | `--r-xl` 32px |
 | badges, switches, avatars | `--r-full` |
@@ -87,6 +103,34 @@ are `currentColor`. Borders are `--line`, never colored.
 No gradients. Not on buttons, not on text, not as a background wash. Bauhaus
 color is flat color placed with intent. If a surface needs to feel special,
 give it more space, a larger radius, or the accent as a solid fill.
+
+The accent is used two ways, and the two are the whole button hierarchy:
+
+- **Filled**: accent as the background, contrasting text on top. One per
+  view; it is the thing to do.
+- **Tinted**: the accent at a low alpha as the background, the accent itself
+  as the text. This is the secondary action, the selected item, the chip.
+  It is still clearly accent-colored, but it does not compete with the
+  filled one.
+
+Tinted is what keeps dark mode vivid. A filled button in dark mode has to be
+a lighter accent so dark text can sit on it, and lighter tends to mean
+paler; the tinted style puts the vivid accent in the text instead, where
+lightness helps rather than hurts.
+
+Vivid does not mean high chroma on paper. Blues and cyans run out of screen
+gamut early, so pick the most saturated value that is actually displayable
+at the chosen lightness, and check the text on it still reads (4.5:1 for
+button labels). Dark mode gets its own accent value, a step lighter and as
+saturated as the gamut allows, never the light value with the alpha turned
+down.
+
+The accent as a fill and the accent as text are two values, not one. A
+primary blue that carries white text as a fill is too dark to read as text
+on a dark canvas; lifting the whole accent to fix that turns the fill
+pastel. So the fill stays primary, and only the text variant (tinted button
+labels, links, selected labels) is lifted until it reads. In light mode the
+two are usually the same value.
 
 Semantic colors (`--danger`, `--warn`, `--ok`, `--info`) stay fixed no matter
 the accent, so a red accent never makes a delete button ambiguous (see the
@@ -107,23 +151,37 @@ Generous is the default. When in doubt, add 8px.
 | between form fields | `--s-5` 24px |
 | between sections of a page | `--s-8` 64px to `--s-9` 96px |
 | page gutter | `--s-5` on mobile, `--s-7` on desktop |
-| control height | 44px default, 36px compact, 52px hero |
+| inside a control, vertical | 12px default, 8px compact, 16px hero |
+| inside an input, horizontal | 14px |
 | body line length | `--measure` 64ch max |
+
+A control has no fixed height. Its height is the sum of its vertical padding
+and the line height of its text, so a button and an input with the same
+padding and the same type size come out the same height without anyone
+measuring. Adjust the padding, never the height.
 
 Leave the margins alone. A page that feels empty at first glance is usually a
 page that feels calm after ten seconds.
 
 ## Motion
 
-Timing is deliberately slow; 300ms is the floor, not the ceiling.
+Motion has two speeds, and which one applies depends on who started it.
+
+- **An answer to the user is quick.** Focus ring, hover tint, press, a
+  helper control that appears because the pointer arrived: 150–200ms. The
+  change belongs to the gesture, so it must feel attached to it; anything
+  slower reads as lag.
+- **An arrival is unhurried.** A menu, dialog, toast, or panel is an object
+  entering the scene: 300–450ms, with a bounce. Here the slowness is the
+  point; it gives the thing weight.
 
 | Kind | Duration | Easing | Example |
 | --- | --- | --- | --- |
-| hover / color / press | `--dur-1` 300ms | `--ease-out` | button lift, row tint |
+| answer to the user | `--dur-0` 160ms | `--ease-out` | focus ring, hover tint or shadow, clear button fading in |
+| press | 200ms | `--ease-bounce` | `:active` only: grows to 1.02 |
 | fade, small move | `--dur-2` 380ms | `--ease-out` | scrim, tooltip, tab indicator |
 | pop-in (arrives) | `--dur-3` 450ms | `--ease-bounce` | dialog, menu, toast, switch thumb |
 | exit (leaves) | `--dur-1` 300ms | `--ease-in-out` or `--ease-out` | closing anything |
-| press feedback | 120ms | `--ease-out` | `:active` only |
 
 Rules behind the table:
 
@@ -135,13 +193,16 @@ Rules behind the table:
   place. Never ease-in a fade-in; it lags.
 - **Exits are quicker and never bounce.** Leaving with a bounce looks like a
   mistake. 300ms, scale to 0.96, opacity to 0.
-- **The press is the exception to slow.** `:active` transitions at ~120ms
-  so the button feels attached to the finger.
+- **The press grows, never shrinks.** A button that scales down on
+  `:active` pulls its edge out from under a finger that landed near it, and
+  the tap misses. So the press scales *up* a touch (1.02) with the bounce
+  curve, about 200ms: the surface gives under the finger and springs back.
 - **Two layers, two curves.** A dialog's scrim fades (ease-out) while the
   panel pops (bounce). One curve for both flattens it into a screenshot.
 - **Only `transform` and `opacity` animate**, plus `background-color`,
-  `box-shadow`, and `color` on hover. Never animate `width`, `height`, `top`,
-  `left`, or `filter` on anything larger than a switch.
+  `border-color`, `box-shadow`, and `color` when a state changes. Never
+  animate `width`, `height`, `top`, `left`, or `filter` on anything larger
+  than a switch.
 - `prefers-reduced-motion` collapses everything to near-instant; the tokens
   file handles it, do not remove that block.
 
@@ -150,14 +211,34 @@ Keyframes ready in `tokens.css`: `chord-fade-in/out`, `chord-pop-in/out`,
 
 ## States
 
-Every element a pointer can touch has all four. It is not optional and it is
-not a polish step; it is what makes the surfaces feel real.
+Every element a pointer can touch answers it. It is not optional and it is
+not a polish step; it is what makes the surfaces feel real. Which answers an
+element gives depends on what the user already gets for free.
+
+- **Hover exists to say "you found something".** Where nothing else says
+  it, hover must: a button, a card, a row. Where the pointer itself already
+  says it, hover is noise: a text field turns the cursor into an I-beam, so
+  it gets no hover styling at all and answers on focus instead.
+- **Nothing the pointer is about to touch gets smaller.** Hover does not
+  move the target and press does not shrink it. Both would take the target
+  away from a hand that is already committed to it.
+- **Focus is the strongest answer.** Three layers: the border turns accent,
+  a thin ring sits just outside it, and a soft blurred glow spreads beyond
+  the ring. The glow is what makes it feel lit rather than outlined. An
+  invalid field keeps the same three layers in the danger color.
+- **Hover never moves the element.** A button that lifts toward the
+  pointer also slides away from where the pointer is heading; a slow hand
+  reaches it, a fast one overshoots. Hover changes light and color (shadow,
+  tint), press changes shape (scale). Position stays put.
+- **The colors of rings and glows are derived, never picked.** Mix them
+  from the accent or the semantic color at reduced alpha, so they follow the
+  theme on their own.
 
 | State | Raised (buttons, cards) | Inset (inputs) | Flat (nav, rows, ghost) |
 | --- | --- | --- | --- |
-| hover | lift 1–2px, shadow grows, accent → `--accent-hover` | ring `--line-strong` | tint `--surface-2` |
-| active | scale 0.98, shadow collapses to inset | (no change) | tint `--surface-3`, scale 0.98 |
-| focus-visible | `--ring` (4px accent at 45%) | ring + `--accent` 1px | `--ring` |
+| hover | shadow grows, accent → `--accent-hover` | none (the I-beam is the answer) | tint `--surface-2` |
+| active | scale 1.02 with bounce, shadow collapses to inset | (no change) | tint `--surface-3`, scale 1.02 with bounce |
+| focus-visible | `--ring` | border `--accent` + `--ring` | `--ring` |
 | disabled | opacity 0.45, no transform, `not-allowed` | opacity 0.5 | opacity 0.45 |
 | selected / current | raised pill with `--edge` | | `--accent-soft` bg, `--accent-text` |
 

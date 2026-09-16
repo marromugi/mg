@@ -4,8 +4,9 @@ Working CSS for the pieces almost every UI needs. Every recipe assumes
 `tokens.css` is loaded. Copy the recipe, keep the states, adapt the markup to
 your framework (React, Vue, Svelte, Tailwind `@apply`, plain HTML all work).
 
-Every interactive element here ships with four states: hover, active,
-focus-visible, disabled. Do not drop them when adapting.
+Every interactive element here ships with its states: hover where the
+pointer does not already answer, active, focus-visible, disabled. Do not
+drop them when adapting.
 
 Contents:
 
@@ -27,7 +28,7 @@ Contents:
 
 ## 1. Buttons
 
-Three tiers. One primary per view. Hover lifts, active presses. The press is
+Three tiers. One primary per view. Hover brightens and deepens the shadow, active presses; nothing moves on hover. The press is
 the neumorphic moment: shadow collapses, surface dips.
 
 ```css
@@ -37,7 +38,7 @@ the neumorphic moment: shadow collapses, surface dips.
   border-radius: var(--r-md); border: 0;
   font-weight: 600; font-size: var(--fs-sm); letter-spacing: 0.005em;
   cursor: pointer; user-select: none;
-  transition: transform var(--dur-1) var(--ease-out),
+  transition: transform var(--dur-0) var(--ease-out),
               box-shadow var(--dur-1) var(--ease-out),
               background-color var(--dur-1) var(--ease-out),
               color var(--dur-1) var(--ease-out);
@@ -48,26 +49,25 @@ the neumorphic moment: shadow collapses, surface dips.
   background: var(--accent); color: var(--on-accent);
   box-shadow: var(--edge), var(--shadow-sm), 0 6px 16px color-mix(in oklab, var(--accent) 30%, transparent);
 }
-.btn-primary:hover  { background: var(--accent-hover); transform: translateY(-1px);
-                      box-shadow: var(--edge), var(--shadow-md), 0 10px 24px color-mix(in oklab, var(--accent) 35%, transparent); }
-.btn-primary:active { background: var(--accent-active); transform: translateY(0) scale(0.98);
-                      box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.25); transition-duration: 120ms; }
+.btn-primary:hover  { background: var(--accent-hover); box-shadow: var(--edge), var(--shadow-md), 0 10px 24px color-mix(in oklab, var(--accent) 35%, transparent); }
+.btn-primary:active { background: var(--accent-active); transform: scale(1.02);
+                      box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.25); transition: transform 200ms var(--ease-bounce), box-shadow var(--dur-0) var(--ease-out), background-color var(--dur-0) var(--ease-out); }
 
 .btn-secondary {
   background: var(--surface); color: var(--text);
   box-shadow: var(--edge), var(--shadow-sm), 0 0 0 1px var(--line);
 }
-.btn-secondary:hover  { transform: translateY(-1px); box-shadow: var(--edge), var(--shadow-md), 0 0 0 1px var(--line); }
-.btn-secondary:active { background: var(--surface-2); transform: scale(0.98);
-                        box-shadow: var(--shadow-inset), 0 0 0 1px var(--line); transition-duration: 120ms; }
+.btn-secondary:hover  { box-shadow: var(--edge), var(--shadow-md), 0 0 0 1px var(--line); }
+.btn-secondary:active { background: var(--surface-2); transform: scale(1.02);
+                        box-shadow: var(--shadow-inset), 0 0 0 1px var(--line); transition: transform 200ms var(--ease-bounce), box-shadow var(--dur-0) var(--ease-out), background-color var(--dur-0) var(--ease-out); }
 
 .btn-ghost { background: transparent; color: var(--text-2); }
 .btn-ghost:hover  { background: var(--surface-2); color: var(--text); }
-.btn-ghost:active { background: var(--surface-3); transform: scale(0.98); transition-duration: 120ms; }
+.btn-ghost:active { background: var(--surface-3); transform: scale(1.02); transition: transform 200ms var(--ease-bounce), box-shadow var(--dur-0) var(--ease-out), background-color var(--dur-0) var(--ease-out); }
 
 .btn-danger { background: var(--danger); color: #fff; box-shadow: var(--edge), var(--shadow-sm); }
-.btn-danger:hover  { background: color-mix(in oklab, var(--danger), var(--text) 12%); transform: translateY(-1px); box-shadow: var(--edge), var(--shadow-md); }
-.btn-danger:active { transform: scale(0.98); box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.25); transition-duration: 120ms; }
+.btn-danger:hover  { background: color-mix(in oklab, var(--danger), var(--text) 12%); box-shadow: var(--edge), var(--shadow-md); }
+.btn-danger:active { transform: scale(1.02); box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.25); transition: transform 200ms var(--ease-bounce), box-shadow var(--dur-0) var(--ease-out), background-color var(--dur-0) var(--ease-out); }
 
 /* icon-only */
 .btn-icon { width: 44px; padding: 0; justify-content: center; border-radius: var(--r-md); }
@@ -75,13 +75,13 @@ the neumorphic moment: shadow collapses, surface dips.
 .btn-lg { height: 52px; padding: 0 var(--s-6); font-size: var(--fs-md); border-radius: var(--r-lg); }
 ```
 
-The active state uses a shorter transition (120ms) on purpose: the press must
+The active state grows to 1.02 with the bounce curve on purpose: the press must
 feel immediate even though everything else is slow and calm.
 
 ## 2. Cards and surfaces
 
 A card is a raised surface. Padding is generous (24–32px). Cards that are
-clickable get the same hover lift as buttons; cards that are not, stay still.
+clickable get the same hover shadow as buttons; cards that are not, stay still.
 
 ```css
 .card {
@@ -90,9 +90,9 @@ clickable get the same hover lift as buttons; cards that are not, stay still.
   padding: var(--s-6);
   box-shadow: var(--edge), var(--shadow-md), 0 0 0 1px var(--line);
 }
-.card-interactive { cursor: pointer; transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
-.card-interactive:hover  { transform: translateY(-2px); box-shadow: var(--edge), var(--shadow-lg), 0 0 0 1px var(--line); }
-.card-interactive:active { transform: translateY(0) scale(0.995); box-shadow: var(--edge), var(--shadow-sm), 0 0 0 1px var(--line); transition-duration: 120ms; }
+.card-interactive { cursor: pointer; transition: transform var(--dur-0) var(--ease-out), box-shadow var(--dur-0) var(--ease-out); }
+.card-interactive:hover  { box-shadow: var(--edge), var(--shadow-lg), 0 0 0 1px var(--line); }
+.card-interactive:active { transform: scale(1.005); box-shadow: var(--edge), var(--shadow-sm), 0 0 0 1px var(--line); transition: transform 200ms var(--ease-bounce), box-shadow var(--dur-0) var(--ease-out), background-color var(--dur-0) var(--ease-out); }
 
 /* Inset well: content that sits *into* the surface (code, previews, empty states) */
 .well {
@@ -115,7 +115,9 @@ clickable get the same hover lift as buttons; cards that are not, stay still.
 
 ## 3. Inputs, textarea, select
 
-Inputs are wells (slightly inset) that rise to meet you on focus.
+Inputs answer on focus, not on hover: the I-beam cursor already tells the
+pointer it found a field. Focus is three layers: accent border, thin ring,
+soft glow. Height comes from padding plus line height, never a fixed value.
 
 ```css
 .field { display: grid; gap: var(--s-2); }
@@ -125,19 +127,19 @@ Inputs are wells (slightly inset) that rise to meet you on focus.
 
 .input {
   width: 100%; box-sizing: border-box;
-  height: 48px; padding: 0 var(--s-4);
+  padding: var(--s-3) 14px; line-height: 1.5;
   background: var(--surface-2); color: var(--text);
-  border: 0; border-radius: var(--r-md);
-  box-shadow: var(--shadow-inset), 0 0 0 1px var(--line);
-  transition: box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--dur-0) var(--ease-out), box-shadow var(--dur-0) var(--ease-out);
 }
 .input::placeholder { color: var(--text-3); }
-.input:hover { box-shadow: var(--shadow-inset), 0 0 0 1px var(--line-strong); }
-.input:focus { outline: none; background: var(--surface);
-               box-shadow: 0 0 0 1px var(--accent), var(--ring); }
+.input:focus-visible { outline: none; border-color: var(--accent);
+                       box-shadow: var(--ring); }
 .input:disabled { opacity: 0.5; cursor: not-allowed; }
-.input[aria-invalid="true"] { box-shadow: 0 0 0 1px var(--danger), 0 0 0 4px color-mix(in oklab, var(--danger) 30%, transparent); }
-textarea.input { height: auto; min-height: 120px; padding: var(--s-3) var(--s-4); resize: vertical; line-height: 1.5; }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.input[aria-invalid="true"]:focus-visible { box-shadow: var(--ring-danger); }
+textarea.input { min-height: 120px; resize: vertical; }
 
 /* Native select with a custom chevron */
 select.input {
@@ -158,13 +160,13 @@ travels with a bounce because it is a physical thing landing.
 .switch .track {
   position: absolute; inset: 0; border-radius: var(--r-full);
   background: var(--surface-3); box-shadow: var(--shadow-inset);
-  transition: background-color var(--dur-1) var(--ease-out);
+  transition: background-color var(--dur-0) var(--ease-out);
 }
 .switch .thumb {
   position: absolute; top: 4px; left: 4px; width: 24px; height: 24px;
   border-radius: var(--r-full); background: var(--surface);
   box-shadow: var(--edge), var(--shadow-sm), 0 0 0 1px var(--line);
-  transition: transform var(--dur-2) var(--ease-bounce), width var(--dur-1) var(--ease-out);
+  transition: transform var(--dur-2) var(--ease-bounce), width var(--dur-0) var(--ease-out);
 }
 .switch:hover .thumb { box-shadow: var(--edge), var(--shadow-md), 0 0 0 1px var(--line); }
 .switch:active .thumb { width: 30px; }                                     /* squish while pressed */
@@ -179,7 +181,7 @@ travels with a bounce because it is a physical thing landing.
   border-radius: 7px; background: var(--surface-2);
   box-shadow: var(--shadow-inset), 0 0 0 1px var(--line);
   display: grid; place-content: center; cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+  transition: background-color var(--dur-0) var(--ease-out), box-shadow var(--dur-0) var(--ease-out), transform var(--dur-0) var(--ease-out);
 }
 .checkbox::before { content: ""; width: 12px; height: 12px; transform: scale(0);
   transition: transform var(--dur-2) var(--ease-bounce);
@@ -205,7 +207,7 @@ The selected segment is a raised pill sliding inside a well.
 .segmented > button {
   height: 36px; padding: 0 var(--s-4); border: 0; border-radius: 12px;
   background: transparent; color: var(--text-2); font-weight: 600; font-size: var(--fs-sm); cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+  transition: background-color var(--dur-0) var(--ease-out), color var(--dur-0) var(--ease-out),
               box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .segmented > button:hover { color: var(--text); }
@@ -220,7 +222,7 @@ The selected segment is a raised pill sliding inside a well.
 .tabs > button {
   position: relative; padding: var(--s-3) 0; border: 0; background: none;
   color: var(--text-2); font-weight: 600; cursor: pointer;
-  transition: color var(--dur-1) var(--ease-out);
+  transition: color var(--dur-0) var(--ease-out);
 }
 .tabs > button::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
@@ -252,7 +254,7 @@ top and a bounce. Exits are quicker and do not bounce.
   display: flex; align-items: center; gap: var(--s-3); width: 100%;
   padding: var(--s-3) var(--s-3); border: 0; border-radius: var(--r-sm);
   background: none; color: var(--text); text-align: left; font-size: var(--fs-sm); cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out);
+  transition: background-color var(--dur-0) var(--ease-out);
 }
 .menu-item:hover, .menu-item:focus-visible { background: var(--accent-soft); outline: none; }
 .menu-item:active { background: var(--accent-soft-hover); transform: scale(0.99); }
@@ -343,11 +345,11 @@ The active item is a raised pill on a flat rail. Hover tints, active presses.
   display: flex; align-items: center; gap: var(--s-3);
   padding: var(--s-3) var(--s-4); border-radius: var(--r-md);
   color: var(--text-2); font-weight: 600; font-size: var(--fs-sm); text-decoration: none;
-  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+  transition: background-color var(--dur-0) var(--ease-out), color var(--dur-0) var(--ease-out),
               box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .nav-item:hover { background: var(--surface-2); color: var(--text); }
-.nav-item:active { transform: scale(0.98); }
+.nav-item:active { transform: scale(1.02); }
 .nav-item[aria-current="page"] {
   background: var(--surface); color: var(--accent-text);
   box-shadow: var(--edge), var(--shadow-sm), 0 0 0 1px var(--line);
@@ -365,7 +367,7 @@ right-aligned in tabular figures.
 .row {
   display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--s-4);
   padding: var(--s-4); border-radius: var(--r-md);
-  transition: background-color var(--dur-1) var(--ease-out);
+  transition: background-color var(--dur-0) var(--ease-out);
 }
 .row:hover { background: var(--surface-2); }
 .row[aria-selected="true"] { background: var(--accent-soft); }
@@ -374,7 +376,7 @@ right-aligned in tabular figures.
 .table th { text-align: left; padding: var(--s-3) var(--s-4); color: var(--text-3); font-weight: 600; font-size: var(--fs-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; }
 .table td { padding: var(--s-4); border-top: 1px solid var(--line); }
 .table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
-.table tbody tr { transition: background-color var(--dur-1) var(--ease-out); }
+.table tbody tr { transition: background-color var(--dur-0) var(--ease-out); }
 .table tbody tr:hover { background: var(--surface-2); }
 ```
 
@@ -393,7 +395,7 @@ Flat, tinted, with full-strength text of the same hue. Never a gradient.
 .badge.is-warn   { background: var(--warn-soft);   color: color-mix(in oklab, var(--warn), var(--text) 45%); }
 .badge.is-danger { background: var(--danger-soft); color: color-mix(in oklab, var(--danger), var(--text) 20%); }
 
-.chip { /* same box as .badge */ display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 var(--s-3); border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 700; background: var(--accent-soft); color: var(--accent-text); border: 0; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.chip { /* same box as .badge */ display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 var(--s-3); border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 700; background: var(--accent-soft); color: var(--accent-text); border: 0; cursor: pointer; transition: background-color var(--dur-0) var(--ease-out), transform var(--dur-0) var(--ease-out); }
 .chip:hover  { background: var(--accent-soft-hover); }
 .chip:active { transform: scale(0.96); }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }

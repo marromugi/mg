@@ -22,8 +22,8 @@ check before handing over.
 | Lorem ipsum, "John Doe", "Acme Inc", 5-star ratings from "Sarah K., CEO" | Placeholder content presented as design | Realistic sample data with texture: mixed lengths, an edge case, real-looking dates. |
 | 3-column grid of identical cards regardless of content | Layout chosen before content | Let the content set the layout. Asymmetric grids, one large card and two small, a list where a list fits. |
 | Everything centered | Symmetry as a substitute for hierarchy | Left-align text blocks. Center only short headlines and single actions. |
-| Hover = slight opacity change, or nothing | Interaction as an afterthought | Hover lifts (translate + shadow), active presses (scale + inset), focus rings in accent. Every interactive element. |
-| Bouncy, 150ms transitions on everything, or no transitions at all | Motion not designed | 300–450ms, ease-out for fades, bounce only for things popping in, quick non-bouncing exits. |
+| Hover = slight opacity change, or nothing; or hover moves the element | Interaction as an afterthought, or a target that runs from the pointer | Hover changes light (shadow, tint) and never position; active presses (scale + inset); focus rings in accent. Every element the pointer is not already answering. |
+| One duration for everything, or no transitions at all | Motion not designed | Two speeds: answers to the user (focus, hover, press) at 150–200ms, arrivals (menu, dialog, toast) at 300–450ms with a bounce, quick non-bouncing exits. |
 | Dark mode = `invert` colors, or black `#000` background with pure white text | Dark mode as a filter | Tinted near-black canvas, raised surfaces get lighter, shadows deeper, edge highlights carry the depth. |
 | A "Get started" and a "Learn more" button side by side, every time | Two CTAs by reflex | One primary action per view. A secondary only when there is a real second path. |
 | Stat cards with big numbers and a green "+12.5%" pill, four in a row | The dashboard template | Fine when the numbers are real and the trend matters. Give the most important number more space than the rest. |

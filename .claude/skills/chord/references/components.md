@@ -34,8 +34,8 @@ the neumorphic moment: shadow collapses, surface dips.
 ```css
 .btn {
   display: inline-flex; align-items: center; gap: var(--s-2);
-  height: 44px; padding: 0 var(--s-5);
-  border-radius: var(--r-md); border: 0;
+  --py: var(--s-3); padding: var(--py) var(--s-5); line-height: 1.5;
+  border-radius: calc((1lh + 2 * var(--py)) / 3); border: 0;
   font-weight: 600; font-size: var(--fs-sm); letter-spacing: 0.005em;
   cursor: pointer; user-select: none;
   transition: transform var(--dur-0) var(--ease-out),
@@ -70,9 +70,9 @@ the neumorphic moment: shadow collapses, surface dips.
 .btn-danger:active { transform: scale(1.02); box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.25); transition: transform 200ms var(--ease-bounce), box-shadow var(--dur-0) var(--ease-out), background-color var(--dur-0) var(--ease-out); }
 
 /* icon-only */
-.btn-icon { width: 44px; padding: 0; justify-content: center; border-radius: var(--r-md); }
-.btn-sm { height: 36px; padding: 0 var(--s-4); border-radius: var(--r-sm); }
-.btn-lg { height: 52px; padding: 0 var(--s-6); font-size: var(--fs-md); border-radius: var(--r-lg); }
+.btn-icon { aspect-ratio: 1; padding: var(--py); justify-content: center; }
+.btn-sm { --py: var(--s-2); padding-inline: var(--s-4); }
+.btn-lg { --py: var(--s-4); padding-inline: var(--s-6); font-size: var(--fs-md); }
 ```
 
 The active state grows to 1.02 with the bounce curve on purpose: the press must

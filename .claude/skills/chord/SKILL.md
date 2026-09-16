@@ -70,28 +70,28 @@ Shadows are two layers (tight contact + wide ambient), vertical offset only.
 Corners have a tone, and the tone is the ratio of the corner to the thing it
 sits on, not the corner's size. A fixed 16px is nearly a pill on a small
 button and nearly square on a large one; the same design reads differently
-at every size. So corners are derived, not picked, and split by what the
-element is:
+at every size. So no corner is picked from a scale. Every corner is derived
+from one rule, applied in two places:
 
 - **Controls** (buttons, inputs, chips, nav items) come in sizes, so their
-  corner is a fraction of their height: **one third**. The height itself is
-  never set (see Space), so the corner is computed from the same two things
-  the height comes from, the line height and the vertical padding. A 50px
+  corner is **one third of their height**. The height itself is never set
+  (see Space), so the corner is computed from the same two things the
+  height comes from, the line height and the vertical padding. A 50px
   button gets 16–17px, a 38px button 12–13px, and they look like the same
   family.
-- **Containers** (cards, popovers, dialogs, sheets) have no natural height,
-  so their corner follows the scale below. The bigger and more enclosing the
-  thing, the larger the corner.
-- **Pills** (badges, switches, avatars) are fully round.
+- **Containers** (cards, popovers, toasts, dialogs, sheets) have no height
+  of their own, so their corner comes from what they hold: **the corner of
+  the control inside, plus the container's padding**. The outer arc is then
+  concentric with the inner one, which is what makes a card look like it
+  was built around its contents rather than drawn first and filled later.
+  A container that holds only text takes the line of text as its inner
+  shape: a third of the line height, plus the padding. Nesting repeats the
+  rule: a dialog around a card around a button adds its padding at each
+  step.
 
-| Container | Radius |
-| --- | --- |
-| cards, popovers, toasts | `--r-lg` 24px |
-| dialogs, sheets, hero panels | `--r-xl` 32px |
-| badges, switches, avatars | `--r-full` |
-
-Nested corners: inner radius = outer radius − padding. A 24px card with 8px
-padding holds 16px children.
+Both halves are the same idea. A control's corner is one third of the space
+its text sits in; a container's corner is the control's corner plus the
+space the control sits in.
 
 ## Color
 

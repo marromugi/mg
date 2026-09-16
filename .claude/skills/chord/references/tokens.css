@@ -63,12 +63,15 @@
   --glass-blur: blur(20px) saturate(1.4);
 
   /* ---- shape ------------------------------------------------------------ */
-  --r-sm: 10px;    /* chips, small controls, checkboxes */
-  --r-md: 16px;    /* buttons, inputs, list rows */
-  --r-lg: 24px;    /* cards, popovers, toasts */
-  --r-xl: 32px;    /* dialogs, sheets, hero panels */
+  /* Corners are derived, not picked (SKILL.md, Surfaces and depth):
+     control = (line height + 2 * vertical padding) / 3
+     container = corner of the control inside + container padding
+     The values below are only the results for the default sizes. */
+  --r-sm: 12px;    /* compact control: 20px line, 8px padding */
+  --r-md: 16px;    /* default control: 24px line, 12px padding */
+  --r-lg: 28px;    /* card with 12px padding around default controls; 20px when it holds only text */
+  --r-xl: 40px;    /* dialog with 24px padding around default controls */
   --r-full: 999px;
-  /* controls compute their own corner: one third of (line height + 2 * vertical padding); see SKILL.md */
 
   /* ---- space (8pt grid, generous defaults) ----------------------------- */
   --s-1: 4px;

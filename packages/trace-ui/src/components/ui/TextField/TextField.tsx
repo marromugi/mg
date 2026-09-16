@@ -1,10 +1,10 @@
 import { tv } from "tailwind-variants";
 
 const input = tv({
-  base: "block w-full rounded-md border border-edge bg-transparent px-3.5 py-2 font-sans text-base transition-colors placeholder:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent enabled:hover:bg-edge/15 disabled:cursor-not-allowed disabled:opacity-50",
+  base: "block w-full rounded-control border border-edge bg-transparent [--control-py:12px] px-3.5 py-(--control-py) font-sans text-base shadow-none transition-[border-color,box-shadow] duration-[160ms] ease-out outline-none placeholder:opacity-50 focus-visible:border-accent focus-visible:shadow-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:transition-opacity [&::-webkit-search-cancel-button]:duration-150 [&::-webkit-search-cancel-button]:ease-out [&::-webkit-search-cancel-button]:will-change-[opacity]",
   variants: {
     invalid: {
-      true: "border-error focus-visible:outline-error",
+      true: "border-error focus-visible:border-error focus-visible:shadow-ring-error",
       false: "",
     },
   },

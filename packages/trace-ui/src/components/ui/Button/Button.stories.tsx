@@ -27,6 +27,15 @@ export const PrimaryMedium: Story = {
   ),
 };
 
+export const SecondaryMedium: Story = {
+  args: { tone: "secondary", size: "md", children: "Details" },
+  render: (args) => (
+    <form>
+      <Button {...args} />
+    </form>
+  ),
+};
+
 export const NeutralSmall: Story = {
   args: { tone: "neutral", size: "sm", children: "Cancel" },
   render: (args) => (

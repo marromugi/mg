@@ -24,7 +24,8 @@
   --accent-active: color-mix(in oklab, var(--accent), var(--text) 22%);
   --accent-soft:   color-mix(in oklab, var(--accent) 14%, var(--surface));
   --accent-soft-hover: color-mix(in oklab, var(--accent) 20%, var(--surface));
-  --accent-ring:   color-mix(in oklab, var(--accent) 45%, transparent);
+  --accent-ring:   color-mix(in oklab, var(--accent) 30%, transparent);
+  --accent-glow:   color-mix(in oklab, var(--accent) 35%, transparent);
   --accent-text:   color-mix(in oklab, var(--accent), var(--text) 10%);
 
   /* ---- semantic colors (fixed, Bauhaus primaries) ---------------------- */
@@ -62,10 +63,14 @@
   --glass-blur: blur(20px) saturate(1.4);
 
   /* ---- shape ------------------------------------------------------------ */
-  --r-sm: 10px;    /* chips, small controls, checkboxes */
-  --r-md: 16px;    /* buttons, inputs, list rows */
-  --r-lg: 24px;    /* cards, popovers, toasts */
-  --r-xl: 32px;    /* dialogs, sheets, hero panels */
+  /* Corners are derived, not picked (SKILL.md, Surfaces and depth):
+     control = (line height + 2 * vertical padding) / 3
+     container = corner of the control inside + container padding
+     The values below are only the results for the default sizes. */
+  --r-sm: 12px;    /* compact control: 20px line, 8px padding */
+  --r-md: 16px;    /* default control: 24px line, 12px padding */
+  --r-lg: 28px;    /* card with 12px padding around default controls; 20px when it holds only text */
+  --r-xl: 40px;    /* dialog with 24px padding around default controls */
   --r-full: 999px;
 
   /* ---- space (8pt grid, generous defaults) ----------------------------- */
@@ -94,7 +99,8 @@
   --tracking-wide: 0.04em;
 
   /* ---- motion ----------------------------------------------------------- */
-  --dur-1: 300ms;   /* hover/color changes, exits */
+  --dur-0: 160ms;   /* answers to the user: focus, hover, press-adjacent */
+  --dur-1: 300ms;   /* exits */
   --dur-2: 380ms;   /* fades, small moves */
   --dur-3: 450ms;   /* popups, dialogs, large moves */
   --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
@@ -102,8 +108,10 @@
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);  /* overshoot ~10%, for pop-ins */
   --ease-in:     cubic-bezier(0.55, 0, 1, 0.45);
 
-  /* ---- focus ------------------------------------------------------------ */
-  --ring: 0 0 0 4px var(--accent-ring);
+  /* ---- focus: thin ring + soft glow ------------------------------------- */
+  --ring: 0 0 0 4px var(--accent-ring), 0 0 14px var(--accent-glow);
+  --ring-danger: 0 0 0 4px color-mix(in oklab, var(--danger) 30%, transparent),
+                 0 0 14px color-mix(in oklab, var(--danger) 35%, transparent);
 }
 
 /* ---- dark mode ----------------------------------------------------------- */

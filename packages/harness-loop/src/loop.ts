@@ -1,5 +1,6 @@
 import type {
   AssistantMessage,
+  AssistantPart,
   FinishReason,
   GenerateRequest,
   Message,
@@ -8,7 +9,13 @@ import type {
   ToolCall,
   Usage,
 } from "@mg/core";
-import { runToolCall } from "@mg/core";
+import {
+  assistantMessage,
+  partsOf,
+  runToolCall,
+  textOf,
+  toolCallsOf,
+} from "@mg/core";
 import type { Gate } from "@mg/gate";
 import { gateRunToolCall } from "@mg/gate";
 import { noopSpan } from "@mg/harness";
@@ -37,31 +44,35 @@ type TurnResult = {
 const toAssistantMessage = (
   content: string,
   toolCalls: ToolCall[],
-): AssistantMessage => ({
-  role: "assistant",
-  content,
-  ...(toolCalls.length > 0 ? { toolCalls } : {}),
-});
+): AssistantMessage => {
+  const parts: AssistantPart[] = [
+    { type: "text", text: content },
+    ...toolCalls.map((toolCall): AssistantPart => ({
+      type: "tool-call",
+      ...toolCall,
+    })),
+  ];
+  return assistantMessage(parts);
+};
 
 async function* runBatchTurn(
   provider: Provider,
   request: GenerateRequest,
 ): AsyncGenerator<HarnessEvent, TurnResult> {
   const response = await provider.generate(request);
+  const text = textOf(response);
+  const toolCalls = toolCallsOf(response);
 
-  if (response.content !== "") {
-    yield { type: "text-delta", delta: response.content };
+  if (text !== "") {
+    yield { type: "text-delta", delta: text };
   }
-  for (const toolCall of response.toolCalls) {
+  for (const toolCall of toolCalls) {
     yield { type: "tool-call", toolCall };
   }
 
   return {
-    assistantMessage: toAssistantMessage(
-      response.content,
-      response.toolCalls,
-    ),
-    toolCalls: response.toolCalls,
+    assistantMessage: assistantMessage(partsOf(response)),
+    toolCalls,
     finishReason: response.finishReason,
     usage: response.usage,
   };

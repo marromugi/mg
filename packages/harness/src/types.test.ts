@@ -63,6 +63,11 @@ describe("HarnessEvent", () => {
             Extract<HarnessEvent, { type: "text-delta" }>
           >();
           return `text:${event.delta}`;
+        case "reasoning-delta":
+          expectTypeOf(event).toEqualTypeOf<
+            Extract<HarnessEvent, { type: "reasoning-delta" }>
+          >();
+          return `reasoning:${event.delta}`;
         case "tool-call":
           expectTypeOf(event).toEqualTypeOf<
             Extract<HarnessEvent, { type: "tool-call" }>
@@ -89,6 +94,9 @@ describe("HarnessEvent", () => {
     expect(describeEvent({ type: "text-delta", delta: "hi" })).toBe(
       "text:hi",
     );
+    expect(
+      describeEvent({ type: "reasoning-delta", delta: "hm" }),
+    ).toBe("reasoning:hm");
     expect(
       describeEvent({
         type: "tool-call",

@@ -3,6 +3,7 @@ import {
   assistantMessage,
   type GenerateRequest,
   type GenerateResponse,
+  type Message,
   type Provider,
   type StreamEvent,
 } from "@mg/core";
@@ -91,6 +92,98 @@ describe("traceProvider / generate", () => {
     expect(
       span?.mergedAttributes[ATTR.llmOutputTokens],
     ).toBeUndefined();
+  });
+
+  it("writes reasoning parts to the output message in order alongside text and tool calls", async () => {
+    const root = new RecordingSpan("root");
+    const response: GenerateResponse = {
+      parts: [
+        { type: "reasoning", text: "thinking" },
+        { type: "text", text: "hello" },
+        { type: "tool-call", id: "1", name: "x", arguments: {} },
+      ],
+      finishReason: "stop",
+    };
+    const provider: Provider = {
+      generate: async () => response,
+      stream: async function* () {},
+    };
+
+    await traceProvider(provider, root).generate(request);
+    const span = root.children[0];
+
+    expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
+      JSON.stringify([assistantMessage(response.parts)]),
+    );
+  });
+
+  it("strips carry from reasoning parts without mutating the request or the response", async () => {
+    const root = new RecordingSpan("root");
+    const historyMessages: Message[] = [
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            text: "earlier thinking",
+            carry: { provider: "openrouter", data: { a: 1 } },
+          },
+        ],
+      },
+    ];
+    const reqWithHistory: GenerateRequest = {
+      model: "test-model",
+      messages: historyMessages,
+    };
+    const response: GenerateResponse = {
+      parts: [
+        {
+          type: "reasoning",
+          text: "more thinking",
+          carry: { provider: "openrouter", data: { b: 2 } },
+        },
+        { type: "text", text: "hello" },
+      ],
+      finishReason: "stop",
+    };
+    const provider: Provider = {
+      generate: async () => response,
+      stream: async function* () {},
+    };
+
+    const result = await traceProvider(provider, root).generate(
+      reqWithHistory,
+    );
+    const span = root.children[0];
+
+    expect(result).toBe(response);
+    expect(reqWithHistory.messages).toEqual(historyMessages);
+    expect(reqWithHistory.messages[1]).toEqual({
+      role: "assistant",
+      parts: [
+        {
+          type: "reasoning",
+          text: "earlier thinking",
+          carry: { provider: "openrouter", data: { a: 1 } },
+        },
+      ],
+    });
+
+    expect(span?.attributes[ATTR.llmInputMessages]).not.toContain(
+      "carry",
+    );
+    expect(
+      span?.mergedAttributes[ATTR.llmOutputMessages],
+    ).not.toContain("carry");
+    expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
+      JSON.stringify([
+        assistantMessage([
+          { type: "reasoning", text: "more thinking" },
+          { type: "text", text: "hello" },
+        ]),
+      ]),
+    );
   });
 
   it("ends the span with the error and rethrows it unchanged when the provider throws", async () => {
@@ -209,6 +302,64 @@ describe("traceProvider / stream", () => {
       ]),
     );
     expect(span?.endCalls).toEqual([undefined]);
+  });
+
+  it("accumulates reasoning, text and tool-call deltas into parts, keeping order, and strips carry", async () => {
+    const root = new RecordingSpan("root");
+    const interleaved: StreamEvent[] = [
+      {
+        type: "reasoning-delta",
+        delta: "think",
+        carry: { provider: "openrouter", data: { step: 1 } },
+      },
+      {
+        type: "reasoning-delta",
+        delta: "ing",
+        carry: { provider: "openrouter", data: { step: 2 } },
+      },
+      { type: "text-delta", delta: "hel" },
+      { type: "text-delta", delta: "lo" },
+      {
+        type: "tool-call",
+        toolCall: { id: "1", name: "x", arguments: { a: 1 } },
+      },
+      {
+        type: "finish",
+        finishReason: "tool_calls",
+        usage: { inputTokens: 2, outputTokens: 4 },
+      },
+    ];
+    const provider: Provider = {
+      generate: async () => {
+        throw new Error("unused");
+      },
+      stream: async function* () {
+        for (const event of interleaved) {
+          yield event;
+        }
+      },
+    };
+
+    await collect(traceProvider(provider, root).stream(request));
+    const span = root.children[0];
+
+    expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
+      JSON.stringify([
+        assistantMessage([
+          { type: "reasoning", text: "thinking" },
+          { type: "text", text: "hello" },
+          {
+            type: "tool-call",
+            id: "1",
+            name: "x",
+            arguments: { a: 1 },
+          },
+        ]),
+      ]),
+    );
+    expect(
+      span?.mergedAttributes[ATTR.llmOutputMessages],
+    ).not.toContain("carry");
   });
 
   it("ends the span with the error and rethrows it when the inner iterable throws mid-way", async () => {

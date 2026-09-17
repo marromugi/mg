@@ -197,4 +197,153 @@ describe("mapGenAiAttributes", () => {
       { role: "developer", parts: [] },
     ]);
   });
+
+  it("maps an assistant message with a parts array, keeping reasoning, text and tool calls in order", () => {
+    const raw = JSON.stringify([
+      {
+        role: "assistant",
+        parts: [
+          { type: "reasoning", text: "thinking it through" },
+          { type: "text", text: "here is the answer" },
+          {
+            type: "tool-call",
+            id: "call1",
+            name: "get_weather",
+            arguments: { location: "Paris" },
+          },
+        ],
+      },
+    ]);
+
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmOutputMessages]: raw,
+    });
+
+    expect(
+      JSON.parse(mapped["gen_ai.output.messages"] as string),
+    ).toEqual([
+      {
+        role: "assistant",
+        parts: [
+          { type: "reasoning", content: "thinking it through" },
+          { type: "text", content: "here is the answer" },
+          {
+            type: "tool_call",
+            id: "call1",
+            name: "get_weather",
+            arguments: { location: "Paris" },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("drops carry from a stored reasoning part and never surfaces it in the mapped attribute", () => {
+    const raw = JSON.stringify([
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            text: "thinking",
+            carry: { provider: "openrouter", data: { step: 1 } },
+          },
+        ],
+      },
+    ]);
+
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmOutputMessages]: raw,
+    });
+
+    const serialized = mapped["gen_ai.output.messages"] as string;
+    expect(serialized).not.toContain("carry");
+    expect(JSON.parse(serialized)).toEqual([
+      {
+        role: "assistant",
+        parts: [{ type: "reasoning", content: "thinking" }],
+      },
+    ]);
+  });
+
+  it("skips malformed entries in an assistant parts array without throwing", () => {
+    const raw = JSON.stringify([
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", text: "kept" },
+          null,
+          "not an object",
+          { type: "text" },
+          { type: "reasoning" },
+          { type: "tool-call" },
+          { type: "unknown-type", text: "ignored" },
+          { type: "tool-call", name: "get_weather", arguments: {} },
+        ],
+      },
+    ]);
+
+    expect(() =>
+      mapGenAiAttributes({
+        [ATTR.op]: "llm",
+        [ATTR.llmOutputMessages]: raw,
+      }),
+    ).not.toThrow();
+
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmOutputMessages]: raw,
+    });
+
+    expect(
+      JSON.parse(mapped["gen_ai.output.messages"] as string),
+    ).toEqual([
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", content: "kept" },
+          {
+            type: "tool_call",
+            id: undefined,
+            name: "get_weather",
+            arguments: {},
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("still maps an old-shape assistant message with content and toolCalls when no parts array is present", () => {
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmOutputMessages]: jsonAttribute([
+        {
+          role: "assistant",
+          content: "it's rainy",
+          toolCalls: [
+            { id: "call1", name: "get_weather", arguments: {} },
+          ],
+        },
+      ]),
+    });
+
+    expect(
+      JSON.parse(mapped["gen_ai.output.messages"] as string),
+    ).toEqual([
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", content: "it's rainy" },
+          {
+            type: "tool_call",
+            id: "call1",
+            name: "get_weather",
+            arguments: {},
+          },
+        ],
+      },
+    ]);
+  });
 });

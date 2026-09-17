@@ -131,6 +131,41 @@ export const objectContentSessionTree: SessionTree = {
   ],
 };
 
+export const NEW_SHAPE_SESSION_ID = "session-new-shape";
+export const NEW_SHAPE_TRACE_ID = "trace-new-shape";
+
+export const newShapeLlmNode: SpanNode = {
+  sessionId: NEW_SHAPE_SESSION_ID,
+  serviceName: "svc",
+  traceId: NEW_SHAPE_TRACE_ID,
+  spanId: "span-llm-new-shape",
+  name: SPAN.llm,
+  startTime: START_TIME,
+  endTime: END_TIME,
+  attributes: {
+    [ATTR.llmModel]: "gpt-test",
+    [ATTR.llmFinishReason]: "tool_calls",
+    [ATTR.llmOutputMessages]: JSON.stringify([
+      {
+        role: "assistant",
+        parts: [
+          { type: "reasoning", text: "checking the forecast" },
+          { type: "text", text: "It should be sunny." },
+          {
+            type: "tool-call",
+            id: "call-1",
+            name: "web-search",
+            arguments: { query: "weather" },
+          },
+        ],
+      },
+    ]),
+  },
+  events: [],
+  status: { code: 0 },
+  children: [],
+};
+
 export const sessionSummaries: SessionSummary[] = [
   {
     sessionId: SESSION_ID,

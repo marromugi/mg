@@ -293,6 +293,58 @@ describe("toOpenRouterRequest", () => {
     ]);
   });
 
+  test("sends reasoning for every assistant message when there is no user message", () => {
+    const details = [
+      {
+        type: "reasoning.text",
+        text: "thinking it through",
+        id: "r1",
+        format: "anthropic-claude-v1",
+        index: 0,
+      },
+    ];
+    const body = toOpenRouterRequest(
+      request({
+        messages: [
+          { role: "system", content: "be brief" },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "reasoning",
+                text: "thinking it through",
+                carry: { provider: "openrouter", data: details },
+              },
+              { type: "text", text: "hi" },
+            ],
+          },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "still thinking" },
+              { type: "text", text: "24 degrees" },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "system", content: "be brief" },
+      {
+        role: "assistant",
+        content: "hi",
+        reasoning_details: details,
+      },
+      {
+        role: "assistant",
+        content: "24 degrees",
+        reasoning: "still thinking",
+      },
+    ]);
+  });
+
   test("sends neither reasoning field when the assistant message has no reasoning", () => {
     const body = toOpenRouterRequest(
       request({

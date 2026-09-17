@@ -1,12 +1,15 @@
-import type {
-  AssistantMessage,
-  FinishReason,
-  GenerateRequest,
-  GenerateResponse,
-  Provider,
-  StreamEvent,
-  ToolCall,
-  Usage,
+import {
+  assistantMessage,
+  textOf,
+  toolCallsOf,
+  type AssistantPart,
+  type FinishReason,
+  type GenerateRequest,
+  type GenerateResponse,
+  type Provider,
+  type StreamEvent,
+  type ToolCall,
+  type Usage,
 } from "@mg/core";
 import {
   noopSpan,
@@ -40,6 +43,20 @@ const startLlmSpan = (
   }
 };
 
+const partsOfOutcome = (
+  content: string,
+  toolCalls: readonly ToolCall[],
+): AssistantPart[] => {
+  const parts: AssistantPart[] = [];
+  if (content !== "") {
+    parts.push({ type: "text", text: content });
+  }
+  for (const toolCall of toolCalls) {
+    parts.push({ type: "tool-call", ...toolCall });
+  }
+  return parts;
+};
+
 const setOutputAttributes = (
   span: TraceSpan,
   outcome: {
@@ -49,11 +66,9 @@ const setOutputAttributes = (
     usage?: Usage;
   },
 ): void => {
-  const message: AssistantMessage = {
-    role: "assistant",
-    content: outcome.content,
-    toolCalls: outcome.toolCalls,
-  };
+  const message = assistantMessage(
+    partsOfOutcome(outcome.content, outcome.toolCalls),
+  );
 
   const attributes: TraceAttributes = {
     ...(outcome.finishReason !== undefined
@@ -81,8 +96,8 @@ const traceGenerate = async (
   try {
     const response = await provider.generate(request);
     setOutputAttributes(span, {
-      content: response.content,
-      toolCalls: response.toolCalls,
+      content: textOf(response),
+      toolCalls: toolCallsOf(response),
       finishReason: response.finishReason,
       usage: response.usage,
     });

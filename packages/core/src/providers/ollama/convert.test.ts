@@ -448,6 +448,27 @@ describe("toToolCall", () => {
     const toolArgumentsError = error as ToolArgumentsError;
     expect(toolArgumentsError.raw).toBe("null");
   });
+
+  test("throws a ToolArgumentsError when arguments are an array", () => {
+    let error: unknown;
+    try {
+      toToolCall(
+        {
+          id: "call-1",
+          function: { name: "weather", arguments: ["Tokyo"] },
+        },
+        0,
+      );
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(ToolArgumentsError);
+    const toolArgumentsError = error as ToolArgumentsError;
+    expect(toolArgumentsError.toolCallId).toBe("call-1");
+    expect(toolArgumentsError.toolName).toBe("weather");
+    expect(toolArgumentsError.raw).toBe("Tokyo");
+  });
 });
 
 const responseBody = (
@@ -625,5 +646,14 @@ describe("fromOllamaResponse", () => {
     const httpError = error as ProviderHttpError;
     expect(httpError.message).toBe("Ollama response has no message");
     expect(httpError.status).toBe(200);
+  });
+
+  test("keeps the body a string when the response body is undefined", () => {
+    const error = thrownBy(undefined);
+
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    const httpError = error as ProviderHttpError;
+    expect(typeof httpError.body).toBe("string");
+    expect(httpError.body).toBe("undefined");
   });
 });

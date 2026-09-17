@@ -231,19 +231,26 @@ export const toToolCall = (
   const name = raw.function?.name ?? "";
   const args = raw.function?.arguments;
 
-  if (typeof args !== "object" || args === null) {
+  if (
+    typeof args !== "object" ||
+    args === null ||
+    Array.isArray(args)
+  ) {
     throw new ToolArgumentsError(id, name, String(args));
   }
 
   return { id, name, arguments: args };
 };
 
+const stringifyBody = (body: unknown): string =>
+  JSON.stringify(body) ?? String(body);
+
 export const fromOllamaResponse = (body: unknown): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
     throw new ProviderHttpError(
       "Ollama response has no message",
       200,
-      JSON.stringify(body),
+      stringifyBody(body),
     );
   }
 
@@ -254,7 +261,7 @@ export const fromOllamaResponse = (body: unknown): GenerateResponse => {
     throw new ProviderHttpError(
       "Ollama response has no message",
       200,
-      JSON.stringify(body),
+      stringifyBody(body),
     );
   }
 

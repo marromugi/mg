@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import { tv } from "tailwind-variants";
 
 const cell = tv({
-  base: "border-b border-edge px-3 py-2.5",
   variants: {
     kind: {
-      header: "text-meta font-semibold",
-      data: "",
+      header:
+        "rounded-control bg-edge/50 px-4 control-py-3 text-meta font-semibold not-first:rounded-l-none not-last:rounded-r-none",
+      data: "border-b border-edge px-4 py-3.5 group-last:border-b-0",
     },
     align: {
       start: "text-left",
@@ -30,7 +30,7 @@ const Body = ({ children }: { children: ReactNode }) => (
 );
 
 const Row = ({ children }: { children: ReactNode }) => (
-  <tr>{children}</tr>
+  <tr className="group">{children}</tr>
 );
 
 const HeaderCell = ({ align, children }: CellProps) => (
@@ -55,7 +55,9 @@ type TableComponent = ((props: {
 
 export const Table = (({ children }: { children: ReactNode }) => (
   <div className="overflow-x-auto">
-    <table className="w-full">{children}</table>
+    <table className="w-full border-separate border-spacing-0">
+      {children}
+    </table>
   </div>
 )) as TableComponent;
 

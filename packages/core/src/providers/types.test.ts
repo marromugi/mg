@@ -3,6 +3,7 @@ import { describe, expect, expectTypeOf, test } from "vitest";
 import type {
   AssistantMessage,
   Message,
+  ReasoningCarry,
   StreamEvent,
   SystemMessage,
   ToolDefinition,
@@ -133,6 +134,13 @@ describe("StreamEvent", () => {
       delta: string;
     }>();
     expectTypeOf<
+      Extract<StreamEvent, { type: "reasoning-delta" }>
+    >().toEqualTypeOf<{
+      type: "reasoning-delta";
+      delta: string;
+      carry?: ReasoningCarry;
+    }>();
+    expectTypeOf<
       Extract<StreamEvent, { type: "tool-call" }>
     >().toHaveProperty("toolCall");
     expectTypeOf<
@@ -148,6 +156,11 @@ describe("StreamEvent", () => {
             Extract<StreamEvent, { type: "text-delta" }>
           >();
           return `text:${event.delta}`;
+        case "reasoning-delta":
+          expectTypeOf(event).toEqualTypeOf<
+            Extract<StreamEvent, { type: "reasoning-delta" }>
+          >();
+          return `reasoning:${event.delta}:${event.carry?.provider ?? ""}`;
         case "tool-call":
           expectTypeOf(event).toEqualTypeOf<
             Extract<StreamEvent, { type: "tool-call" }>
@@ -164,6 +177,16 @@ describe("StreamEvent", () => {
     expect(describeEvent({ type: "text-delta", delta: "hi" })).toBe(
       "text:hi",
     );
+    expect(
+      describeEvent({ type: "reasoning-delta", delta: "hmm" }),
+    ).toBe("reasoning:hmm:");
+    expect(
+      describeEvent({
+        type: "reasoning-delta",
+        delta: "hmm",
+        carry: { provider: "openrouter", data: { id: "r1" } },
+      }),
+    ).toBe("reasoning:hmm:openrouter");
     expect(
       describeEvent({
         type: "tool-call",

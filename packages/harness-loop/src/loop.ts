@@ -1,6 +1,5 @@
 import type {
   AssistantMessage,
-  AssistantPart,
   FinishReason,
   GenerateRequest,
   Message,
@@ -11,9 +10,9 @@ import type {
 } from "@mg/core";
 import {
   assistantMessage,
+  createPartsAccumulator,
   partsOf,
   runToolCall,
-  textOf,
   toolCallsOf,
 } from "@mg/core";
 import type { Gate } from "@mg/gate";
@@ -41,38 +40,41 @@ type TurnResult = {
   usage?: Usage;
 };
 
-const toAssistantMessage = (
-  content: string,
-  toolCalls: ToolCall[],
-): AssistantMessage => {
-  const parts: AssistantPart[] = [
-    { type: "text", text: content },
-    ...toolCalls.map((toolCall): AssistantPart => ({
-      type: "tool-call",
-      ...toolCall,
-    })),
-  ];
-  return assistantMessage(parts);
-};
-
 async function* runBatchTurn(
   provider: Provider,
   request: GenerateRequest,
 ): AsyncGenerator<HarnessEvent, TurnResult> {
   const response = await provider.generate(request);
-  const text = textOf(response);
-  const toolCalls = toolCallsOf(response);
 
-  if (text !== "") {
-    yield { type: "text-delta", delta: text };
-  }
-  for (const toolCall of toolCalls) {
-    yield { type: "tool-call", toolCall };
+  for (const part of partsOf(response)) {
+    switch (part.type) {
+      case "text":
+        if (part.text !== "") {
+          yield { type: "text-delta", delta: part.text };
+        }
+        break;
+      case "reasoning":
+        if (part.text !== "") {
+          yield { type: "reasoning-delta", delta: part.text };
+        }
+        break;
+      case "tool-call":
+        yield {
+          type: "tool-call",
+          toolCall: {
+            id: part.id,
+            name: part.name,
+            arguments: part.arguments,
+          },
+        };
+        break;
+    }
   }
 
+  const message = assistantMessage(partsOf(response));
   return {
-    assistantMessage: assistantMessage(partsOf(response)),
-    toolCalls,
+    assistantMessage: message,
+    toolCalls: toolCallsOf(message),
     finishReason: response.finishReason,
     usage: response.usage,
   };
@@ -82,19 +84,22 @@ async function* runStreamedTurn(
   provider: Provider,
   request: GenerateRequest,
 ): AsyncGenerator<HarnessEvent, TurnResult> {
-  let content = "";
-  const toolCalls: ToolCall[] = [];
+  const accumulator = createPartsAccumulator();
   let finishReason: FinishReason | undefined;
   let usage: Usage | undefined;
 
   for await (const event of provider.stream(request)) {
+    accumulator.push(event);
     switch (event.type) {
       case "text-delta":
-        content += event.delta;
         yield { type: "text-delta", delta: event.delta };
         break;
+      case "reasoning-delta":
+        if (event.delta !== "") {
+          yield { type: "reasoning-delta", delta: event.delta };
+        }
+        break;
       case "tool-call":
-        toolCalls.push(event.toolCall);
         yield { type: "tool-call", toolCall: event.toolCall };
         break;
       case "finish":
@@ -108,9 +113,10 @@ async function* runStreamedTurn(
     throw new StreamIncompleteError();
   }
 
+  const message = assistantMessage(accumulator.parts());
   return {
-    assistantMessage: toAssistantMessage(content, toolCalls),
-    toolCalls,
+    assistantMessage: message,
+    toolCalls: toolCallsOf(message),
     finishReason,
     usage,
   };

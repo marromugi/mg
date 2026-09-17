@@ -29,7 +29,7 @@ const stripReasoningCarry = (part: AssistantPart): AssistantPart =>
 
 const stripCarryFromMessage = (message: Message): Message =>
   message.role === "assistant"
-    ? { ...message, parts: message.parts.map(stripReasoningCarry) }
+    ? assistantMessage(partsOf(message).map(stripReasoningCarry))
     : message;
 
 const startLlmSpan = (

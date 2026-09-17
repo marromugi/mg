@@ -100,6 +100,7 @@ LLM の呼び出しの記録は、接続先を包む部品が書きます。
 | `ATTR.runName`           | `mg.run.name`                | 設定の名前                                      |
 | `ATTR.runCase`           | `mg.run.case`                | 件の ID                                         |
 | `ATTR.llmModel`          | `mg.llm.model`               | 使ったモデルの名前                              |
+| `ATTR.llmProvider`       | `mg.llm.provider`            | 接続先の名前（名前がなければ省く）              |
 | `ATTR.llmStream`         | `mg.llm.stream`              | 細切れで受け取ったか                            |
 | `ATTR.llmFinishReason`   | `mg.llm.finish_reason`       | 終わった理由                                    |
 | `ATTR.llmInputTokens`    | `mg.llm.usage.input_tokens`  | 入力のトークン数                                |

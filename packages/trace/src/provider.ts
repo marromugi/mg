@@ -24,12 +24,16 @@ export const STREAM_INCOMPLETE_MESSAGE = "stream ended without finish";
 
 const startLlmSpan = (
   parent: TraceSpan,
+  provider: Provider,
   request: GenerateRequest,
   stream: boolean,
 ): TraceSpan => {
   try {
     return parent.startSpan(SPAN.llm, {
       [ATTR.op]: "llm",
+      ...(typeof provider.name === "string" && provider.name !== ""
+        ? { [ATTR.llmProvider]: provider.name }
+        : {}),
       [ATTR.llmModel]: request.model,
       [ATTR.llmStream]: stream,
       [ATTR.llmInputMessages]: jsonAttribute(request.messages),
@@ -87,7 +91,7 @@ const traceGenerate = async (
   parent: TraceSpan,
   request: GenerateRequest,
 ): Promise<GenerateResponse> => {
-  const span = startLlmSpan(parent, request, false);
+  const span = startLlmSpan(parent, provider, request, false);
 
   try {
     const response = await provider.generate(request);
@@ -110,7 +114,7 @@ async function* traceStream(
   parent: TraceSpan,
   request: GenerateRequest,
 ): AsyncGenerator<StreamEvent, void, unknown> {
-  const span = startLlmSpan(parent, request, true);
+  const span = startLlmSpan(parent, provider, request, true);
 
   let content = "";
   const toolCalls: ToolCall[] = [];
@@ -159,6 +163,7 @@ export const traceProvider = (
   provider: Provider,
   parent: TraceSpan,
 ): Provider => ({
+  name: provider.name,
   generate: (request: GenerateRequest): Promise<GenerateResponse> =>
     traceGenerate(provider, parent, request),
   stream: (request: GenerateRequest): AsyncIterable<StreamEvent> =>

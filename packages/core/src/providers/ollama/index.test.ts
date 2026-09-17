@@ -5,7 +5,7 @@ import {
   ToolArgumentsError,
 } from "../errors.js";
 import type { GenerateRequest, StreamEvent } from "../types.js";
-import { createOpenRouterProvider } from "./index.js";
+import { createOllamaProvider } from "./index.js";
 
 type Call = { url: string; init: RequestInit | undefined };
 
@@ -25,90 +25,71 @@ const jsonResponse = (body: unknown) =>
   });
 
 const request: GenerateRequest = {
-  model: "openai/gpt-4o",
+  model: "llama3",
   messages: [{ role: "user", content: "weather?" }],
   temperature: 0.2,
 };
 
 const okBody = {
-  choices: [
-    { message: { content: "24 degrees" }, finish_reason: "stop" },
-  ],
-  usage: { prompt_tokens: 12, completion_tokens: 34 },
+  message: { content: "24 degrees" },
+  done: true,
+  done_reason: "stop",
+  prompt_eval_count: 12,
+  eval_count: 34,
 };
 
-describe("createOpenRouterProvider", () => {
+describe("createOllamaProvider", () => {
   test("exposes its own name", () => {
-    const provider = createOpenRouterProvider({ apiKey: "test-key" });
+    const provider = createOllamaProvider();
 
-    expect(provider.name).toBe("openrouter");
+    expect(provider.name).toBe("ollama");
   });
 
-  test("sends the expected URL, method, headers and body", async () => {
+  test("sends the expected URL, method, headers and body against the default base URL", async () => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      headers: {
-        "HTTP-Referer": "https://example.test",
-        "X-Title": "mg",
-      },
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     await provider.generate(request);
 
     expect(calls).toHaveLength(1);
     const call = calls[0];
-    expect(call.url).toBe(
-      "https://openrouter.ai/api/v1/chat/completions",
-    );
+    expect(call.url).toBe("http://localhost:11434/api/chat");
     expect(call.init?.method).toBe("POST");
-    expect([...new Headers(call.init?.headers)].sort()).toEqual([
-      ["authorization", "Bearer test-key"],
+    expect([...new Headers(call.init?.headers)]).toEqual([
       ["content-type", "application/json"],
-      ["http-referer", "https://example.test"],
-      ["x-title", "mg"],
     ]);
     expect(JSON.parse(String(call.init?.body))).toEqual({
-      model: "openai/gpt-4o",
+      model: "llama3",
       messages: [{ role: "user", content: "weather?" }],
       stream: false,
-      temperature: 0.2,
+      options: { temperature: 0.2 },
     });
   });
 
-  test("keeps the fixed headers when a caller header differs only in case", async () => {
+  test("passes caller headers through without adding an Authorization header", async () => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      headers: {
-        authorization: "Bearer other",
-        "content-type": "text/plain",
-      },
+    const provider = createOllamaProvider({
+      headers: { "X-Trace": "abc" },
       fetch: fetchStub,
     });
 
     await provider.generate(request);
 
-    const headers = [...new Headers(calls[0].init?.headers)];
-    expect(
-      headers.filter(([name]) => name === "authorization"),
-    ).toEqual([["authorization", "Bearer test-key"]]);
-    expect(headers.filter(([name]) => name === "content-type")).toEqual(
-      [["content-type", "application/json"]],
-    );
+    expect([...new Headers(calls[0].init?.headers)].sort()).toEqual([
+      ["content-type", "application/json"],
+      ["x-trace", "abc"],
+    ]);
   });
 
   test.each([
-    ["https://proxy.test/v1", "https://proxy.test/v1/chat/completions"],
+    ["http://example.test:11434", "http://example.test:11434/api/chat"],
     [
-      "https://example.test/v1/",
-      "https://example.test/v1/chat/completions",
+      "http://example.test:11434/",
+      "http://example.test:11434/api/chat",
     ],
   ])("uses the given base URL %s", async (baseUrl, expected) => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
+    const provider = createOllamaProvider({
       baseUrl,
       fetch: fetchStub,
     });
@@ -118,8 +99,29 @@ describe("createOpenRouterProvider", () => {
     expect(calls[0].url).toBe(expected);
   });
 
+  test("carries think, keep_alive and options.num_ctx in the request body", async () => {
+    const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
+    const provider = createOllamaProvider({
+      think: false,
+      keepAlive: "5m",
+      numCtx: 4096,
+      fetch: fetchStub,
+    });
+
+    await provider.generate(request);
+
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      model: "llama3",
+      messages: [{ role: "user", content: "weather?" }],
+      stream: false,
+      think: false,
+      keep_alive: "5m",
+      options: { temperature: 0.2, num_ctx: 4096 },
+    });
+  });
+
   test("resolves the global fetch at call time", async () => {
-    const provider = createOpenRouterProvider({ apiKey: "test-key" });
+    const provider = createOllamaProvider();
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
     const original = globalThis.fetch;
 
@@ -135,10 +137,7 @@ describe("createOpenRouterProvider", () => {
 
   test("returns the converted response", async () => {
     const { fetchStub } = stubFetch(() => jsonResponse(okBody));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     await expect(provider.generate(request)).resolves.toEqual({
       content: "24 degrees",
@@ -150,12 +149,12 @@ describe("createOpenRouterProvider", () => {
 
   test("throws a ProviderHttpError carrying the status and the body", async () => {
     const { fetchStub } = stubFetch(
-      () => new Response("rate limited", { status: 429 }),
+      () =>
+        new Response(JSON.stringify({ error: "model 'x' not found" }), {
+          status: 404,
+        }),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await provider
       .generate(request)
@@ -163,11 +162,11 @@ describe("createOpenRouterProvider", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe(
-      "OpenRouter request failed: 429",
+    expect(providerError.message).toBe("Ollama request failed: 404");
+    expect(providerError.status).toBe(404);
+    expect(providerError.body).toBe(
+      JSON.stringify({ error: "model 'x' not found" }),
     );
-    expect(providerError.status).toBe(429);
-    expect(providerError.body).toBe("rate limited");
   });
 
   test("throws a ProviderHttpError when a 2xx body is not JSON", async () => {
@@ -178,10 +177,7 @@ describe("createOpenRouterProvider", () => {
           headers: { "Content-Type": "text/html" },
         }),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await provider
       .generate(request)
@@ -189,33 +185,9 @@ describe("createOpenRouterProvider", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe(
-      "OpenRouter response is not JSON",
-    );
+    expect(providerError.message).toBe("Ollama response is not JSON");
     expect(providerError.status).toBe(200);
     expect(providerError.body).toBe("<html>maintenance</html>");
-  });
-
-  test("throws a ProviderHttpError when the answer carries no choices", async () => {
-    const body = {
-      error: { code: 502, message: "Provider returned error" },
-    };
-    const { fetchStub } = stubFetch(() => jsonResponse(body));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
-
-    const error = await provider
-      .generate(request)
-      .catch((caught: unknown) => caught);
-
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe(
-      "OpenRouter response has no choices",
-    );
-    expect(providerError.body).toBe(JSON.stringify(body));
   });
 
   test("throws a ProviderTransportError when the request cannot be sent", async () => {
@@ -225,10 +197,7 @@ describe("createOpenRouterProvider", () => {
     const { fetchStub } = stubFetch(() => {
       throw failure;
     });
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await provider
       .generate(request)
@@ -237,7 +206,7 @@ describe("createOpenRouterProvider", () => {
     expect(error).toBeInstanceOf(ProviderTransportError);
     const transportError = error as ProviderTransportError;
     expect(transportError.message).toBe(
-      "OpenRouter request failed to send",
+      "Ollama request failed to send",
     );
     expect(transportError.cause).toBe(failure);
   });
@@ -255,10 +224,7 @@ describe("createOpenRouterProvider", () => {
           { status: 200 },
         ),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await provider
       .generate(request)
@@ -267,7 +233,7 @@ describe("createOpenRouterProvider", () => {
     expect(error).toBeInstanceOf(ProviderTransportError);
     const transportError = error as ProviderTransportError;
     expect(transportError.message).toBe(
-      "OpenRouter response failed to read",
+      "Ollama response failed to read",
     );
     expect(transportError.cause).toBe(failure);
   });
@@ -278,10 +244,7 @@ describe("createOpenRouterProvider", () => {
     const { fetchStub } = stubFetch(() => {
       throw abort;
     });
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await provider
       .generate(request)
@@ -290,33 +253,23 @@ describe("createOpenRouterProvider", () => {
     expect(error).toBe(abort);
   });
 
-  test("throws a ToolArgumentsError when tool call arguments are not JSON", async () => {
+  test("throws a ToolArgumentsError when tool call arguments are not an object", async () => {
     const { fetchStub } = stubFetch(() =>
       jsonResponse({
-        choices: [
-          {
-            message: {
-              content: null,
-              tool_calls: [
-                {
-                  id: "call-1",
-                  type: "function",
-                  function: {
-                    name: "weather",
-                    arguments: "{ not json",
-                  },
-                },
-              ],
+        message: {
+          content: "",
+          tool_calls: [
+            {
+              id: "call-1",
+              function: { name: "weather", arguments: "not-an-object" },
             },
-            finish_reason: "tool_calls",
-          },
-        ],
+          ],
+        },
+        done: true,
+        done_reason: "tool_calls",
       }),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await provider
       .generate(request)
@@ -326,18 +279,13 @@ describe("createOpenRouterProvider", () => {
     const toolArgumentsError = error as ToolArgumentsError;
     expect(toolArgumentsError.toolCallId).toBe("call-1");
     expect(toolArgumentsError.toolName).toBe("weather");
-    expect(toolArgumentsError.raw).toBe("{ not json");
-    expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
   });
 });
 
-const sseResponse = (payloads: string[]) =>
+const ndjsonResponse = (chunks: unknown[]) =>
   new Response(
-    `${payloads.map((payload) => `data: ${payload}\n\n`).join("")}data: [DONE]\n\n`,
-    {
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-    },
+    chunks.map((chunk) => `${JSON.stringify(chunk)}\n`).join(""),
+    { status: 200 },
   );
 
 const erroringResponse = (failure: unknown, prelude?: string) => {
@@ -365,39 +313,28 @@ const collectStream = async (
   return into;
 };
 
-describe("createOpenRouterProvider stream", () => {
+describe("createOllamaProvider stream", () => {
   test("asks for a streamed answer with usage and yields the events", async () => {
     const { fetchStub, calls } = stubFetch(() =>
-      sseResponse([
-        JSON.stringify({ choices: [{ delta: { content: "24" } }] }),
-        JSON.stringify({
-          choices: [{ delta: { content: " degrees" } }],
-        }),
-        JSON.stringify({
-          choices: [{ delta: {}, finish_reason: "stop" }],
-        }),
-        JSON.stringify({
-          choices: [],
-          usage: { prompt_tokens: 12, completion_tokens: 34 },
-        }),
+      ndjsonResponse([
+        { message: { content: "24" }, done: false },
+        { message: { content: " degrees" }, done: false },
+        {
+          message: { content: "" },
+          done: true,
+          done_reason: "stop",
+          prompt_eval_count: 12,
+          eval_count: 34,
+        },
       ]),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const events = await collectStream(provider.stream(request));
 
-    expect(calls[0].url).toBe(
-      "https://openrouter.ai/api/v1/chat/completions",
-    );
-    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
-      model: "openai/gpt-4o",
-      messages: [{ role: "user", content: "weather?" }],
+    expect(calls[0].url).toBe("http://localhost:11434/api/chat");
+    expect(JSON.parse(String(calls[0].init?.body))).toMatchObject({
       stream: true,
-      stream_options: { include_usage: true },
-      temperature: 0.2,
     });
     expect(events).toEqual([
       { type: "text-delta", delta: "24" },
@@ -411,11 +348,12 @@ describe("createOpenRouterProvider stream", () => {
   });
 
   test("sends nothing before the first event is asked for", async () => {
-    const { fetchStub, calls } = stubFetch(() => sseResponse([]));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const { fetchStub, calls } = stubFetch(() =>
+      ndjsonResponse([
+        { message: { content: "" }, done: true, done_reason: "stop" },
+      ]),
+    );
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const stream = provider.stream(request);
     expect(calls).toHaveLength(0);
@@ -424,69 +362,14 @@ describe("createOpenRouterProvider stream", () => {
     expect(calls).toHaveLength(1);
   });
 
-  test("assembles a tool call carried by the stream", async () => {
-    const { fetchStub } = stubFetch(() =>
-      sseResponse([
-        JSON.stringify({
-          choices: [
-            {
-              delta: {
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: "call-1",
-                    type: "function",
-                    function: { name: "weather", arguments: '{"city"' },
-                  },
-                ],
-              },
-            },
-          ],
-        }),
-        JSON.stringify({
-          choices: [
-            {
-              delta: {
-                tool_calls: [
-                  { index: 0, function: { arguments: ':"Tokyo"}' } },
-                ],
-              },
-            },
-          ],
-        }),
-        JSON.stringify({
-          choices: [{ delta: {}, finish_reason: "tool_calls" }],
-        }),
-      ]),
-    );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
-
-    await expect(
-      collectStream(provider.stream(request)),
-    ).resolves.toEqual([
-      {
-        type: "tool-call",
-        toolCall: {
-          id: "call-1",
-          name: "weather",
-          arguments: { city: "Tokyo" },
-        },
-      },
-      { type: "finish", finishReason: "tool_calls" },
-    ]);
-  });
-
   test("throws a ProviderHttpError before any event on a non-2xx", async () => {
     const { fetchStub } = stubFetch(
-      () => new Response("rate limited", { status: 429 }),
+      () =>
+        new Response(JSON.stringify({ error: "model 'x' not found" }), {
+          status: 404,
+        }),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const events: StreamEvent[] = [];
     const error = await collectStream(
@@ -497,19 +380,15 @@ describe("createOpenRouterProvider stream", () => {
     expect(events).toEqual([]);
     expect(error).toBeInstanceOf(ProviderHttpError);
     const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("OpenRouter request failed: 429");
-    expect(httpError.status).toBe(429);
-    expect(httpError.body).toBe("rate limited");
+    expect(httpError.message).toBe("Ollama request failed: 404");
+    expect(httpError.status).toBe(404);
   });
 
   test("throws a ProviderHttpError when the answer carries no body", async () => {
     const { fetchStub } = stubFetch(
       () => new Response(null, { status: 204 }),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await collectStream(provider.stream(request)).catch(
       (caught: unknown) => caught,
@@ -517,7 +396,7 @@ describe("createOpenRouterProvider stream", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("OpenRouter response has no body");
+    expect(httpError.message).toBe("Ollama response has no body");
     expect(httpError.status).toBe(204);
     expect(httpError.body).toBe("");
   });
@@ -527,10 +406,7 @@ describe("createOpenRouterProvider stream", () => {
     const { fetchStub } = stubFetch(() => {
       throw failure;
     });
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await collectStream(provider.stream(request)).catch(
       (caught: unknown) => caught,
@@ -539,23 +415,21 @@ describe("createOpenRouterProvider stream", () => {
     expect(error).toBeInstanceOf(ProviderTransportError);
     const transportError = error as ProviderTransportError;
     expect(transportError.message).toBe(
-      "OpenRouter request failed to send",
+      "Ollama request failed to send",
     );
     expect(transportError.cause).toBe(failure);
   });
 
   test("throws a ProviderTransportError when the body fails midway", async () => {
     const failure = new Error("connection reset");
-    const prelude = `data: ${JSON.stringify({
-      choices: [{ delta: { content: "24" } }],
-    })}\n\n`;
+    const prelude = `${JSON.stringify({
+      message: { content: "24" },
+      done: false,
+    })}\n`;
     const { fetchStub } = stubFetch(() =>
       erroringResponse(failure, prelude),
     );
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const events: StreamEvent[] = [];
     const error = await collectStream(
@@ -567,7 +441,7 @@ describe("createOpenRouterProvider stream", () => {
     expect(error).toBeInstanceOf(ProviderTransportError);
     const transportError = error as ProviderTransportError;
     expect(transportError.message).toBe(
-      "OpenRouter response failed to read",
+      "Ollama response failed to read",
     );
     expect(transportError.cause).toBe(failure);
   });
@@ -576,10 +450,7 @@ describe("createOpenRouterProvider stream", () => {
     const abort = new Error("The operation was aborted");
     abort.name = "AbortError";
     const { fetchStub } = stubFetch(() => erroringResponse(abort));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await collectStream(provider.stream(request)).catch(
       (caught: unknown) => caught,
@@ -588,12 +459,11 @@ describe("createOpenRouterProvider stream", () => {
     expect(error).toBe(abort);
   });
 
-  test("throws a ProviderHttpError when a streamed payload is not JSON", async () => {
-    const { fetchStub } = stubFetch(() => sseResponse(["<html>"]));
-    const provider = createOpenRouterProvider({
-      apiKey: "test-key",
-      fetch: fetchStub,
-    });
+  test("throws a ProviderHttpError when a streamed chunk is not JSON", async () => {
+    const { fetchStub } = stubFetch(
+      () => new Response("<html>\n", { status: 200 }),
+    );
+    const provider = createOllamaProvider({ fetch: fetchStub });
 
     const error = await collectStream(provider.stream(request)).catch(
       (caught: unknown) => caught,
@@ -601,9 +471,7 @@ describe("createOpenRouterProvider stream", () => {
 
     expect(error).toBeInstanceOf(ProviderHttpError);
     const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe(
-      "OpenRouter stream chunk is not JSON",
-    );
+    expect(httpError.message).toBe("Ollama stream chunk is not JSON");
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe("<html>");
   });

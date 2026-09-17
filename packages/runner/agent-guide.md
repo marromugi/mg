@@ -101,6 +101,7 @@ Field meanings, how they combine, and how to read the output back are in
 | Kind     | Factory                             | Import from |
 | -------- | ----------------------------------- | ----------- |
 | Provider | `createOpenRouterProvider(options)` | `@mg/core`  |
+| Provider | `createOllamaProvider(options)`     | `@mg/core`  |
 | Tool     | `createBashTool(options)`           | `@mg/tools` |
 | Gate     | `createLlmGate(options)`            | `@mg/gate`  |
 
@@ -113,6 +114,17 @@ if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
 const provider = createOpenRouterProvider({ apiKey });
+const tool = createBashTool({ cwd: process.cwd() });
+```
+
+`createOllamaProvider` talks to a local (or self-hosted) ollama server
+instead. It takes no API key; `baseUrl` defaults to `http://localhost:11434`:
+
+```ts
+import { createOllamaProvider } from "@mg/core";
+import { createBashTool } from "@mg/tools";
+
+const provider = createOllamaProvider({ think: false });
 const tool = createBashTool({ cwd: process.cwd() });
 ```
 

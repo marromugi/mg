@@ -35,6 +35,15 @@ const validate = (path: string, value: unknown): RunConfig => {
       "provider.stream must be a function",
     );
   }
+  if (
+    value.provider.name !== undefined &&
+    typeof value.provider.name !== "string"
+  ) {
+    throw new InvalidRunConfigError(
+      path,
+      "provider.name must be a string",
+    );
+  }
 
   if (!isObject(value.harness)) {
     throw new InvalidRunConfigError(path, "harness must be an object");

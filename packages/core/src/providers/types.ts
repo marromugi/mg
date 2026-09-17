@@ -53,6 +53,7 @@ export type StreamEvent =
   | { type: "finish"; finishReason: FinishReason; usage?: Usage };
 
 export interface Provider {
+  readonly name?: string;
   generate(request: GenerateRequest): Promise<GenerateResponse>;
   stream(request: GenerateRequest): AsyncIterable<StreamEvent>;
 }

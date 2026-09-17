@@ -24,6 +24,7 @@ describe("mapGenAiAttributes", () => {
   it("maps all seven rows plus provider.name for an mg.llm span", () => {
     const mapped = mapGenAiAttributes({
       [ATTR.op]: "llm",
+      [ATTR.llmProvider]: "openrouter",
       [ATTR.llmModel]: "gpt-4",
       [ATTR.llmInputTokens]: 10,
       [ATTR.llmOutputTokens]: 20,
@@ -136,10 +137,21 @@ describe("mapGenAiAttributes", () => {
 
     const mapped = mapGenAiAttributes({
       [ATTR.op]: "llm",
+      [ATTR.llmProvider]: "openrouter",
       [ATTR.llmInputMessages]: "not json",
     });
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
     expect(mapped["gen_ai.provider.name"]).toBe("openrouter");
+  });
+
+  it("omits gen_ai.provider.name when mg.llm.provider is absent", () => {
+    const mapped = mapGenAiAttributes({
+      [ATTR.op]: "llm",
+      [ATTR.llmModel]: "gpt-4",
+    });
+
+    expect(mapped["gen_ai.provider.name"]).toBeUndefined();
+    expect("gen_ai.provider.name" in mapped).toBe(false);
   });
 
   it("drops null and non-object elements from the message array without throwing", () => {

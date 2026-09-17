@@ -49,6 +49,14 @@ describe("loadRun", () => {
     expect(config.gate).toBeDefined();
   });
 
+  test("rejects with InvalidRunConfigError when provider.name is not a string", async () => {
+    await expect(
+      loadRun("src/__fixtures__/invalid-provider-name.ts"),
+    ).rejects.toThrow(
+      /src\/__fixtures__\/invalid-provider-name\.ts.*provider\.name must be a string/,
+    );
+  });
+
   test("propagates import failures for a missing file", async () => {
     await expect(
       loadRun("src/__fixtures__/does-not-exist.ts"),

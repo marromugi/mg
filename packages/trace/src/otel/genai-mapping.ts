@@ -16,8 +16,6 @@ const GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages";
 const GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages";
 const GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons";
 
-const PROVIDER_NAME = "openrouter";
-
 const OPERATION_NAMES: Record<string, string> = {
   harness: "invoke_agent",
   llm: "chat",
@@ -119,9 +117,12 @@ const mapOutputMessages = (
 };
 
 const mapLlmAttributes = (attributes: Attributes): Attributes => {
-  const mapped: Attributes = {
-    [GEN_AI_PROVIDER_NAME]: PROVIDER_NAME, // gen_ai.provider.name
-  };
+  const mapped: Attributes = {};
+
+  const providerName = attributes[ATTR.llmProvider];
+  if (typeof providerName === "string") {
+    mapped[GEN_AI_PROVIDER_NAME] = providerName; // gen_ai.provider.name
+  }
 
   const model = attributes[ATTR.llmModel];
   if (typeof model === "string") {

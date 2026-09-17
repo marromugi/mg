@@ -54,6 +54,7 @@ describe("GenAiMappingExporter", () => {
 
     const mgAttributes = {
       [ATTR.op]: "llm",
+      [ATTR.llmProvider]: "openrouter",
       [ATTR.llmModel]: "gpt-4",
       [ATTR.llmInputTokens]: 10,
       [ATTR.llmOutputTokens]: 20,

@@ -4,6 +4,7 @@ import type {
   Provider,
   ToolDefinition,
 } from "@mg/core";
+import { toolCallsOf } from "@mg/core";
 import { noopSpan } from "@mg/harness";
 import { ATTR, traceProvider } from "@mg/trace";
 import { z } from "zod";
@@ -86,7 +87,7 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
             });
           }
 
-          const call = response.toolCalls.find(
+          const call = toolCallsOf(response).find(
             (toolCall) => toolCall.name === "verdict",
           );
           if (call === undefined) {

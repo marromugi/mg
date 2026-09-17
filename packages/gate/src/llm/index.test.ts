@@ -289,7 +289,7 @@ describe("createLlmGate", () => {
     expect(llmSpan.attributes[ATTR.llmModel]).toBe("m");
   });
 
-  test("does not record a span when context has no trace", async () => {
+  test("does not record a span and calls the provider directly when context has no trace", async () => {
     const provider = stubProvider(() =>
       verdictResponse({ allowed: true, reason: "ok" }),
     );
@@ -303,5 +303,7 @@ describe("createLlmGate", () => {
       allowed: true,
       reason: "ok",
     });
+
+    expect(provider.generate).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,6 +4,7 @@ import type {
   Provider,
   ToolDefinition,
 } from "@mg/core";
+import { noopSpan } from "@mg/harness";
 import { ATTR, traceProvider } from "@mg/trace";
 import { z } from "zod";
 import { isAbortError } from "../abort.js";
@@ -57,7 +58,10 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
         request,
         { [ATTR.gateModel]: model },
         async (span) => {
-          const tracedProvider = traceProvider(provider, span);
+          const tracedProvider =
+            span === noopSpan
+              ? provider
+              : traceProvider(provider, span);
 
           const generateRequest: GenerateRequest = {
             model,

@@ -154,5 +154,5 @@ export const createOpenRouterProvider = (
     request: GenerateRequest,
   ): AsyncIterable<StreamEvent> => runStream(request);
 
-  return { generate, stream };
+  return { name: "openrouter", generate, stream };
 };

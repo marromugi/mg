@@ -12,6 +12,7 @@ export const ATTR = {
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
   llmModel: "mg.llm.model",
+  llmProvider: "mg.llm.provider",
   llmStream: "mg.llm.stream", // boolean
   llmFinishReason: "mg.llm.finish_reason",
   llmInputTokens: "mg.llm.usage.input_tokens",

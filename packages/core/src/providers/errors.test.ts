@@ -5,6 +5,7 @@ import {
   ProviderBaseError,
   ProviderHttpError,
   ProviderTransportError,
+  ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
 } from "./errors.js";
@@ -86,6 +87,24 @@ describe("ToolSchemaError", () => {
   });
 });
 
+describe("ProviderUnsupportedError", () => {
+  test("carries the unsupported feature", () => {
+    const error = new ProviderUnsupportedError(
+      "Ollama does not support forcing tool use",
+      "tool-choice",
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(ProviderBaseError);
+    expect(error.name).toBe("ProviderUnsupportedError");
+    expect(error.message).toBe(
+      "Ollama does not support forcing tool use",
+    );
+    expect(error.feature).toBe("tool-choice");
+    expect(error.cause).toBeUndefined();
+  });
+});
+
 describe("ProviderBaseError", () => {
   test("cannot be constructed directly", () => {
     // @ts-expect-error ProviderBaseError is abstract
@@ -109,6 +128,9 @@ describe("ProviderBaseError", () => {
         case "ToolSchemaError":
           expectTypeOf(error).toEqualTypeOf<ToolSchemaError>();
           return `schema:${error.toolName}`;
+        case "ProviderUnsupportedError":
+          expectTypeOf(error).toEqualTypeOf<ProviderUnsupportedError>();
+          return `unsupported:${error.feature}`;
       }
     };
 
@@ -126,6 +148,9 @@ describe("ProviderBaseError", () => {
     expect(
       describeError(new ToolSchemaError("weather", { cause })),
     ).toBe("schema:weather");
+    expect(
+      describeError(new ProviderUnsupportedError("x", "tool-choice")),
+    ).toBe("unsupported:tool-choice");
   });
 });
 
@@ -144,6 +169,9 @@ describe("isProviderError", () => {
     ).toBe(true);
     expect(
       isProviderError(new ToolSchemaError("weather", { cause })),
+    ).toBe(true);
+    expect(
+      isProviderError(new ProviderUnsupportedError("x", "tool-choice")),
     ).toBe(true);
   });
 
@@ -173,6 +201,11 @@ describe("isProviderError", () => {
             case "ToolSchemaError":
               expectTypeOf(error).toEqualTypeOf<ToolSchemaError>();
               return `schema:${error.toolName}`;
+            case "ProviderUnsupportedError":
+              expectTypeOf(
+                error,
+              ).toEqualTypeOf<ProviderUnsupportedError>();
+              return `unsupported:${error.feature}`;
           }
         }
 
@@ -195,6 +228,9 @@ describe("isProviderError", () => {
     expect(
       describeThrown(new ToolSchemaError("weather", { cause })),
     ).toBe("schema:weather");
+    expect(
+      describeThrown(new ProviderUnsupportedError("x", "tool-choice")),
+    ).toBe("unsupported:tool-choice");
     expect(describeThrown(new Error("plain"))).toBe("other");
   });
 });

@@ -68,11 +68,22 @@ export class ToolSchemaError extends ProviderBaseError {
   }
 }
 
+export class ProviderUnsupportedError extends ProviderBaseError {
+  override readonly name = "ProviderUnsupportedError";
+  readonly feature: string;
+
+  constructor(message: string, feature: string) {
+    super(message);
+    this.feature = feature;
+  }
+}
+
 export type ProviderError =
   | ProviderHttpError
   | ProviderTransportError
   | ToolArgumentsError
-  | ToolSchemaError;
+  | ToolSchemaError
+  | ProviderUnsupportedError;
 
 export type ProviderErrorName = ProviderError["name"];
 

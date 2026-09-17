@@ -88,7 +88,7 @@ describe("Message", () => {
           return `user:${message.content}`;
         case "assistant":
           expectTypeOf(message).toEqualTypeOf<AssistantMessage>();
-          return `assistant:${message.toolCalls?.length ?? 0}`;
+          return `assistant:${message.parts.length}`;
         case "tool":
           expectTypeOf(message).toEqualTypeOf<ToolMessage>();
           return `tool:${message.toolCallId}`;
@@ -104,9 +104,9 @@ describe("Message", () => {
     expect(
       describeMessage({
         role: "assistant",
-        content: "",
-        toolCalls: [
+        parts: [
           {
+            type: "tool-call",
             id: "call-1",
             name: "weather",
             arguments: { city: "Tokyo" },

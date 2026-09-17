@@ -4,8 +4,7 @@ import { defineRun } from "../config.js";
 
 const provider: Provider = {
   generate: async (): Promise<GenerateResponse> => ({
-    content: "hi",
-    toolCalls: [],
+    parts: [{ type: "text", text: "hi" }],
     finishReason: "stop",
   }),
   stream: (): AsyncIterable<StreamEvent> => {

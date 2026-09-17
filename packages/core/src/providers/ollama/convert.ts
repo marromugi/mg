@@ -4,7 +4,9 @@ import {
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
+import { textOf, toolCallsOf } from "../parts.js";
 import type {
+  AssistantPart,
   FinishReason,
   GenerateRequest,
   GenerateResponse,
@@ -72,18 +74,17 @@ const toMessages = (messages: Message[]): OllamaMessage[] => {
       case "user":
         return { role: "user", content: message.content };
       case "assistant": {
-        const toolCalls = message.toolCalls;
-        if (toolCalls !== undefined) {
-          for (const toolCall of toolCalls) {
-            toolNames.set(toolCall.id, toolCall.name);
-          }
+        const content = textOf(message);
+        const toolCalls = toolCallsOf(message);
+        for (const toolCall of toolCalls) {
+          toolNames.set(toolCall.id, toolCall.name);
         }
-        if (toolCalls === undefined || toolCalls.length === 0) {
-          return { role: "assistant", content: message.content };
+        if (toolCalls.length === 0) {
+          return { role: "assistant", content };
         }
         return {
           role: "assistant",
-          content: message.content,
+          content,
           tool_calls: toolCalls.map((toolCall) => ({
             id: toolCall.id,
             function: {
@@ -269,9 +270,17 @@ export const fromOllamaResponse = (body: unknown): GenerateResponse => {
     toToolCall(toolCall, index),
   );
 
+  const parts: AssistantPart[] = [];
+  const content = message.content ?? "";
+  if (content !== "") {
+    parts.push({ type: "text", text: content });
+  }
+  for (const toolCall of toolCalls) {
+    parts.push({ type: "tool-call", ...toolCall });
+  }
+
   const response: GenerateResponse = {
-    content: message.content ?? "",
-    toolCalls,
+    parts,
     finishReason: toFinishReason(
       parsed.done_reason,
       toolCalls.length > 0,

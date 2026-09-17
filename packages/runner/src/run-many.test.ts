@@ -61,8 +61,7 @@ describe("runMany", () => {
   test("3 cases, concurrency 1: outcomes in input order, distinct session ids, each root span carries its case id", async () => {
     const exporter = new InMemorySpanExporter();
     const provider = providerByLastMessage((id) => ({
-      content: id,
-      toolCalls: [],
+      parts: [{ type: "text", text: id }],
       finishReason: "stop",
     }));
     const config = baseConfig(provider, exporter);
@@ -128,17 +127,20 @@ describe("runMany", () => {
 
     await waitFor(() => calls.length === 2);
     expect(active).toBe(2);
-    controllers
-      .get("a")!
-      .resolve({ content: "a", toolCalls: [], finishReason: "stop" });
+    controllers.get("a")!.resolve({
+      parts: [{ type: "text", text: "a" }],
+      finishReason: "stop",
+    });
     await waitFor(() => calls.includes("c"));
     expect(active).toBe(2);
-    controllers
-      .get("b")!
-      .resolve({ content: "b", toolCalls: [], finishReason: "stop" });
-    controllers
-      .get("c")!
-      .resolve({ content: "c", toolCalls: [], finishReason: "stop" });
+    controllers.get("b")!.resolve({
+      parts: [{ type: "text", text: "b" }],
+      finishReason: "stop",
+    });
+    controllers.get("c")!.resolve({
+      parts: [{ type: "text", text: "c" }],
+      finishReason: "stop",
+    });
 
     const outcomes = await resultPromise;
 
@@ -152,7 +154,10 @@ describe("runMany", () => {
   test("one case's provider throws: that outcome has error, the other two have result", async () => {
     const provider = providerByLastMessage((id) => {
       if (id === "b") throw new Error("boom");
-      return { content: id, toolCalls: [], finishReason: "stop" };
+      return {
+        parts: [{ type: "text", text: id }],
+        finishReason: "stop",
+      };
     });
     const config = baseConfig(provider);
     const cases = ["a", "b", "c"].map(makeCase);
@@ -166,8 +171,7 @@ describe("runMany", () => {
 
   test("concurrency: 0 rejects with a RangeError", async () => {
     const provider = providerByLastMessage((id) => ({
-      content: id,
-      toolCalls: [],
+      parts: [{ type: "text", text: id }],
       finishReason: "stop",
     }));
     const config = baseConfig(provider);
@@ -179,8 +183,7 @@ describe("runMany", () => {
 
   test("concurrency: NaN rejects with a RangeError", async () => {
     const provider = providerByLastMessage((id) => ({
-      content: id,
-      toolCalls: [],
+      parts: [{ type: "text", text: id }],
       finishReason: "stop",
     }));
     const config = baseConfig(provider);
@@ -192,8 +195,7 @@ describe("runMany", () => {
 
   test("concurrency: 1.5 rejects with a RangeError", async () => {
     const provider = providerByLastMessage((id) => ({
-      content: id,
-      toolCalls: [],
+      parts: [{ type: "text", text: id }],
       finishReason: "stop",
     }));
     const config = baseConfig(provider);
@@ -211,7 +213,10 @@ describe("runMany", () => {
         const id = lastUserContent(request.messages);
         calls.push(id);
         controller.abort();
-        return { content: id, toolCalls: [], finishReason: "stop" };
+        return {
+          parts: [{ type: "text", text: id }],
+          finishReason: "stop",
+        };
       },
       stream: () => {
         throw new Error("stream is not scripted");

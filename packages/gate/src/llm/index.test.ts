@@ -50,8 +50,14 @@ const stubProvider = (
 const verdictResponse = (
   args: Record<string, unknown>,
 ): GenerateResponse => ({
-  content: "",
-  toolCalls: [{ id: "call-1", name: "verdict", arguments: args }],
+  parts: [
+    {
+      type: "tool-call",
+      id: "call-1",
+      name: "verdict",
+      arguments: args,
+    },
+  ],
   finishReason: "tool_calls",
 });
 
@@ -138,8 +144,7 @@ describe("createLlmGate", () => {
 
   test("throws GateError when no toolCalls are returned", async () => {
     const provider = stubProvider(() => ({
-      content: "no tools called",
-      toolCalls: [],
+      parts: [{ type: "text", text: "no tools called" }],
       finishReason: "stop",
     }));
     const gate = createLlmGate({

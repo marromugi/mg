@@ -1,4 +1,5 @@
 import type {
+  AssistantPart,
   GenerateResponse,
   Provider,
   StreamEvent,
@@ -135,8 +136,7 @@ describe("createLoopHarness", () => {
     };
     const provider = stubProvider([
       {
-        content: "hello",
-        toolCalls: [],
+        parts: [{ type: "text", text: "hello" }],
         finishReason: "stop",
         usage: { inputTokens: 3, outputTokens: 5 },
       },
@@ -176,7 +176,10 @@ describe("createLoopHarness", () => {
 
   test("finishReason length without tool calls yields done(length)", async () => {
     const provider = stubProvider([
-      { content: "cut off", toolCalls: [], finishReason: "length" },
+      {
+        parts: [{ type: "text", text: "cut off" }],
+        finishReason: "length",
+      },
     ]);
     const harness = createLoopHarness({
       provider,
@@ -204,8 +207,7 @@ describe("createLoopHarness", () => {
     });
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
     ]);
@@ -285,8 +287,7 @@ describe("createLoopHarness", () => {
     const generate = vi.fn(async () => {
       controller.abort();
       return {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call" as const, ...toolCall }],
         finishReason: "tool_calls" as const,
       };
     });
@@ -313,8 +314,7 @@ describe("createLoopHarness", () => {
 
   test("collect returns the same result as the done event", async () => {
     const response: GenerateResponse = {
-      content: "hi",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
       usage: { inputTokens: 1, outputTokens: 1 },
     };
@@ -375,14 +375,15 @@ describe("createLoopHarness", () => {
     ];
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls,
+        parts: toolCalls.map((toolCall): AssistantPart => ({
+          type: "tool-call",
+          ...toolCall,
+        })),
         finishReason: "tool_calls",
         usage: { inputTokens: 2, outputTokens: 3 },
       },
       {
-        content: "done",
-        toolCalls: [],
+        parts: [{ type: "text", text: "done" }],
         finishReason: "stop",
         usage: { inputTokens: 4, outputTokens: 6 },
       },
@@ -545,7 +546,16 @@ describe("createLoopHarness", () => {
     }
 
     const batchProvider = stubProvider([
-      { content: "thinking...", toolCalls, finishReason: "tool_calls" },
+      {
+        parts: [
+          { type: "text", text: "thinking..." },
+          ...toolCalls.map((toolCall): AssistantPart => ({
+            type: "tool-call",
+            ...toolCall,
+          })),
+        ],
+        finishReason: "tool_calls",
+      },
     ]);
     const batchHarness = createLoopHarness({
       provider: batchProvider,
@@ -589,7 +599,7 @@ describe("createLoopHarness", () => {
 
   test("stream: false uses generate and never calls stream", async () => {
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const harness = createLoopHarness({
       provider,
@@ -695,8 +705,17 @@ describe("createLoopHarness", () => {
       { id: "call-2", name: "b", arguments: {} },
     ];
     const provider = stubProvider([
-      { content: "", toolCalls, finishReason: "tool_calls" },
-      { content: "done", toolCalls: [], finishReason: "stop" },
+      {
+        parts: toolCalls.map((toolCall): AssistantPart => ({
+          type: "tool-call",
+          ...toolCall,
+        })),
+        finishReason: "tool_calls",
+      },
+      {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      },
     ]);
     const harness = createLoopHarness({
       provider,
@@ -758,8 +777,7 @@ describe("createLoopHarness", () => {
     };
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
     ]);
@@ -791,11 +809,13 @@ describe("createLoopHarness", () => {
     });
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
-      { content: "done", toolCalls: [], finishReason: "stop" },
+      {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      },
     ]);
     const harness = createLoopHarness({
       provider,
@@ -852,8 +872,7 @@ describe("createLoopHarness", () => {
 
   test("input.trace omitted leaves the loop's result unchanged from the traced case", async () => {
     const response: GenerateResponse = {
-      content: "hi",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
       usage: { inputTokens: 1, outputTokens: 1 },
     };
@@ -884,8 +903,7 @@ describe("createLoopHarness", () => {
 
   test("input.trace omitted does not call traceProvider or traceRunToolCall", async () => {
     const response: GenerateResponse = {
-      content: "hi",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
     };
     const harness = createLoopHarness({
@@ -903,8 +921,7 @@ describe("createLoopHarness", () => {
 
   test("input.trace passed calls traceProvider and traceRunToolCall once each", async () => {
     const response: GenerateResponse = {
-      content: "hi",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
     };
     const harness = createLoopHarness({
@@ -935,11 +952,13 @@ describe("createLoopHarness", () => {
     };
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
-      { content: "done", toolCalls: [], finishReason: "stop" },
+      {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      },
     ]);
     const gate = stubGate(async (): Promise<Verdict> => ({
       allowed: false,
@@ -993,8 +1012,7 @@ describe("createLoopHarness", () => {
     };
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
     ]);
@@ -1035,11 +1053,13 @@ describe("createLoopHarness", () => {
     };
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
-      { content: "done", toolCalls: [], finishReason: "stop" },
+      {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      },
     ]);
     const gate = stubGate(
       async (request, context): Promise<Verdict> => {

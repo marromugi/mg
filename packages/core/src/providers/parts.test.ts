@@ -19,25 +19,28 @@ const toolCall: ToolCall = {
   arguments: { query: "weather" },
 };
 
-const empty: AssistantMessage = { role: "assistant", content: "" };
+const empty: AssistantMessage = { role: "assistant", parts: [] };
 const textOnly: AssistantMessage = {
   role: "assistant",
-  content: "hello",
+  parts: [{ type: "text", text: "hello" }],
 };
 const toolCallsOnly: AssistantMessage = {
   role: "assistant",
-  content: "",
-  toolCalls: [toolCall],
+  parts: [{ type: "tool-call", ...toolCall }],
 };
 const mixed: AssistantMessage = {
   role: "assistant",
-  content: "hello",
-  toolCalls: [toolCall],
+  parts: [
+    { type: "text", text: "hello" },
+    { type: "tool-call", ...toolCall },
+  ],
 };
 
 const response: GenerateResponse = {
-  content: "hi",
-  toolCalls: [toolCall],
+  parts: [
+    { type: "text", text: "hi" },
+    { type: "tool-call", ...toolCall },
+  ],
   finishReason: "stop",
 };
 
@@ -71,6 +74,13 @@ describe("partsOf", () => {
       { type: "tool-call", ...toolCall },
     ]);
   });
+
+  test("returns a copy, not the source array", () => {
+    const parts = partsOf(textOnly);
+    parts.push({ type: "text", text: "extra" });
+
+    expect(textOnly.parts).toEqual([{ type: "text", text: "hello" }]);
+  });
 });
 
 describe("textOf", () => {
@@ -88,6 +98,18 @@ describe("textOf", () => {
 
   test("mixed input yields just the text", () => {
     expect(textOf(mixed)).toBe("hello");
+  });
+
+  test("joins several text parts", () => {
+    const message: AssistantMessage = {
+      role: "assistant",
+      parts: [
+        { type: "text", text: "hel" },
+        { type: "text", text: "lo" },
+      ],
+    };
+
+    expect(textOf(message)).toBe("hello");
   });
 });
 
@@ -125,39 +147,30 @@ describe("reasoningOf", () => {
   test("mixed input yields an empty string", () => {
     expect(reasoningOf(mixed)).toBe("");
   });
+
+  test("joins several reasoning parts with a newline", () => {
+    const message: AssistantMessage = {
+      role: "assistant",
+      parts: [
+        { type: "reasoning", text: "first" },
+        { type: "text", text: "hello" },
+        { type: "reasoning", text: "second" },
+      ],
+    };
+
+    expect(reasoningOf(message)).toBe("first\nsecond");
+  });
 });
 
 describe("assistantMessage", () => {
   test("empty parts yields an empty message", () => {
     expect(assistantMessage([])).toEqual({
       role: "assistant",
-      content: "",
+      parts: [],
     });
   });
 
-  test("text parts fold into content", () => {
-    const parts: AssistantPart[] = [
-      { type: "text", text: "hel" },
-      { type: "text", text: "lo" },
-    ];
-
-    expect(assistantMessage(parts)).toEqual({
-      role: "assistant",
-      content: "hello",
-    });
-  });
-
-  test("tool-call parts fold into toolCalls", () => {
-    const parts: AssistantPart[] = [{ type: "tool-call", ...toolCall }];
-
-    expect(assistantMessage(parts)).toEqual({
-      role: "assistant",
-      content: "",
-      toolCalls: [toolCall],
-    });
-  });
-
-  test("mixed parts fold into content and toolCalls", () => {
+  test("keeps parts in order", () => {
     const parts: AssistantPart[] = [
       { type: "text", text: "hello" },
       { type: "tool-call", ...toolCall },
@@ -165,12 +178,11 @@ describe("assistantMessage", () => {
 
     expect(assistantMessage(parts)).toEqual({
       role: "assistant",
-      content: "hello",
-      toolCalls: [toolCall],
+      parts,
     });
   });
 
-  test("drops reasoning parts", () => {
+  test("keeps reasoning parts", () => {
     const parts: AssistantPart[] = [
       { type: "reasoning", text: "thinking" },
       { type: "text", text: "hello" },
@@ -178,7 +190,31 @@ describe("assistantMessage", () => {
 
     expect(assistantMessage(parts)).toEqual({
       role: "assistant",
-      content: "hello",
+      parts,
+    });
+  });
+
+  test("drops empty-text parts", () => {
+    const parts: AssistantPart[] = [
+      { type: "text", text: "" },
+      { type: "tool-call", ...toolCall },
+    ];
+
+    expect(assistantMessage(parts)).toEqual({
+      role: "assistant",
+      parts: [{ type: "tool-call", ...toolCall }],
+    });
+  });
+
+  test("keeps several non-empty text parts distinct", () => {
+    const parts: AssistantPart[] = [
+      { type: "text", text: "hel" },
+      { type: "text", text: "lo" },
+    ];
+
+    expect(assistantMessage(parts)).toEqual({
+      role: "assistant",
+      parts,
     });
   });
 
@@ -198,6 +234,15 @@ describe("assistantMessage", () => {
     const parts: AssistantPart[] = [
       { type: "text", text: "hello" },
       { type: "tool-call", ...toolCall },
+    ];
+
+    expect(partsOf(assistantMessage(parts))).toEqual(parts);
+  });
+
+  test("round trips reasoning through partsOf", () => {
+    const parts: AssistantPart[] = [
+      { type: "reasoning", text: "thinking" },
+      { type: "text", text: "hello" },
     ];
 
     expect(partsOf(assistantMessage(parts))).toEqual(parts);

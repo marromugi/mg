@@ -1,14 +1,14 @@
 import {
   assistantMessage,
-  textOf,
-  toolCallsOf,
+  createPartsAccumulator,
+  partsOf,
   type AssistantPart,
   type FinishReason,
   type GenerateRequest,
   type GenerateResponse,
+  type Message,
   type Provider,
   type StreamEvent,
-  type ToolCall,
   type Usage,
 } from "@mg/core";
 import {
@@ -21,6 +21,16 @@ import { endSpan, setSpanAttributes } from "./span-guard.js";
 import { ATTR, SPAN } from "./vocabulary.js";
 
 export const STREAM_INCOMPLETE_MESSAGE = "stream ended without finish";
+
+const stripReasoningCarry = (part: AssistantPart): AssistantPart =>
+  part.type === "reasoning"
+    ? { type: "reasoning", text: part.text }
+    : part;
+
+const stripCarryFromMessage = (message: Message): Message =>
+  message.role === "assistant"
+    ? { ...message, parts: message.parts.map(stripReasoningCarry) }
+    : message;
 
 const startLlmSpan = (
   parent: TraceSpan,
@@ -36,38 +46,25 @@ const startLlmSpan = (
         : {}),
       [ATTR.llmModel]: request.model,
       [ATTR.llmStream]: stream,
-      [ATTR.llmInputMessages]: jsonAttribute(request.messages),
+      [ATTR.llmInputMessages]: jsonAttribute(
+        request.messages.map(stripCarryFromMessage),
+      ),
     });
   } catch {
     return noopSpan;
   }
 };
 
-const partsOfOutcome = (
-  content: string,
-  toolCalls: readonly ToolCall[],
-): AssistantPart[] => {
-  const parts: AssistantPart[] = [];
-  if (content !== "") {
-    parts.push({ type: "text", text: content });
-  }
-  for (const toolCall of toolCalls) {
-    parts.push({ type: "tool-call", ...toolCall });
-  }
-  return parts;
-};
-
 const setOutputAttributes = (
   span: TraceSpan,
   outcome: {
-    content: string;
-    toolCalls: ToolCall[];
+    parts: AssistantPart[];
     finishReason?: FinishReason;
     usage?: Usage;
   },
 ): void => {
   const message = assistantMessage(
-    partsOfOutcome(outcome.content, outcome.toolCalls),
+    outcome.parts.map(stripReasoningCarry),
   );
 
   const attributes: TraceAttributes = {
@@ -96,8 +93,7 @@ const traceGenerate = async (
   try {
     const response = await provider.generate(request);
     setOutputAttributes(span, {
-      content: textOf(response),
-      toolCalls: toolCallsOf(response),
+      parts: partsOf(response),
       finishReason: response.finishReason,
       usage: response.usage,
     });
@@ -116,8 +112,7 @@ async function* traceStream(
 ): AsyncGenerator<StreamEvent, void, unknown> {
   const span = startLlmSpan(parent, provider, request, true);
 
-  let content = "";
-  const toolCalls: ToolCall[] = [];
+  const accumulator = createPartsAccumulator();
   let finishReason: FinishReason | undefined;
   let usage: Usage | undefined;
   let finished = false;
@@ -125,11 +120,8 @@ async function* traceStream(
 
   try {
     for await (const event of provider.stream(request)) {
-      if (event.type === "text-delta") {
-        content += event.delta;
-      } else if (event.type === "tool-call") {
-        toolCalls.push(event.toolCall);
-      } else if (event.type === "finish") {
+      accumulator.push(event);
+      if (event.type === "finish") {
         finished = true;
         finishReason = event.finishReason;
         usage = event.usage;
@@ -139,8 +131,7 @@ async function* traceStream(
 
     ended = true;
     setOutputAttributes(span, {
-      content,
-      toolCalls,
+      parts: accumulator.parts(),
       finishReason,
       usage,
     });

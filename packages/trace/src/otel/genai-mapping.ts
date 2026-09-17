@@ -24,6 +24,7 @@ const OPERATION_NAMES: Record<string, string> = {
 
 type GenAiPart =
   | { type: "text"; content: string }
+  | { type: "reasoning"; content: string }
   | {
       type: "tool_call";
       id?: string;
@@ -44,12 +45,45 @@ const isMessageLike = (value: unknown): value is MessageLike =>
   value !== null &&
   typeof (value as { role?: unknown }).role === "string";
 
+const toStoredAssistantPart = (
+  value: unknown,
+): GenAiPart | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const part = value as Record<string, unknown>;
+  switch (part.type) {
+    case "text":
+      return typeof part.text === "string"
+        ? { type: "text", content: part.text }
+        : undefined;
+    case "reasoning":
+      return typeof part.text === "string"
+        ? { type: "reasoning", content: part.text }
+        : undefined;
+    case "tool-call":
+      return typeof part.name === "string"
+        ? {
+            type: "tool_call",
+            id: typeof part.id === "string" ? part.id : undefined,
+            name: part.name,
+            arguments: part.arguments,
+          }
+        : undefined;
+    default:
+      return undefined;
+  }
+};
+
 const toParts = (message: MessageLike): GenAiPart[] => {
   switch (message.role) {
     case "system":
     case "user":
       return [{ type: "text", content: message.content as string }];
     case "assistant": {
+      if (Array.isArray(message.parts)) {
+        return message.parts
+          .map(toStoredAssistantPart)
+          .filter((part): part is GenAiPart => part !== undefined);
+      }
       const parts: GenAiPart[] = [];
       const content = message.content as string;
       if (content !== "") {

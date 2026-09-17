@@ -59,10 +59,36 @@ describe("toStreamEvents", () => {
     ]);
   });
 
-  test("ignores thinking and skips empty content", async () => {
+  test("yields reasoning-delta and skips empty content", async () => {
     const events = await collect([
       textChunk("", "let me think"),
       textChunk("answer"),
+      doneChunk("stop"),
+    ]);
+
+    expect(events).toEqual([
+      { type: "reasoning-delta", delta: "let me think" },
+      { type: "text-delta", delta: "answer" },
+      { type: "finish", finishReason: "stop" },
+    ]);
+  });
+
+  test("yields reasoning-delta before text-delta within the same chunk", async () => {
+    const events = await collect([
+      textChunk("answer", "let me think"),
+      doneChunk("stop"),
+    ]);
+
+    expect(events).toEqual([
+      { type: "reasoning-delta", delta: "let me think" },
+      { type: "text-delta", delta: "answer" },
+      { type: "finish", finishReason: "stop" },
+    ]);
+  });
+
+  test("skips an empty thinking string", async () => {
+    const events = await collect([
+      textChunk("answer", ""),
       doneChunk("stop"),
     ]);
 

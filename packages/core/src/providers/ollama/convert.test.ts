@@ -159,10 +159,11 @@ describe("toOllamaRequest", () => {
     ).toBe(false);
   });
 
-  test("does not send reasoning parts", () => {
+  test("sends thinking for an assistant message after the last user message", () => {
     const body = toOllamaRequest(
       request({
         messages: [
+          { role: "user", content: "weather?" },
           {
             role: "assistant",
             parts: [
@@ -176,7 +177,134 @@ describe("toOllamaRequest", () => {
     ) as RequestBody;
 
     expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
+      {
+        role: "assistant",
+        content: "hi",
+        thinking: "thinking it through",
+      },
+    ]);
+  });
+
+  test("sends thinking for every assistant message when there is no user message", () => {
+    const body = toOllamaRequest(
+      request({
+        messages: [
+          { role: "system", content: "be brief" },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "first thinking" },
+              { type: "text", text: "first answer" },
+            ],
+          },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "second thinking" },
+              { type: "text", text: "second answer" },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "system", content: "be brief" },
+      {
+        role: "assistant",
+        content: "first answer",
+        thinking: "first thinking",
+      },
+      {
+        role: "assistant",
+        content: "second answer",
+        thinking: "second thinking",
+      },
+    ]);
+  });
+
+  test("omits thinking for an assistant message before the last user message", () => {
+    const body = toOllamaRequest(
+      request({
+        messages: [
+          { role: "user", content: "first" },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "earlier thinking" },
+              { type: "text", text: "first answer" },
+            ],
+          },
+          { role: "user", content: "second" },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "first" },
+      { role: "assistant", content: "first answer" },
+      { role: "user", content: "second" },
+    ]);
+  });
+
+  test("omits thinking when the reasoning part is empty", () => {
+    const body = toOllamaRequest(
+      request({
+        messages: [
+          { role: "user", content: "weather?" },
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "hi" }],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
       { role: "assistant", content: "hi" },
+    ]);
+  });
+
+  test("sends both thinking and tool_calls for an assistant message after the last user message", () => {
+    const body = toOllamaRequest(
+      request({
+        messages: [
+          { role: "user", content: "weather?" },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "checking the weather" },
+              {
+                type: "tool-call",
+                id: "call-1",
+                name: "weather",
+                arguments: { city: "Tokyo" },
+              },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
+      {
+        role: "assistant",
+        content: "",
+        thinking: "checking the weather",
+        tool_calls: [
+          {
+            id: "call-1",
+            function: { name: "weather", arguments: { city: "Tokyo" } },
+          },
+        ],
+      },
     ]);
   });
 
@@ -517,13 +645,26 @@ describe("fromOllamaResponse", () => {
     expect(textOf(fromOllamaResponse(responseBody({})))).toBe("");
   });
 
-  test("ignores the model's thinking text", () => {
+  test("maps the model's thinking text into a reasoning part before the text part", () => {
     const response = fromOllamaResponse(
       responseBody({ content: "24 degrees", thinking: "let me think" }),
     );
 
-    expect(response).not.toHaveProperty("thinking");
-    expect(textOf(response)).toBe("24 degrees");
+    expect(response.parts).toEqual([
+      { type: "reasoning", text: "let me think" },
+      { type: "text", text: "24 degrees" },
+    ]);
+  });
+
+  test("omits the reasoning part when thinking is empty or missing", () => {
+    expect(
+      fromOllamaResponse(
+        responseBody({ content: "24 degrees", thinking: "" }),
+      ).parts,
+    ).toEqual([{ type: "text", text: "24 degrees" }]);
+    expect(
+      fromOllamaResponse(responseBody({ content: "24 degrees" })).parts,
+    ).toEqual([{ type: "text", text: "24 degrees" }]);
   });
 
   test("maps two tool calls, keeping arguments as objects", () => {

@@ -64,6 +64,11 @@ export async function* toStreamEvents(
   for await (const line of lines) {
     const chunk = parseLine(line);
 
+    const thinking = chunk.message?.thinking;
+    if (typeof thinking === "string" && thinking !== "") {
+      yield { type: "reasoning-delta", delta: thinking };
+    }
+
     const content = chunk.message?.content;
     if (typeof content === "string" && content !== "") {
       yield { type: "text-delta", delta: content };

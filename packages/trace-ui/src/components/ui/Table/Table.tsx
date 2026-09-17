@@ -1,6 +1,25 @@
 import type { ReactNode } from "react";
+import { tv } from "tailwind-variants";
 
-const CELL = "border-b border-edge px-2.5 py-1.5 text-left";
+const cell = tv({
+  base: "border-b border-edge px-3 py-2.5",
+  variants: {
+    kind: {
+      header: "text-meta font-semibold",
+      data: "",
+    },
+    align: {
+      start: "text-left",
+      end: "text-right tabular-nums",
+    },
+  },
+  defaultVariants: { align: "start" },
+});
+
+type CellProps = {
+  align?: "start" | "end";
+  children: ReactNode;
+};
 
 const Head = ({ children }: { children: ReactNode }) => (
   <thead>{children}</thead>
@@ -14,12 +33,14 @@ const Row = ({ children }: { children: ReactNode }) => (
   <tr>{children}</tr>
 );
 
-const HeaderCell = ({ children }: { children: ReactNode }) => (
-  <th className={CELL}>{children}</th>
+const HeaderCell = ({ align, children }: CellProps) => (
+  <th scope="col" className={cell({ kind: "header", align })}>
+    {children}
+  </th>
 );
 
-const Cell = ({ children }: { children: ReactNode }) => (
-  <td className={CELL}>{children}</td>
+const Cell = ({ align, children }: CellProps) => (
+  <td className={cell({ kind: "data", align })}>{children}</td>
 );
 
 type TableComponent = ((props: {
@@ -33,7 +54,9 @@ type TableComponent = ((props: {
 };
 
 export const Table = (({ children }: { children: ReactNode }) => (
-  <table className="w-full">{children}</table>
+  <div className="overflow-x-auto">
+    <table className="w-full">{children}</table>
+  </div>
 )) as TableComponent;
 
 Table.Head = Head;

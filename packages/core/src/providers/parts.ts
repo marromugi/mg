@@ -1,53 +1,35 @@
 import type {
   AssistantMessage,
+  AssistantPart,
   GenerateResponse,
+  ReasoningPart,
+  TextPart,
   ToolCall,
+  ToolCallPart,
 } from "./types.js";
 
-export type ReasoningCarry = { provider: string; data: unknown };
-export type TextPart = { type: "text"; text: string };
-export type ReasoningPart = {
-  type: "reasoning";
-  text: string;
-  carry?: ReasoningCarry;
-};
-export type ToolCallPart = { type: "tool-call" } & ToolCall;
-export type AssistantPart = TextPart | ReasoningPart | ToolCallPart;
+export type {
+  AssistantPart,
+  ReasoningCarry,
+  ReasoningPart,
+  TextPart,
+  ToolCallPart,
+} from "./types.js";
 
 type PartSource = AssistantMessage | GenerateResponse;
 
 export const assistantMessage = (
   parts: readonly AssistantPart[],
-): AssistantMessage => {
-  const text = parts
-    .filter((part): part is TextPart => part.type === "text")
-    .map((part) => part.text)
-    .join("");
-  const toolCalls = parts
-    .filter((part): part is ToolCallPart => part.type === "tool-call")
-    .map(({ id, name, arguments: args }) => ({
-      id,
-      name,
-      arguments: args,
-    }));
+): AssistantMessage => ({
+  role: "assistant",
+  parts: parts.filter(
+    (part) => part.type !== "text" || part.text !== "",
+  ),
+});
 
-  return {
-    role: "assistant",
-    content: text,
-    ...(toolCalls.length > 0 ? { toolCalls } : {}),
-  };
-};
-
-export const partsOf = (source: PartSource): AssistantPart[] => {
-  const parts: AssistantPart[] = [];
-  if (source.content !== "") {
-    parts.push({ type: "text", text: source.content });
-  }
-  for (const toolCall of source.toolCalls ?? []) {
-    parts.push({ type: "tool-call", ...toolCall });
-  }
-  return parts;
-};
+export const partsOf = (source: PartSource): AssistantPart[] => [
+  ...source.parts,
+];
 
 export const textOf = (source: PartSource): string =>
   partsOf(source)

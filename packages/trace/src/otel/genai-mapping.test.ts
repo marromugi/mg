@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Message } from "@mg/core";
 import { jsonAttribute } from "../json.js";
 import { ATTR } from "../vocabulary.js";
 import { mapGenAiAttributes } from "./genai-mapping.js";
 
-const messages: Message[] = [
+const messages = [
   { role: "user", content: "what's the weather in Paris?" },
   {
     role: "assistant",

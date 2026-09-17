@@ -77,7 +77,7 @@ describe("run", () => {
 
   test("returns the last result and a non-empty session id", async () => {
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const config: RunConfig = {
       name: "example",
@@ -94,7 +94,7 @@ describe("run", () => {
   test("exports an mg.run root span carrying the run name, with mg.harness as its child", async () => {
     const exporter = new InMemorySpanExporter();
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const config: RunConfig = {
       name: "example",
@@ -166,7 +166,7 @@ describe("run", () => {
   test("the sessionId option is honoured on every exported span", async () => {
     const exporter = new InMemorySpanExporter();
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const config: RunConfig = {
       name: "example",
@@ -190,7 +190,7 @@ describe("run", () => {
     const config: RunConfig = {
       name: "example",
       provider: stubProvider([
-        { content: "hi", toolCalls: [], finishReason: "stop" },
+        { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
       ]),
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       trace: { exporters: [exporter] },
@@ -201,7 +201,10 @@ describe("run", () => {
       {
         ...config,
         provider: stubProvider([
-          { content: "hi", toolCalls: [], finishReason: "stop" },
+          {
+            parts: [{ type: "text", text: "hi" }],
+            finishReason: "stop",
+          },
         ]),
       },
       [],
@@ -223,7 +226,7 @@ describe("run", () => {
     const blocker = join(dir, "blocker");
     writeFileSync(blocker, "");
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const config: RunConfig = {
       name: "example",

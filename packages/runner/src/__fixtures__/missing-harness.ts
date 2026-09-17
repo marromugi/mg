@@ -2,8 +2,7 @@ export default {
   name: "fixture-missing-harness",
   provider: {
     generate: async () => ({
-      content: "hi",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
     }),
     stream: () => {

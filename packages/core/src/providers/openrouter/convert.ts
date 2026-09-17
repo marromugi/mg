@@ -3,7 +3,9 @@ import {
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
+import { textOf, toolCallsOf } from "../parts.js";
 import type {
+  AssistantPart,
   FinishReason,
   GenerateRequest,
   GenerateResponse,
@@ -69,13 +71,14 @@ const toMessage = (message: Message): OpenRouterMessage => {
     case "user":
       return { role: "user", content: message.content };
     case "assistant": {
-      const toolCalls = message.toolCalls;
-      if (toolCalls === undefined || toolCalls.length === 0) {
-        return { role: "assistant", content: message.content };
+      const content = textOf(message);
+      const toolCalls = toolCallsOf(message);
+      if (toolCalls.length === 0) {
+        return { role: "assistant", content };
       }
       return {
         role: "assistant",
-        content: message.content,
+        content,
         tool_calls: toolCalls.map((toolCall) => ({
           id: toolCall.id,
           type: "function",
@@ -216,9 +219,17 @@ export const fromOpenRouterResponse = (
     );
   }
 
+  const parts: AssistantPart[] = [];
+  const content = message.content ?? "";
+  if (content !== "") {
+    parts.push({ type: "text", text: content });
+  }
+  for (const toolCall of (message.tool_calls ?? []).map(toToolCall)) {
+    parts.push({ type: "tool-call", ...toolCall });
+  }
+
   const response: GenerateResponse = {
-    content: message.content ?? "",
-    toolCalls: (message.tool_calls ?? []).map(toToolCall),
+    parts,
     finishReason: toFinishReason(choice?.finish_reason),
   };
 

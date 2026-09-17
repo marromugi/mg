@@ -12,6 +12,7 @@ import type {
   ToolChoice,
   ToolDefinition,
 } from "../types.js";
+import { textOf, toolCallsOf } from "../parts.js";
 import {
   fromOllamaResponse,
   toFinishReason,
@@ -99,14 +100,15 @@ describe("toOllamaRequest", () => {
         messages: [
           {
             role: "assistant",
-            content: "",
-            toolCalls: [
+            parts: [
               {
+                type: "tool-call",
                 id: "call-1",
                 name: "weather",
                 arguments: { city: "Tokyo" },
               },
               {
+                type: "tool-call",
                 id: "call-2",
                 name: "weather",
                 arguments: { city: "Osaka" },
@@ -137,29 +139,45 @@ describe("toOllamaRequest", () => {
   });
 
   test("omits tool_calls when the assistant message has none", () => {
-    const withoutKey = toOllamaRequest(
-      request({ messages: [{ role: "assistant", content: "hi" }] }),
-      false,
-    ) as RequestBody;
-    const withEmptyList = toOllamaRequest(
+    const body = toOllamaRequest(
       request({
-        messages: [{ role: "assistant", content: "hi", toolCalls: [] }],
+        messages: [
+          { role: "assistant", parts: [{ type: "text", text: "hi" }] },
+        ],
       }),
       false,
     ) as RequestBody;
 
-    expect(withoutKey.messages).toEqual([
-      { role: "assistant", content: "hi" },
-    ]);
-    expect(withEmptyList.messages).toEqual([
+    expect(body.messages).toEqual([
       { role: "assistant", content: "hi" },
     ]);
     expect(
       Object.hasOwn(
-        (withoutKey.messages as Record<string, unknown>[])[0],
+        (body.messages as Record<string, unknown>[])[0],
         "tool_calls",
       ),
     ).toBe(false);
+  });
+
+  test("does not send reasoning parts", () => {
+    const body = toOllamaRequest(
+      request({
+        messages: [
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "thinking it through" },
+              { type: "text", text: "hi" },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "assistant", content: "hi" },
+    ]);
   });
 
   test("maps a tool message by resolving its tool name from an earlier assistant tool call", () => {
@@ -168,9 +186,13 @@ describe("toOllamaRequest", () => {
         messages: [
           {
             role: "assistant",
-            content: "",
-            toolCalls: [
-              { id: "call-1", name: "weather", arguments: {} },
+            parts: [
+              {
+                type: "tool-call",
+                id: "call-1",
+                name: "weather",
+                arguments: {},
+              },
             ],
           },
           { role: "tool", toolCallId: "call-1", content: "24" },
@@ -486,14 +508,13 @@ describe("fromOllamaResponse", () => {
     expect(
       fromOllamaResponse(responseBody({ content: "24 degrees" })),
     ).toEqual({
-      content: "24 degrees",
-      toolCalls: [],
+      parts: [{ type: "text", text: "24 degrees" }],
       finishReason: "stop",
     });
   });
 
   test("falls back to an empty string when the content is missing", () => {
-    expect(fromOllamaResponse(responseBody({})).content).toBe("");
+    expect(textOf(fromOllamaResponse(responseBody({})))).toBe("");
   });
 
   test("ignores the model's thinking text", () => {
@@ -502,7 +523,7 @@ describe("fromOllamaResponse", () => {
     );
 
     expect(response).not.toHaveProperty("thinking");
-    expect(response.content).toBe("24 degrees");
+    expect(textOf(response)).toBe("24 degrees");
   });
 
   test("maps two tool calls, keeping arguments as objects", () => {
@@ -522,9 +543,43 @@ describe("fromOllamaResponse", () => {
       }),
     );
 
-    expect(response.toolCalls).toEqual([
+    expect(toolCallsOf(response)).toEqual([
       { id: "call-1", name: "weather", arguments: { city: "Tokyo" } },
       { id: "call-2", name: "weather", arguments: { city: "Osaka" } },
+    ]);
+  });
+
+  test("emits the text part before the tool-call parts", () => {
+    const response = fromOllamaResponse(
+      responseBody({
+        content: "checking the weather",
+        tool_calls: [
+          {
+            id: "call-1",
+            function: { name: "weather", arguments: {} },
+          },
+          {
+            id: "call-2",
+            function: { name: "weather", arguments: {} },
+          },
+        ],
+      }),
+    );
+
+    expect(response.parts).toEqual([
+      { type: "text", text: "checking the weather" },
+      {
+        type: "tool-call",
+        id: "call-1",
+        name: "weather",
+        arguments: {},
+      },
+      {
+        type: "tool-call",
+        id: "call-2",
+        name: "weather",
+        arguments: {},
+      },
     ]);
   });
 
@@ -555,7 +610,7 @@ describe("fromOllamaResponse", () => {
       }),
     );
 
-    expect(response.toolCalls).toEqual([
+    expect(toolCallsOf(response)).toEqual([
       { id: "call_0", name: "weather", arguments: {} },
     ]);
   });

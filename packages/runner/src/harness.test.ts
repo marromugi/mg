@@ -46,7 +46,7 @@ const stubProvider = (
 describe("createHarness", () => {
   test("loop config yields a done event from one collect", async () => {
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const config: RunConfig = {
       name: "example",
@@ -67,7 +67,7 @@ describe("createHarness", () => {
       execute: async () => "a-result",
     });
     const provider = stubProvider([
-      { content: "hi", toolCalls: [], finishReason: "stop" },
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const config: RunConfig = {
       name: "example",
@@ -100,8 +100,7 @@ describe("createHarness", () => {
     });
     const provider = stubProvider([
       {
-        content: "",
-        toolCalls: [toolCall],
+        parts: [{ type: "tool-call", ...toolCall }],
         finishReason: "tool_calls",
       },
     ]);

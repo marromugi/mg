@@ -2,11 +2,24 @@ import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 
 export type SystemMessage = { role: "system"; content: string };
 export type UserMessage = { role: "user"; content: string };
+
+export type ToolCall = { id: string; name: string; arguments: unknown };
+
+export type ReasoningCarry = { provider: string; data: unknown };
+export type TextPart = { type: "text"; text: string };
+export type ReasoningPart = {
+  type: "reasoning";
+  text: string;
+  carry?: ReasoningCarry;
+};
+export type ToolCallPart = { type: "tool-call" } & ToolCall;
+export type AssistantPart = TextPart | ReasoningPart | ToolCallPart;
+
 export type AssistantMessage = {
   role: "assistant";
-  content: string;
-  toolCalls?: ToolCall[];
+  parts: AssistantPart[];
 };
+
 export type ToolMessage = {
   role: "tool";
   toolCallId: string;
@@ -14,8 +27,6 @@ export type ToolMessage = {
 };
 export type Message =
   SystemMessage | UserMessage | AssistantMessage | ToolMessage;
-
-export type ToolCall = { id: string; name: string; arguments: unknown };
 
 export type ToolDefinition<
   TInput extends StandardJSONSchemaV1 = StandardJSONSchemaV1,
@@ -41,8 +52,7 @@ export type FinishReason = "stop" | "tool_calls" | "length" | "other";
 export type Usage = { inputTokens: number; outputTokens: number };
 
 export type GenerateResponse = {
-  content: string;
-  toolCalls: ToolCall[];
+  parts: AssistantPart[];
   finishReason: FinishReason;
   usage?: Usage;
 };

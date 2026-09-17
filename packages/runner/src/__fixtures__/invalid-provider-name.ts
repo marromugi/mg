@@ -3,8 +3,7 @@ export default {
   provider: {
     name: 123,
     generate: async () => ({
-      content: "hi",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
     }),
     stream: () => {

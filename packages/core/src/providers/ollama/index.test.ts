@@ -140,8 +140,7 @@ describe("createOllamaProvider", () => {
     const provider = createOllamaProvider({ fetch: fetchStub });
 
     await expect(provider.generate(request)).resolves.toEqual({
-      content: "24 degrees",
-      toolCalls: [],
+      parts: [{ type: "text", text: "24 degrees" }],
       finishReason: "stop",
       usage: { inputTokens: 12, outputTokens: 34 },
     });

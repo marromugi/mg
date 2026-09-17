@@ -26,8 +26,7 @@ describe("traceProvider / generate", () => {
       generate: async () => {
         startedBefore = root.children[0];
         return {
-          content: "hello",
-          toolCalls: [],
+          parts: [{ type: "text", text: "hello" }],
           finishReason: "stop",
         };
       },
@@ -48,8 +47,10 @@ describe("traceProvider / generate", () => {
   it("records finish reason, output messages and returns the response unchanged", async () => {
     const root = new RecordingSpan("root");
     const response: GenerateResponse = {
-      content: "hello there",
-      toolCalls: [{ id: "1", name: "x", arguments: {} }],
+      parts: [
+        { type: "text", text: "hello there" },
+        { type: "tool-call", id: "1", name: "x", arguments: {} },
+      ],
       finishReason: "stop",
       usage: { inputTokens: 3, outputTokens: 5 },
     };
@@ -68,12 +69,7 @@ describe("traceProvider / generate", () => {
     expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBe(3);
     expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBe(5);
     expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
-      JSON.stringify([
-        assistantMessage([
-          { type: "text", text: "hello there" },
-          { type: "tool-call", ...response.toolCalls[0] },
-        ]),
-      ]),
+      JSON.stringify([assistantMessage(response.parts)]),
     );
     expect(span?.endCalls).toEqual([undefined]);
   });
@@ -82,8 +78,7 @@ describe("traceProvider / generate", () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
       generate: async () => ({
-        content: "no usage",
-        toolCalls: [],
+        parts: [{ type: "text", text: "no usage" }],
         finishReason: "stop",
       }),
       stream: async function* () {},
@@ -120,8 +115,7 @@ describe("traceProvider / generate", () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
       generate: async () => ({
-        content: "",
-        toolCalls: [],
+        parts: [],
         finishReason: "stop",
       }),
       stream: async function* () {},
@@ -334,8 +328,7 @@ describe("traceProvider / provider name", () => {
   const providerOf = (name?: string): Provider => ({
     ...(name !== undefined ? { name } : {}),
     generate: async () => ({
-      content: "hello",
-      toolCalls: [],
+      parts: [{ type: "text", text: "hello" }],
       finishReason: "stop",
     }),
     stream: async function* () {},

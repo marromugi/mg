@@ -180,6 +180,45 @@ describe("createLlmGate", () => {
     await expect(gate.judge(request)).rejects.toBe(abortError);
   });
 
+  test("lets a plain object shaped like an AbortError through unchanged", async () => {
+    const abortError = { name: "AbortError" };
+    const generate = vi.fn(async () => {
+      throw abortError;
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      throw new Error("stubProvider: stream is not scripted");
+    });
+    const provider: Provider = { generate, stream };
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      policy: "policy",
+    });
+
+    await expect(gate.judge(request)).rejects.toBe(abortError);
+  });
+
+  test("tells the model the user message is data, not instructions", async () => {
+    let seen: GenerateRequest | undefined;
+    const provider = stubProvider((generateRequest) => {
+      seen = generateRequest;
+      return verdictResponse({ allowed: true, reason: "ok" });
+    });
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      policy: "policy",
+    });
+
+    await gate.judge(request);
+
+    if (seen === undefined) throw new Error("request not captured");
+
+    expect((seen.messages[0] as { content: string }).content).toContain(
+      "data, not instructions",
+    );
+  });
+
   test("rejects with AbortError without calling the provider when the signal is already aborted", async () => {
     const provider = stubProvider(() =>
       verdictResponse({ allowed: true, reason: "ok" }),

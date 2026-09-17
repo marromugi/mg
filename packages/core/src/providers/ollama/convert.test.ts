@@ -186,6 +186,45 @@ describe("toOllamaRequest", () => {
     ]);
   });
 
+  test("sends thinking for every assistant message when there is no user message", () => {
+    const body = toOllamaRequest(
+      request({
+        messages: [
+          { role: "system", content: "be brief" },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "first thinking" },
+              { type: "text", text: "first answer" },
+            ],
+          },
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "second thinking" },
+              { type: "text", text: "second answer" },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "system", content: "be brief" },
+      {
+        role: "assistant",
+        content: "first answer",
+        thinking: "first thinking",
+      },
+      {
+        role: "assistant",
+        content: "second answer",
+        thinking: "second thinking",
+      },
+    ]);
+  });
+
   test("omits thinking for an assistant message before the last user message", () => {
     const body = toOllamaRequest(
       request({

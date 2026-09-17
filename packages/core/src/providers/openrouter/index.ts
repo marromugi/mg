@@ -13,6 +13,7 @@ import {
   fromOpenRouterResponse,
   toOpenRouterRequest,
 } from "./convert.js";
+import { PROVIDER_NAME } from "./name.js";
 import { toStreamEvents } from "./stream.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
@@ -154,5 +155,5 @@ export const createOpenRouterProvider = (
     request: GenerateRequest,
   ): AsyncIterable<StreamEvent> => runStream(request);
 
-  return { name: "openrouter", generate, stream };
+  return { name: PROVIDER_NAME, generate, stream };
 };

@@ -51,6 +51,14 @@ const finishChunk = (reason: string) => ({
   choices: [{ index: 0, delta: {}, finish_reason: reason }],
 });
 
+const reasoningChunk = (reasoning: string) => ({
+  choices: [{ index: 0, delta: { reasoning } }],
+});
+
+const reasoningDetailsChunk = (details: unknown[]) => ({
+  choices: [{ index: 0, delta: { reasoning_details: details } }],
+});
+
 const usageChunk = {
   choices: [],
   usage: { prompt_tokens: 12, completion_tokens: 34 },
@@ -87,6 +95,124 @@ describe("toStreamEvents", () => {
     ]);
 
     expect(events).toEqual([{ type: "finish", finishReason: "stop" }]);
+  });
+
+  test("yields the reasoning deltas in order before the text deltas", async () => {
+    const events = await collect([
+      reasoningChunk("Let"),
+      reasoningChunk(" me think"),
+      textChunk("24"),
+      finishChunk("stop"),
+    ]);
+
+    expect(events).toEqual([
+      { type: "reasoning-delta", delta: "Let" },
+      { type: "reasoning-delta", delta: " me think" },
+      { type: "text-delta", delta: "24" },
+      { type: "finish", finishReason: "stop" },
+    ]);
+  });
+
+  test("skips empty and missing reasoning deltas", async () => {
+    const events = await collect([
+      reasoningChunk(""),
+      { choices: [{ index: 0, delta: { reasoning: null } }] },
+      { choices: [{ index: 0, delta: {} }] },
+      finishChunk("stop"),
+    ]);
+
+    expect(events).toEqual([{ type: "finish", finishReason: "stop" }]);
+  });
+
+  test("accumulates reasoning_details fragments into a single carry before the text delta that follows", async () => {
+    const first = {
+      type: "reasoning.text",
+      text: "Let me",
+      id: "r1",
+      format: "anthropic-claude-v1",
+      index: 0,
+    };
+    const second = {
+      type: "reasoning.text",
+      text: " think",
+      id: "r1",
+      format: "anthropic-claude-v1",
+      index: 0,
+    };
+    const events = await collect([
+      reasoningDetailsChunk([first]),
+      reasoningDetailsChunk([second]),
+      textChunk("24"),
+      finishChunk("stop"),
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "reasoning-delta",
+        delta: "",
+        carry: {
+          provider: "openrouter",
+          data: [first, second],
+        },
+      },
+      { type: "text-delta", delta: "24" },
+      { type: "finish", finishReason: "stop" },
+    ]);
+  });
+
+  test("emits the pending carry before finish when no text or tool call follows", async () => {
+    const detail = {
+      type: "reasoning.text",
+      text: "Let me think",
+      id: "r1",
+      format: "anthropic-claude-v1",
+      index: 0,
+    };
+    const events = await collect([
+      reasoningDetailsChunk([detail]),
+      finishChunk("stop"),
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "reasoning-delta",
+        delta: "",
+        carry: { provider: "openrouter", data: [detail] },
+      },
+      { type: "finish", finishReason: "stop" },
+    ]);
+  });
+
+  test("emits the pending carry before the tool calls that follow", async () => {
+    const detail = {
+      type: "reasoning.text",
+      text: "Let me think",
+      id: "r1",
+      format: "anthropic-claude-v1",
+      index: 0,
+    };
+    const events = await collect([
+      reasoningDetailsChunk([detail]),
+      toolFragment(0, {
+        id: "call-1",
+        name: "weather",
+        arguments: "{}",
+      }),
+      finishChunk("tool_calls"),
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "reasoning-delta",
+        delta: "",
+        carry: { provider: "openrouter", data: [detail] },
+      },
+      {
+        type: "tool-call",
+        toolCall: { id: "call-1", name: "weather", arguments: {} },
+      },
+      { type: "finish", finishReason: "tool_calls" },
+    ]);
   });
 
   test("assembles a tool call split across fragments", async () => {

@@ -1,6 +1,7 @@
 import { ProviderHttpError } from "../errors.js";
 import type { FinishReason, StreamEvent, Usage } from "../types.js";
 import { toFinishReason, toToolCall, toUsage } from "./convert.js";
+import { PROVIDER_NAME } from "./name.js";
 
 type OpenRouterChunkToolCall = {
   index?: number;
@@ -12,6 +13,8 @@ type OpenRouterChunkToolCall = {
 type OpenRouterChunkChoice = {
   delta?: {
     content?: string | null;
+    reasoning?: string | null;
+    reasoning_details?: unknown[] | null;
     tool_calls?: OpenRouterChunkToolCall[] | null;
   } | null;
   finish_reason?: string | null;
@@ -52,8 +55,21 @@ export async function* toStreamEvents(
   payloads: AsyncIterable<string>,
 ): AsyncGenerator<StreamEvent> {
   const pending = new Map<number, PendingToolCall>();
+  let reasoningDetails: unknown[] = [];
   let finishReason: FinishReason | undefined;
   let usage: Usage | undefined;
+
+  const flushReasoningDetails = function* (): Generator<StreamEvent> {
+    if (reasoningDetails.length === 0) {
+      return;
+    }
+    yield {
+      type: "reasoning-delta",
+      delta: "",
+      carry: { provider: PROVIDER_NAME, data: reasoningDetails },
+    };
+    reasoningDetails = [];
+  };
 
   for await (const payload of payloads) {
     const chunk = parseChunk(payload);
@@ -67,8 +83,19 @@ export async function* toStreamEvents(
     const choice = chunk.choices[0];
     const delta = choice?.delta;
 
+    const reasoningText = delta?.reasoning;
+    if (typeof reasoningText === "string" && reasoningText !== "") {
+      yield { type: "reasoning-delta", delta: reasoningText };
+    }
+
+    const detailsFragment = delta?.reasoning_details;
+    if (Array.isArray(detailsFragment) && detailsFragment.length > 0) {
+      reasoningDetails.push(...detailsFragment);
+    }
+
     const content = delta?.content;
     if (typeof content === "string" && content !== "") {
+      yield* flushReasoningDetails();
       yield { type: "text-delta", delta: content };
     }
 
@@ -95,6 +122,8 @@ export async function* toStreamEvents(
       usage = toUsage(chunk.usage);
     }
   }
+
+  yield* flushReasoningDetails();
 
   const accumulatedCalls = [...pending.entries()].sort(
     ([a], [b]) => a - b,

@@ -6,7 +6,7 @@ import type {
   ToolCall,
   ToolSchema,
 } from "@mg/core";
-import { defineTool } from "@mg/core";
+import { assistantMessage, defineTool } from "@mg/core";
 import type { Gate, Verdict } from "@mg/gate";
 import { collect } from "@mg/harness";
 import type {
@@ -166,7 +166,7 @@ describe("createLoopHarness", () => {
           reason: "stop",
           messages: [
             { role: "user", content: "hi" },
-            { role: "assistant", content: "hello" },
+            assistantMessage([{ type: "text", text: "hello" }]),
           ],
           usage: { inputTokens: 3, outputTokens: 5 },
         },
@@ -244,7 +244,7 @@ describe("createLoopHarness", () => {
     expect(
       (done as Extract<HarnessEvent, { type: "done" }>).result.messages,
     ).toEqual([
-      { role: "assistant", content: "", toolCalls: [toolCall] },
+      assistantMessage([{ type: "tool-call", ...toolCall }]),
       { role: "tool", toolCallId: "call-1", content: "a-result" },
     ]);
     expect(provider.generate).toHaveBeenCalledTimes(1);
@@ -492,7 +492,7 @@ describe("createLoopHarness", () => {
           reason: "stop",
           messages: [
             { role: "user", content: "hi" },
-            { role: "assistant", content: "Hello, world" },
+            assistantMessage([{ type: "text", text: "Hello, world" }]),
           ],
           usage: { inputTokens: 3, outputTokens: 5 },
         },

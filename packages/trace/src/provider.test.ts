@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type {
-  GenerateRequest,
-  GenerateResponse,
-  Provider,
-  StreamEvent,
+import {
+  assistantMessage,
+  type GenerateRequest,
+  type GenerateResponse,
+  type Provider,
+  type StreamEvent,
 } from "@mg/core";
 import { ATTR, SPAN } from "./vocabulary.js";
 import {
@@ -68,11 +69,10 @@ describe("traceProvider / generate", () => {
     expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBe(5);
     expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
       JSON.stringify([
-        {
-          role: "assistant",
-          content: "hello there",
-          toolCalls: response.toolCalls,
-        },
+        assistantMessage([
+          { type: "text", text: "hello there" },
+          { type: "tool-call", ...response.toolCalls[0] },
+        ]),
       ]),
     );
     expect(span?.endCalls).toEqual([undefined]);
@@ -203,11 +203,15 @@ describe("traceProvider / stream", () => {
     expect(span?.mergedAttributes[ATTR.llmOutputTokens]).toBe(4);
     expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
       JSON.stringify([
-        {
-          role: "assistant",
-          content: "hello",
-          toolCalls: [{ id: "1", name: "x", arguments: { a: 1 } }],
-        },
+        assistantMessage([
+          { type: "text", text: "hello" },
+          {
+            type: "tool-call",
+            id: "1",
+            name: "x",
+            arguments: { a: 1 },
+          },
+        ]),
       ]),
     );
     expect(span?.endCalls).toEqual([undefined]);
@@ -302,11 +306,7 @@ describe("traceProvider / stream", () => {
     ).toBeUndefined();
     expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
       JSON.stringify([
-        {
-          role: "assistant",
-          content: "hello",
-          toolCalls: [],
-        },
+        assistantMessage([{ type: "text", text: "hello" }]),
       ]),
     );
   });

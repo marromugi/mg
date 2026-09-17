@@ -4,7 +4,7 @@ import {
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
-import { textOf, toolCallsOf } from "../parts.js";
+import { reasoningOf, textOf, toolCallsOf } from "../parts.js";
 import type {
   AssistantPart,
   FinishReason,
@@ -34,6 +34,7 @@ type OllamaMessage =
   | {
       role: "assistant";
       content: string;
+      thinking?: string;
       tool_calls?: OllamaToolCall[];
     }
   | { role: "tool"; tool_name: string; content: string };
@@ -66,8 +67,12 @@ type OllamaResponseBody = {
 
 const toMessages = (messages: Message[]): OllamaMessage[] => {
   const toolNames = new Map<string, string>();
+  const lastUserIndex = messages.reduce(
+    (last, message, index) => (message.role === "user" ? index : last),
+    -1,
+  );
 
-  return messages.map((message) => {
+  return messages.map((message, index) => {
     switch (message.role) {
       case "system":
         return { role: "system", content: message.content };
@@ -79,19 +84,21 @@ const toMessages = (messages: Message[]): OllamaMessage[] => {
         for (const toolCall of toolCalls) {
           toolNames.set(toolCall.id, toolCall.name);
         }
-        if (toolCalls.length === 0) {
-          return { role: "assistant", content };
-        }
+        const thinking =
+          index > lastUserIndex ? reasoningOf(message) : "";
         return {
           role: "assistant",
           content,
-          tool_calls: toolCalls.map((toolCall) => ({
-            id: toolCall.id,
-            function: {
-              name: toolCall.name,
-              arguments: toolCall.arguments,
-            },
-          })),
+          ...(thinking !== "" && { thinking }),
+          ...(toolCalls.length > 0 && {
+            tool_calls: toolCalls.map((toolCall) => ({
+              id: toolCall.id,
+              function: {
+                name: toolCall.name,
+                arguments: toolCall.arguments,
+              },
+            })),
+          }),
         };
       }
       case "tool": {
@@ -271,6 +278,10 @@ export const fromOllamaResponse = (body: unknown): GenerateResponse => {
   );
 
   const parts: AssistantPart[] = [];
+  const thinking = message.thinking;
+  if (typeof thinking === "string" && thinking !== "") {
+    parts.push({ type: "reasoning", text: thinking });
+  }
   const content = message.content ?? "";
   if (content !== "") {
     parts.push({ type: "text", text: content });

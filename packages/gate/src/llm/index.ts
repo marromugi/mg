@@ -5,6 +5,7 @@ import type {
   ToolDefinition,
 } from "@mg/core";
 import { z } from "zod";
+import { isAbortError } from "../abort.js";
 import { GateError } from "../errors.js";
 import type {
   Gate,
@@ -35,11 +36,6 @@ const verdictTool: ToolDefinition = {
   name: "verdict",
   input: verdictInput,
 };
-
-const isAbortError = (error: unknown): boolean =>
-  typeof error === "object" &&
-  error !== null &&
-  (error as { name?: unknown }).name === "AbortError";
 
 const toUserMessage = (request: GateRequest): string =>
   `Kind: ${request.kind}\n${request.description}`;

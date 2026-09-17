@@ -105,11 +105,11 @@ term は、runs と trace-ui が端末に書くときに使います。
 </table>
 
 gate は、まだ実行の流れにはつながっていません。
-いまは core だけを使います。
+いまは core と harness と trace を使います。
 
 <table>
   <tr>
-    <td align="center"><code>@mg/gate</code> → <code>@mg/core</code></td>
+    <td align="center"><code>@mg/gate</code> → <code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
   </tr>
 </table>
 
@@ -121,7 +121,8 @@ gate は、まだ実行の流れにはつながっていません。
 - harness-loop は、4 つを使います。core と tools と harness と trace です。
 - trace は、harness と core を使います。
 - trace-ui は、trace と term を使います。
-- harness と tools と gate は、それぞれ core を使います。
+- harness と tools は、それぞれ core を使います。
+- gate は、core と harness と trace を使います。
 - term は、このリポジトリの他のパッケージに依存しません。
 - core は、このリポジトリの他のパッケージに依存しません。
 

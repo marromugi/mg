@@ -8,12 +8,13 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool and run spans", () => {
+  it("has the harness, llm, tool, run and gate spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
       tool: "mg.tool",
       run: "mg.run",
+      gate: "mg.gate",
     });
   });
 });
@@ -39,5 +40,13 @@ describe("ATTR", () => {
   it("has the run attributes", () => {
     expect(ATTR.runName).toBe("mg.run.name");
     expect(ATTR.runCase).toBe("mg.run.case");
+  });
+
+  it("has the gate attributes", () => {
+    expect(ATTR.gateKind).toBe("mg.gate.kind");
+    expect(ATTR.gateDescription).toBe("mg.gate.description");
+    expect(ATTR.gateAllowed).toBe("mg.gate.allowed");
+    expect(ATTR.gateReason).toBe("mg.gate.reason");
+    expect(ATTR.gateModel).toBe("mg.gate.model");
   });
 });

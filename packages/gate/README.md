@@ -51,9 +51,22 @@ core の接続先と同じ考え方です。
 中断の合図だけは、包まずにそのまま投げ直します。
 渡した合図がすでに中断済みなら、失敗の種類によらず投げ直します。
 
+### 記録
+
+判定の口は、記録の相手を受け取ったときだけ記録します。
+受け取るのは `GateContext.trace` です。
+自分の判定を `mg.gate` の期間として記録します。
+受け取らなければ、何も記録しません。
+
+LLM の実装は、判定用の接続先への呼び出しを残します。
+`mg.gate` の下に `mg.llm` の期間として残します。
+
+`gateRunToolCall` に記録の相手を渡すと、
+道具の呼び出しごとに判定の口へそのまま渡します。
+渡さなければ、判定は記録に残りません。
+
 ## やらないこと
 
-- 判定を記録には残しません。
 - ハーネスのループや runner への組み込みは持ちません。
 - 記録を見る画面には手を入れません。
 - 規則だけで判定する実装は、まだ持ちません。
@@ -91,14 +104,17 @@ const verdict = await gate.judge({
 中断の合図だけは、包まずにそのまま通します。
 `context.signal` に中断済みの合図を渡すと、接続先を呼ばずに投げます。
 
-`gateRunToolCall` は、判定の口と、実行部品を受け取ります。
+`gateRunToolCall` は、判定の口を受け取ります。
+実行部品と記録の相手も渡せます。
 実行部品を省くと `@mg/core` の `runToolCall` を使います。
+記録の相手を省くと、判定は記録に残りません。
 
 ```ts
 import { gateRunToolCall } from "@mg/gate";
 
-const runToolCall = gateRunToolCall(gate);
+const runToolCall = gateRunToolCall(gate, undefined, span);
 
 const message = await runToolCall(tools, call, context);
 // 判定が「だめ」なら、tools と call は実行されない
+// span を渡すと、判定は mg.gate として span の下に記録される
 ```

@@ -4,10 +4,35 @@ import type {
   Provider,
   StreamEvent,
 } from "@mg/core";
+import type { TraceAttributes, TraceSpan } from "@mg/harness";
+import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, test, vi } from "vitest";
 import { GateError } from "../errors.js";
-import type { GateRequest } from "../types.js";
+import type { GateContext, GateRequest } from "../types.js";
 import { createLlmGate } from "./index.js";
+
+class RecordingSpan implements TraceSpan {
+  readonly name: string;
+  readonly attributes: TraceAttributes;
+  readonly children: RecordingSpan[] = [];
+
+  constructor(name: string, attributes?: TraceAttributes) {
+    this.name = name;
+    this.attributes = attributes ?? {};
+  }
+
+  startSpan(name: string, attributes?: TraceAttributes): TraceSpan {
+    const child = new RecordingSpan(name, attributes);
+    this.children.push(child);
+    return child;
+  }
+
+  setAttributes(): void {}
+
+  addEvent(): void {}
+
+  end(): void {}
+}
 
 const stubProvider = (
   respond: (request: GenerateRequest) => GenerateResponse,
@@ -237,5 +262,48 @@ describe("createLlmGate", () => {
 
     expect(error).toMatchObject({ name: "AbortError" });
     expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  test("records mg.gate with mg.llm nested inside, model attribute included", async () => {
+    const provider = stubProvider(() =>
+      verdictResponse({ allowed: true, reason: "ok" }),
+    );
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      policy: "policy",
+    });
+    const root = new RecordingSpan("root");
+    const context: GateContext = { trace: root };
+
+    await gate.judge(request, context);
+
+    expect(root.children).toHaveLength(1);
+    const gateSpan = root.children[0];
+    expect(gateSpan.name).toBe(SPAN.gate);
+    expect(gateSpan.attributes[ATTR.gateModel]).toBe("m");
+
+    expect(gateSpan.children).toHaveLength(1);
+    const llmSpan = gateSpan.children[0];
+    expect(llmSpan.name).toBe(SPAN.llm);
+    expect(llmSpan.attributes[ATTR.llmModel]).toBe("m");
+  });
+
+  test("does not record a span and calls the provider directly when context has no trace", async () => {
+    const provider = stubProvider(() =>
+      verdictResponse({ allowed: true, reason: "ok" }),
+    );
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      policy: "policy",
+    });
+
+    await expect(gate.judge(request)).resolves.toEqual({
+      allowed: true,
+      reason: "ok",
+    });
+
+    expect(provider.generate).toHaveBeenCalledTimes(1);
   });
 });

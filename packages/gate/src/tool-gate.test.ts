@@ -5,6 +5,7 @@ import {
   type ToolMessage,
   type ToolSchema,
 } from "@mg/core";
+import type { TraceSpan } from "@mg/harness";
 import { describe, expect, it, vi } from "vitest";
 import type {
   Gate,
@@ -226,5 +227,55 @@ describe("gateRunToolCall", () => {
       toolCallId: call.id,
       content: "sunny",
     });
+  });
+
+  it("passes parent as context.trace to the gate", async () => {
+    const parent: TraceSpan = {
+      startSpan: () => parent,
+      setAttributes: (): void => {},
+      addEvent: (): void => {},
+      end: (): void => {},
+    };
+    let seenContext: GateContext | undefined;
+    const gate = stubGate(
+      async (
+        _request: GateRequest,
+        context?: GateContext,
+      ): Promise<Verdict> => {
+        seenContext = context;
+        return { allowed: true, reason: "ok" };
+      },
+    );
+    const run = vi.fn(async (): Promise<ToolMessage> => ({
+      role: "tool",
+      toolCallId: call.id,
+      content: "sunny",
+    }));
+
+    await gateRunToolCall(gate, run, parent)([weatherTool], call);
+
+    expect(seenContext?.trace).toBe(parent);
+  });
+
+  it("does not pass trace to the gate when parent is missing", async () => {
+    let seenContext: GateContext | undefined;
+    const gate = stubGate(
+      async (
+        _request: GateRequest,
+        context?: GateContext,
+      ): Promise<Verdict> => {
+        seenContext = context;
+        return { allowed: true, reason: "ok" };
+      },
+    );
+    const run = vi.fn(async (): Promise<ToolMessage> => ({
+      role: "tool",
+      toolCallId: call.id,
+      content: "sunny",
+    }));
+
+    await gateRunToolCall(gate, run)([weatherTool], call);
+
+    expect(seenContext).not.toHaveProperty("trace");
   });
 });

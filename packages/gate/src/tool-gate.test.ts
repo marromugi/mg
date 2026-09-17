@@ -142,10 +142,14 @@ describe("gateRunToolCall", () => {
       throw new Error("provider down");
     });
     const run = vi.fn();
+    const controller = new AbortController();
 
     const result = await gateRunToolCall(gate, run)(
       [weatherTool],
       call,
+      {
+        signal: controller.signal,
+      },
     );
 
     expect(run).not.toHaveBeenCalled();
@@ -164,6 +168,23 @@ describe("gateRunToolCall", () => {
     await expect(
       gateRunToolCall(gate, run)([weatherTool], call),
     ).rejects.toBe(abortError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("rethrows a non-AbortError from the gate unchanged when the signal is already aborted", async () => {
+    const timeoutError = new DOMException("timed out", "TimeoutError");
+    const gate = stubGate(async () => {
+      throw timeoutError;
+    });
+    const run = vi.fn();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      gateRunToolCall(gate, run)([weatherTool], call, {
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(timeoutError);
     expect(run).not.toHaveBeenCalled();
   });
 

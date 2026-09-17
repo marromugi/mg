@@ -77,7 +77,9 @@ export const gateRunToolCall = (
     try {
       verdict = await gate.judge(request, { signal: context?.signal });
     } catch (error) {
-      if (isAbortError(error)) throw error;
+      if (isAbortError(error) || context?.signal?.aborted === true) {
+        throw error;
+      }
       return {
         role: "tool",
         toolCallId: call.id,

@@ -6,10 +6,10 @@ import {
   type ToolDefinition,
   type ToolMessage,
 } from "@mg/core";
+import type { TraceSpan } from "@mg/harness";
+import type { RunToolCall } from "@mg/trace";
 import { isAbortError } from "./abort.js";
 import type { Gate, GateRequest, Verdict } from "./types.js";
-
-type RunToolCall = typeof runToolCall;
 
 export const TOOL_CALL_KIND = "tool-call";
 
@@ -65,6 +65,7 @@ const toErrorMessage = (error: unknown): string =>
 export const gateRunToolCall = (
   gate: Gate,
   run: RunToolCall = runToolCall,
+  parent?: TraceSpan,
 ): RunToolCall => {
   return async (
     tools: readonly Tool[],
@@ -75,7 +76,10 @@ export const gateRunToolCall = (
 
     let verdict: Verdict;
     try {
-      verdict = await gate.judge(request, { signal: context?.signal });
+      verdict = await gate.judge(request, {
+        signal: context?.signal,
+        ...(parent === undefined ? {} : { trace: parent }),
+      });
     } catch (error) {
       if (isAbortError(error) || context?.signal?.aborted === true) {
         throw error;

@@ -73,10 +73,13 @@ LLM の呼び出しの記録は、接続先を包む部品が書きます。
 ハーネス自身は、自分の記録だけを書きます。
 記録に失敗しても、ハーネスは止まりません。
 
+判定の記録は、`@mg/gate` が書きます。
+記録の相手を受け取ったときだけ、判定を `mg.gate` として書きます。
+
 ### 語彙
 
 記録に書く名前は、`mg.` で始まるものだけです。
-期間の名前は、共通のものが 4 つあります。
+期間の名前は、共通のものが 5 つあります。
 
 | 定数           | 名前         | 意味                 |
 | -------------- | ------------ | -------------------- |
@@ -84,28 +87,34 @@ LLM の呼び出しの記録は、接続先を包む部品が書きます。
 | `SPAN.llm`     | `mg.llm`     | LLM の呼び出しの期間 |
 | `SPAN.tool`    | `mg.tool`    | 道具の実行の期間     |
 | `SPAN.run`     | `mg.run`     | 走った 1 回分の期間  |
+| `SPAN.gate`    | `mg.gate`    | 判定の期間           |
 
 ハーネス固有の期間は、`mg.<ハーネス名>.` で始めます。
 
 属性の名前も、表にまとめます。
 
-| 定数                     | 名前                         | 意味                                     |
-| ------------------------ | ---------------------------- | ---------------------------------------- |
-| `ATTR.op`                | `mg.op`                      | 期間の種類（harness / llm / tool / run） |
-| `ATTR.harnessName`       | `mg.harness.name`            | ハーネスの名前                           |
-| `ATTR.runName`           | `mg.run.name`                | 設定の名前                               |
-| `ATTR.runCase`           | `mg.run.case`                | 件の ID                                  |
-| `ATTR.llmModel`          | `mg.llm.model`               | 使ったモデルの名前                       |
-| `ATTR.llmStream`         | `mg.llm.stream`              | 細切れで受け取ったか                     |
-| `ATTR.llmFinishReason`   | `mg.llm.finish_reason`       | 終わった理由                             |
-| `ATTR.llmInputTokens`    | `mg.llm.usage.input_tokens`  | 入力のトークン数                         |
-| `ATTR.llmOutputTokens`   | `mg.llm.usage.output_tokens` | 出力のトークン数                         |
-| `ATTR.llmInputMessages`  | `mg.llm.messages.input`      | 送った会話（JSON 文字列）                |
-| `ATTR.llmOutputMessages` | `mg.llm.messages.output`     | 返った会話（JSON 文字列）                |
-| `ATTR.toolName`          | `mg.tool.name`               | 道具の名前                               |
-| `ATTR.toolCallId`        | `mg.tool.call_id`            | 呼び出しの ID                            |
-| `ATTR.toolArguments`     | `mg.tool.arguments`          | 渡した引数（JSON 文字列）                |
-| `ATTR.toolResult`        | `mg.tool.result`             | 実行の結果                               |
+| 定数                     | 名前                         | 意味                                            |
+| ------------------------ | ---------------------------- | ----------------------------------------------- |
+| `ATTR.op`                | `mg.op`                      | 期間の種類（harness / llm / tool / run / gate） |
+| `ATTR.harnessName`       | `mg.harness.name`            | ハーネスの名前                                  |
+| `ATTR.runName`           | `mg.run.name`                | 設定の名前                                      |
+| `ATTR.runCase`           | `mg.run.case`                | 件の ID                                         |
+| `ATTR.llmModel`          | `mg.llm.model`               | 使ったモデルの名前                              |
+| `ATTR.llmStream`         | `mg.llm.stream`              | 細切れで受け取ったか                            |
+| `ATTR.llmFinishReason`   | `mg.llm.finish_reason`       | 終わった理由                                    |
+| `ATTR.llmInputTokens`    | `mg.llm.usage.input_tokens`  | 入力のトークン数                                |
+| `ATTR.llmOutputTokens`   | `mg.llm.usage.output_tokens` | 出力のトークン数                                |
+| `ATTR.llmInputMessages`  | `mg.llm.messages.input`      | 送った会話（JSON 文字列）                       |
+| `ATTR.llmOutputMessages` | `mg.llm.messages.output`     | 返った会話（JSON 文字列）                       |
+| `ATTR.toolName`          | `mg.tool.name`               | 道具の名前                                      |
+| `ATTR.toolCallId`        | `mg.tool.call_id`            | 呼び出しの ID                                   |
+| `ATTR.toolArguments`     | `mg.tool.arguments`          | 渡した引数（JSON 文字列）                       |
+| `ATTR.toolResult`        | `mg.tool.result`             | 実行の結果                                      |
+| `ATTR.gateKind`          | `mg.gate.kind`               | 判定した対象の種類                              |
+| `ATTR.gateDescription`   | `mg.gate.description`        | 判定した対象の説明文                            |
+| `ATTR.gateAllowed`       | `mg.gate.allowed`            | 判定の可否                                      |
+| `ATTR.gateReason`        | `mg.gate.reason`             | 判定の理由                                      |
+| `ATTR.gateModel`         | `mg.gate.model`              | 判定に使ったモデルの名前（LLM の実装だけ）      |
 
 属性の値は、文字列と数値と真偽値だけです。
 構造がある値は、JSON の文字列にして持たせます。

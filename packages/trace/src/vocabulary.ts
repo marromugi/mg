@@ -3,10 +3,11 @@ export const SPAN = {
   llm: "mg.llm",
   tool: "mg.tool",
   run: "mg.run",
+  gate: "mg.gate",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate"
   harnessName: "mg.harness.name",
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
@@ -21,4 +22,9 @@ export const ATTR = {
   toolCallId: "mg.tool.call_id",
   toolArguments: "mg.tool.arguments", // jsonAttribute(unknown)
   toolResult: "mg.tool.result", // string
+  gateKind: "mg.gate.kind",
+  gateDescription: "mg.gate.description",
+  gateAllowed: "mg.gate.allowed", // boolean
+  gateReason: "mg.gate.reason",
+  gateModel: "mg.gate.model",
 } as const;

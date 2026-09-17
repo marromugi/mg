@@ -4,9 +4,11 @@ import type {
   Provider,
   ToolDefinition,
 } from "@mg/core";
+import { ATTR, traceProvider } from "@mg/trace";
 import { z } from "zod";
 import { isAbortError } from "../abort.js";
 import { GateError } from "../errors.js";
+import { withGateSpan } from "../trace.js";
 import type {
   Gate,
   GateContext,
@@ -50,42 +52,55 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
     ): Promise<Verdict> {
       context?.signal?.throwIfAborted();
 
-      const generateRequest: GenerateRequest = {
-        model,
-        messages: [
-          {
-            role: "system",
-            content: `${SYSTEM_INSTRUCTION}\n\n${policy}`,
-          },
-          { role: "user", content: toUserMessage(request) },
-        ],
-        tools: [verdictTool],
-        toolChoice: { type: "tool", name: "verdict" },
-      };
+      return withGateSpan(
+        context,
+        request,
+        { [ATTR.gateModel]: model },
+        async (span) => {
+          const tracedProvider = traceProvider(provider, span);
 
-      let response: GenerateResponse;
-      try {
-        response = await provider.generate(generateRequest);
-      } catch (error) {
-        if (isAbortError(error)) throw error;
-        throw new GateError("Gate judgement failed", { cause: error });
-      }
+          const generateRequest: GenerateRequest = {
+            model,
+            messages: [
+              {
+                role: "system",
+                content: `${SYSTEM_INSTRUCTION}\n\n${policy}`,
+              },
+              { role: "user", content: toUserMessage(request) },
+            ],
+            tools: [verdictTool],
+            toolChoice: { type: "tool", name: "verdict" },
+          };
 
-      const call = response.toolCalls.find(
-        (toolCall) => toolCall.name === "verdict",
+          let response: GenerateResponse;
+          try {
+            response = await tracedProvider.generate(generateRequest);
+          } catch (error) {
+            if (isAbortError(error)) throw error;
+            throw new GateError("Gate judgement failed", {
+              cause: error,
+            });
+          }
+
+          const call = response.toolCalls.find(
+            (toolCall) => toolCall.name === "verdict",
+          );
+          if (call === undefined) {
+            throw new GateError(
+              "Provider did not call the verdict tool",
+            );
+          }
+
+          const parsed = verdictInput.safeParse(call.arguments);
+          if (!parsed.success) {
+            throw new GateError("Verdict arguments failed validation", {
+              cause: parsed.error,
+            });
+          }
+
+          return parsed.data;
+        },
       );
-      if (call === undefined) {
-        throw new GateError("Provider did not call the verdict tool");
-      }
-
-      const parsed = verdictInput.safeParse(call.arguments);
-      if (!parsed.success) {
-        throw new GateError("Verdict arguments failed validation", {
-          cause: parsed.error,
-        });
-      }
-
-      return parsed.data;
     },
   };
 };

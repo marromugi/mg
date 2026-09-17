@@ -41,6 +41,12 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../core
+      '@mg/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../trace
       zod:
         specifier: ^4.6.2
         version: 4.6.2

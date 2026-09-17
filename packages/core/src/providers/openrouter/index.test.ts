@@ -38,6 +38,12 @@ const okBody = {
 };
 
 describe("createOpenRouterProvider", () => {
+  test("exposes its own name", () => {
+    const provider = createOpenRouterProvider({ apiKey: "test-key" });
+
+    expect(provider.name).toBe("openrouter");
+  });
+
   test("sends the expected URL, method, headers and body", async () => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
     const provider = createOpenRouterProvider({

@@ -329,3 +329,52 @@ describe("traceProvider / stream", () => {
     expect(root.children).toHaveLength(0);
   });
 });
+
+describe("traceProvider / provider name", () => {
+  const providerOf = (name?: string): Provider => ({
+    ...(name !== undefined ? { name } : {}),
+    generate: async () => ({
+      content: "hello",
+      toolCalls: [],
+      finishReason: "stop",
+    }),
+    stream: async function* () {},
+  });
+
+  it("keeps the wrapped provider's name", () => {
+    const root = new RecordingSpan("root");
+
+    expect(traceProvider(providerOf("openrouter"), root).name).toBe(
+      "openrouter",
+    );
+  });
+
+  it("has no name when the wrapped provider has none", () => {
+    const root = new RecordingSpan("root");
+
+    expect(
+      traceProvider(providerOf(undefined), root).name,
+    ).toBeUndefined();
+  });
+
+  it("sets mg.llm.provider on the span when the provider has a name", async () => {
+    const root = new RecordingSpan("root");
+
+    await traceProvider(providerOf("openrouter"), root).generate(
+      request,
+    );
+
+    const span = root.children[0];
+    expect(span?.attributes[ATTR.llmProvider]).toBe("openrouter");
+  });
+
+  it("omits mg.llm.provider from the span when the provider has no name", async () => {
+    const root = new RecordingSpan("root");
+
+    await traceProvider(providerOf(undefined), root).generate(request);
+
+    const span = root.children[0];
+    expect(span?.attributes[ATTR.llmProvider]).toBeUndefined();
+    expect(ATTR.llmProvider in (span?.attributes ?? {})).toBe(false);
+  });
+});

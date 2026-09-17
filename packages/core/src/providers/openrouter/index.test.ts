@@ -147,6 +147,47 @@ describe("createOpenRouterProvider", () => {
     });
   });
 
+  test("returns a reasoning part carrying the reasoning_details", async () => {
+    const details = [
+      {
+        type: "reasoning.text",
+        text: "checking the forecast",
+        id: "r1",
+        format: "anthropic-claude-v1",
+        index: 0,
+      },
+    ];
+    const { fetchStub } = stubFetch(() =>
+      jsonResponse({
+        choices: [
+          {
+            message: {
+              content: "24 degrees",
+              reasoning: "checking the forecast",
+              reasoning_details: details,
+            },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    await expect(provider.generate(request)).resolves.toMatchObject({
+      parts: [
+        {
+          type: "reasoning",
+          text: "checking the forecast",
+          carry: { provider: "openrouter", data: details },
+        },
+        { type: "text", text: "24 degrees" },
+      ],
+    });
+  });
+
   test("throws a ProviderHttpError carrying the status and the body", async () => {
     const { fetchStub } = stubFetch(
       () => new Response("rate limited", { status: 429 }),
@@ -421,6 +462,65 @@ describe("createOpenRouterProvider stream", () => {
 
     await collectStream(stream);
     expect(calls).toHaveLength(1);
+  });
+
+  test("streams the reasoning and the carry ahead of the tool call", async () => {
+    const detail = {
+      type: "reasoning.text",
+      text: "checking the forecast",
+      id: "r1",
+      format: "anthropic-claude-v1",
+      index: 0,
+    };
+    const { fetchStub } = stubFetch(() =>
+      sseResponse([
+        JSON.stringify({
+          choices: [{ delta: { reasoning_details: [detail] } }],
+        }),
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call-1",
+                    type: "function",
+                    function: { name: "weather", arguments: "{}" },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        JSON.stringify({
+          choices: [{ delta: {}, finish_reason: "tool_calls" }],
+        }),
+      ]),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    await expect(
+      collectStream(provider.stream(request)),
+    ).resolves.toEqual([
+      {
+        type: "reasoning-delta",
+        delta: "",
+        carry: { provider: "openrouter", data: [detail] },
+      },
+      {
+        type: "tool-call",
+        toolCall: {
+          id: "call-1",
+          name: "weather",
+          arguments: {},
+        },
+      },
+      { type: "finish", finishReason: "tool_calls" },
+    ]);
   });
 
   test("assembles a tool call carried by the stream", async () => {

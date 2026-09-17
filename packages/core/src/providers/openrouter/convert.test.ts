@@ -172,10 +172,34 @@ describe("toOpenRouterRequest", () => {
     ).toBe(false);
   });
 
-  test("does not send reasoning parts", () => {
+  test("does not send reasoning from a turn before the last user message", () => {
     const body = toOpenRouterRequest(
       request({
         messages: [
+          {
+            role: "assistant",
+            parts: [
+              { type: "reasoning", text: "thinking it through" },
+              { type: "text", text: "hi" },
+            ],
+          },
+          { role: "user", content: "and then?" },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "and then?" },
+    ]);
+  });
+
+  test("sends the reasoning text for the turn after the last user message", () => {
+    const body = toOpenRouterRequest(
+      request({
+        messages: [
+          { role: "user", content: "weather?" },
           {
             role: "assistant",
             parts: [
@@ -189,6 +213,99 @@ describe("toOpenRouterRequest", () => {
     ) as RequestBody;
 
     expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
+      {
+        role: "assistant",
+        content: "hi",
+        reasoning: "thinking it through",
+      },
+    ]);
+  });
+
+  test("sends reasoning_details from an openrouter carry for the turn after the last user message", () => {
+    const details = [
+      {
+        type: "reasoning.text",
+        text: "thinking it through",
+        id: "r1",
+        format: "anthropic-claude-v1",
+        index: 0,
+      },
+    ];
+    const body = toOpenRouterRequest(
+      request({
+        messages: [
+          { role: "user", content: "weather?" },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "reasoning",
+                text: "thinking it through",
+                carry: { provider: "openrouter", data: details },
+              },
+              { type: "text", text: "hi" },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
+      {
+        role: "assistant",
+        content: "hi",
+        reasoning_details: details,
+      },
+    ]);
+  });
+
+  test("ignores a carry made by another connection and falls back to the reasoning text", () => {
+    const body = toOpenRouterRequest(
+      request({
+        messages: [
+          { role: "user", content: "weather?" },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "reasoning",
+                text: "thinking it through",
+                carry: { provider: "ollama", data: ["foreign"] },
+              },
+              { type: "text", text: "hi" },
+            ],
+          },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
+      {
+        role: "assistant",
+        content: "hi",
+        reasoning: "thinking it through",
+      },
+    ]);
+  });
+
+  test("sends neither reasoning field when the assistant message has no reasoning", () => {
+    const body = toOpenRouterRequest(
+      request({
+        messages: [
+          { role: "user", content: "weather?" },
+          { role: "assistant", parts: [{ type: "text", text: "hi" }] },
+        ],
+      }),
+      false,
+    ) as RequestBody;
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "weather?" },
       { role: "assistant", content: "hi" },
     ]);
   });
@@ -341,6 +458,85 @@ describe("fromOpenRouterResponse", () => {
     expect(
       textOf(fromOpenRouterResponse(responseBody({ content: null }))),
     ).toBe("");
+  });
+
+  test("maps the reasoning text before the text part", () => {
+    const response = fromOpenRouterResponse(
+      responseBody({
+        content: "24 degrees",
+        reasoning: "checking the forecast",
+      }),
+    );
+
+    expect(response.parts).toEqual([
+      { type: "reasoning", text: "checking the forecast" },
+      { type: "text", text: "24 degrees" },
+    ]);
+  });
+
+  test("attaches an openrouter carry when reasoning_details is present", () => {
+    const details = [
+      {
+        type: "reasoning.text",
+        text: "checking the forecast",
+        id: "r1",
+        format: "anthropic-claude-v1",
+        index: 0,
+      },
+    ];
+    const response = fromOpenRouterResponse(
+      responseBody({
+        content: "24 degrees",
+        reasoning: "checking the forecast",
+        reasoning_details: details,
+      }),
+    );
+
+    expect(response.parts).toEqual([
+      {
+        type: "reasoning",
+        text: "checking the forecast",
+        carry: { provider: "openrouter", data: details },
+      },
+      { type: "text", text: "24 degrees" },
+    ]);
+  });
+
+  test("yields a reasoning part with an empty text when only reasoning_details is present", () => {
+    const details = [
+      {
+        type: "reasoning.encrypted",
+        data: "opaque",
+        id: "r1",
+        format: "anthropic-claude-v1",
+        index: 0,
+      },
+    ];
+    const response = fromOpenRouterResponse(
+      responseBody({
+        content: "24 degrees",
+        reasoning_details: details,
+      }),
+    );
+
+    expect(response.parts).toEqual([
+      {
+        type: "reasoning",
+        text: "",
+        carry: { provider: "openrouter", data: details },
+      },
+      { type: "text", text: "24 degrees" },
+    ]);
+  });
+
+  test("omits the reasoning part when neither reasoning nor reasoning_details is present", () => {
+    const response = fromOpenRouterResponse(
+      responseBody({ content: "24 degrees" }),
+    );
+
+    expect(response.parts).toEqual([
+      { type: "text", text: "24 degrees" },
+    ]);
   });
 
   test("maps two tool calls", () => {

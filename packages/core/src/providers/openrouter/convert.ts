@@ -3,8 +3,9 @@ import {
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
-import { textOf, toolCallsOf } from "../parts.js";
+import { partsOf, reasoningOf, textOf, toolCallsOf } from "../parts.js";
 import type {
+  AssistantMessage,
   AssistantPart,
   FinishReason,
   GenerateRequest,
@@ -15,6 +16,7 @@ import type {
   ToolDefinition,
   Usage,
 } from "../types.js";
+import { PROVIDER_NAME } from "./name.js";
 
 type OpenRouterToolCall = {
   id: string;
@@ -29,6 +31,8 @@ type OpenRouterMessage =
       role: "assistant";
       content: string;
       tool_calls?: OpenRouterToolCall[];
+      reasoning?: string;
+      reasoning_details?: unknown[];
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
@@ -57,6 +61,8 @@ type OpenRouterResponseBody = {
   choices?: {
     message?: {
       content?: string | null;
+      reasoning?: string | null;
+      reasoning_details?: unknown[] | null;
       tool_calls?: OpenRouterResponseToolCall[] | null;
     } | null;
     finish_reason?: string | null;
@@ -64,7 +70,29 @@ type OpenRouterResponseBody = {
   usage?: { prompt_tokens: number; completion_tokens: number } | null;
 };
 
-const toMessage = (message: Message): OpenRouterMessage => {
+const openRouterReasoningFields = (
+  message: AssistantMessage,
+): { reasoning?: string; reasoning_details?: unknown[] } => {
+  const details = partsOf(message).flatMap((part) =>
+    part.type === "reasoning" &&
+    part.carry?.provider === PROVIDER_NAME &&
+    Array.isArray(part.carry.data)
+      ? part.carry.data
+      : [],
+  );
+
+  if (details.length > 0) {
+    return { reasoning_details: details };
+  }
+
+  const text = reasoningOf(message);
+  return text === "" ? {} : { reasoning: text };
+};
+
+const toMessage = (
+  message: Message,
+  sendReasoning: boolean,
+): OpenRouterMessage => {
   switch (message.role) {
     case "system":
       return { role: "system", content: message.content };
@@ -73,8 +101,12 @@ const toMessage = (message: Message): OpenRouterMessage => {
     case "assistant": {
       const content = textOf(message);
       const toolCalls = toolCallsOf(message);
+      const reasoning = sendReasoning
+        ? openRouterReasoningFields(message)
+        : {};
+
       if (toolCalls.length === 0) {
-        return { role: "assistant", content };
+        return { role: "assistant", content, ...reasoning };
       }
       return {
         role: "assistant",
@@ -87,6 +119,7 @@ const toMessage = (message: Message): OpenRouterMessage => {
             arguments: JSON.stringify(toolCall.arguments),
           },
         })),
+        ...reasoning,
       };
     }
     case "tool":
@@ -127,9 +160,16 @@ export const toOpenRouterRequest = (
   request: GenerateRequest,
   stream: boolean,
 ): object => {
+  const lastUserIndex = request.messages.reduce(
+    (last, message, index) => (message.role === "user" ? index : last),
+    -1,
+  );
+
   const body: Record<string, unknown> = {
     model: request.model,
-    messages: request.messages.map(toMessage),
+    messages: request.messages.map((message, index) =>
+      toMessage(message, index > lastUserIndex),
+    ),
     stream,
   };
 
@@ -220,6 +260,24 @@ export const fromOpenRouterResponse = (
   }
 
   const parts: AssistantPart[] = [];
+  const reasoningText = message.reasoning ?? "";
+  const reasoningDetails =
+    Array.isArray(message.reasoning_details) &&
+    message.reasoning_details.length > 0
+      ? message.reasoning_details
+      : undefined;
+  if (reasoningText !== "" || reasoningDetails !== undefined) {
+    parts.push(
+      reasoningDetails === undefined
+        ? { type: "reasoning", text: reasoningText }
+        : {
+            type: "reasoning",
+            text: reasoningText,
+            carry: { provider: PROVIDER_NAME, data: reasoningDetails },
+          },
+    );
+  }
+
   const content = message.content ?? "";
   if (content !== "") {
     parts.push({ type: "text", text: content });

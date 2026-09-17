@@ -12,7 +12,7 @@ export const SessionList = ({
         <Table.HeaderCell>Session</Table.HeaderCell>
         <Table.HeaderCell>Start</Table.HeaderCell>
         <Table.HeaderCell>End</Table.HeaderCell>
-        <Table.HeaderCell>Traces</Table.HeaderCell>
+        <Table.HeaderCell align="end">Traces</Table.HeaderCell>
       </Table.Row>
     </Table.Head>
     <Table.Body>
@@ -28,7 +28,7 @@ export const SessionList = ({
           </Table.Cell>
           <Table.Cell>{session.startTime}</Table.Cell>
           <Table.Cell>{session.endTime}</Table.Cell>
-          <Table.Cell>{session.traceCount}</Table.Cell>
+          <Table.Cell align="end">{session.traceCount}</Table.Cell>
         </Table.Row>
       ))}
     </Table.Body>

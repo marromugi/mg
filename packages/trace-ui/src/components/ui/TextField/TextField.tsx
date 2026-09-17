@@ -1,11 +1,11 @@
 import { tv } from "tailwind-variants";
 
 const input = tv({
-  base: "block w-full rounded-control border border-edge bg-transparent px-3.5 control-py-3 font-sans text-base shadow-none transition duration-160 ease-out outline-none placeholder:opacity-50 focus-visible:border-accent focus-visible:shadow-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:transition-opacity [&::-webkit-search-cancel-button]:duration-150 [&::-webkit-search-cancel-button]:ease-out [&::-webkit-search-cancel-button]:will-change-opacity",
+  base: "block w-full rounded-control border border-edge bg-transparent px-3.5 control-py-3 font-sans text-base shadow-none transition duration-160 ease-out outline-none placeholder:opacity-50 enabled:focus-visible:border-accent enabled:focus-visible:shadow-ring disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-search-cancel-button]:transition-opacity [&::-webkit-search-cancel-button]:duration-150 [&::-webkit-search-cancel-button]:ease-out [&::-webkit-search-cancel-button]:will-change-opacity",
   variants: {
     invalid: {
-      true: "border-error focus-visible:border-error focus-visible:shadow-ring-error",
-      false: "",
+      true: "border-error enabled:focus-visible:border-error enabled:focus-visible:shadow-ring-error",
+      false: "enabled:hover:border-current/40",
     },
   },
   defaultVariants: { invalid: false },

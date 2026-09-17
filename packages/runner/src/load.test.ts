@@ -34,6 +34,21 @@ describe("loadRun", () => {
     );
   });
 
+  test("rejects with InvalidRunConfigError when gate is not an object with a judge function", async () => {
+    await expect(
+      loadRun("src/__fixtures__/invalid-gate.ts"),
+    ).rejects.toThrow(
+      /src\/__fixtures__\/invalid-gate\.ts.*gate must be an object with a judge function/,
+    );
+  });
+
+  test("resolves the default export of a config with a valid gate", async () => {
+    const config = await loadRun("src/__fixtures__/valid-gate.ts");
+
+    expect(config.name).toBe("fixture-valid-gate");
+    expect(config.gate).toBeDefined();
+  });
+
   test("propagates import failures for a missing file", async () => {
     await expect(
       loadRun("src/__fixtures__/does-not-exist.ts"),

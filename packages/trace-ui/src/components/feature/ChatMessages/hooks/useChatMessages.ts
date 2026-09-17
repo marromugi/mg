@@ -45,10 +45,14 @@ const normaliseToolCallPart = (
 
 const normaliseParts = (
   parts: unknown[],
-): Pick<ChatMessage, "content" | "toolCalls" | "reasoning"> => {
+): {
+  recognisedCount: number;
+  fields: Pick<ChatMessage, "content" | "toolCalls" | "reasoning">;
+} => {
   const texts: string[] = [];
   const reasonings: string[] = [];
   const toolCalls: ChatToolCall[] = [];
+  let recognisedCount = 0;
 
   for (const part of parts) {
     if (!isRecord(part)) {
@@ -56,25 +60,31 @@ const normaliseParts = (
     }
     if (part.type === "text" && typeof part.text === "string") {
       texts.push(part.text);
+      recognisedCount++;
     } else if (
       part.type === "reasoning" &&
       typeof part.text === "string"
     ) {
       reasonings.push(part.text);
+      recognisedCount++;
     } else if (part.type === "tool-call") {
       const toolCall = normaliseToolCallPart(part);
       if (toolCall !== undefined) {
         toolCalls.push(toolCall);
+        recognisedCount++;
       }
     }
   }
 
   return {
-    content: texts.join(""),
-    ...(toolCalls.length > 0 ? { toolCalls } : {}),
-    ...(reasonings.length > 0
-      ? { reasoning: reasonings.join("\n") }
-      : {}),
+    recognisedCount,
+    fields: {
+      content: texts.join(""),
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+      ...(reasonings.length > 0
+        ? { reasoning: reasonings.join("\n") }
+        : {}),
+    },
   };
 };
 
@@ -85,7 +95,11 @@ export const normaliseChatMessage = (
     return undefined;
   }
   if (Array.isArray(value.parts)) {
-    return { role: value.role, ...normaliseParts(value.parts) };
+    const { recognisedCount, fields } = normaliseParts(value.parts);
+    if (value.parts.length > 0 && recognisedCount === 0) {
+      return undefined;
+    }
+    return { role: value.role, ...fields };
   }
   return isLegacyMessage(value) ? value : undefined;
 };

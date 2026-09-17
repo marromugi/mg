@@ -122,6 +122,58 @@ describe("normaliseChatMessage", () => {
     });
   });
 
+  it("returns undefined when no parts entry is readable", () => {
+    const message = {
+      role: "assistant",
+      parts: [
+        { type: "image", url: "http://example.com/x.png" },
+        { type: "tool-call", id: "call-1", arguments: {} },
+        "not-an-object",
+      ],
+    };
+
+    expect(normaliseChatMessage(message)).toBeUndefined();
+  });
+
+  it("keeps a reasoning-only message readable", () => {
+    const message = {
+      role: "assistant",
+      parts: [{ type: "reasoning", text: "thinking" }],
+    };
+
+    expect(normaliseChatMessage(message)).toEqual({
+      role: "assistant",
+      content: "",
+      reasoning: "thinking",
+    });
+  });
+
+  it("keeps a message with an empty parts array readable", () => {
+    const message = { role: "assistant", parts: [] };
+
+    expect(normaliseChatMessage(message)).toEqual({
+      role: "assistant",
+      content: "",
+    });
+  });
+
+  it("keeps the parts recognised in a mixed array", () => {
+    const message = {
+      role: "assistant",
+      parts: [
+        { type: "image", url: "http://example.com/x.png" },
+        { type: "text", text: "hi" },
+        { type: "reasoning", text: "thinking" },
+      ],
+    };
+
+    expect(normaliseChatMessage(message)).toEqual({
+      role: "assistant",
+      content: "hi",
+      reasoning: "thinking",
+    });
+  });
+
   it("skips a parts entry that is not an object", () => {
     const message = {
       role: "assistant",

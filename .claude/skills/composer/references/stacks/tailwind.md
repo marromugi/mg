@@ -23,8 +23,8 @@ Tailwind's built-in scale unless the file says otherwise (the file's first
 line records whether defaults were cleared).
 
 What goes in this file — the palette, the radius and spacing scales, dark
-mode values, and the rules for using them — is chord's domain. chord's
-`references/tokens.css` is the source those values are translated from.
+mode values, and the rules for using them — is decided in this file. It is
+the only source of those values.
 
 If the class you want does not exist, do not add the token yourself and do
 not write `bg-[#2f5bea]` or `w-[320px]`. Ask the developer, naming the

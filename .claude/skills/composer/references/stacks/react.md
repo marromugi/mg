@@ -26,7 +26,7 @@ src/
 │   ├── feature/<Name>/       Knows what a span, session, or message is.
 │   └── ui/<Name>/            Knows nothing about the domain. Table, Card, Button…
 ├── hooks/                    Logic shared by more than one component.
-├── styles/tokens.css         The token set (see tailwind.md; values per chord).
+├── styles/tokens.css         The token set (see tailwind.md).
 ├── stories/fixtures.ts       Fixed SessionTree / SpanNode / SessionSummary values.
 └── vocabulary.ts             Span and attribute names.
 ```

@@ -59,6 +59,7 @@ export type GenerateResponse = {
 
 export type StreamEvent =
   | { type: "text-delta"; delta: string }
+  | { type: "reasoning-delta"; delta: string; carry?: ReasoningCarry }
   | { type: "tool-call"; toolCall: ToolCall }
   | { type: "finish"; finishReason: FinishReason; usage?: Usage };
 

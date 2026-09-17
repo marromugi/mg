@@ -1,3 +1,4 @@
+export * from "./accumulate.js";
 export * from "./errors.js";
 export * from "./ndjson.js";
 export * from "./ollama/index.js";

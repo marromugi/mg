@@ -11,6 +11,7 @@ export const createHarness = (config: RunConfig): Harness => {
         tools: config.tools,
         maxTurns: config.harness.maxTurns,
         stream: config.harness.stream,
+        gate: config.gate,
       });
     default: {
       const unknown = config.harness as { kind: unknown };

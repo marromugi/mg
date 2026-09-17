@@ -4,9 +4,11 @@ import type {
   Provider,
   StreamEvent,
   Tool,
+  ToolCall,
   ToolSchema,
 } from "@mg/core";
 import { defineTool } from "@mg/core";
+import type { Gate, Verdict } from "@mg/gate";
 import { collect } from "@mg/harness";
 import { describe, expect, test, vi } from "vitest";
 import type { RunConfig } from "./config.js";
@@ -82,6 +84,53 @@ describe("createHarness", () => {
       }
     ).mock.calls[0]?.[0];
     expect(request?.tools).toEqual([tool]);
+  });
+
+  test("a config with gate builds a harness whose tool calls go through that gate", async () => {
+    const toolCall: ToolCall = {
+      id: "call-1",
+      name: "a",
+      arguments: {},
+    };
+    const execute = vi.fn(async () => "a-result");
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute,
+    });
+    const provider = stubProvider([
+      {
+        content: "",
+        toolCalls: [toolCall],
+        finishReason: "tool_calls",
+      },
+    ]);
+    const judge = vi.fn(async (): Promise<Verdict> => ({
+      allowed: false,
+      reason: "no",
+    }));
+    const gate: Gate = { judge };
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [tool],
+      gate,
+    };
+
+    const result = await collect(
+      createHarness(config)({ messages: [] }),
+    );
+
+    expect(judge).toHaveBeenCalledTimes(1);
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.messages).toContainEqual(
+      expect.objectContaining({
+        role: "tool",
+        toolCallId: "call-1",
+        content: expect.stringContaining("[denied]"),
+      }),
+    );
   });
 
   test("unknown harness kind throws RangeError", () => {

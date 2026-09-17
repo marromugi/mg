@@ -1,4 +1,5 @@
 import type { Provider, Tool } from "@mg/core";
+import type { Gate } from "@mg/gate";
 import type { TraceSdkOptions } from "@mg/trace/otel";
 
 export type LoopHarnessConfig = {
@@ -14,6 +15,7 @@ export type RunConfig = {
   provider: Provider;
   harness: HarnessConfig;
   tools?: readonly Tool[];
+  gate?: Gate;
   trace?: Omit<TraceSdkOptions, "sessionId">;
 };
 

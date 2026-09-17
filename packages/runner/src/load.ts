@@ -50,6 +50,16 @@ const validate = (path: string, value: unknown): RunConfig => {
     throw new InvalidRunConfigError(path, "tools must be an array");
   }
 
+  if (
+    value.gate !== undefined &&
+    (!isObject(value.gate) || typeof value.gate.judge !== "function")
+  ) {
+    throw new InvalidRunConfigError(
+      path,
+      "gate must be an object with a judge function",
+    );
+  }
+
   if (value.trace !== undefined && !isObject(value.trace)) {
     throw new InvalidRunConfigError(path, "trace must be an object");
   }

@@ -9,8 +9,11 @@ import type {
   Usage,
 } from "@mg/core";
 import { runToolCall } from "@mg/core";
+import type { Gate } from "@mg/gate";
+import { gateRunToolCall } from "@mg/gate";
 import { noopSpan } from "@mg/harness";
 import type { Harness, HarnessEvent, TraceSpan } from "@mg/harness";
+import type { RunToolCall } from "@mg/trace";
 import { ATTR, SPAN, traceProvider, traceRunToolCall } from "@mg/trace";
 import { StreamIncompleteError } from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
@@ -21,6 +24,7 @@ export type LoopHarnessOptions = {
   tools?: readonly Tool[];
   maxTurns: number;
   stream?: boolean;
+  gate?: Gate;
 };
 
 type TurnResult = {
@@ -118,12 +122,15 @@ export const createLoopHarness = (
   return async function* (input) {
     let span: TraceSpan;
     let provider: Provider;
-    let run: typeof runToolCall;
+    let run: RunToolCall;
 
     if (input.trace === undefined) {
       span = noopSpan;
       provider = options.provider;
-      run = runToolCall;
+      run =
+        options.gate === undefined
+          ? runToolCall
+          : gateRunToolCall(options.gate, runToolCall);
     } else {
       try {
         span = input.trace.startSpan(SPAN.harness, {
@@ -134,7 +141,10 @@ export const createLoopHarness = (
         span = noopSpan;
       }
       provider = traceProvider(options.provider, span);
-      run = traceRunToolCall(span);
+      run =
+        options.gate === undefined
+          ? traceRunToolCall(span)
+          : gateRunToolCall(options.gate, traceRunToolCall(span), span);
     }
 
     let ended = false;

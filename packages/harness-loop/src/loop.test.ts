@@ -7,6 +7,7 @@ import type {
   ToolSchema,
 } from "@mg/core";
 import { defineTool } from "@mg/core";
+import type { Gate, Verdict } from "@mg/gate";
 import { collect } from "@mg/harness";
 import type {
   HarnessEvent,
@@ -104,6 +105,8 @@ const deferred = <T>() => {
   });
   return { promise, resolve };
 };
+
+const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
 
 describe("createLoopHarness", () => {
   beforeEach(() => {
@@ -916,5 +919,153 @@ describe("createLoopHarness", () => {
 
     expect(traceProvider).toHaveBeenCalledTimes(1);
     expect(traceRunToolCall).toHaveBeenCalledTimes(1);
+  });
+
+  test("a gate that denies leaves the tool unrun, appends the denial as the tool result, and the loop proceeds to the next turn", async () => {
+    const execute = vi.fn(async () => "a-result");
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute,
+    });
+    const toolCall: ToolCall = {
+      id: "call-1",
+      name: "a",
+      arguments: {},
+    };
+    const provider = stubProvider([
+      {
+        content: "",
+        toolCalls: [toolCall],
+        finishReason: "tool_calls",
+      },
+      { content: "done", toolCalls: [], finishReason: "stop" },
+    ]);
+    const gate = stubGate(async (): Promise<Verdict> => ({
+      allowed: false,
+      reason: "writes to disk",
+    }));
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [tool],
+      maxTurns: 5,
+      stream: false,
+      gate,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    expect(execute).not.toHaveBeenCalled();
+    const toolResult = events.find(
+      (
+        event,
+      ): event is Extract<HarnessEvent, { type: "tool-result" }> =>
+        event.type === "tool-result",
+    );
+    expect(toolResult?.message.toolCallId).toBe("call-1");
+    expect(toolResult?.message.content).toContain("[denied]");
+    expect(toolResult?.message.content).toContain("writes to disk");
+
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.reason).toBe("stop");
+    expect(done.result.messages).toContainEqual(toolResult?.message);
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+  });
+
+  test("a gate that allows runs the tool", async () => {
+    const execute = vi.fn(async () => "a-result");
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute,
+    });
+    const toolCall: ToolCall = {
+      id: "call-1",
+      name: "a",
+      arguments: {},
+    };
+    const provider = stubProvider([
+      {
+        content: "",
+        toolCalls: [toolCall],
+        finishReason: "tool_calls",
+      },
+    ]);
+    const gate = stubGate(async (): Promise<Verdict> => ({
+      allowed: true,
+      reason: "ok",
+    }));
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [tool],
+      maxTurns: 1,
+      stream: false,
+      gate,
+    });
+
+    const result = await collect(harness({ messages: [] }));
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.messages).toContainEqual({
+      role: "tool",
+      toolCallId: "call-1",
+      content: "a-result",
+    });
+  });
+
+  test("with a trace and a gate, mg.gate is a sibling of mg.tool under mg.harness, and a denied call produces no mg.tool span", async () => {
+    const execute = vi.fn(async () => "a-result");
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute,
+    });
+    const toolCall: ToolCall = {
+      id: "call-1",
+      name: "a",
+      arguments: {},
+    };
+    const provider = stubProvider([
+      {
+        content: "",
+        toolCalls: [toolCall],
+        finishReason: "tool_calls",
+      },
+      { content: "done", toolCalls: [], finishReason: "stop" },
+    ]);
+    const gate = stubGate(
+      async (request, context): Promise<Verdict> => {
+        context?.trace?.startSpan("mg.gate", {});
+        return { allowed: false, reason: "writes to disk" };
+      },
+    );
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [tool],
+      maxTurns: 2,
+      stream: false,
+      gate,
+    });
+
+    const root = new RecordingSpan("root");
+    await collect(harness({ messages: [], trace: root }));
+
+    expect(execute).not.toHaveBeenCalled();
+    const harnessSpan = root.children[0];
+    expect(harnessSpan.name).toBe("mg.harness");
+    expect(harnessSpan.children.map((child) => child.name)).toEqual([
+      "mg.llm",
+      "mg.gate",
+      "mg.llm",
+    ]);
   });
 });

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@mg/core": "workspace:*",
+    "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
     "@mg/tools": "workspace:*",
     "@mg/trace": "workspace:*"

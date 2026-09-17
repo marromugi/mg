@@ -23,6 +23,7 @@ export type HarnessResult = {
 
 export type HarnessEvent =
   | { type: "text-delta"; delta: string }
+  | { type: "reasoning-delta"; delta: string }
   | { type: "tool-call"; toolCall: ToolCall }
   | { type: "tool-result"; message: ToolMessage }
   | { type: "turn"; finishReason: FinishReason; usage?: Usage }

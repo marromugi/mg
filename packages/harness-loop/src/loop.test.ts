@@ -174,6 +174,105 @@ describe("createLoopHarness", () => {
     ]);
   });
 
+  test("batch: a reasoning part before a text part yields reasoning-delta before text-delta, and history holds the reasoning part before the text part", async () => {
+    const provider = stubProvider([
+      {
+        parts: [
+          {
+            type: "reasoning",
+            text: "thinking",
+            carry: { provider: "x", data: { step: 1 } },
+          },
+          { type: "text", text: "answer" },
+        ],
+        finishReason: "stop",
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      "reasoning-delta",
+      "text-delta",
+      "turn",
+      "done",
+    ]);
+    expect(events[0]).toEqual({
+      type: "reasoning-delta",
+      delta: "thinking",
+    });
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages).toEqual([
+      assistantMessage([
+        {
+          type: "reasoning",
+          text: "thinking",
+          carry: { provider: "x", data: { step: 1 } },
+        },
+        { type: "text", text: "answer" },
+      ]),
+    ]);
+  });
+
+  test("batch: a carry-only reasoning part (empty text) yields no reasoning-delta event but still lands in history", async () => {
+    const provider = stubProvider([
+      {
+        parts: [
+          {
+            type: "reasoning",
+            text: "",
+            carry: { provider: "x", data: { step: 1 } },
+          },
+          { type: "text", text: "answer" },
+        ],
+        finishReason: "stop",
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      "text-delta",
+      "turn",
+      "done",
+    ]);
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages).toEqual([
+      assistantMessage([
+        {
+          type: "reasoning",
+          text: "",
+          carry: { provider: "x", data: { step: 1 } },
+        },
+        { type: "text", text: "answer" },
+      ]),
+    ]);
+  });
+
   test("finishReason length without tool calls yields done(length)", async () => {
     const provider = stubProvider([
       {
@@ -500,6 +599,106 @@ describe("createLoopHarness", () => {
       },
     ]);
     expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  test("stream: reasoning deltas then a text delta yields reasoning-delta before text-delta, and history holds the reasoning part before the text part", async () => {
+    const provider = stubStreamProvider([
+      [
+        { type: "reasoning-delta", delta: "think" },
+        {
+          type: "reasoning-delta",
+          delta: "ing",
+          carry: { provider: "x", data: { step: 1 } },
+        },
+        { type: "text-delta", delta: "answer" },
+        { type: "finish", finishReason: "stop" },
+      ],
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      "reasoning-delta",
+      "reasoning-delta",
+      "text-delta",
+      "turn",
+      "done",
+    ]);
+    expect(
+      events.filter((event) => event.type === "reasoning-delta"),
+    ).toEqual([
+      { type: "reasoning-delta", delta: "think" },
+      { type: "reasoning-delta", delta: "ing" },
+    ]);
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages).toEqual([
+      assistantMessage([
+        {
+          type: "reasoning",
+          text: "thinking",
+          carry: { provider: "x", data: { step: 1 } },
+        },
+        { type: "text", text: "answer" },
+      ]),
+    ]);
+  });
+
+  test("stream: an empty-delta reasoning-delta event (carry only) yields no event but the carry still lands in history", async () => {
+    const provider = stubStreamProvider([
+      [
+        { type: "reasoning-delta", delta: "think" },
+        { type: "text-delta", delta: "answer" },
+        {
+          type: "reasoning-delta",
+          delta: "",
+          carry: { provider: "x", data: { step: 2 } },
+        },
+        { type: "finish", finishReason: "stop" },
+      ],
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      "reasoning-delta",
+      "text-delta",
+      "turn",
+      "done",
+    ]);
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages).toEqual([
+      assistantMessage([
+        { type: "reasoning", text: "think" },
+        { type: "text", text: "answer" },
+        {
+          type: "reasoning",
+          text: "",
+          carry: { provider: "x", data: { step: 2 } },
+        },
+      ]),
+    ]);
   });
 
   test("stream: deltas then two tool calls then finish matches the batch mode events and messages", async () => {

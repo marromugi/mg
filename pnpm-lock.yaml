@@ -36,6 +36,15 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
 
+  packages/gate:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^4.6.2
+        version: 4.6.2
+
   packages/harness:
     dependencies:
       '@mg/core':

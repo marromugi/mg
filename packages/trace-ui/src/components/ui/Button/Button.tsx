@@ -2,19 +2,19 @@ import type { ReactNode } from "react";
 import { tv } from "tailwind-variants";
 
 const button = tv({
-  base: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-control border font-sans font-semibold transition-[background-color,box-shadow,scale] duration-[160ms] ease-out active:duration-200 active:ease-bounce focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+  base: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-control border font-sans font-semibold transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:duration-200 active:ease-bounce",
   variants: {
     tone: {
       primary:
-        "border-accent bg-accent text-on-accent shadow-sm hover:bg-accent/90 hover:shadow-md active:scale-[1.02] active:bg-accent/80 active:shadow-none",
+        "border-accent bg-accent text-on-accent shadow-sm hover:bg-accent/90 hover:shadow-md active:scale-102 active:bg-accent/80 active:shadow-none",
       secondary:
-        "border-transparent bg-accent/15 text-accent-text hover:bg-accent/25 active:scale-[1.02] active:bg-accent/30",
+        "border-transparent bg-accent/15 text-accent-text hover:bg-accent/25 active:scale-102 active:bg-accent/30",
       neutral:
-        "border-edge bg-transparent text-current hover:bg-edge active:scale-[1.02] active:bg-edge/80",
+        "border-edge bg-transparent text-current hover:bg-edge active:scale-102 active:bg-edge/80",
     },
     size: {
-      sm: "[--control-py:8px] px-4 py-(--control-py) text-sm",
-      md: "[--control-py:12px] px-6 py-(--control-py) text-base",
+      sm: "px-4 control-py-2 text-sm",
+      md: "px-6 control-py-3 text-base",
     },
     disabled: {
       true: "pointer-events-none opacity-50",

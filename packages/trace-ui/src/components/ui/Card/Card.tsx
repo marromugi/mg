@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { tv } from "tailwind-variants";
 
 const card = tv({
-  base: "my-2.5 rounded-container border border-edge [--container-p:12px] p-(--container-p)",
+  base: "my-2.5 rounded-container border border-edge container-p-3",
   variants: {
     tone: {
       default: "",

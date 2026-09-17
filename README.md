@@ -104,21 +104,30 @@ term は、runs と trace-ui が端末に書くときに使います。
   </tr>
 </table>
 
-gate は、まだ実行の流れにはつながっていません。
-いまは core と harness と trace を使います。
+gate は、実行の流れの中にいます。
+runner と harness-loop が、判定を挟むために使います。
 
 <table>
+  <tr>
+    <td align="center"><code>@mg/runner</code> → <code>@mg/gate</code></td>
+  </tr>
+  <tr>
+    <td align="center"><code>@mg/harness-loop</code> → <code>@mg/gate</code></td>
+  </tr>
+  <tr>
+    <td align="center">↓</td>
+  </tr>
   <tr>
     <td align="center"><code>@mg/gate</code> → <code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
   </tr>
 </table>
 
 - runs は、runner を使います。
-- 設定を書くには、core と tools も使います。harness-loop と trace も使います。
+- 設定を書くには、core と tools も使います。harness-loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
-- runner は、core と harness を使います。harness-loop と trace も使います。
+- runner は、core と harness を使います。harness-loop と trace と gate も使います。
 - runner は、tools を使いません。
-- harness-loop は、4 つを使います。core と tools と harness と trace です。
+- harness-loop は、5 つを使います。core と tools と harness と trace と gate です。
 - trace は、harness と core を使います。
 - trace-ui は、trace と term を使います。
 - harness と tools は、それぞれ core を使います。

@@ -25,17 +25,49 @@ export default defineRun({
 });
 ```
 
+Adding a gate that checks each tool call before it runs (see
+`runs/loop-bash-gate.config.ts` for the file in the repo):
+
+```ts
+import { defineRun } from "@mg/runner";
+import { createOpenRouterProvider } from "@mg/core";
+import { createBashTool } from "@mg/tools";
+import { createLlmGate } from "@mg/gate";
+
+const apiKey = process.env.OPENROUTER_API_KEY;
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
+
+const provider = createOpenRouterProvider({ apiKey });
+
+export default defineRun({
+  name: "loop-bash-gate",
+  provider,
+  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  tools: [createBashTool({ cwd: process.cwd() })],
+  gate: createLlmGate({
+    provider,
+    model: "openai/gpt-4o-mini",
+    policy:
+      "Read-only commands are allowed. Deleting files or " +
+      "sending data outside the machine is not.",
+  }),
+  trace: { jsonlPath: "./trace.jsonl" },
+});
+```
+
 ## 2. Field reference
 
 ### `RunConfig` (`packages/runner/src/config.ts`)
 
-| Field      | Type                                 | Required | Meaning                                                                                                              |
-| ---------- | ------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `name`     | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules). |
-| `provider` | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                    |
-| `harness`  | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                    |
-| `tools`    | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                          |
-| `trace`    | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.              |
+| Field      | Type                                 | Required | Meaning                                                                                                                    |
+| ---------- | ------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `name`     | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).       |
+| `provider` | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                          |
+| `harness`  | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                          |
+| `tools`    | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                |
+| `gate`     | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`); the runner only passes it through. |
+| `trace`    | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                    |
 
 ### `HarnessConfig`: kind `"loop"` (`LoopHarnessConfig`)
 
@@ -70,6 +102,7 @@ Field meanings, how they combine, and how to read the output back are in
 | -------- | ----------------------------------- | ----------- |
 | Provider | `createOpenRouterProvider(options)` | `@mg/core`  |
 | Tool     | `createBashTool(options)`           | `@mg/tools` |
+| Gate     | `createLlmGate(options)`            | `@mg/gate`  |
 
 ```ts
 import { createOpenRouterProvider } from "@mg/core";

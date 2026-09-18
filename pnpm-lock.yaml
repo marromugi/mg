@@ -44,6 +44,9 @@ importers:
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace
+      zod:
+        specifier: ^4.6.2
+        version: 4.6.2
 
   packages/gate:
     dependencies:

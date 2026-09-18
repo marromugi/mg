@@ -25,6 +25,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | ----------------------------------------------------- | ------------------------------------------------- |
 | [`@mg/core`](packages/core/README.md)                 | 接続先の抽象化と、道具の共通の型                  |
 | [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みの道具                |
+| [`@mg/workspace`](packages/workspace/README.md)       | 別の機械につなぐ接続方法の型と、作業場の開閉      |
 | [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定する口の型と、LLM と Jev の実装 |
 | [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入り口と出口の型              |
 | [`@mg/trace`](packages/trace/README.md)               | 記録の口の実体と、共通の語彙                      |
@@ -46,6 +47,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 道具の型や実行の部品                                   | core                                |
 | ハーネスが共通で使う道具                               | tools                               |
 | 1 つのハーネスだけで使う道具                           | ハーネス（core の型で書く）         |
+| 別の機械への接続方法                                   | workspace                           |
 | 実行の可否を判定する口の実装                           | gate                                |
 | 道具の呼び出しの繰り返し                               | harness-loop                        |
 | 検証の失敗を LLM にどう返すか                          | harness-loop                        |
@@ -122,6 +124,14 @@ runner と harness-loop が、判定を挟むために使います。
   </tr>
 </table>
 
+workspace は、core だけを使います。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/workspace</code> → <code>@mg/core</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。harness-loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
@@ -132,6 +142,7 @@ runner と harness-loop が、判定を挟むために使います。
 - trace-ui は、trace と term を使います。
 - harness と tools は、それぞれ core を使います。
 - gate は、core と harness と trace を使います。
+- workspace は、core を使います。
 - term は、このリポジトリの他のパッケージに依存しません。
 - core は、このリポジトリの他のパッケージに依存しません。
 

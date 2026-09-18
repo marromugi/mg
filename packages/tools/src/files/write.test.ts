@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   readFileSync,
@@ -87,6 +88,19 @@ describe("createWriteFileTool", () => {
 
     await expect(
       writeFile.execute({ path: "adir", content: "nope" }, {}),
+    ).rejects.toBeInstanceOf(FileToolError);
+  });
+
+  test("rejects a FIFO", async () => {
+    const fifoPath = join(root, "pipe.fifo");
+    try {
+      execFileSync("mkfifo", [fifoPath]);
+    } catch {
+      return;
+    }
+
+    await expect(
+      writeFile.execute({ path: "pipe.fifo", content: "nope" }, {}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 

@@ -40,7 +40,7 @@ export const createWriteFileTool = (
 
       try {
         const stat = await fs.stat(resolved.absolute);
-        if (stat.isDirectory()) {
+        if (!stat.isFile()) {
           throw new FileToolError(`not a file: ${resolved.relative}`);
         }
       } catch (error) {
@@ -57,7 +57,10 @@ export const createWriteFileTool = (
         await fs.mkdir(path.dirname(resolved.absolute), {
           recursive: true,
         });
-        await fs.writeFile(resolved.absolute, content, "utf8");
+        await fs.writeFile(resolved.absolute, content, {
+          encoding: "utf8",
+          signal: context.signal,
+        });
       } catch (error) {
         if (isAbortError(error)) throw error;
         throw new FileToolError(

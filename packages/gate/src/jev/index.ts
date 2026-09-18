@@ -26,6 +26,7 @@ const DEFAULT_BASE_URL = "https://api.typesafe.ai/v1";
 const DEFAULT_THRESHOLD = 0.5;
 
 const QUESTION = "Is it fine to run this action?";
+const MAX_ERROR_BODY_LENGTH = 200;
 
 const jevResponse = z.object({
   answers: z.object({
@@ -93,8 +94,17 @@ export const createJevGate = (options: JevGateOptions): Gate => {
           }
 
           if (!response.ok) {
+            let text = "";
+            try {
+              text = await response.text();
+            } catch {
+              // ignore: fall back to the status alone
+            }
+            const snippet = text.slice(0, MAX_ERROR_BODY_LENGTH);
             throw new GateError(
-              `Jev request failed: ${response.status}`,
+              `Jev request failed: ${response.status}${
+                snippet === "" ? "" : ` ${snippet}`
+              }`,
             );
           }
 
@@ -102,6 +112,7 @@ export const createJevGate = (options: JevGateOptions): Gate => {
           try {
             json = await response.json();
           } catch (error) {
+            if (isAbortError(error)) throw error;
             throw new GateError("Jev response is not JSON", {
               cause: error,
             });

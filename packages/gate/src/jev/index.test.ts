@@ -198,6 +198,39 @@ describe("createJevGate", () => {
     await expect(gate.judge(request)).rejects.toBeInstanceOf(GateError);
   });
 
+  test("includes the failed response body in the GateError message", async () => {
+    const fetchStub = vi.fn(
+      async () => new Response("invalid api key", { status: 401 }),
+    );
+    const gate = createJevGate({
+      apiKey: "key",
+      policy: "policy",
+      fetch: fetchStub,
+    });
+
+    const error = await gate
+      .judge(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(GateError);
+    expect((error as GateError).message).toContain("401");
+    expect((error as GateError).message).toContain("invalid api key");
+  });
+
+  test("lets an abort while reading the response body through unchanged", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    const response = new Response(null, { status: 200 });
+    vi.spyOn(response, "json").mockRejectedValue(abortError);
+    const fetchStub = vi.fn(async () => response);
+    const gate = createJevGate({
+      apiKey: "key",
+      policy: "policy",
+      fetch: fetchStub,
+    });
+
+    await expect(gate.judge(request)).rejects.toBe(abortError);
+  });
+
   test("throws GateError when the body has the wrong shape", async () => {
     const fetchStub = vi.fn(async () =>
       jsonResponse({ answers: { allowed: { type: "noul" } } }),

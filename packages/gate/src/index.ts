@@ -1,3 +1,4 @@
+export * from "./compose.js";
 export * from "./errors.js";
 export * from "./jev/index.js";
 export * from "./llm/index.js";

@@ -207,6 +207,19 @@ describe("createRulesGate", () => {
     expect(verdict.reason).toBe("Rule 0 denied write_file on sub/.env");
   });
 
+  test("the default reason for a tools-only rule omits 'on <path>' when the call has no path argument", async () => {
+    const gate = createRulesGate({
+      root: "/repo",
+      rules: [{ tools: ["bash"], allowed: false }],
+    });
+
+    const verdict = await gate.judge(
+      toolCallRequest(call("bash", { command: "echo hi" })),
+    );
+
+    expect(verdict.reason).toBe("Rule 0 denied bash");
+  });
+
   test("throws GateError when the payload is missing call", async () => {
     const gate = createRulesGate({ root: "/repo", rules: [] });
 
@@ -246,5 +259,22 @@ describe("createRulesGate", () => {
     await expect(
       gate.judge(toolCallRequest(call("bash", {}))),
     ).resolves.toMatchObject({ allowed: false });
+  });
+
+  test("rejects with AbortError without judging when the signal is already aborted", async () => {
+    const gate = createRulesGate({
+      root: "/repo",
+      rules: [{ tools: ["bash"], allowed: false }],
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    const error = await gate
+      .judge(toolCallRequest(call("bash", {})), {
+        signal: controller.signal,
+      })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toMatchObject({ name: "AbortError" });
   });
 });

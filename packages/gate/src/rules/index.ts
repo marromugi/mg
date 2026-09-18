@@ -69,6 +69,8 @@ export const createRulesGate = (options: RulesGateOptions): Gate => {
       request: GateRequest,
       context?: GateContext,
     ): Promise<Verdict> {
+      context?.signal?.throwIfAborted();
+
       return withGateSpan(context, request, {}, async () => {
         if (request.kind !== TOOL_CALL_KIND) {
           return { allowed: true, reason: NOT_TOOL_CALL_REASON };
@@ -97,11 +99,12 @@ export const createRulesGate = (options: RulesGateOptions): Gate => {
             if (!matched) continue;
           }
 
-          const reason =
-            rule.reason ??
-            `Rule ${index} ${
-              rule.allowed ? "allowed" : "denied"
-            } ${call.name} on ${relative}`;
+          const verb = rule.allowed ? "allowed" : "denied";
+          const defaultReason =
+            relative === undefined
+              ? `Rule ${index} ${verb} ${call.name}`
+              : `Rule ${index} ${verb} ${call.name} on ${relative}`;
+          const reason = rule.reason ?? defaultReason;
           return { allowed: rule.allowed, reason };
         }
 

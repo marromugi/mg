@@ -152,7 +152,7 @@ describe("createJevGate", () => {
     });
   });
 
-  test("reason contains the probability and the threshold", async () => {
+  test("reason contains no digits, neither the probability nor the threshold", async () => {
     const fetchStub = vi.fn(async () =>
       jsonResponse(allowedAnswer(0.93)),
     );
@@ -164,8 +164,7 @@ describe("createJevGate", () => {
 
     const verdict = await gate.judge(request);
 
-    expect(verdict.reason).toContain("0.93");
-    expect(verdict.reason).toContain("0.50");
+    expect(verdict.reason).not.toMatch(/\d/);
   });
 
   test("a custom threshold moves the boundary", async () => {
@@ -182,7 +181,6 @@ describe("createJevGate", () => {
     const verdict = await gate.judge(request);
 
     expect(verdict.allowed).toBe(false);
-    expect(verdict.reason).toContain("0.70");
   });
 
   test("throws GateError on a non-2xx response", async () => {
@@ -283,7 +281,7 @@ describe("createJevGate", () => {
     expect(fetchStub).not.toHaveBeenCalled();
   });
 
-  test("records exactly one mg.gate span with allowed, reason and model, and no child span", async () => {
+  test("records exactly one mg.gate span with allowed, reason, model and the probability, and no child span", async () => {
     const fetchStub = vi.fn(async () =>
       jsonResponse(allowedAnswer(0.9)),
     );
@@ -306,6 +304,7 @@ describe("createJevGate", () => {
     expect(typeof gateSpan.mergedAttributes[ATTR.gateReason]).toBe(
       "string",
     );
+    expect(gateSpan.mergedAttributes[ATTR.gateProbability]).toBe(0.9);
     expect(gateSpan.children).toHaveLength(0);
   });
 

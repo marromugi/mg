@@ -1,4 +1,4 @@
-import { ATTR } from "@mg/trace";
+import { ATTR, setSpanAttributes } from "@mg/trace";
 import { z } from "zod";
 import { isAbortError } from "../abort.js";
 import { GateError } from "../errors.js";
@@ -27,6 +27,9 @@ const DEFAULT_THRESHOLD = 0.5;
 
 const QUESTION = "Is it fine to run this action?";
 const MAX_ERROR_BODY_LENGTH = 200;
+
+const ALLOWED_REASON = "Jev judged this action acceptable.";
+const DENIED_REASON = "Jev judged this action unacceptable.";
 
 const jevResponse = z.object({
   answers: z.object({
@@ -64,7 +67,7 @@ export const createJevGate = (options: JevGateOptions): Gate => {
         context,
         request,
         { [ATTR.gateModel]: model },
-        async () => {
+        async (span) => {
           const doFetch = options.fetch ?? globalThis.fetch;
 
           const body = JSON.stringify({
@@ -126,10 +129,12 @@ export const createJevGate = (options: JevGateOptions): Gate => {
           }
 
           const { probability } = parsed.data.answers.allowed;
+          setSpanAttributes(span, {
+            [ATTR.gateProbability]: probability,
+          });
+
           const allowed = probability >= threshold;
-          const reason =
-            `Jev answered ${probability.toFixed(2)} for "may run" ` +
-            `(threshold ${threshold.toFixed(2)}).`;
+          const reason = allowed ? ALLOWED_REASON : DENIED_REASON;
 
           return { allowed, reason };
         },

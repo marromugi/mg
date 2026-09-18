@@ -2,12 +2,14 @@
 
 ## Why issues are small
 
-Issues are created without a confirmation round, so the developer meets each
-one by reading it before handing it to the implementer skill. If an issue holds
-several decisions, the developer skims the bundle without really checking each
-one, and disagreement shows up after implementation. Small issues keep each one
-judgeable at a glance, and let the reviewer skill check a PR against one narrow
-design.
+The developer sees the split as a plan before the issues exist: a title and
+one line per issue, plus the build order. They judge the cut from that
+summary, and read each full body only when handing it to the implementer
+skill. If an issue holds several decisions, the one-line summary hides them,
+the developer skims the bundle without really checking each one, and
+disagreement shows up after implementation. Small issues keep each one
+judgeable at a glance, both in the plan and in the body, and let the reviewer
+skill check a PR against one narrow design.
 
 ## Minimal-unit criteria
 

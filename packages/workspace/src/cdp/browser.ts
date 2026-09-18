@@ -41,7 +41,9 @@ class PlaywrightPage implements BrowserPage {
   }
 
   snapshot(): Promise<string> {
-    return this.page.locator(":root").ariaSnapshot();
+    return this.page
+      .locator(":root")
+      .ariaSnapshot({ timeout: this.timeoutMs });
   }
 
   async click(role: string, name: string): Promise<void> {
@@ -79,8 +81,14 @@ export const connectCdp = async (
     await browser.close();
     throw new Error("CDP browser has no browser context");
   }
-  const page =
-    browserContext.pages()[0] ?? (await browserContext.newPage());
+  let page: Page;
+  try {
+    page =
+      browserContext.pages()[0] ?? (await browserContext.newPage());
+  } catch (error) {
+    await browser.close();
+    throw error;
+  }
 
   return {
     page: new PlaywrightPage(

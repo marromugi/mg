@@ -88,6 +88,20 @@ describe("createBrowserTools", () => {
     );
   });
 
+  test("browser_read truncates on a code-point boundary, not mid-character", async () => {
+    const page = createFakePage({
+      snapshot: async () => "あいう",
+    });
+    const tool = createBrowserTools(page, { maxOutputBytes: 4 }).find(
+      (t) => t.name === "browser_read",
+    )!;
+
+    const result = await tool.execute({}, {});
+
+    expect(result).toBe("あ\n[output truncated]");
+    expect(result).not.toContain("�");
+  });
+
   test("browser_click calls page.click with role and name", async () => {
     const page = createFakePage();
     const tool = getTool(page, "browser_click");

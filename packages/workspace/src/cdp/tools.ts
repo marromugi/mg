@@ -31,7 +31,9 @@ const truncateToBytes = (text: string, maxBytes: number): string => {
   if (buffer.byteLength <= maxBytes) {
     return text;
   }
-  return buffer.subarray(0, maxBytes).toString("utf8");
+  return new TextDecoder("utf-8").decode(buffer.subarray(0, maxBytes), {
+    stream: true,
+  });
 };
 
 export const createBrowserTools = (

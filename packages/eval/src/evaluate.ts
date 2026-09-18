@@ -1,4 +1,5 @@
 import type { SessionTree } from "@mg/trace/store";
+import { isAbortError } from "./abort.js";
 import type {
   CaseVerdict,
   Check,
@@ -6,11 +7,6 @@ import type {
   EvalContext,
 } from "./types.js";
 import { viewRun } from "./view.js";
-
-const isAbortError = (error: unknown): boolean =>
-  typeof error === "object" &&
-  error !== null &&
-  (error as { name?: unknown }).name === "AbortError";
 
 export const evaluate = async (
   session: SessionTree,

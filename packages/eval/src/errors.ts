@@ -9,3 +9,7 @@ export class NoRunInSessionError extends EvalError {
     super(`No run found in session "${sessionId}"`);
   }
 }
+
+export class JevCheckError extends EvalError {
+  override readonly name = "JevCheckError";
+}

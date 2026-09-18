@@ -163,3 +163,57 @@ const hasFinalText = rule("has-final-text", (view) => {
 上の 2 つの見本は説明のためのもので、パッケージからは出しません。
 ツールを呼んだ回数の上限などの既製の規則も、このパッケージには含めません。
 判定として使うときは、それぞれのプロジェクトで書いてください。
+
+### Jev で判定する
+
+機械的に書けない条件は、意味で判定します。
+Jev は文章と質問を受け取り、答えが正しい確率を返します。
+
+`createJevChecker` は、鍵と接続先から判定のインターフェースを作ります。
+
+```ts
+import { createJevChecker } from "@mg/eval";
+
+const jevCheck = createJevChecker({
+  apiKey: process.env.JEV_API_KEY!,
+});
+```
+
+このインターフェースに名前と質問と境目を渡すと、判定（`Check`）ができます。
+質問の文章は、判定を書く人が決めます。
+
+```ts
+const isPolite = jevCheck({
+  name: "polite-reply",
+  question: "最後の返事は丁寧な言い方ですか?",
+  threshold: 0.9,
+});
+```
+
+`JevCheckOptions` が受け取るのは、次の 3 つです。
+
+| フィールド  | 意味                                      |
+| ----------- | ----------------------------------------- |
+| `name`      | 判定の名前です。                          |
+| `question`  | Jev に投げる質問の文章です。              |
+| `threshold` | 合格の境目です。省くと `0.9` になります。 |
+
+境目は、確率がその値以上なら合格という意味です。
+`0.9` なら「9 割以上の確率で合格」という基準になります。
+
+判定は、走行の書き起こしと質問を Jev に送ります。
+返った確率を境目と比べ、結果には確率と境目の両方を残します。
+理由の文章にも、確率と境目の数値を出します。
+
+書き起こしは、既定では `transcribe` を使います。
+差し替えたいときは、`createJevChecker` に渡します。
+
+```ts
+const jevCheck = createJevChecker({
+  apiKey: process.env.JEV_API_KEY!,
+  transcribe: (view) => view.finalText ?? "",
+});
+```
+
+通信が失敗したときや、返事の形が合わないときは `JevCheckError` を投げます。
+中断の合図（`AbortSignal`）だけは、包まずにそのまま投げ直します。

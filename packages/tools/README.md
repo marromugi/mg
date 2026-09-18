@@ -25,6 +25,7 @@
 | `web_search` | 検索のバックエンドを使って Web を検索する | バックエンドなど 3 つ     |
 | `read_file`  | ルートの下のテキストファイルを読む        | ルートなど 2 つ           |
 | `write_file` | ルートの下にファイルを丸ごと書く          | ルートの 1 つ             |
+| `edit_file`  | 元の文字列の一致でファイルの一部を直す    | ルートの 1 つ             |
 
 ### bash
 
@@ -230,3 +231,51 @@ createWriteFileTool({
 次のときは `FileToolError` を投げます。
 
 - ディレクトリを指定したときです。
+
+### edit_file
+
+ファイルの一部を直すツールです。
+行番号ではなく、元の文字列の一致で場所を決めます。
+
+置き換えるかどうかは、一致した件数で決まります。
+
+- 1 件だけ一致したら、新しい文字列に置き換えます。
+- 0 件なら、見つからなかった旨で失敗にします。
+- 2 件以上で、全部を置き換える印が無ければ失敗にします。
+- 2 件以上でも、印があれば全部を置き換えます。
+
+LLM から受け取る引数は、path と oldString と newString です。
+全部を置き換える印の replaceAll も受け取ります。
+
+```ts
+type EditFileInput = {
+  path: string;
+  oldString: string;
+  newString: string;
+  replaceAll?: boolean;
+};
+```
+
+作るときのオプションは、ルートの 1 つだけです。省略できません。
+
+```ts
+createEditFileTool({
+  root: "/path/to/root", // ルートのディレクトリ
+});
+```
+
+結果は 1 つの文字列で返します。置き換えた件数と行番号を含みます。
+
+次のときは `FileToolError` を投げます。
+
+- ディレクトリを指定したときです。
+- 元の文字列が見つからなかったときです。
+- 元の文字列と新しい文字列が同じときです。
+- 元の文字列が 2 か所以上に一致し、印も無いときです。
+
+一致が 2 件以上のときの失敗は、件数と行番号を添えて返します。
+前後の文字列を足して、一致を 1 つに絞るよう促す文言も含みます。
+
+```
+oldString matches 2 times in foo.txt (lines 3, 10). Include more surrounding text to make it unique, or set replaceAll.
+```

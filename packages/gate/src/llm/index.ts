@@ -10,6 +10,7 @@ import { ATTR, traceProvider } from "@mg/trace";
 import { z } from "zod";
 import { isAbortError } from "../abort.js";
 import { GateError } from "../errors.js";
+import { toStateText } from "../state.js";
 import { withGateSpan } from "../trace.js";
 import type {
   Gate,
@@ -41,9 +42,6 @@ const verdictTool: ToolDefinition = {
   input: verdictInput,
 };
 
-const toUserMessage = (request: GateRequest): string =>
-  `Kind: ${request.kind}\n${request.description}`;
-
 export const createLlmGate = (options: LlmGateOptions): Gate => {
   const { provider, model, policy } = options;
 
@@ -71,7 +69,7 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
                 role: "system",
                 content: `${SYSTEM_INSTRUCTION}\n\n${policy}`,
               },
-              { role: "user", content: toUserMessage(request) },
+              { role: "user", content: toStateText(request) },
             ],
             tools: [verdictTool],
             toolChoice: { type: "tool", name: "verdict" },

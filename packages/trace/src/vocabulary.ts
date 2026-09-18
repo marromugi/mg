@@ -28,4 +28,5 @@ export const ATTR = {
   gateAllowed: "mg.gate.allowed", // boolean
   gateReason: "mg.gate.reason",
   gateModel: "mg.gate.model",
+  gateProbability: "mg.gate.probability", // number
 } as const;

@@ -48,5 +48,6 @@ describe("ATTR", () => {
     expect(ATTR.gateAllowed).toBe("mg.gate.allowed");
     expect(ATTR.gateReason).toBe("mg.gate.reason");
     expect(ATTR.gateModel).toBe("mg.gate.model");
+    expect(ATTR.gateProbability).toBe("mg.gate.probability");
   });
 });

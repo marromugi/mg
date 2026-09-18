@@ -21,18 +21,18 @@ LLM で動くエージェントのハーネスを試すための土台です。
 
 いまあるパッケージと、その役割を表にまとめます。
 
-| パッケージ                                            | 役割                                             |
-| ----------------------------------------------------- | ------------------------------------------------ |
-| [`@mg/core`](packages/core/README.md)                 | 接続先の抽象化と、道具の共通の型                 |
-| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みの道具               |
-| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定する口の型と、LLM の実装       |
-| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入り口と出口の型             |
-| [`@mg/trace`](packages/trace/README.md)               | 記録の口の実体と、共通の語彙                     |
-| [`@mg/harness-loop`](packages/harness-loop/README.md) | 道具の呼び出しを繰り返すループ型のハーネス       |
-| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、記録を開いて走らせる |
-| [`@mg/trace-ui`](packages/trace-ui/README.md)         | 保存した記録を見る画面                           |
-| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                           |
-| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                 |
+| パッケージ                                            | 役割                                              |
+| ----------------------------------------------------- | ------------------------------------------------- |
+| [`@mg/core`](packages/core/README.md)                 | 接続先の抽象化と、道具の共通の型                  |
+| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みの道具                |
+| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定する口の型と、LLM と Jev の実装 |
+| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入り口と出口の型              |
+| [`@mg/trace`](packages/trace/README.md)               | 記録の口の実体と、共通の語彙                      |
+| [`@mg/harness-loop`](packages/harness-loop/README.md) | 道具の呼び出しを繰り返すループ型のハーネス        |
+| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、記録を開いて走らせる  |
+| [`@mg/trace-ui`](packages/trace-ui/README.md)         | 保存した記録を見る画面                            |
+| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                            |
+| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                  |
 
 名前を選ぶと、詳しい説明を読めます。
 

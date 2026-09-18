@@ -162,6 +162,19 @@ class Ssh2Client implements SshClient {
         });
 
         execStream.on("close", () => {
+          if (
+            code === null &&
+            signal === null &&
+            !timedOut &&
+            !truncated
+          ) {
+            finish(() =>
+              reject(
+                new Error("SSH channel closed without an exit status"),
+              ),
+            );
+            return;
+          }
           finish(() =>
             resolve({
               stdout: stdout.toText(),
@@ -200,7 +213,6 @@ export const connectSsh = (
       const signalRef = context?.signal;
       if (signalRef === undefined || settled) return;
       settled = true;
-      connection.removeAllListeners();
       connection.end();
       reject(abortError(signalRef));
     };

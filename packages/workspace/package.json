@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@mg/core": "workspace:*",
+    "@types/ssh2": "1.15.6",
+    "ssh2": "1.17.0",
     "zod": "^4.6.2"
   }
 }

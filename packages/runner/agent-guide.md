@@ -174,6 +174,8 @@ Field meanings, how they combine, and how to read the output back are in
 | Tool     | `createWebSearchTool(options)`          | `@mg/tools` |
 | Backend  | `createOllamaWebSearchBackend(options)` | `@mg/tools` |
 | Gate     | `createLlmGate(options)`                | `@mg/gate`  |
+| Check    | `rule(name, predicate)`                 | `@mg/eval`  |
+| Check    | `createJevChecker(options)`             | `@mg/eval`  |
 
 ```ts
 import { createOpenRouterProvider } from "@mg/core";
@@ -275,6 +277,8 @@ console.log(sessionId);
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a
   `runMany` case also carry `mg.run.case` (that case's `id`). Filter on these to find a run.
+- To judge a finished run from its trace, read the session back with a `TraceReader` and pass
+  it to `@mg/eval`'s `evaluate`. See `packages/eval/README.md` and `runs/eval-example.ts`.
 
 ## 7. Rules
 

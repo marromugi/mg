@@ -232,6 +232,9 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../packages/core
+      '@mg/eval':
+        specifier: workspace:*
+        version: link:../packages/eval
       '@mg/gate':
         specifier: workspace:*
         version: link:../packages/gate

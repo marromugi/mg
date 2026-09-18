@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -155,6 +156,19 @@ describe("createReadFileTool", () => {
 
     await expect(
       readFile.execute({ path: "adir" }, {}),
+    ).rejects.toBeInstanceOf(FileToolError);
+  });
+
+  test("rejects a FIFO", async () => {
+    const fifoPath = join(root, "pipe.fifo");
+    try {
+      execFileSync("mkfifo", [fifoPath]);
+    } catch {
+      return;
+    }
+
+    await expect(
+      readFile.execute({ path: "pipe.fifo" }, {}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 

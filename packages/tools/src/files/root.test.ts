@@ -59,6 +59,20 @@ describe("resolveExistingPath", () => {
       resolveExistingPath(root, "missing.txt"),
     ).rejects.toBeInstanceOf(FileToolError);
   });
+
+  test("accepts a child path when the root is the filesystem root", async () => {
+    const rootDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-fsroot-"),
+    );
+    const filePath = join(rootDir, "c.txt");
+    await writeFile(filePath, "hi");
+
+    const resolved = await resolveExistingPath("/", filePath);
+
+    expect(resolved.absolute).toBe(realpathSync(filePath));
+
+    rmSync(rootDir, { recursive: true, force: true });
+  });
 });
 
 describe("resolveWritablePath", () => {
@@ -92,5 +106,31 @@ describe("resolveWritablePath", () => {
     ).rejects.toBeInstanceOf(FileToolError);
 
     rmSync(outsideDir, { recursive: true, force: true });
+  });
+
+  test("rejects a broken symlink at the target pointing outside the root", async () => {
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-outside3-"),
+    );
+    const missingOutsideTarget = join(outsideDir, "missing.txt");
+    rmSync(outsideDir, { recursive: true, force: true });
+    await symlink(missingOutsideTarget, join(root, "broken.txt"));
+
+    await expect(
+      resolveWritablePath(root, "broken.txt"),
+    ).rejects.toBeInstanceOf(FileToolError);
+  });
+
+  test("rejects a broken symlink as an ancestor directory pointing outside the root", async () => {
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-outside4-"),
+    );
+    const missingOutsideDir = join(outsideDir, "missing-dir");
+    rmSync(outsideDir, { recursive: true, force: true });
+    await symlink(missingOutsideDir, join(root, "broken-dir"));
+
+    await expect(
+      resolveWritablePath(root, "broken-dir/nested/new.txt"),
+    ).rejects.toBeInstanceOf(FileToolError);
   });
 });

@@ -14,7 +14,10 @@ const assertWithinRoot = (
   real: string,
   input: string,
 ): void => {
-  if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
+  const prefix = rootReal.endsWith(path.sep)
+    ? rootReal
+    : rootReal + path.sep;
+  if (real !== rootReal && !real.startsWith(prefix)) {
     throw new FileToolError(`path is outside the root: ${input}`);
   }
 };
@@ -65,6 +68,26 @@ export const resolveWritablePath = async (
         throw new FileToolError(`cannot resolve path: ${input}`, {
           cause: error,
         });
+      }
+
+      let entryExists = true;
+      try {
+        await fs.lstat(existing);
+      } catch (lstatError) {
+        if (
+          isErrnoException(lstatError) &&
+          lstatError.code === "ENOENT"
+        ) {
+          entryExists = false;
+        } else {
+          throw new FileToolError(`cannot resolve path: ${input}`, {
+            cause: lstatError,
+          });
+        }
+      }
+
+      if (entryExists) {
+        throw new FileToolError(`path is outside the root: ${input}`);
       }
     }
 

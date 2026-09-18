@@ -48,7 +48,7 @@ export const createReadFileTool = (
 
       const resolved = await resolveExistingPath(root, inputPath);
       const stat = await fs.stat(resolved.absolute);
-      if (stat.isDirectory()) {
+      if (!stat.isFile()) {
         throw new FileToolError(`not a file: ${resolved.relative}`);
       }
 

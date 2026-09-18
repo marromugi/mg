@@ -182,6 +182,36 @@ describe("openWorkspace", () => {
     expect(opened).toBe(false);
   });
 
+  test("closes what was opened when the signal aborts between connectors", async () => {
+    const controller = new AbortController();
+    const a = createFakeConnector({ kind: "a" });
+    a.open = async () => {
+      const connection = {
+        tools: [],
+        close: async () => {
+          a.closeCalls += 1;
+        },
+      };
+      controller.abort();
+      return connection;
+    };
+    let bOpened = false;
+    const b = createFakeConnector({ kind: "b" });
+    b.open = async () => {
+      bOpened = true;
+      return { tools: [], close: async () => {} };
+    };
+
+    const error = await openWorkspace(
+      { name: "ws", connectors: [a, b] },
+      { signal: controller.signal },
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toMatchObject({ name: "AbortError" });
+    expect(a.closeCalls).toBe(1);
+    expect(bOpened).toBe(false);
+  });
+
   test("lets an AbortError from a connector through and closes what was opened", async () => {
     const abortError = Object.assign(new Error("aborted"), {
       name: "AbortError",

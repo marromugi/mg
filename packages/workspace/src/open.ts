@@ -35,8 +35,8 @@ export const openWorkspace = async (
   const connections: Connection[] = [];
 
   for (const [index, connector] of workspace.connectors.entries()) {
-    context?.signal?.throwIfAborted();
     try {
+      context?.signal?.throwIfAborted();
       connections.push(await connector.open(context));
     } catch (error) {
       await closeAllSilently(connections);

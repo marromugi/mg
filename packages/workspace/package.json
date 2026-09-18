@@ -1,0 +1,19 @@
+{
+  "name": "@mg/workspace",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mg/core": "workspace:*",
+    "zod": "^4.6.2"
+  }
+}

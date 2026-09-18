@@ -26,6 +26,7 @@
 | `read_file`  | ルートの下のテキストファイルを読む        | ルートなど 2 つ           |
 | `write_file` | ルートの下にファイルを丸ごと書く          | ルートの 1 つ             |
 | `edit_file`  | 元の文字列の一致でファイルの一部を直す    | ルートの 1 つ             |
+| `grep`       | ripgrep でファイルの中身を探す            | ルートなど 6 つ           |
 
 ### bash
 
@@ -279,3 +280,60 @@ createEditFileTool({
 ```
 oldString matches 2 times in foo.txt (lines 3, 10). Include more surrounding text to make it unique, or set replaceAll.
 ```
+
+### grep
+
+ripgrep でファイルの中身を探すツールです。
+見つけた場所を、`read_file` がそのまま受け取れる形で返します。
+
+前提として、動かす機械に ripgrep が入っている必要があります。
+`rg` という名前で PATH に通っている必要があります。
+入っていない機械では、その旨を `FileToolError` で返します。
+
+LLM から受け取る引数は、正規表現の pattern です。
+探す場所の path と、ファイル名を絞る glob を受け取ります。
+大文字小文字を無視する印の ignoreCase も受け取ります。
+
+```ts
+type GrepInput = {
+  pattern: string;
+  path?: string;
+  glob?: string;
+  ignoreCase?: boolean;
+};
+```
+
+path を省くと、ルートの全体を探します。
+
+作るときのオプションは 6 つです。
+ルートだけは必須です。
+ほかは省くと、例に書いた値になります。
+
+```ts
+createGrepTool({
+  root: "/path/to/root", // ルートのディレクトリ
+  rgPath: "rg", // ripgrep の実行ファイル
+  timeoutMs: 30000, // 時間制限（ミリ秒）
+  maxResults: 200, // 返す件数の上限
+  maxLineChars: 300, // 行の文字数の上限
+  maxOutputBytes: 8388608, // 出力の上限（バイト）
+});
+```
+
+結果は 1 つの文字列にまとめて返します。
+
+- 一致ごとに `path:line:col: text` という形で 1 行にまとめます。
+- path はルートからの相対です。
+- 行番号と文字の位置は `read_file` と同じ数え方です。
+- 1 行に複数の一致があれば、その分だけ行を分けて返します。
+- `.gitignore` に書かれたファイルは探しません。
+- 一致が無いときは、その旨を文章で返します。失敗にはしません。
+- 件数が上限を超えたら切り詰めます。印として `[results truncated]` を付けます。
+- 長い行も、文字数の上限で切り詰めて `…` を付けます。
+
+次のときは `FileToolError` を投げます。
+
+- ripgrep が機械に入っていないときです。
+- 正規表現が誤っているときです。
+- 時間切れのときです。
+- path がルートの外を指しているときです。

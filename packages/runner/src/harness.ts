@@ -1,14 +1,18 @@
+import type { Tool } from "@mg/core";
 import type { Harness } from "@mg/harness";
 import { createLoopHarness } from "@mg/harness-loop";
 import type { RunConfig } from "./config.js";
 
-export const createHarness = (config: RunConfig): Harness => {
+export const createHarness = (
+  config: RunConfig,
+  tools: readonly Tool[],
+): Harness => {
   switch (config.harness.kind) {
     case "loop":
       return createLoopHarness({
         provider: config.provider,
         model: config.harness.model,
-        tools: config.tools,
+        tools,
         maxTurns: config.harness.maxTurns,
         stream: config.harness.stream,
         gate: config.gate,

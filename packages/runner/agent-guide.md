@@ -90,18 +90,69 @@ export default defineRun({
 });
 ```
 
+Adding a workspace, so the harness can also reach a remote machine over SSH and
+its browser over CDP (see `runs/loop-workspace.config.ts` for the file in the
+repo):
+
+```ts
+import { readFileSync } from "node:fs";
+import { defineRun } from "@mg/runner";
+import { createOpenRouterProvider } from "@mg/core";
+import {
+  createCdpConnector,
+  createSshConnector,
+  defineWorkspace,
+} from "@mg/workspace";
+
+const apiKey = process.env.OPENROUTER_API_KEY;
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
+
+const sshHost = process.env.MG_SSH_HOST;
+if (sshHost === undefined) throw new Error("MG_SSH_HOST is not set");
+
+const sshUser = process.env.MG_SSH_USER;
+if (sshUser === undefined) throw new Error("MG_SSH_USER is not set");
+
+const sshKeyPath = process.env.MG_SSH_KEY_PATH;
+if (sshKeyPath === undefined)
+  throw new Error("MG_SSH_KEY_PATH is not set");
+
+const cdpUrl = process.env.MG_CDP_URL;
+if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
+
+export default defineRun({
+  name: "loop-workspace",
+  provider: createOpenRouterProvider({ apiKey }),
+  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  workspace: defineWorkspace({
+    name: "build-machine",
+    connectors: [
+      createSshConnector({
+        host: sshHost,
+        username: sshUser,
+        auth: { privateKey: readFileSync(sshKeyPath, "utf8") },
+      }),
+      createCdpConnector({ url: cdpUrl }),
+    ],
+  }),
+  trace: { jsonlPath: "./trace.jsonl" },
+});
+```
+
 ## 2. Field reference
 
 ### `RunConfig` (`packages/runner/src/config.ts`)
 
-| Field      | Type                                 | Required | Meaning                                                                                                                                     |
-| ---------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`     | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).                        |
-| `provider` | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                           |
-| `harness`  | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                           |
-| `tools`    | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                 |
-| `gate`     | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createJevGate`); the runner only passes it through. |
-| `trace`    | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                     |
+| Field       | Type                                 | Required | Meaning                                                                                                                                                                 |
+| ----------- | ------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).                                                    |
+| `provider`  | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                                                       |
+| `harness`   | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                       |
+| `tools`     | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                                             |
+| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createJevGate`); the runner only passes it through.                             |
+| `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                 |
+| `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`. |
 
 ### `HarnessConfig`: kind `"loop"` (`LoopHarnessConfig`)
 

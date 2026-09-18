@@ -127,3 +127,39 @@ verdict.checks; // 判定ごとの結果。配列と同じ順で並ぶ
 
 中断の合図（`AbortSignal`）だけは、包まずにそのまま投げ直します。
 判定の途中で合図が中断されると、`evaluate` もそこで止まります。
+
+### 規則で判定する
+
+機械的に調べられる条件は、規則で判定します。
+ツールが呼ばれた回数や、最後の返事の中身などです。
+
+`rule` は、名前と関数から `Check` を作るインターフェースです。
+関数は走行の見え方（`RunView`）を受け取り、合否を返します。
+真偽値だけを返しても、理由や詳細を添えて返しても構いません。
+
+```ts
+import { rule } from "@mg/eval";
+
+const withinToolLimit = rule("bash-within-3", (view) => {
+  return (
+    view.toolSteps.filter((step) => step.name === "bash").length <= 3
+  );
+});
+
+const hasFinalText = rule("has-final-text", (view) => {
+  const passed = view.finalText !== undefined;
+  return {
+    passed,
+    reason: passed ? "最後の返事がある" : "最後の返事が空",
+  };
+});
+```
+
+規則の名前を空文字にすると、`rule` は `RangeError` を投げます。
+
+判定そのものが投げた例外は、`rule` を素通りします。
+`evaluate` がその例外を受け取り、`error` の状態に変えます。
+
+上の 2 つの見本は説明のためのもので、パッケージからは出しません。
+ツールを呼んだ回数の上限などの既製の規則も、このパッケージには含めません。
+判定として使うときは、それぞれのプロジェクトで書いてください。

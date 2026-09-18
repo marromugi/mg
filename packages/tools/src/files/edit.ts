@@ -90,10 +90,20 @@ export const createEditFileTool = (
         throw new FileToolError(`not a file: ${resolved.relative}`);
       }
 
-      const content = await fs.readFile(resolved.absolute, {
-        encoding: "utf-8",
+      const buffer = await fs.readFile(resolved.absolute, {
         signal: context.signal,
       });
+
+      let content: string;
+      try {
+        content = new TextDecoder("utf-8", { fatal: true }).decode(
+          buffer,
+        );
+      } catch {
+        throw new FileToolError(
+          `not valid UTF-8: ${resolved.relative}`,
+        );
+      }
 
       if (isBinary(content)) {
         throw new FileToolError(`binary file: ${resolved.relative}`);

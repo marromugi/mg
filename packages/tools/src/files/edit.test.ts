@@ -157,18 +157,28 @@ describe("createEditFileTool", () => {
   });
 
   test("rejects a path outside the root and writes nothing", async () => {
-    await write("outside-target.txt", "content");
+    const outsideDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-edit-outside-"),
+    );
+    const outsidePath = join(outsideDir, "outside-target.txt");
+    await writeFile(outsidePath, "content");
 
-    await expect(
-      editFile.execute(
+    const error: unknown = await editFile
+      .execute(
         {
-          path: "../outside-target.txt",
+          path: outsidePath,
           oldString: "content",
           newString: "changed",
         },
         {},
-      ),
-    ).rejects.toBeInstanceOf(FileToolError);
+      )
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(FileToolError);
+    expect((error as Error).message).toContain("outside the root");
+    expect(readFileSync(outsidePath, "utf8")).toBe("content");
+
+    rmSync(outsideDir, { recursive: true, force: true });
   });
 
   test("rejects a missing file", async () => {
@@ -200,6 +210,22 @@ describe("createEditFileTool", () => {
         {},
       ),
     ).rejects.toBeInstanceOf(FileToolError);
+  });
+
+  test("rejects a file with invalid UTF-8 and writes nothing", async () => {
+    const invalidBytes = Buffer.from([0x82, 0xa0, 0x0a]);
+    await writeFile(join(root, "invalid-utf8.txt"), invalidBytes);
+
+    await expect(
+      editFile.execute(
+        { path: "invalid-utf8.txt", oldString: "a", newString: "b" },
+        {},
+      ),
+    ).rejects.toBeInstanceOf(FileToolError);
+
+    expect(readFileSync(join(root, "invalid-utf8.txt"))).toEqual(
+      invalidBytes,
+    );
   });
 
   test("rejects immediately when the signal is already aborted", async () => {

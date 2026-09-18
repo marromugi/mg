@@ -36,6 +36,15 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
 
+  packages/eval:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../trace
+
   packages/gate:
     dependencies:
       '@mg/core':

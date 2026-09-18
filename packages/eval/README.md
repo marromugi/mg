@@ -2,7 +2,7 @@
 
 保存したトレースを読み直し、実行の判定に使う関数を持つパッケージです。
 
-## 背景
+## 役割
 
 トレースは、スパンのツリーの形で保存されています。ツリーには LLM の呼び出しや、
 ツールの実行、ゲートの判定が混ざって並んでいます。
@@ -10,30 +10,20 @@
 判定を書く人が、毎回このツリーをたどるのは手間です。
 そこで、ツリーを実行のビューに読み解く関数を先に持ちます。
 
-## 役割
-
 - ツリーを読み解きます。
   時間順のステップの列と、最後の応答と、ターンの回数を取り出します。
 - ステップの列を、文章に書き起こします。
   人と Jev の両方が読める形です。
+- 判定の型を決めます。
+  規則でも Jev でも、同じ形で扱えます。
+- 判定の配列を、書いた順に全部実行します。
+  1 件の実行の合否と、判定ごとの結果を返します。
 
 読み解きの入力は、リーダーが返すトレースのツリーだけです。
 実行の結果（`HarnessResult`）は受け取りません。
 
 ゲートの配下にある LLM の呼び出しは、ハーネスのターンに数えません。
 判定用の呼び出しは、実行そのもののステップではないからです。
-
-- 判定の型を決めます。
-  規則でも Jev でも、同じ形で扱えます。
-- 判定の配列を、書いた順に全部実行します。
-  1 件の実行の合否と、判定ごとの結果を返します。
-
-## やらないこと
-
-- 規則や Jev による判定の実装は持ちません。
-- トレースの語彙（`SPAN` と `ATTR`）や `@mg/trace/store` には手を入れません。
-
-## 使い方
 
 ### ツリーを実行のビューに読み解く
 
@@ -53,23 +43,7 @@ view.usage; // トークン使用量の合計
 
 ツリーの中から実行が見つからないときは、`NoRunInSessionError` を投げます。
 
-### ステップの列を文章に書き起こす
-
-`transcribe` は、`RunView` を人と Jev が読める文章に書き起こします。
-
-```ts
-import { transcribe } from "@mg/eval";
-
-const text = transcribe(view);
-```
-
-ツールの結果が長いときは、上限の文字数で切れます。
-
-```ts
-transcribe(view, { maxToolResultLength: 500 });
-```
-
-### 判定の型
+## 判定のインターフェース
 
 判定は `Check` という 1 つの型で扱います。
 規則で決める判定も、Jev に聞く判定も同じ形です。
@@ -128,7 +102,7 @@ verdict.checks; // 判定ごとの結果。配列と同じ順で並ぶ
 中断のシグナル（`AbortSignal`）だけは、ラップせずにそのまま投げ直します。
 判定の途中でシグナルが中断されると、`evaluate` もそこで止まります。
 
-### 規則で判定する
+## 規則
 
 機械的に調べられる条件は、規則で判定します。
 ツールが呼ばれた回数や、最後の応答の中身などです。
@@ -164,7 +138,7 @@ const hasFinalText = rule("has-final-text", (view) => {
 ツールを呼んだ回数の上限などの既製の規則も、このパッケージには含めません。
 判定として使うときは、それぞれのプロジェクトで書いてください。
 
-### Jev で判定する
+## Jev
 
 機械的に書けない条件は、意味で判定します。
 Jev は文章と質問を受け取り、答えが正しい確率を返します。
@@ -205,8 +179,27 @@ const isPolite = jevCheck({
 返った確率を境目と比べ、結果には確率と境目の両方を残します。
 理由の文章にも、確率と境目の数値を出します。
 
-書き起こしは、既定では `transcribe` を使います。
-差し替えたいときは、`createJevChecker` に渡します。
+通信が失敗したときや、返事の形が合わないときは `JevCheckError` を投げます。
+中断の合図（`AbortSignal`）だけは、包まずにそのまま投げ直します。
+
+## 書き起こし
+
+`transcribe` は、`RunView` を人と Jev が読める文章に書き起こします。
+Jev の判定は、既定でこの関数を使って走行を文章にします。
+
+```ts
+import { transcribe } from "@mg/eval";
+
+const text = transcribe(view);
+```
+
+ツールの結果が長いときは、上限の文字数で切れます。
+
+```ts
+transcribe(view, { maxToolResultLength: 500 });
+```
+
+書き起こしを差し替えたいときは、`createJevChecker` に渡します。
 
 ```ts
 const jevCheck = createJevChecker({
@@ -215,5 +208,42 @@ const jevCheck = createJevChecker({
 });
 ```
 
-通信が失敗したときや、返事の形が合わないときは `JevCheckError` を投げます。
-中断の合図（`AbortSignal`）だけは、包まずにそのまま投げ直します。
+## やらないこと
+
+- 規則や Jev による判定そのものの中身（既製のポリシー）は持ちません。
+  質問の文章や境目の値は、判定を書く側が決めます。
+- トレースの語彙（`SPAN` と `ATTR`）や `@mg/trace/store` には手を入れません。
+- 判定の結果をトレースに書き戻しません。
+
+## 使い方
+
+`runner` で走らせた 1 件のセッションを、規則と Jev の両方で判定する例です。
+
+```ts
+import { createJevChecker, evaluate, rule } from "@mg/eval";
+import { JsonlTraceReader } from "@mg/trace/store";
+
+const jev = createJevChecker({
+  apiKey: process.env.TYPESAFE_API_KEY!,
+});
+
+const checks = [
+  rule("has-final-text", (view) => view.finalText !== undefined),
+  jev({
+    name: "answers-with-listing",
+    question:
+      "Does the final assistant reply report the actual output of ls?",
+    threshold: 0.9,
+  }),
+];
+
+const session = await new JsonlTraceReader("./trace.jsonl").readSession(
+  sessionId,
+);
+const verdict = await evaluate(session, checks);
+
+verdict.passed; // 規則と Jev の両方が合格したときだけ true
+```
+
+`runMany` で複数件を走らせ、件ごとに判定する完全な見本は、
+`runs/eval-example.ts` にあります。

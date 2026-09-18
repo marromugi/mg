@@ -124,6 +124,45 @@ describe("createWebSearchTool", () => {
     expect(result).toBe("1. T\n   https://a.example\n   01234");
   });
 
+  test("renders a title with an embedded newline and repeated spaces on one line", async () => {
+    const backend = createFakeBackend([
+      {
+        title: "Cats\n101   are   great",
+        url: "https://a.example/1",
+        snippet: "About cats.",
+      },
+    ]);
+    const tool = createWebSearchTool({ backend });
+
+    const result = await tool.execute({ query: "cats" }, {});
+
+    expect(result).toBe(
+      "1. Cats 101 are great\n   https://a.example/1\n   About cats.",
+    );
+  });
+
+  test("cuts a snippet by code points, not UTF-16 code units", async () => {
+    const backend = createFakeBackend([
+      { title: "T", url: "https://a.example", snippet: "😀😀😀😀" },
+    ]);
+    const tool = createWebSearchTool({ backend, maxSnippetChars: 2 });
+
+    const result = await tool.execute({ query: "q" }, {});
+
+    expect(result).toBe("1. T\n   https://a.example\n   😀😀…");
+  });
+
+  test("does not change a code-point snippet at exactly the limit", async () => {
+    const backend = createFakeBackend([
+      { title: "T", url: "https://a.example", snippet: "😀😀" },
+    ]);
+    const tool = createWebSearchTool({ backend, maxSnippetChars: 2 });
+
+    const result = await tool.execute({ query: "q" }, {});
+
+    expect(result).toBe("1. T\n   https://a.example\n   😀😀");
+  });
+
   test("collapses newlines and repeated spaces in a snippet to single spaces", async () => {
     const backend = createFakeBackend([
       {

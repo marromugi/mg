@@ -12,13 +12,14 @@ const webSearchInput = z.object({
   query: z.string().min(1).describe("Search query"),
 });
 
-const normalizeSnippet = (snippet: string): string =>
-  snippet.trim().replace(/\s+/g, " ");
+const normalizeText = (text: string): string =>
+  text.trim().replace(/\s+/g, " ");
 
 const truncateSnippet = (snippet: string, maxChars: number): string => {
-  const normalized = normalizeSnippet(snippet);
-  return normalized.length > maxChars
-    ? `${normalized.slice(0, maxChars)}…`
+  const normalized = normalizeText(snippet);
+  const chars = Array.from(normalized);
+  return chars.length > maxChars
+    ? `${chars.slice(0, maxChars).join("")}…`
     : normalized;
 };
 
@@ -26,7 +27,7 @@ const formatResult = (
   result: WebSearchResult,
   maxSnippetChars: number,
 ): string =>
-  `${result.title}\n   ${result.url}\n   ${truncateSnippet(result.snippet, maxSnippetChars)}`;
+  `${normalizeText(result.title)}\n   ${normalizeText(result.url)}\n   ${truncateSnippet(result.snippet, maxSnippetChars)}`;
 
 const formatResults = (
   results: WebSearchResult[],

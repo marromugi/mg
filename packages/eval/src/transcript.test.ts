@@ -1,3 +1,4 @@
+import type { Message } from "@mg/core";
 import { describe, expect, it } from "vitest";
 import { transcribe } from "./transcript.js";
 import type { GateStep, LlmStep, RunView, ToolStep } from "./view.js";
@@ -148,6 +149,32 @@ describe("transcribe", () => {
     expect(transcribe(deniedView)).toBe(
       "[gate tool-call denied] writes to disk",
     );
+  });
+
+  it("skips an input message with an unrecognized role instead of throwing", () => {
+    const unknownRoleMessage = {
+      role: "other",
+      content: "not a real role",
+    } as unknown as Message;
+    const stepWithUnknownRole: LlmStep = {
+      ...llmStep1,
+      input: [...llmStep1.input, unknownRoleMessage],
+    };
+    const viewWithUnknownRole: RunView = {
+      ...view,
+      steps: [stepWithUnknownRole],
+      llmSteps: [stepWithUnknownRole],
+      toolSteps: [],
+      gateSteps: [],
+    };
+
+    const expected = [
+      "[system] You are a helpful assistant.",
+      "[user] List the files in the current directory.",
+      '[assistant tool-call bash] {"cmd":"ls"}',
+    ].join("\n\n");
+
+    expect(transcribe(viewWithUnknownRole)).toBe(expected);
   });
 
   it("does not repeat later llm steps' input, since it is history", () => {

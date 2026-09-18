@@ -314,6 +314,39 @@ describe("viewRun", () => {
     expect(view.harnessName).toBe("first");
   });
 
+  it("picks the trace whose root classifies as a run by mg.op even when its name is not mg.run", () => {
+    const records = [
+      record({
+        spanId: "harness-early",
+        traceId: "trace-early",
+        name: SPAN.harness,
+        startTime: "2026-01-01T00:00:01.000Z",
+        endTime: "2026-01-01T00:00:02.000Z",
+        attributes: {
+          [ATTR.op]: "harness",
+          [ATTR.harnessName]: "not the run",
+        },
+      }),
+      record({
+        spanId: "custom-run",
+        traceId: "trace-custom",
+        name: "custom",
+        startTime: "2026-01-01T00:00:05.000Z",
+        endTime: "2026-01-01T00:00:06.000Z",
+        attributes: {
+          [ATTR.op]: "run",
+          [ATTR.runName]: "custom-run-name",
+        },
+      }),
+    ];
+    const session = buildSessionTree(records);
+    if (session === undefined) throw new Error("session not built");
+
+    const view = viewRun(session);
+
+    expect(view.runName).toBe("custom-run-name");
+  });
+
   it("reports the root span's error status as the run error", () => {
     const records = [
       record({

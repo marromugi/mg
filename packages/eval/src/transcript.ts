@@ -38,6 +38,8 @@ const transcribeMessage = (message: Message): string[] => {
       return [`[tool ${message.toolCallId}] ${message.content}`];
     case "assistant":
       return transcribeAssistantParts(message.parts);
+    default:
+      return [];
   }
 };
 

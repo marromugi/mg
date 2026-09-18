@@ -241,7 +241,7 @@ const pickTrace = (
   traces: readonly TraceTree[],
   firstTrace: TraceTree,
 ): TraceTree =>
-  traces.find((trace) => trace.root.name === SPAN.run) ?? firstTrace;
+  traces.find((trace) => classify(trace.root) === "run") ?? firstTrace;
 
 const isLlmStep = (step: RunStep): step is LlmStep =>
   step.type === "llm";

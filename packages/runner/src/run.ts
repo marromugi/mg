@@ -62,7 +62,12 @@ export const run = async (
         configToolNames.has(tool.name),
       );
       if (duplicate) {
-        await opened.close();
+        try {
+          await opened.close();
+        } catch {
+          // The duplicate-name error is the real cause; a close
+          // failure that follows it does not replace it.
+        }
         throw new DuplicateToolNameError(duplicate.name, [
           "config",
           opened.name,

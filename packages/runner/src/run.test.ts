@@ -371,6 +371,34 @@ describe("run with a workspace", () => {
     expect(closed).toBe(true);
   });
 
+  test("a shared tool name still throws DuplicateToolNameError even when closing the workspace itself fails", async () => {
+    const name = "shared-name";
+    const configTool = stubTool(name);
+    const workspaceTool = stubTool(name);
+    let closeAttempted = false;
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+      workspace: fakeWorkspace([workspaceTool], {
+        onClose: () => {
+          closeAttempted = true;
+        },
+        closeError: new Error("close failed"),
+      }),
+    };
+
+    await expect(run(config, [])).rejects.toThrow(
+      DuplicateToolNameError,
+    );
+
+    expect(closeAttempted).toBe(true);
+  });
+
   test("the workspace is closed after a successful run", async () => {
     let closed = false;
     const provider = stubProvider([

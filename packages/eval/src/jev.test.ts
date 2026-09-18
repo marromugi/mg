@@ -323,6 +323,27 @@ describe("createJevChecker", () => {
     );
   });
 
+  it("throws JevCheckError when the probability is out of the 0-1 range", async () => {
+    const fetchStub = vi.fn(async () => jsonResponse(answer(95)));
+    const checker = createJevChecker({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+    const check = checker({
+      name: "polite",
+      question: "Is it polite?",
+    });
+
+    const error = await check
+      .evaluate(makeInput(makeView()))
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(JevCheckError);
+    expect((error as JevCheckError).message).toBe(
+      "Jev response failed validation",
+    );
+  });
+
   it("lets an abort while reading the response body through unchanged", async () => {
     const abortError = new DOMException("aborted", "AbortError");
     const response = new Response(null, { status: 200 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAbortError } from "./abort.js";
 import { JevCheckError } from "./errors.js";
 import { transcribe } from "./transcript.js";
 import type {
@@ -35,15 +36,10 @@ const jevResponse = z.object({
   answers: z.object({
     answer: z.object({
       type: z.literal("noul"),
-      probability: z.number(),
+      probability: z.number().min(0).max(1),
     }),
   }),
 });
-
-const isAbortError = (error: unknown): boolean =>
-  typeof error === "object" &&
-  error !== null &&
-  (error as { name?: unknown }).name === "AbortError";
 
 const isValidThreshold = (threshold: number): boolean =>
   Number.isFinite(threshold) && threshold >= 0 && threshold <= 1;

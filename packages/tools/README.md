@@ -96,3 +96,38 @@ createWebSearchTool({
 ```ts
 new WebSearchError("失敗の説明", { cause: 元の例外 });
 ```
+
+#### Ollama の口
+
+Ollama の検索 API を使う口です。手元の Ollama ではなく、ollama.com のサーバーと通信します。
+
+鍵は ollama.com の無料のアカウントで作れます。
+
+```ts
+createOllamaWebSearchBackend({
+  apiKey: "your-api-key", // ollama.com の鍵
+  baseUrl: "https://ollama.com", // 接続先。省くとこの値になります
+  headers: {}, // 追加で送るヘッダー
+  fetch: globalThis.fetch, // 通信に使う関数
+});
+```
+
+鍵だけが必須です。ほかは省くと、例に書いた値になります。
+
+| オプション | 必須   | すること                    |
+| ---------- | ------ | --------------------------- |
+| `apiKey`   | 必須   | ollama.com の鍵を渡します   |
+| `baseUrl`  | 省略可 | 接続先の URL を差し替えます |
+| `headers`  | 省略可 | 送るヘッダーを追加します    |
+| `fetch`    | 省略可 | 通信する関数を差し替えます  |
+
+この口を `web_search` の道具と組み合わせて使います。
+
+```ts
+createWebSearchTool({
+  backend: createOllamaWebSearchBackend({ apiKey: "your-api-key" }),
+});
+```
+
+Ollama の検索 API は、1 回の検索で返す件数が 10 件までに決まっています。
+`maxResults` にそれより大きい値を渡しても、10 件までしか返りません。

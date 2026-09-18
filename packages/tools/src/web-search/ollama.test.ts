@@ -301,4 +301,31 @@ describe("createOllamaWebSearchBackend", () => {
 
     expect(error).toBe(abort);
   });
+
+  test("rejects with the signal's reason, not a WebSearchError, when the signal aborts mid-read", async () => {
+    const controller = new AbortController();
+    const fetchStub: typeof fetch = async () =>
+      ({
+        ok: true,
+        status: 200,
+        text: async () => {
+          controller.abort();
+          throw new TypeError("terminated");
+        },
+      }) as unknown as Response;
+    const backend = createOllamaWebSearchBackend({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await backend
+      .search(
+        { query: "cats", maxResults: 5 },
+        { signal: controller.signal },
+      )
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBe(controller.signal.reason);
+    expect(error).not.toBeInstanceOf(WebSearchError);
+  });
 });

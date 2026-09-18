@@ -23,8 +23,21 @@ const responseSchema = z.object({
   ),
 });
 
-const searchFailure = (cause: unknown, message: string): unknown =>
-  isAbortError(cause) ? cause : new WebSearchError(message, { cause });
+const resolveAbort = (
+  cause: unknown,
+  signal: AbortSignal | undefined,
+) => {
+  if (isAbortError(cause)) return cause;
+  if (signal?.aborted) return signal.reason ?? cause;
+  return undefined;
+};
+
+const searchFailure = (
+  cause: unknown,
+  signal: AbortSignal | undefined,
+  message: string,
+): unknown =>
+  resolveAbort(cause, signal) ?? new WebSearchError(message, { cause });
 
 export const createOllamaWebSearchBackend = (
   options: OllamaWebSearchOptions,
@@ -63,6 +76,7 @@ export const createOllamaWebSearchBackend = (
       } catch (cause) {
         throw searchFailure(
           cause,
+          context.signal,
           "Ollama web search request failed to send",
         );
       }
@@ -71,9 +85,10 @@ export const createOllamaWebSearchBackend = (
         let detail = "";
         try {
           const text = await response.text();
-          detail = `: ${text.slice(0, ERROR_BODY_SNIPPET_CHARS)}`;
+          detail = `: ${Array.from(text).slice(0, ERROR_BODY_SNIPPET_CHARS).join("")}`;
         } catch (cause) {
-          if (isAbortError(cause)) throw cause;
+          const abort = resolveAbort(cause, context.signal);
+          if (abort !== undefined) throw abort;
         }
         throw new WebSearchError(
           `Ollama web search request failed: ${response.status}${detail}`,
@@ -86,6 +101,7 @@ export const createOllamaWebSearchBackend = (
       } catch (cause) {
         throw searchFailure(
           cause,
+          context.signal,
           "Ollama web search response failed to read",
         );
       }

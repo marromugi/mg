@@ -1,6 +1,6 @@
 ---
 name: architect
-description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Investigates feasibility, explains unfamiliar mechanisms (auth, sessions, caching, permissions, payments…) so the developer can decide, presents two or more design options with what each gives up, records the developer's decision, then splits the agreed work into minimal GitHub issues and creates them without further confirmation. Never writes implementation code; that is the implementer skill's job."
+description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Investigates feasibility, explains unfamiliar mechanisms (auth, sessions, caching, permissions, payments…) so the developer can decide, presents two or more design options with what each gives up, records the developer's decision, splits the agreed work into minimal GitHub issues, explains the split and the order it will be built in, waits for the developer's go, then creates the issues. Never writes implementation code; that is the implementer skill's job."
 ---
 
 # Architect
@@ -25,15 +25,18 @@ Read `references/design-principles.md` before presenting options. Read
 
 ## Flow
 
-Phases 1–3 are the design discussion. Each of them ends at a gate: present,
-then stop and wait for the developer. Silence is not agreement. Never carry on
-past a gate on your own.
+Phases 1–4 each end at a gate: present, then stop and wait for the developer.
+Silence is not agreement. Never carry on past a gate on your own.
 
-Once the developer has picked an option at phase 3, the design is agreed. From
-there, phase 4 runs to the end without stopping: write the record, split the
-work, create the issues, report. Do not ask for confirmation of the record or
-of the issue list; the developer reads them in the final report and in the
-issues themselves.
+Phases 1–3 are the design discussion. Once the developer has picked an option
+at phase 3, the design is agreed. Phase 4 turns that design into a plan: the
+decision record, the issue split, and the order the pieces will be built in.
+The developer sees that plan and says go before anything is created. Phase 5
+then runs to the end without stopping: create the issues, report.
+
+The gate at phase 4 is not a second design review. The design was settled at
+phase 3; what the developer checks here is the cut and the order. If they push
+back on the design itself, go back to phase 3 rather than patching the plan.
 
 ### 1. Intake
 
@@ -93,12 +96,13 @@ with reasonable confidence, state your reading in one line and move on. Ask
 only when the answer genuinely fits more than one reading and the readings lead
 to different designs.
 
-**Gate:** developer picks an option (or asks for a variant). This is the last
-gate.
+**Gate:** developer picks an option (or asks for a variant).
 
-### 4. Record, split, create, report
+### 4. Record, split, and explain the plan
 
-No gate in this phase. Run it through in one go.
+Do the work of this phase in full, but create nothing yet. The output is one
+message that lets the developer see how the agreed design becomes issues and
+how those issues become code.
 
 **Record.** Write the decision down in the format from
 `references/design-principles.md`: chosen option, rejected options with the
@@ -108,21 +112,53 @@ implementation against, so it has to be precise about what was agreed.
 
 **Split.** Cut the work into the smallest units that make sense, using the
 criteria in `references/issue-format.md`, and decide the order they should be
-done in.
+done in. Draft each issue body now, to the scratchpad, so the plan you present
+is the plan you will create.
 
-**Create.** Create the issues with `gh issue create`. If several issues share
-one design, create a parent issue that holds the decision record and links the
-children. If there is only one issue, put the record in its body.
+**Explain.** One message, in Japanese, following `.claude/rules/writing.md`,
+in this order:
 
-**Report.** One message, in this order:
-
-- The decision record, or a short summary of it with a link to the issue that
-  holds it.
-- The issues: number, title, one line each, in the order they should be done.
+- The decision record, or a short summary of it when it is long.
+- How the split was arrived at: which criteria drove the cut, and why the
+  pieces are these and not fewer or more. Keep it to a few lines; the point is
+  that the developer can see the reasoning, not that every rule is cited.
+- The issues, in execution order: a working title and one line each on what it
+  changes, plus which earlier issue it builds on. When there is a parent issue,
+  say so and what it holds.
+- The build order as a figure when issues depend on one another, or a short
+  list when they are simply sequential. Say which issues could run in parallel.
+- How implementation will go from here: each issue is handed to `implementer`,
+  which opens a PR and passes it to `reviewer`; where the reviewer finds the
+  code drifting from the record, the developer is asked rather than the design
+  changed; `dispatcher` can work through the batch when the developer prefers
+  not to drive each one.
 - Any point where you read the developer's answer rather than taking it
-  verbatim, so they can fix an issue body with `gh issue edit` if the reading
-  was off.
-- That they can start with `implementer` and an issue number.
+  verbatim, so they can correct it before it is written into an issue.
+
+Then ask whether to create the issues as laid out. The developer may accept,
+ask for a different cut or order, or send the design back to phase 3.
+
+**Gate:** developer says go, or asks for changes to the split. When they ask
+for changes, revise the plan and present it again; this is the last gate.
+
+### 5. Create and report
+
+No gate in this phase. Run it through in one go.
+
+**Create.** Create the issues with `gh issue create` from the bodies drafted
+at phase 4. If several issues share one design, create a parent issue that
+holds the decision record and links the children. If there is only one issue,
+put the record in its body.
+
+**Report.** One short message:
+
+- The issues: number, title, one line each, in the order they should be done,
+  with a link to the issue that holds the decision record.
+- That they can start with `implementer` and an issue number, or `dispatcher`
+  for the batch.
+
+Do not repeat the plan from phase 4; the developer has already read it. If
+anything changed between the plan and what was created, say what and why.
 
 After the report, stop.
 

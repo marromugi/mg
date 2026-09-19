@@ -5,3 +5,6 @@ storybook-static/
 .env.*
 *.log
 .DS_Store
+
+# Claude のエージェントが使う git worktree
+.claude/worktrees/

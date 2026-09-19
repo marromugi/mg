@@ -293,7 +293,7 @@ Field meanings, how they combine, and how to read the output back are in
 | Gate     | `createRulesGate(options)`              | `@mg/gate`  |
 | Gate     | `composeGates(gates)`                   | `@mg/gate`  |
 | Check    | `rule(name, predicate)`                 | `@mg/eval`  |
-| Check    | `createJevChecker(options)`             | `@mg/eval`  |
+| Check    | `createEstimatorChecker(options)`       | `@mg/eval`  |
 
 ```ts
 import { createOpenRouterProvider } from "@mg/core";

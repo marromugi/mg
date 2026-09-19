@@ -10,6 +10,6 @@ export class NoRunInSessionError extends EvalError {
   }
 }
 
-export class JevCheckError extends EvalError {
-  override readonly name = "JevCheckError";
+export class EstimatorCheckError extends EvalError {
+  override readonly name = "EstimatorCheckError";
 }

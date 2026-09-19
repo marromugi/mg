@@ -37,9 +37,15 @@ the linked issue from `Closes #N` in the body, then:
 gh issue view <N> --json title,body
 ```
 
-If the issue links a parent, read it for the decision record. Also read
-`.claude/skills/architect/references/design-principles.md` — the qualities
-there are the vocabulary for the design pass.
+If the issue links a parent, read it for the decision record and the shared
+constraints. Also read `software-design-theory` — its principles and its
+Tests section are the yardstick for the design pass.
+
+Get the order of the commits as well; the design pass needs it:
+
+```
+gh pr view <PR> --json commits --jq '.commits[] | "\(.oid[0:7]) \(.messageHeadline)"'
+```
 
 Run `git status --short` in the main checkout. Do not stash or commit
 anything; just remember whether tracked files are modified. If the scope
@@ -88,35 +94,61 @@ Read the diff:
 gh pr diff <PR>
 ```
 
-Compare it against the issue's 設計, To Implementer, and 実装が守る制約, and
-against the PR's own Deviations section. Ask, concretely:
+Compare it against the issue's 設計, 制約, ケース, and To Implementer, and
+against the PR's own Cases and Deviations sections. Ask, concretely:
 
-- Did it implement the chosen option, or something that resembles it?
+**The design**
+
+- Did it implement the decided design, or something that resembles it?
 - Did it make any decision the issue does not cover — a new interface, a
   new dependency, a changed data shape, a widened responsibility?
 - Did it touch anything listed as out of scope?
-- Do the tests cover the acceptance criteria, or only what was easy?
-- Are the boundaries (DB, network, external services) still behind their
-  seams?
+- Does every 構造 constraint hold? Run the issue's structural checks against
+  the PR branch rather than trusting the PR body.
+- Does every 向き constraint hold in the code as written?
+- Are outside specifications still behind their interface (principle 7)?
 - Anything in Deviations that the issue did not authorise?
+
+**The tests**
+
+- Does every case in the issue have a row in the PR's Cases table, and does
+  the named test exist?
+- Does each test assert what its case says is seen, with the case's literal
+  values? A test that shares a case's name but asserts something weaker does
+  not receive it.
+- Is any test hollow by the theory's Hollow tests list? Read the assertions,
+  not the titles.
+- Is there a test no case calls for? It is either a missing case, which is
+  design-level, or padding, which is code-level.
+- Did the tests come before the implementation? The commit that adds the
+  tests precedes the commit that adds the behaviour. A single commit holding
+  both is a finding.
 
 ### 4. Sort the findings
 
 Two buckets. Getting this split right is the whole point of the skill.
 
-**Code-level — fix without asking.** A bug, a missing or weak test, an
-error path not handled as the issue specified, naming, dead code, an
-inefficiency that does not change the design, and comments that should not
-exist: ones that narrate what the code does, or refer to history ("was",
-"previously", "per the issue"). Remove them. The developer wants these
-handled, not reported.
+**Code-level — fix without asking.** A bug, a case with no test, a test
+weaker than its case, a hollow or padding test, tests committed together with
+or after the implementation, an error path not handled as the issue
+specified, naming, dead code, an inefficiency that does not change the
+design, and comments that should not exist: ones that narrate what the code
+does, or refer to history ("was", "previously", "per the issue"). Remove
+them. The developer wants these handled, not reported.
 
-**Design-level — do not fix, ask.** Anything that changes what was agreed:
-a different option than the chosen one, a new decision the issue is silent
-on, a changed interface or responsibility, a trade-off the developer did not
-consent to, out-of-scope changes. Even if the agent's choice looks better,
-the developer decides; the whole workflow exists so that this decision is
-theirs.
+A departure from the issue that the agent did not argue for is also
+code-level: a broken 構造 or 向き constraint, an out-of-scope change, a
+different shape than the decided one. The design was already judged; the fix
+is to bring the code back to it.
+
+**Design-level — do not fix, ask.** Anything that reopens the design: the
+agent reports, in Deviations or in its final message, that the design as
+written cannot work; the code needs a decision the issue is silent on; a
+behaviour needs a case the issue does not have; an interface or a
+responsibility has to change. Even if the agent's choice looks better, it is
+not the reviewer's to accept. Check it against `software-design-theory`: if a
+principle settles it, say which and treat the finding as code-level. If none
+does, it goes to the developer.
 
 When unsure which bucket, it is design-level.
 

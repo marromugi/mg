@@ -458,6 +458,119 @@ describe("run with a workspace", () => {
     });
   });
 
+  test("records an mg.workspace span under mg.run, as a sibling of mg.harness", async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace([]),
+      trace: { exporters: [exporter] },
+    };
+
+    await run(config, []);
+
+    const spans = exporter.getFinishedSpans();
+    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const harnessSpan = spans.find(
+      (span) => span.name === "mg.harness",
+    );
+    const workspaceSpan = spans.find(
+      (span) => span.name === "mg.workspace",
+    );
+
+    expect(workspaceSpan).toBeDefined();
+    expect(workspaceSpan?.parentSpanContext?.spanId).toBe(
+      rootSpan?.spanContext().spanId,
+    );
+    expect(harnessSpan?.parentSpanContext?.spanId).toBe(
+      rootSpan?.spanContext().spanId,
+    );
+  });
+
+  test("the mg.workspace span carries the workspace's name, its connectors' kinds, and the opened tools' names", async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const connectorA: Connector = {
+      kind: "alpha",
+      open: async () => ({
+        tools: [stubTool("tool-a")],
+        close: async () => {},
+      }),
+    };
+    const connectorB: Connector = {
+      kind: "beta",
+      open: async () => ({
+        tools: [stubTool("tool-b")],
+        close: async () => {},
+      }),
+    };
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: defineWorkspace({
+        name: "my-workspace",
+        connectors: [connectorA, connectorB],
+      }),
+      trace: { exporters: [exporter] },
+    };
+
+    await run(config, []);
+
+    const workspaceSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.workspace");
+
+    expect(workspaceSpan?.attributes["mg.workspace.name"]).toBe(
+      "my-workspace",
+    );
+    expect(workspaceSpan?.attributes["mg.workspace.connectors"]).toBe(
+      JSON.stringify(["alpha", "beta"]),
+    );
+    expect(workspaceSpan?.attributes["mg.workspace.tools"]).toBe(
+      JSON.stringify(["tool-a", "tool-b"]),
+    );
+  });
+
+  test("a workspace that fails to open records the failure on the mg.workspace span", async () => {
+    const exporter = new InMemorySpanExporter();
+    const error = new Error("connector blew up");
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: defineWorkspace({
+        name: "broken-workspace",
+        connectors: [
+          {
+            kind: "broken",
+            open: async () => {
+              throw error;
+            },
+          },
+        ],
+      }),
+      trace: { exporters: [exporter] },
+    };
+
+    await expect(run(config, [])).rejects.toThrow();
+
+    const workspaceSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.workspace");
+    expect(workspaceSpan).toBeDefined();
+    expect(workspaceSpan?.status.code).toBe(2);
+  });
+
   test("omitting workspace leaves the harness with only the config's tools", async () => {
     const configTool = stubTool("config-tool");
     const { provider, requests } = trackingProvider([

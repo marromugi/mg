@@ -11,7 +11,7 @@ import { join } from "node:path";
 import type { Tool } from "@mg/core";
 import { afterAll, describe, expect, expectTypeOf, test } from "vitest";
 import { FileToolError } from "./errors.js";
-import { createGrepTool } from "./grep.js";
+import { columnOf, createGrepTool } from "./grep.js";
 
 const hasRg = spawnSync("rg", ["--version"]).status === 0;
 
@@ -32,6 +32,7 @@ if (hasRg) {
   write("sub/b.txt", "préfix hello\nhello hello\n");
   write("case.txt", "HELLO\n");
   write("long.txt", `${"x".repeat(400)}hello\n`);
+  write("crlf.txt", "hello crlf\r\n");
   write(
     "many.txt",
     `${Array.from({ length: 10 }, () => "hello").join("\n")}\n`,
@@ -113,11 +114,19 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
   test("no match returns a sentence instead of throwing", async () => {
     await expect(
       grep.execute({ pattern: "zzzznotfound" }, {}),
-    ).resolves.toBe("No matches for /zzzznotfound/ in ..");
+    ).resolves.toBe("No matches for /zzzznotfound/ in the root.");
 
     await expect(
       grep.execute({ pattern: "zzzznotfound", path: "sub" }, {}),
     ).resolves.toBe("No matches for /zzzznotfound/ in sub.");
+  });
+
+  test("a trailing CRLF is dropped from the line text", async () => {
+    const result = await grep.execute(
+      { pattern: "hello", path: "crlf.txt" },
+      {},
+    );
+    expect(result).toBe("crlf.txt:1:1: hello crlf");
   });
 
   test("maxResults truncation appends a marker", async () => {
@@ -133,6 +142,15 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
       "many.txt:3:1: hello",
       "[results truncated]",
     ]);
+  });
+
+  test("maxResults of 0 truncates to just the marker", async () => {
+    const none = createGrepTool({ root, maxResults: 0 });
+    const result = await none.execute(
+      { pattern: "hello", path: "many.txt" },
+      {},
+    );
+    expect(result).toBe("[results truncated]");
   });
 
   test("maxLineChars cuts long lines", async () => {
@@ -163,6 +181,16 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
     });
   });
 
+  test("an rgPath pointing to a directory rejects with the underlying error code", async () => {
+    const invalid = createGrepTool({ root, rgPath: root });
+    await expect(
+      invalid.execute({ pattern: "hello" }, {}),
+    ).rejects.toMatchObject({
+      name: "FileToolError",
+      message: "ripgrep failed: EACCES",
+    });
+  });
+
   test("a path outside the root rejects with FileToolError", async () => {
     await expect(
       grep.execute({ pattern: "hello", path: "../outside" }, {}),
@@ -181,18 +209,6 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
 
 describe("column conversion", () => {
   test("counts code points up to the byte offset, not bytes", () => {
-    const lineText = "préfix hello\n";
-    const byteStart = Buffer.from(lineText, "utf8").indexOf(
-      Buffer.from("hello", "utf8"),
-    );
-
-    const col =
-      Array.from(
-        Buffer.from(lineText, "utf8")
-          .subarray(0, byteStart)
-          .toString("utf8"),
-      ).length + 1;
-
-    expect(col).toBe(8);
+    expect(columnOf("préfix hello\n", 7)).toBe(8);
   });
 });

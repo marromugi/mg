@@ -13,6 +13,13 @@ const jsonResponse = (body: unknown, status = 200): Response =>
     headers: { "Content-Type": "application/json" },
   });
 
+const stubFetch = (
+  impl: (
+    url: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>,
+) => vi.fn(impl);
+
 const answer = (probability: unknown): unknown => ({
   answers: { answer: { type: "noul", probability } },
 });
@@ -21,10 +28,7 @@ const request: EstimateRequest = { text: "T", question: "Q" };
 
 describe("createJevEstimator", () => {
   test("sends to the systemone URL with the bearer header and JSON content type", async () => {
-    const fetchStub = vi.fn(
-      async (_url: RequestInfo | URL, _init?: RequestInit) =>
-        jsonResponse(answer(0.9)),
-    );
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -42,7 +46,7 @@ describe("createJevEstimator", () => {
   });
 
   test("trims a trailing slash from a custom baseUrl", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.9)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
       baseUrl: "https://example.test/v1/",
@@ -56,7 +60,7 @@ describe("createJevEstimator", () => {
   });
 
   test("carries a caller-supplied header through to the request", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.9)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
       headers: { "X-Test": "1" },
@@ -71,7 +75,7 @@ describe("createJevEstimator", () => {
   });
 
   test("puts the model, text and single question into the request body", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.9)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -94,7 +98,7 @@ describe("createJevEstimator", () => {
   });
 
   test("defaults the model to jev-latest, and a custom model is both named and sent", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.9)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const defaultEstimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -117,7 +121,7 @@ describe("createJevEstimator", () => {
   });
 
   test("returns the response probability as-is, including the 0 and 1 boundaries", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.93)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.93)));
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -139,7 +143,7 @@ describe("createJevEstimator", () => {
   });
 
   test("throws EstimatorHttpError with the status and body in the message on a non-2xx response", async () => {
-    const fetchStub = vi.fn(
+    const fetchStub = stubFetch(
       async () => new Response("boom", { status: 500 }),
     );
     const estimator = createJevEstimator({
@@ -161,7 +165,7 @@ describe("createJevEstimator", () => {
 
   test("truncates the message to 200 characters of the body but keeps the full body on the error", async () => {
     const longBody = "a".repeat(300);
-    const fetchStub = vi.fn(
+    const fetchStub = stubFetch(
       async () => new Response(longBody, { status: 500 }),
     );
     const estimator = createJevEstimator({
@@ -182,7 +186,7 @@ describe("createJevEstimator", () => {
   });
 
   test("omits the trailing space when the failed response body is empty", async () => {
-    const fetchStub = vi.fn(
+    const fetchStub = stubFetch(
       async () => new Response("", { status: 502 }),
     );
     const estimator = createJevEstimator({
@@ -202,7 +206,7 @@ describe("createJevEstimator", () => {
 
   test("throws EstimatorTransportError with the original error as cause when fetch rejects", async () => {
     const original = new Error("network down");
-    const fetchStub = vi.fn(async () => {
+    const fetchStub = stubFetch(async () => {
       throw original;
     });
     const estimator = createJevEstimator({
@@ -222,7 +226,7 @@ describe("createJevEstimator", () => {
   });
 
   test("throws EstimatorResponseError when the response body is not JSON", async () => {
-    const fetchStub = vi.fn(
+    const fetchStub = stubFetch(
       async () => new Response("not json", { status: 200 }),
     );
     const estimator = createJevEstimator({
@@ -241,7 +245,9 @@ describe("createJevEstimator", () => {
   });
 
   test("throws EstimatorResponseError when the response body has the wrong shape", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse({ answers: {} }));
+    const fetchStub = stubFetch(async () =>
+      jsonResponse({ answers: {} }),
+    );
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -260,7 +266,7 @@ describe("createJevEstimator", () => {
   test("throws EstimatorResponseError when the probability is out of range or not a number", async () => {
     const estimator = createJevEstimator({
       apiKey: "key",
-      fetch: vi.fn(async () => jsonResponse(answer(1.5))),
+      fetch: stubFetch(async () => jsonResponse(answer(1.5))),
     });
     await expect(estimator.estimate(request)).rejects.toBeInstanceOf(
       EstimatorResponseError,
@@ -268,7 +274,7 @@ describe("createJevEstimator", () => {
 
     const estimatorNegative = createJevEstimator({
       apiKey: "key",
-      fetch: vi.fn(async () => jsonResponse(answer(-0.1))),
+      fetch: stubFetch(async () => jsonResponse(answer(-0.1))),
     });
     await expect(
       estimatorNegative.estimate(request),
@@ -276,7 +282,7 @@ describe("createJevEstimator", () => {
 
     const estimatorString = createJevEstimator({
       apiKey: "key",
-      fetch: vi.fn(async () => jsonResponse(answer("0.5"))),
+      fetch: stubFetch(async () => jsonResponse(answer("0.5"))),
     });
     await expect(
       estimatorString.estimate(request),
@@ -284,7 +290,7 @@ describe("createJevEstimator", () => {
   });
 
   test("throws EstimatorResponseError when the answer type is not noul", async () => {
-    const fetchStub = vi.fn(async () =>
+    const fetchStub = stubFetch(async () =>
       jsonResponse({
         answers: { answer: { type: "text", probability: 0.5 } },
       }),
@@ -300,7 +306,7 @@ describe("createJevEstimator", () => {
   });
 
   test("rejects with the abort reason without calling fetch when the signal is already aborted", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.9)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -317,7 +323,7 @@ describe("createJevEstimator", () => {
   });
 
   test("passes the caller's signal through to the transport function unchanged", async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(answer(0.9)));
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -332,7 +338,7 @@ describe("createJevEstimator", () => {
 
   test("lets an AbortError from the transport function through unwrapped", async () => {
     const abortError = new DOMException("aborted", "AbortError");
-    const fetchStub = vi.fn(async () => {
+    const fetchStub = stubFetch(async () => {
       throw abortError;
     });
     const estimator = createJevEstimator({
@@ -347,7 +353,7 @@ describe("createJevEstimator", () => {
     const abortError = new DOMException("aborted", "AbortError");
     const response = new Response(null, { status: 200 });
     vi.spyOn(response, "json").mockRejectedValue(abortError);
-    const fetchStub = vi.fn(async () => response);
+    const fetchStub = stubFetch(async () => response);
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,

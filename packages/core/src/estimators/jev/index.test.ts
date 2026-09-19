@@ -361,4 +361,17 @@ describe("createJevEstimator", () => {
 
     await expect(estimator.estimate(request)).rejects.toBe(abortError);
   });
+
+  test("lets an abort while reading the failed response body through unchanged", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    const response = new Response(null, { status: 500 });
+    vi.spyOn(response, "text").mockRejectedValue(abortError);
+    const fetchStub = stubFetch(async () => response);
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await expect(estimator.estimate(request)).rejects.toBe(abortError);
+  });
 });

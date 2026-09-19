@@ -97,7 +97,13 @@ are checked first and the LLM only judges what the rules don't cover (see
 ```ts
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
-import { createBashTool } from "@mg/tools";
+import {
+  createBashTool,
+  createReadFileTool,
+  createGrepTool,
+  createWriteFileTool,
+  createEditFileTool,
+} from "@mg/tools";
 import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -108,10 +114,16 @@ const provider = createOpenRouterProvider({ apiKey });
 const root = process.cwd();
 
 export default defineRun({
-  name: "loop-bash-composed-gate",
+  name: "loop-files-composed-gate",
   provider,
   harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
-  tools: [createBashTool({ cwd: root })],
+  tools: [
+    createBashTool({ cwd: root }),
+    createReadFileTool({ root }),
+    createGrepTool({ root }),
+    createWriteFileTool({ root }),
+    createEditFileTool({ root }),
+  ],
   gate: composeGates([
     createRulesGate({
       root,

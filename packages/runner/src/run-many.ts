@@ -26,6 +26,11 @@ export const runMany = async (
       `concurrency must be an integer >= 1, got ${concurrency}`,
     );
   }
+  if (config.workspace !== undefined && concurrency > 1) {
+    throw new RangeError(
+      `workspace requires concurrency 1, got ${concurrency}`,
+    );
+  }
 
   const signal = options?.signal;
   const sessionIds = cases.map(() => nanoid());

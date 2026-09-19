@@ -308,6 +308,10 @@ for (const outcome of outcomes) {
 }
 ```
 
+If the config has a `workspace`, `concurrency` must be 1 (or left unset). Passing 2 or more
+throws a `RangeError` before any case runs, since a workspace cannot be opened by two cases
+at once.
+
 Picking a config by path instead of a static import, with `loadRun`:
 
 ```ts

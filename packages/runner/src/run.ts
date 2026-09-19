@@ -92,20 +92,18 @@ export const run = async (
     opened = config.workspace
       ? await openWorkspace(config.workspace, {
           signal: options?.signal,
+        }).catch((error: unknown) => {
+          endWorkspaceSpan(error);
+          throw error;
         })
-          .then((openedWorkspace) => {
-            workspaceSpan.setAttributes({
-              [ATTR.workspaceTools]: jsonAttribute(
-                openedWorkspace.tools.map((tool) => tool.name),
-              ),
-            });
-            return openedWorkspace;
-          })
-          .catch((error: unknown) => {
-            endWorkspaceSpan(error);
-            throw error;
-          })
       : undefined;
+    if (opened) {
+      workspaceSpan.setAttributes({
+        [ATTR.workspaceTools]: jsonAttribute(
+          opened.tools.map((tool) => tool.name),
+        ),
+      });
+    }
 
     const configTools = config.tools ?? [];
     if (opened) {

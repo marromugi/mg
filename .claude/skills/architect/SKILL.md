@@ -1,138 +1,161 @@
 ---
 name: architect
-description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Investigates feasibility, explains unfamiliar mechanisms (auth, sessions, caching, permissions, payments…) so the developer can decide, presents two or more design options with what each gives up, records the developer's decision, then splits the agreed work into minimal GitHub issues and creates them without further confirmation. Never writes implementation code; that is the implementer skill's job."
+description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Makes the design from the picture of the whole software following software-design-theory, has it judged by software-design-review, writes the constraints and the test cases that hold the implementation to it, and creates minimal GitHub issues without asking. Stops for the developer only where the theory does not settle a question. Never writes implementation code; that is the implementer skill's job."
 ---
 
 # Architect
 
 ## Why this skill exists
 
-In this repo the developer owns the design and Claude owns the implementation.
-That split only works if the developer actually understands and agrees with the
-design before any code is written. Two failure modes this skill guards against:
+The developer owns the design intent, and that intent is written down in
+`software-design-theory`. Claude makes the design from it, and other Claudes
+judge it against it. The developer is asked only what the theory cannot
+answer, and each answer goes back into the theory so it is not asked again.
 
-- Claude picks the option it likes and starts building. The developer never saw
-  the alternatives or what was given up.
-- The unit of discussion is too large. The developer nods at a big plan, and the
-  disagreement only surfaces after implementation.
+Work passes through a chain of copies: request, design, constraints, cases,
+tests, code. Each copy can lose or bend something. This skill makes the first
+three copies and has each judged by someone other than itself, so that what
+reaches the implementer is the design and nothing less.
 
-So the job here is to slow down at the right moments: explain, offer choices,
-wait for a decision, and cut the work into pieces small enough that each one can
-be judged at a glance.
-
-Read `references/design-principles.md` before presenting options. Read
-`references/issue-format.md` before writing issues.
+Read `software-design-theory` in full before step 2. Read
+`references/issue-format.md` before step 5.
 
 ## Flow
 
-Phases 1–3 are the design discussion. Each of them ends at a gate: present,
-then stop and wait for the developer. Silence is not agreement. Never carry on
-past a gate on your own.
-
-Once the developer has picked an option at phase 3, the design is agreed. From
-there, phase 4 runs to the end without stopping: write the record, split the
-work, create the issues, report. Do not ask for confirmation of the record or
-of the issue list; the developer reads them in the final report and in the
-issues themselves.
+The flow runs without stopping unless a step says to stop. Silence from the
+developer is not an answer; where a step stops, wait.
 
 ### 1. Intake
 
-Restate the request in your own words:
+Restate the request to yourself: the goal, what is in and out of scope, the
+constraints already known. The goal and the scope are the developer's. If
+either is unclear in a way that would change the design, ask, and wait. If
+they are clear, do not ask for confirmation; carry on.
 
-- Goal: what the developer wants to be true afterwards, and why.
-- Scope: what is in, what is out.
-- Constraints you already know (existing code, external services, deadlines).
+### 2. Design from the whole
 
-Keep it to a few lines. Ask only about things that would change the design. If
-the request is tiny and clearly has one sane shape, say so — you can compress
-phases 2–4 into one short exchange, but you still stop before implementing.
+Look at the codebase before designing anything. Bring the checkout up to date
+first (`git fetch`, then fast-forward the default branch); a design drawn from
+a stale tree is drawn from a picture that no longer exists. Run
+`ast-grep outline` on the areas the work touches.
 
-**Gate:** developer confirms the restatement.
+Then follow principle 1 in order:
 
-### 2. Investigate and explain
+- Draw the picture of the whole software as it is: the roles, and the
+  interfaces between them. Include roles the request does not mention if the
+  new piece will stand next to them.
+- Place the new piece in the picture. Say which role it plays, or which new
+  role the picture now needs.
+- Name the interfaces the picture calls for. Check whether they already exist.
+- Only then decide the concrete implementations.
 
-Look at the codebase before proposing anything. Use `ast-grep outline` on the
-areas the work touches, and check what already exists that the design must fit
-into or could reuse. Find out whether the thing is feasible at all and what
-external constraints apply (APIs, libraries, platform limits).
+Consider at least two whole shapes, not two variations of one. Choose by the
+principles, and keep the rejected shapes with the principle that rejected
+each.
 
-If the work involves a mechanism the developer must understand in order to
-choose well — authentication flows, session handling, caching, permission
-models, payment flows, concurrency, data migration — explain it before
-offering options. Plain language, in Japanese, following
-`.claude/rules/writing.md`. Cover:
+If the request turns out to be infeasible, or the picture shows it needs a
+different shape than the developer described, say so now and stop. Do not
+quietly redesign the request.
 
-- What the mechanism does and the problem it solves.
-- The moving parts and how they interact.
-- The choices inside the mechanism that the design will have to make.
+If the work touches UI, read `phrasing` and `composer` as well.
 
-Then ask whether this matches the developer's understanding. The point is not
-to lecture; it is to make sure the decision that follows is really theirs.
+Write the decision record to a scratchpad file in the format from
+`references/issue-format.md`.
 
-**Gate:** developer confirms the mechanism is understood (skip if none needed).
+### 3. Design review
 
-### 3. Options and trade-offs
+Invoke `software-design-review` with stage `design`, the record, the request,
+and pointers to the code.
 
-Present at least two options. For each one, write:
+- `ask` findings: go to step 4 before revising anything. The answers change
+  the record, and a second round on a record that is about to change is
+  wasted.
+- `fix` findings: revise the record. If you think a finding is mistaken,
+  follow "When the maker disagrees" in that skill; do not drop it.
+- Run the review again on the revised record, as its Rounds section says.
 
-- What it is, in one or two sentences.
-- What you gain.
-- What you give up, and when that loss would hurt.
-- How it scores against the qualities in `references/design-principles.md`.
+### 4. Questions to the developer
 
-Put the comparison in a table, one column per option, as
-`.claude/rules/writing.md` asks for comparisons.
+If there are no `ask` findings, skip this step.
 
-Evaluate honestly. If one option is clearly better, say so — but say it last,
-after the trade-offs, and give the reason. The developer decides. Do not
-implement, do not create issues, do not start "preparing" code.
+Otherwise stop here, once, with all of them. Write in Japanese following
+`.claude/rules/writing.md`. For each question:
 
-The developer's answer will not always name an option cleanly; it may describe
-a variant or answer in different terms. If the pick can be read from the answer
-with reasonable confidence, state your reading in one line and move on. Ask
-only when the answer genuinely fits more than one reading and the readings lead
-to different designs.
+- What is being decided, in plain words. If it rests on a mechanism the
+  developer may not know, explain the mechanism first.
+- The options, and what each one gives up, in a table.
+- Which principles come close and why none of them settles it.
 
-**Gate:** developer picks an option (or asks for a variant). This is the last
-gate.
+Wait for the answers. Then:
 
-### 4. Record, split, create, report
+- Revise the record, for the answers and for the `fix` findings together, and
+  return to step 3 for the next round.
+- Write each answer into `software-design-theory`: sharpen the principle it
+  belongs to, or add a principle if it fits none. State what holds now; do not
+  record that it was asked or when.
 
-No gate in this phase. Run it through in one go.
+### 5. Constraints, cases, issues
 
-**Record.** Write the decision down in the format from
-`references/design-principles.md`: chosen option, rejected options with the
-reason, what was knowingly given up, and the constraints the implementation
-must respect. This record is what the reviewer skill will later check the
-implementation against, so it has to be precise about what was agreed.
+Split the work into issues by the criteria in `references/issue-format.md`.
+An issue that only cuts interfaces comes before the issues that implement
+them.
 
-**Split.** Cut the work into the smallest units that make sense, using the
-criteria in `references/issue-format.md`, and decide the order they should be
-done in.
+For each issue, write what the design demands of the implementation, sorted
+into the three kinds (`software-design-theory`, Three kinds of constraint).
+Go through the decision record sentence by sentence; every sentence that
+binds the implementation becomes a constraint, and a sentence that binds
+nothing is asked why it is there.
 
-**Create.** Create the issues with `gh issue create`. If several issues share
-one design, create a parent issue that holds the decision record and links the
-children. If there is only one issue, put the record in its body.
+Then write the cases for the behaviour constraints
+(`software-design-theory`, Cases).
 
-**Report.** One message, in this order:
+Write each issue body to a scratchpad file and run the check until it prints
+no problems:
 
-- The decision record, or a short summary of it with a link to the issue that
-  holds it.
-- The issues: number, title, one line each, in the order they should be done.
-- Any point where you read the developer's answer rather than taking it
-  verbatim, so they can fix an issue body with `gh issue edit` if the reading
-  was off.
-- That they can start with `implementer` and an issue number.
+```
+node .claude/skills/architect/scripts/check-issue.mjs <body.md>
+```
+
+### 6. Case review
+
+Invoke `software-design-review` with stage `cases` and the issue body files.
+Handle findings as in steps 3 and 4. An `ask` at this stage stops the flow
+the same way.
+
+### 7. Create and report
+
+Do not ask before creating. Both reviews have passed, and the developer reads
+the result in the report.
+
+Create the issues with `gh issue create` from the checked bodies, parent
+first if there is one, then fill the parent's 子 issue list with the real
+numbers. A defect set aside under principle 9 becomes a note issue: 背景 and
+how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
+
+Report in one message, Japanese, following `.claude/rules/writing.md`:
+
+- The decision, in a few lines, with a link to the issue that holds the
+  record.
+- What the reviews found and how it was settled, briefly. List apart anything
+  changed after the last review round, since no reviewer has seen it. Include
+  anything added to `software-design-theory`, and say that the edit is
+  uncommitted.
+- How the split was arrived at, in a few lines.
+- The issues in the order they should be done: number, title, one line each.
+  The build order as a figure when issues depend on one another, and which
+  could run in parallel.
+- That they can start with `implementer` and an issue number, or `dispatcher`
+  for all of them.
 
 After the report, stop.
 
 ## Things to keep in mind
 
-- Human-facing text (explanations, issue 背景/設計/対応内容) is Japanese and
-  follows `.claude/rules/writing.md`. The `To Implementer` section of an issue
-  is the one place technical detail belongs.
+- Human-facing issue text (背景, 設計, 対応内容, 制約, ケース) is Japanese and
+  follows `.claude/rules/writing.md`. `To Implementer` is the one place
+  file names and signatures belong.
 - If the developer asks you to "just do it", remind them once that this repo
-  works design-first, then follow their call — but still write the issue so the
-  decision is recorded.
-- If during investigation the request turns out to be infeasible or to need a
-  different shape, say so at phase 2. Do not quietly redesign.
+  works design-first, then follow their call — but still write the issue so
+  the decision and its cases are recorded.
+- A reason that cites no principle is a preference. Do not write preferences
+  into the record as reasons; ask.

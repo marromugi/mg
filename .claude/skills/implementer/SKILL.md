@@ -24,7 +24,19 @@ gh issue view <N> --json number,title,body,url
 Check that the body has a `To Implementer` section. If it does not, the issue
 did not come through architect; stop and tell the developer to run architect
 for it. If the 設計 section links a parent issue, read that too — it holds the
-decision record the implementation must respect.
+decision record and the shared constraints the implementation must respect.
+
+Save the body to a scratchpad file and check its shape:
+
+```
+node .claude/skills/architect/scripts/check-issue.mjs <body.md>
+```
+
+If the check reports problems, the issue cannot hold the implementation to
+the design. Stop and show the developer the output; repairing the issue is
+architect's job. The one exception is an issue with no `## ケース` section at
+all: build it from its `To Implementer` section as written, and say in the
+handoff that it carried no cases.
 
 ### 2. Spawn the implementation agent
 
@@ -48,12 +60,24 @@ improve on it.
 Rules:
 - Implement only what 対応内容 and To Implementer describe. Nothing listed
   under "Out of scope" changes.
-- Keep to the boundaries and interfaces in 実装が守る制約. If you find that
-  the design as written cannot work, or you would need to make a design
-  decision the issue does not cover, stop, do not choose, and report the
-  question in your final message.
-- Write the tests the issue asks for. Run the project's test and lint
-  commands; do not open a PR with failures you know about.
+- Every line under 制約 binds you, in this issue and in the parent. If you
+  find that the design as written cannot work, or you would need to make a
+  design decision the issue does not cover, stop, do not choose, and report
+  the question in your final message.
+- Read the Tests section of .claude/skills/software-design-theory/SKILL.md
+  before writing any test.
+- Tests come first. Turn every case under ケース into a test, run them, and
+  confirm each fails because the behaviour is missing, not because of a typo
+  or a missing import that the implementation would not fix. Commit the tests
+  alone. Then implement, and commit the implementation on top. If the issue
+  has no cases, there is no test commit; the type check is the verification.
+- A test asserts what the case says is seen, with the literal values from the
+  case. Do not add tests the cases do not call for. If you believe a case is
+  missing, say so in Deviations; do not invent it.
+- Test names and descriptions say what is observed. No case ids, no issue
+  numbers.
+- Run every command under "Structural checks", and the project's test, type
+  check, and lint commands. Do not open a PR with failures you know about.
 - Code comments: default to none. Write one only when the code itself cannot
   tell the reader something they need right now — a non-obvious invariant, a
   constraint from outside the code, a deliberate oddity. Never describe what
@@ -62,8 +86,9 @@ Rules:
   pointing at it is a debt that goes stale the moment the code moves.
 - Commit on a branch named issue-<N>-<short-slug>, push it, and open a PR
   with `gh pr create`. The PR body starts with `Closes #<N>`, then a short
-  summary, then a section "Deviations" listing anything you did differently
-  from the issue and why (write "none" if none).
+  summary, then a section "Cases" with a table of case id, test file, and
+  test name, one row per test, then a section "Deviations" listing anything
+  you did differently from the issue and why (write "none" if none).
 - End your final message with: the PR number, the branch name, and the
   Deviations section verbatim.
 ```

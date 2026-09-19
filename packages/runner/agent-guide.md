@@ -140,6 +140,40 @@ export default defineRun({
 });
 ```
 
+Adding the search tool alongside bash (see `runs/loop-search.config.ts` for the file in
+the repo):
+
+```ts
+import { defineRun } from "@mg/runner";
+import { createOpenRouterProvider } from "@mg/core";
+import {
+  createBashTool,
+  createWebSearchTool,
+  createOllamaWebSearchBackend,
+} from "@mg/tools";
+
+const apiKey = process.env.OPENROUTER_API_KEY;
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
+
+const ollamaApiKey = process.env.OLLAMA_API_KEY;
+if (ollamaApiKey === undefined)
+  throw new Error("OLLAMA_API_KEY is not set");
+
+export default defineRun({
+  name: "loop-search",
+  provider: createOpenRouterProvider({ apiKey }),
+  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  tools: [
+    createBashTool({ cwd: process.cwd() }),
+    createWebSearchTool({
+      backend: createOllamaWebSearchBackend({ apiKey: ollamaApiKey }),
+    }),
+  ],
+  trace: { jsonlPath: "./trace.jsonl" },
+});
+```
+
 ## 2. Field reference
 
 ### `RunConfig` (`packages/runner/src/config.ts`)
@@ -183,12 +217,16 @@ Field meanings, how they combine, and how to read the output back are in
 
 ## 3. Building blocks
 
-| Kind     | Factory                             | Import from |
-| -------- | ----------------------------------- | ----------- |
-| Provider | `createOpenRouterProvider(options)` | `@mg/core`  |
-| Provider | `createOllamaProvider(options)`     | `@mg/core`  |
-| Tool     | `createBashTool(options)`           | `@mg/tools` |
-| Gate     | `createLlmGate(options)`            | `@mg/gate`  |
+| Kind     | Factory                                 | Import from |
+| -------- | --------------------------------------- | ----------- |
+| Provider | `createOpenRouterProvider(options)`     | `@mg/core`  |
+| Provider | `createOllamaProvider(options)`         | `@mg/core`  |
+| Tool     | `createBashTool(options)`               | `@mg/tools` |
+| Tool     | `createWebSearchTool(options)`          | `@mg/tools` |
+| Backend  | `createOllamaWebSearchBackend(options)` | `@mg/tools` |
+| Gate     | `createLlmGate(options)`                | `@mg/gate`  |
+| Check    | `rule(name, predicate)`                 | `@mg/eval`  |
+| Check    | `createJevChecker(options)`             | `@mg/eval`  |
 
 ```ts
 import { createOpenRouterProvider } from "@mg/core";
@@ -290,6 +328,8 @@ console.log(sessionId);
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a
   `runMany` case also carry `mg.run.case` (that case's `id`). Filter on these to find a run.
+- To judge a finished run from its trace, read the session back with a `TraceReader` and pass
+  it to `@mg/eval`'s `evaluate`. See `packages/eval/README.md` and `runs/eval-example.ts`.
 
 ## 7. Rules
 

@@ -90,6 +90,65 @@ export default defineRun({
 });
 ```
 
+Composing a rules gate with an LLM gate via `composeGates`, so path-based rules
+are checked first and the LLM only judges what the rules don't cover (see
+`runs/loop-files.config.ts` for a config that uses the rules gate on its own):
+
+```ts
+import { defineRun } from "@mg/runner";
+import { createOpenRouterProvider } from "@mg/core";
+import {
+  createBashTool,
+  createReadFileTool,
+  createGrepTool,
+  createWriteFileTool,
+  createEditFileTool,
+} from "@mg/tools";
+import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
+
+const apiKey = process.env.OPENROUTER_API_KEY;
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
+
+const provider = createOpenRouterProvider({ apiKey });
+const root = process.cwd();
+
+export default defineRun({
+  name: "loop-files-composed-gate",
+  provider,
+  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  tools: [
+    createBashTool({ cwd: root }),
+    createReadFileTool({ root }),
+    createGrepTool({ root }),
+    createWriteFileTool({ root }),
+    createEditFileTool({ root }),
+  ],
+  gate: composeGates([
+    createRulesGate({
+      root,
+      rules: [
+        {
+          tools: ["write_file", "edit_file"],
+          paths: ["**/.env", "**/.env.*", "**/*.lock", ".git/**"],
+          allowed: false,
+          reason:
+            "Secrets, lockfiles and .git are read-only for the agent.",
+        },
+      ],
+    }),
+    createLlmGate({
+      provider,
+      model: "openai/gpt-4o-mini",
+      policy:
+        "Read-only commands are allowed. Deleting files or " +
+        "sending data outside the machine is not.",
+    }),
+  ]),
+  trace: { jsonlPath: "./trace.jsonl" },
+});
+```
+
 Adding a workspace, so the harness can also reach a remote machine over SSH and
 its browser over CDP (see `runs/loop-workspace.config.ts` for the file in the
 repo):
@@ -222,9 +281,15 @@ Field meanings, how they combine, and how to read the output back are in
 | Provider | `createOpenRouterProvider(options)`     | `@mg/core`  |
 | Provider | `createOllamaProvider(options)`         | `@mg/core`  |
 | Tool     | `createBashTool(options)`               | `@mg/tools` |
+| Tool     | `createReadFileTool(options)`           | `@mg/tools` |
+| Tool     | `createGrepTool(options)`               | `@mg/tools` |
+| Tool     | `createWriteFileTool(options)`          | `@mg/tools` |
+| Tool     | `createEditFileTool(options)`           | `@mg/tools` |
 | Tool     | `createWebSearchTool(options)`          | `@mg/tools` |
 | Backend  | `createOllamaWebSearchBackend(options)` | `@mg/tools` |
 | Gate     | `createLlmGate(options)`                | `@mg/gate`  |
+| Gate     | `createRulesGate(options)`              | `@mg/gate`  |
+| Gate     | `composeGates(gates)`                   | `@mg/gate`  |
 | Check    | `rule(name, predicate)`                 | `@mg/eval`  |
 | Check    | `createJevChecker(options)`             | `@mg/eval`  |
 

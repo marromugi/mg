@@ -73,7 +73,7 @@ const run = (
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && error.name === "AbortError";
 
-const columnOf = (lineText: string, byteStart: number): number =>
+export const columnOf = (lineText: string, byteStart: number): number =>
   Array.from(
     Buffer.from(lineText, "utf8")
       .subarray(0, byteStart)
@@ -81,7 +81,11 @@ const columnOf = (lineText: string, byteStart: number): number =>
   ).length + 1;
 
 const trimTrailingNewline = (text: string): string =>
-  text.endsWith("\n") ? text.slice(0, -1) : text;
+  text.endsWith("\r\n")
+    ? text.slice(0, -2)
+    : text.endsWith("\n")
+      ? text.slice(0, -1)
+      : text;
 
 const truncateLine = (text: string, maxLineChars: number): string => {
   const chars = Array.from(text);
@@ -93,6 +97,11 @@ const dropTrailingPartialLine = (text: string): string => {
   const lastNewline = text.lastIndexOf("\n");
   return lastNewline === -1 ? "" : text.slice(0, lastNewline);
 };
+
+const withTruncationMarker = (lines: string[]): string =>
+  lines.length === 0
+    ? "[results truncated]"
+    : `${lines.join("\n")}\n[results truncated]`;
 
 const formatMatches = (
   stdout: string,
@@ -197,7 +206,7 @@ export const createGrepTool = (
           maxLineChars,
         );
         return truncated
-          ? `${lines.join("\n")}\n[results truncated]`
+          ? withTruncationMarker(lines)
           : lines.join("\n");
       }
 
@@ -216,7 +225,7 @@ export const createGrepTool = (
           maxResults,
           maxLineChars,
         );
-        return `${lines.join("\n")}\n[results truncated]`;
+        return withTruncationMarker(lines);
       }
 
       if (error.killed === true) {
@@ -226,10 +235,16 @@ export const createGrepTool = (
       }
 
       if (error.code === 1) {
-        return `No matches for /${pattern}/ in ${resolved.relative}.`;
+        const location =
+          resolved.relative === "." ? "the root" : resolved.relative;
+        return `No matches for /${pattern}/ in ${location}.`;
       }
 
-      throw new FileToolError(`ripgrep failed: ${stderr.trim()}`);
+      const detail =
+        stderr.trim() !== ""
+          ? stderr.trim()
+          : (error.code ?? error.message);
+      throw new FileToolError(`ripgrep failed: ${detail}`);
     },
   };
 };

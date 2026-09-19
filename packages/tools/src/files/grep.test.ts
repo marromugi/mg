@@ -209,6 +209,8 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
 
 describe("column conversion", () => {
   test("counts code points up to the byte offset, not bytes", () => {
-    expect(columnOf("préfix hello\n", 7)).toBe(8);
+    // "préfix " is 7 characters but 8 bytes in UTF-8 (é takes 2 bytes),
+    // so byte offset 8 is where "hello" starts.
+    expect(columnOf("préfix hello\n", 8)).toBe(8);
   });
 });

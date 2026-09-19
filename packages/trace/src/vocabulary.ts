@@ -4,13 +4,17 @@ export const SPAN = {
   tool: "mg.tool",
   run: "mg.run",
   gate: "mg.gate",
+  workspace: "mg.workspace",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace"
   harnessName: "mg.harness.name",
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
+  workspaceName: "mg.workspace.name",
+  workspaceConnectors: "mg.workspace.connectors", // jsonAttribute(string[])
+  workspaceTools: "mg.workspace.tools", // jsonAttribute(string[])
   llmModel: "mg.llm.model",
   llmProvider: "mg.llm.provider",
   llmStream: "mg.llm.stream", // boolean

@@ -1,7 +1,11 @@
 import type { Message } from "@mg/core";
-import type { HarnessEvent, HarnessResult } from "@mg/harness";
-import { collect } from "@mg/harness";
-import { ATTR, SPAN, startRootSpan } from "@mg/trace";
+import type {
+  HarnessEvent,
+  HarnessResult,
+  TraceSpan,
+} from "@mg/harness";
+import { collect, noopSpan } from "@mg/harness";
+import { ATTR, jsonAttribute, SPAN, startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
 import type { OpenWorkspace } from "@mg/workspace";
 import { DuplicateToolNameError, openWorkspace } from "@mg/workspace";
@@ -44,14 +48,62 @@ export const run = async (
       : {}),
   });
 
+  let workspaceSpan: TraceSpan = noopSpan;
+  let workspaceSpanEnded = false;
+  const endWorkspaceSpan = (error?: unknown): void => {
+    if (workspaceSpanEnded) {
+      return;
+    }
+    workspaceSpanEnded = true;
+    workspaceSpan.end(error);
+  };
+  if (config.workspace) {
+    try {
+      workspaceSpan = root.startSpan(SPAN.workspace, {
+        [ATTR.op]: "workspace",
+        [ATTR.workspaceName]: config.workspace.name,
+        [ATTR.workspaceConnectors]: jsonAttribute(
+          config.workspace.connectors.map(
+            (connector) => connector.kind,
+          ),
+        ),
+      });
+    } catch {
+      workspaceSpan = noopSpan;
+    }
+  }
+
   let opened: OpenWorkspace | undefined;
+  const closeWorkspace = async (): Promise<void> => {
+    if (!opened) {
+      return;
+    }
+    try {
+      await opened.close();
+      endWorkspaceSpan();
+    } catch (error) {
+      endWorkspaceSpan(error);
+      throw error;
+    }
+  };
+
   let result: HarnessResult;
   try {
     opened = config.workspace
       ? await openWorkspace(config.workspace, {
           signal: options?.signal,
+        }).catch((error: unknown) => {
+          endWorkspaceSpan(error);
+          throw error;
         })
       : undefined;
+    if (opened) {
+      workspaceSpan.setAttributes({
+        [ATTR.workspaceTools]: jsonAttribute(
+          opened.tools.map((tool) => tool.name),
+        ),
+      });
+    }
 
     const configTools = config.tools ?? [];
     if (opened) {
@@ -63,7 +115,7 @@ export const run = async (
       );
       if (duplicate) {
         try {
-          await opened.close();
+          await closeWorkspace();
         } catch {
           // The duplicate-name error is the real cause; a close
           // failure that follows it does not replace it.
@@ -88,7 +140,7 @@ export const run = async (
   } catch (error) {
     root.end(error);
     try {
-      await opened?.close();
+      await closeWorkspace();
     } catch {
       // The run error wins over a close failure that follows it.
     }
@@ -101,7 +153,7 @@ export const run = async (
   }
 
   try {
-    await opened?.close();
+    await closeWorkspace();
   } catch (error) {
     try {
       await sdk.shutdown();

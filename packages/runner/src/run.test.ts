@@ -1,8 +1,18 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { GenerateResponse, Provider, StreamEvent } from "@mg/core";
+import type {
+  GenerateRequest,
+  GenerateResponse,
+  Provider,
+  StreamEvent,
+  Tool,
+  ToolSchema,
+} from "@mg/core";
+import { defineTool } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
+import type { Connector, Workspace } from "@mg/workspace";
+import { defineWorkspace, DuplicateToolNameError } from "@mg/workspace";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
   afterEach,
@@ -63,6 +73,78 @@ const throwingProvider = (error: Error): Provider => ({
     throw new Error("throwingProvider: stream is not scripted");
   },
 });
+
+const trackingProvider = (
+  responses: readonly GenerateResponse[],
+): { provider: Provider; requests: GenerateRequest[] } => {
+  let index = 0;
+  const requests: GenerateRequest[] = [];
+  const provider: Provider = {
+    generate: async (request) => {
+      requests.push(request);
+      const response = responses[index];
+      index++;
+      if (!response)
+        throw new Error("trackingProvider: no scripted response left");
+      return response;
+    },
+    stream: () => {
+      throw new Error("trackingProvider: stream is not scripted");
+    },
+  };
+  return { provider, requests };
+};
+
+const stubSchema = (): ToolSchema => ({
+  "~standard": {
+    version: 1,
+    vendor: "mg-test",
+    validate: (value: unknown) => ({ value }),
+    jsonSchema: {
+      input: () => ({ type: "object" }),
+      output: () => ({ type: "object" }),
+    },
+  },
+});
+
+const stubTool = (name: string): Tool =>
+  defineTool({
+    name,
+    input: stubSchema(),
+    execute: async () => `${name}-result`,
+  });
+
+type FakeConnectorHooks = {
+  onOpen?: () => void;
+  onClose?: () => void;
+  closeError?: Error;
+};
+
+const fakeConnector = (
+  tools: readonly Tool[],
+  hooks?: FakeConnectorHooks,
+): Connector => ({
+  kind: "fake",
+  open: async () => {
+    hooks?.onOpen?.();
+    return {
+      tools,
+      close: async () => {
+        hooks?.onClose?.();
+        if (hooks?.closeError) throw hooks.closeError;
+      },
+    };
+  },
+});
+
+const fakeWorkspace = (
+  tools: readonly Tool[],
+  hooks?: FakeConnectorHooks,
+): Workspace =>
+  defineWorkspace({
+    name: "fake-workspace",
+    connectors: [fakeConnector(tools, hooks)],
+  });
 
 describe("run", () => {
   let dir: string;
@@ -239,5 +321,158 @@ describe("run", () => {
     await expect(run(config, [], { onEvent })).rejects.toThrow();
 
     expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("run with a workspace", () => {
+  test("the workspace's tools reach the harness alongside the config's tools", async () => {
+    const configTool = stubTool("config-tool");
+    const workspaceTool = stubTool("workspace-tool");
+    const { provider, requests } = trackingProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+      workspace: fakeWorkspace([workspaceTool]),
+    };
+
+    await run(config, []);
+
+    expect(requests[0]?.tools).toEqual([configTool, workspaceTool]);
+  });
+
+  test("a tool name shared by the config and the workspace closes the workspace and throws DuplicateToolNameError", async () => {
+    const name = "shared-name";
+    const configTool = stubTool(name);
+    const workspaceTool = stubTool(name);
+    let closed = false;
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+      workspace: fakeWorkspace([workspaceTool], {
+        onClose: () => {
+          closed = true;
+        },
+      }),
+    };
+
+    await expect(run(config, [])).rejects.toThrow(
+      DuplicateToolNameError,
+    );
+
+    expect(closed).toBe(true);
+  });
+
+  test("a shared tool name still throws DuplicateToolNameError even when closing the workspace itself fails", async () => {
+    const name = "shared-name";
+    const configTool = stubTool(name);
+    const workspaceTool = stubTool(name);
+    let closeAttempted = false;
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+      workspace: fakeWorkspace([workspaceTool], {
+        onClose: () => {
+          closeAttempted = true;
+        },
+        closeError: new Error("close failed"),
+      }),
+    };
+
+    await expect(run(config, [])).rejects.toThrow(
+      DuplicateToolNameError,
+    );
+
+    expect(closeAttempted).toBe(true);
+  });
+
+  test("the workspace is closed after a successful run", async () => {
+    let closed = false;
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace([], {
+        onClose: () => {
+          closed = true;
+        },
+      }),
+    };
+
+    await run(config, []);
+
+    expect(closed).toBe(true);
+  });
+
+  test("the workspace is closed when the run fails, and the run's error is thrown", async () => {
+    let closed = false;
+    const error = new Error("provider blew up");
+    const provider = throwingProvider(error);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace([], {
+        onClose: () => {
+          closed = true;
+        },
+      }),
+    };
+
+    await expect(run(config, [])).rejects.toThrow(error);
+
+    expect(closed).toBe(true);
+  });
+
+  test("a close failure alone (the run itself succeeded) is thrown", async () => {
+    const closeError = new Error("close failed");
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace([], { closeError }),
+    };
+
+    await expect(run(config, [])).rejects.toMatchObject({
+      name: "WorkspaceCloseError",
+      errors: [closeError],
+    });
+  });
+
+  test("omitting workspace leaves the harness with only the config's tools", async () => {
+    const configTool = stubTool("config-tool");
+    const { provider, requests } = trackingProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+    };
+
+    const outcome = await run(config, []);
+
+    expect(outcome.result.reason).toBe("stop");
+    expect(requests[0]?.tools).toEqual([configTool]);
   });
 });

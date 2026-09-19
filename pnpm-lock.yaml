@@ -104,6 +104,9 @@ importers:
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace
+      '@mg/workspace':
+        specifier: workspace:*
+        version: link:../workspace
       nanoid:
         specifier: 5.1.16
         version: 5.1.16
@@ -253,6 +256,9 @@ importers:
       '@mg/trace':
         specifier: workspace:*
         version: link:../packages/trace
+      '@mg/workspace':
+        specifier: workspace:*
+        version: link:../packages/workspace
     devDependencies:
       '@types/node':
         specifier: 25.9.6

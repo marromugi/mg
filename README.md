@@ -152,11 +152,19 @@ workspace は、core だけを使います。
   </tr>
 </table>
 
+runner は、走る前後で作業場を開いて閉じるために workspace を使います。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/runner</code> → <code>@mg/workspace</code> → <code>@mg/core</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。harness-loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
 - runs は、eval も使います。
-- runner は、core と harness を使います。harness-loop と trace と gate も使います。
+- runner は、core と harness を使います。harness-loop と trace と gate と workspace も使います。
 - runner は、tools を使いません。
 - runner は、eval を使いません。
 - harness-loop は、5 つを使います。core と tools と harness と trace と gate です。

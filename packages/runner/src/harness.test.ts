@@ -54,7 +54,7 @@ describe("createHarness", () => {
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     };
 
-    const harness = createHarness(config);
+    const harness = createHarness(config, config.tools ?? []);
     const result = await collect(harness({ messages: [] }));
 
     expect(result.reason).toBe("stop");
@@ -76,7 +76,9 @@ describe("createHarness", () => {
       tools: [tool],
     };
 
-    await collect(createHarness(config)({ messages: [] }));
+    await collect(
+      createHarness(config, config.tools ?? [])({ messages: [] }),
+    );
 
     const request = (
       provider.generate as unknown as {
@@ -118,7 +120,7 @@ describe("createHarness", () => {
     };
 
     const result = await collect(
-      createHarness(config)({ messages: [] }),
+      createHarness(config, config.tools ?? [])({ messages: [] }),
     );
 
     expect(judge).toHaveBeenCalledTimes(1);
@@ -140,6 +142,6 @@ describe("createHarness", () => {
       harness: { kind: "unknown" },
     } as unknown as RunConfig;
 
-    expect(() => createHarness(config)).toThrow(RangeError);
+    expect(() => createHarness(config, [])).toThrow(RangeError);
   });
 });

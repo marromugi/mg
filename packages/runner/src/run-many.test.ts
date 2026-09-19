@@ -1,4 +1,6 @@
 import type { GenerateResponse, Message, Provider } from "@mg/core";
+import type { Connector, Workspace } from "@mg/workspace";
+import { defineWorkspace } from "@mg/workspace";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, test } from "vitest";
 import type { RunConfig } from "./config.js";
@@ -56,6 +58,20 @@ const baseConfig = (
   harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
   ...(exporter ? { trace: { exporters: [exporter] } } : {}),
 });
+
+const fakeConnector = (opened: { count: number }): Connector => ({
+  kind: "fake",
+  open: async () => {
+    opened.count++;
+    return { tools: [], close: async () => {} };
+  },
+});
+
+const fakeWorkspace = (opened: { count: number }): Workspace =>
+  defineWorkspace({
+    name: "fake-workspace",
+    connectors: [fakeConnector(opened)],
+  });
 
 describe("runMany", () => {
   test("3 cases, concurrency 1: outcomes in input order, distinct session ids, each root span carries its case id", async () => {
@@ -203,6 +219,118 @@ describe("runMany", () => {
     await expect(
       runMany(config, [makeCase("a")], { concurrency: 1.5 }),
     ).rejects.toThrow(RangeError);
+  });
+
+  test("a workspace config with concurrency 2 rejects with a RangeError, without opening the workspace or calling the provider", async () => {
+    const opened = { count: 0 };
+    let providerCalled = false;
+    const provider: Provider = {
+      generate: async () => {
+        providerCalled = true;
+        return {
+          parts: [{ type: "text", text: "a" }],
+          finishReason: "stop",
+        };
+      },
+      stream: () => {
+        providerCalled = true;
+        throw new Error("stream is not scripted");
+      },
+    };
+    const config: RunConfig = {
+      ...baseConfig(provider),
+      workspace: fakeWorkspace(opened),
+    };
+
+    await expect(
+      runMany(config, [makeCase("a")], { concurrency: 2 }),
+    ).rejects.toThrow(
+      new RangeError("workspace requires concurrency 1, got 2"),
+    );
+
+    expect(opened.count).toBe(0);
+    expect(providerCalled).toBe(false);
+  });
+
+  test("a workspace config with concurrency omitted runs as usual", async () => {
+    const opened = { count: 0 };
+    const provider = providerByLastMessage((id) => ({
+      parts: [{ type: "text", text: id }],
+      finishReason: "stop",
+    }));
+    const config: RunConfig = {
+      ...baseConfig(provider),
+      workspace: fakeWorkspace(opened),
+    };
+
+    const outcomes = await runMany(config, [makeCase("a")]);
+
+    expect(opened.count).toBe(1);
+    expect("result" in outcomes[0]).toBe(true);
+  });
+
+  test("a workspace config with concurrency 1 runs as usual", async () => {
+    const opened = { count: 0 };
+    const provider = providerByLastMessage((id) => ({
+      parts: [{ type: "text", text: id }],
+      finishReason: "stop",
+    }));
+    const config: RunConfig = {
+      ...baseConfig(provider),
+      workspace: fakeWorkspace(opened),
+    };
+
+    const outcomes = await runMany(config, [makeCase("a")], {
+      concurrency: 1,
+    });
+
+    expect(opened.count).toBe(1);
+    expect("result" in outcomes[0]).toBe(true);
+  });
+
+  test("a config without a workspace still allows concurrency 2", async () => {
+    const controllers = new Map<
+      string,
+      {
+        promise: Promise<GenerateResponse>;
+        resolve: (r: GenerateResponse) => void;
+      }
+    >();
+    for (const id of ["a", "b"]) {
+      controllers.set(id, deferred<GenerateResponse>());
+    }
+    const calls: string[] = [];
+    const provider: Provider = {
+      generate: async (request) => {
+        const id = lastUserContent(request.messages);
+        calls.push(id);
+        return await controllers.get(id)!.promise;
+      },
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    };
+    const config = baseConfig(provider);
+    const cases = ["a", "b"].map(makeCase);
+
+    const resultPromise = runMany(config, cases, { concurrency: 2 });
+
+    await waitFor(() => calls.length === 2);
+    controllers.get("a")!.resolve({
+      parts: [{ type: "text", text: "a" }],
+      finishReason: "stop",
+    });
+    controllers.get("b")!.resolve({
+      parts: [{ type: "text", text: "b" }],
+      finishReason: "stop",
+    });
+
+    const outcomes = await resultPromise;
+
+    expect(outcomes).toHaveLength(2);
+    for (const outcome of outcomes) {
+      expect("result" in outcome).toBe(true);
+    }
   });
 
   test("aborting after the first case starts leaves the rest unstarted, as error outcomes", async () => {

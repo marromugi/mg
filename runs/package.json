@@ -9,11 +9,12 @@
     "@mg/core": "workspace:*",
     "@mg/eval": "workspace:*",
     "@mg/gate": "workspace:*",
-    "@mg/tools": "workspace:*",
     "@mg/harness-loop": "workspace:*",
     "@mg/runner": "workspace:*",
     "@mg/term": "workspace:*",
-    "@mg/trace": "workspace:*"
+    "@mg/tools": "workspace:*",
+    "@mg/trace": "workspace:*",
+    "@mg/workspace": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "25.9.6"

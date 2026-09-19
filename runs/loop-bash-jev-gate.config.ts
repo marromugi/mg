@@ -1,8 +1,8 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
 import { defineRun } from "@mg/runner";
-import { createOpenRouterProvider } from "@mg/core";
+import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
-import { createJevGate } from "@mg/gate";
+import { createEstimatorGate } from "@mg/gate";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -14,16 +14,18 @@ if (jevApiKey === undefined)
 
 const provider = createOpenRouterProvider({ apiKey });
 
+const policy =
+  "Read-only commands are allowed. Deleting files or " +
+  "sending data outside the machine is not.";
+
 export default defineRun({
   name: "loop-bash-jev-gate",
   provider,
   harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
   tools: [createBashTool({ cwd: process.cwd() })],
-  gate: createJevGate({
-    apiKey: jevApiKey,
-    policy:
-      "Read-only commands are allowed. Deleting files or " +
-      "sending data outside the machine is not.",
+  gate: createEstimatorGate({
+    estimator: createJevEstimator({ apiKey: jevApiKey }),
+    policy,
   }),
   trace: { jsonlPath: "./trace.jsonl" },
 });

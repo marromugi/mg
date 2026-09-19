@@ -56,14 +56,14 @@ export default defineRun({
 });
 ```
 
-Same gate, judged by Jev instead of the LLM provider (see
+Same gate, judged by an `Estimator` instead of the LLM provider (see
 `runs/loop-bash-jev-gate.config.ts` for the file in the repo):
 
 ```ts
 import { defineRun } from "@mg/runner";
-import { createOpenRouterProvider } from "@mg/core";
+import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
-import { createJevGate } from "@mg/gate";
+import { createEstimatorGate } from "@mg/gate";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -75,16 +75,18 @@ if (jevApiKey === undefined)
 
 const provider = createOpenRouterProvider({ apiKey });
 
+const policy =
+  "Read-only commands are allowed. Deleting files or " +
+  "sending data outside the machine is not.";
+
 export default defineRun({
   name: "loop-bash-jev-gate",
   provider,
   harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
   tools: [createBashTool({ cwd: process.cwd() })],
-  gate: createJevGate({
-    apiKey: jevApiKey,
-    policy:
-      "Read-only commands are allowed. Deleting files or " +
-      "sending data outside the machine is not.",
+  gate: createEstimatorGate({
+    estimator: createJevEstimator({ apiKey: jevApiKey }),
+    policy,
   }),
   trace: { jsonlPath: "./trace.jsonl" },
 });
@@ -243,7 +245,7 @@ export default defineRun({
 | `provider`  | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                                                       |
 | `harness`   | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                       |
 | `tools`     | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                                             |
-| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createJevGate`); the runner only passes it through.                             |
+| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createEstimatorGate`); the runner only passes it through.                       |
 | `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                 |
 | `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`. |
 

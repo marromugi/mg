@@ -162,7 +162,7 @@ describe("createEstimatorGate", () => {
 
   test("wraps an HTTP error from the estimator in a gate error with the original as cause", async () => {
     const original = new EstimatorHttpError(
-      "Jev request failed: 500",
+      "Estimator request failed: 500",
       500,
       "",
     );
@@ -181,9 +181,10 @@ describe("createEstimatorGate", () => {
   });
 
   test("wraps a transport error from the estimator in a gate error with the original as cause", async () => {
-    const original = new EstimatorTransportError("Jev request failed", {
-      cause: new Error("network down"),
-    });
+    const original = new EstimatorTransportError(
+      "Estimator request failed",
+      { cause: new Error("network down") },
+    );
     const estimator = createFakeEstimator("m", async () => {
       throw original;
     });
@@ -200,7 +201,7 @@ describe("createEstimatorGate", () => {
 
   test("wraps a response error from the estimator in a gate error with the original as cause", async () => {
     const original = new EstimatorResponseError(
-      "Jev response failed validation",
+      "Estimator response failed validation",
     );
     const estimator = createFakeEstimator("m", async () => {
       throw original;

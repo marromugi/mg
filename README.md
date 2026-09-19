@@ -26,7 +26,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                          |
 | [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                              |
 | [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉          |
-| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Jev の実装             |
+| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装       |
 | [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型                                |
 | [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                      |
 | [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                      |

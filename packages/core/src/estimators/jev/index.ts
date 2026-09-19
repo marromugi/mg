@@ -107,7 +107,8 @@ export const createJevEstimator = (
         let text = "";
         try {
           text = await response.text();
-        } catch {
+        } catch (error) {
+          if (isAbortError(error)) throw error;
           // ignore: fall back to the status alone
         }
         const snippet = text.slice(0, MAX_ERROR_BODY_LENGTH);

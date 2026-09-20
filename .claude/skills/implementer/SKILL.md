@@ -25,15 +25,16 @@ decision see two different versions of the same issue.
 An issue that names a parent is only ready once its predecessors in the
 parent's `## 子 issue` list are done. The snapshot (see step 1 below)
 already carries what that needs: `parent.body` holds the ordered list, and
-`parent.children` gives every other child's current state, labelled the
-same way the guard itself labels them — `OPEN`, or `CLOSED` with the
-reason.
+`parent.children` gives every other child's current `state` (`OPEN` or
+`CLOSED`) and `stateReason` (`COMPLETED`, `NOT_PLANNED`, or `null`). A
+predecessor is done when its `state` is `CLOSED` and its `stateReason` is
+`COMPLETED`.
 
-Every child listed before this one in `parent.body` must be closed, unless
-the parent's `設計` section says in words that this issue is independent of
-the others (「他と独立です」 or similar). When the parent's wording does not
-say that, treat the list as strict order: a predecessor that is still
-`OPEN` means this issue is not ready yet.
+Every child listed before this one in `parent.body` must be done, unless
+the parent says in words, anywhere in its body, that this issue is
+independent of the others (「他と独立です」 or similar). When the parent's
+wording is unclear, treat the list as strict order: a predecessor that is
+not done means this issue is not ready yet.
 
 An issue with no parent (`parent` is `null` in the snapshot) has no
 predecessors to check.
@@ -43,9 +44,11 @@ predecessors to check.
 ### 1. Read the issue
 
 Run the guard script's snapshot operation before anything else, including
-before checking whether the issue is ready to start:
+before checking whether the issue is ready to start. The script does not
+create its output folder, so make it first:
 
 ```
+mkdir -p <scratchpad>/issue-guard
 node .claude/skills/implementer/scripts/issue-guard.mjs snapshot <N> --dir <scratchpad>/issue-guard
 ```
 

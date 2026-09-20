@@ -1,5 +1,5 @@
 import type { SessionSummary } from "@mg/trace/store";
-import { Table } from "@mg/ui";
+import { Table } from "../../ui/index.js";
 
 export const SessionList = ({
   sessions,

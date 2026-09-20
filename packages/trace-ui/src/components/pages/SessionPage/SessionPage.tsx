@@ -1,23 +1,16 @@
 import type { SessionTree } from "@mg/trace/store";
-import { Heading, Layout, Meta } from "@mg/ui";
-import type { Scheme } from "@mg/ui";
+import type { Scheme } from "../../../scheme.js";
 import { SpanTree } from "../../feature/SpanTree/index.js";
+import { Heading, Layout, Meta } from "../../ui/index.js";
 
 export const SessionPage = ({
   session,
   scheme,
-  css,
 }: {
   session: SessionTree;
   scheme: Scheme;
-  css: string;
 }) => (
-  <Layout
-    title={`Session ${session.sessionId}`}
-    scheme={scheme}
-    css={css}
-    schemeAction="/theme"
-  >
+  <Layout title={`Session ${session.sessionId}`} scheme={scheme}>
     <p className="my-4">
       <a href="/" className="underline">
         ← Sessions

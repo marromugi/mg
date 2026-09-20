@@ -10,9 +10,8 @@ trace-ui の役割は 3 つです。
 - セッションを選ぶと、ツリーの形にして会話の流れを見せます。
 - `@mg/trace/store` のリーダーを使い、トレースを取り出します。
 
-trace-ui は、`@mg/trace/store` と `@mg/term` に加えて `@mg/ui` に依存します。
+trace-ui は、`@mg/trace/store` に加えて `@mg/term` に依存します。
 端末への出力を、`@mg/term` で色付けします。
-画面のコンポーネントとトークンは、`@mg/ui` のものを使います。
 OpenTelemetry の SDK や、保存の仕組みは持ちません。
 
 画面は Hono で作り、react-dom でサーバー側に描きます。
@@ -53,7 +52,6 @@ pnpm --filter @mg/trace-ui storybook
 ```
 
 待ち受けるポートは 6006 です。
-`@mg/ui` のコンポーネントを確かめる Storybook は、別に 6007 番で動きます。
 
 ## ディレクトリ
 
@@ -63,21 +61,16 @@ pnpm --filter @mg/trace-ui storybook
 src/
 ├── routes/       リーダーを呼び、結果をページに渡します
 ├── components/
+│   ├── ui/       トレースの意味を知らないコンポーネント
 │   ├── feature/  トレースの意味を持つコンポーネント
 │   └── pages/    1 ページ 1 コンポーネントで feature を並べます
 ├── hooks/        複数のコンポーネントで使う hooks
-├── styles/       index.css（`@mg/ui/tokens.css` を取り込むだけ）
+├── styles/       tokens.css
 └── stories/      story で使う共通の fixture
 ```
 
-トレースの意味を知らない汎用のコンポーネントと、ページの外枠（`Layout`）は
-`@mg/ui` にあります。
-詳しくは [`@mg/ui` の README](../ui/README.md) を見てください。
-
-`app.tsx`、`server.ts`、`styles.ts`、`vocabulary.ts`、`index.ts` は
-`src` の直下にあります。
-それぞれ、画面の組み立て、起動、ビルドした CSS を読む処理、トレースの語彙、
-パッケージのエントリーポイントです。
+`app.tsx`、`server.ts`、`vocabulary.ts`、`index.ts` は `src` の直下にあります。
+それぞれ、画面の組み立て、起動、トレースの語彙、パッケージのエントリーポイントです。
 
 コンポーネントのディレクトリの中身は、どの層でも同じ形です。
 `ChatMessages` を例にします。
@@ -94,17 +87,15 @@ ChatMessages/
 
 ## 置き場所
 
-2 層それぞれの役割と、置くものを表にします。
+3 層それぞれの役割と、置くものを表にします。
 
-| 層      | 役割                                | 置くもの                            |
-| ------- | ----------------------------------- | ----------------------------------- |
-| feature | トレースの意味を持ちます            | ChatMessages、SessionList、SpanTree |
-| pages   | 1 ページにつき 1 コンポーネントです | SessionsPage、SessionPage           |
+| 層      | 役割                                | 置くもの                                     |
+| ------- | ----------------------------------- | -------------------------------------------- |
+| ui      | トレースの意味を知りません          | Badge、Button、Card など汎用のコンポーネント |
+| feature | トレースの意味を持ちます            | ChatMessages、SessionList、SpanTree          |
+| pages   | 1 ページにつき 1 コンポーネントです | SessionsPage、SessionPage                    |
 
-ページの外枠（`Layout`）は `@mg/ui` にあります。
-CSS の中身と配色のフォームの送り先は、pages が入力で `Layout` に渡します。
-
-2 層とも、表示に関わる処理だけを持ちます。
+3 層とも、表示に関わる処理だけを持ちます。
 表示に関わらない処理は、hooks に出します。
 
 - 1 つのコンポーネントだけで使う処理は、そのコンポーネントの `hooks/` に置きます。
@@ -120,37 +111,54 @@ hooks は、描画中に呼ぶ普通の関数です。React の状態は持ち�
 
 ファイル名とディレクトリ名は、コンポーネント名と同じにします。
 各コンポーネントのディレクトリに `index.ts` を置き、外へ出すものだけ並べます。
+`components/ui/index.ts` は、ui のコンポーネントをまとめて出します。
 feature と pages は、コンポーネントのディレクトリごとに出します。
 
 足したいものごとに、置く場所を表にまとめます。
 
 | 足したいもの                                       | 置く場所                    |
 | -------------------------------------------------- | --------------------------- |
+| トレースの意味を知らない汎用のコンポーネント       | components/ui               |
 | トレースの意味を持つコンポーネント                 | components/feature          |
 | 1 ページ 1 コンポーネントの画面                    | components/pages            |
 | 1 つのコンポーネントだけで使う表示に関わらない処理 | そのコンポーネントの hooks/ |
 | 複数のコンポーネントで使う表示に関わらない処理     | src/hooks/                  |
 | リーダーを呼ぶ処理                                 | src/routes/                 |
-
-トレースの意味を知らない汎用のコンポーネントと、色やフォントや影や角丸の値は、
-`@mg/ui` に足します。
-詳しくは [`@mg/ui` の README](../ui/README.md) を見てください。
+| 色やフォントや影や角丸の値                         | src/styles/tokens.css       |
 
 ## 見た目の決まり
 
-色とフォントと影と角丸は、`@mg/ui` のトークンのファイルに集めます。
+色とフォントと影と角丸は、`src/styles/tokens.css` の `@theme` に集めます。
 コンポーネントは、ここにある名前だけを使います。
-決まりの詳しい説明は [`@mg/ui` の README](../ui/README.md) にあります。
+
+コンポーネントは Tailwind の class で書きます。
+状態ごとの切り替えは、tailwind-variants で持ちます。
 
 CSS はビルドで生成します。
-`src/styles.ts` が、サーバーの起動時にビルドした CSS のファイルを 1 度だけ
-読みます。
-ファイルが無いときは、空の文字列を返し、警告を出します。
+サーバーは起動時にその CSS を読み、`<style>` に埋めます。
+サーバーにバンドラーは入れません。
 
-読んだ CSS は、`app.tsx` の公開の組み立て関数からルート、pages を通して
-`Layout` まで、入力として渡ります。
-`Layout` は、渡された CSS の文字列をそのまま `<style>` に入れるだけです。
-ファイルは読みません。
+lint は oxlint-tailwindcss を使い、次を止めます。
+
+| ルール                 | 止めるもの              |
+| ---------------------- | ----------------------- |
+| no-unknown-classes     | tokens.css に無い class |
+| no-conflicting-classes | 競合する class          |
+| no-arbitrary-value     | 任意の値を使った class  |
+| no-hardcoded-colors    | 直接書いた色の値        |
+
+次の 2 つは警告です。
+
+- no-duplicate-classes
+- enforce-sort-order
+
+次を実行すると、並び順が直ります。
+
+```sh
+pnpm lint:fix
+```
+
+これらの決まりの理由は、[issue #100](https://github.com/marromugi/mg/issues/100) にまとめてあります。
 
 ## テスト
 
@@ -162,7 +170,7 @@ CSS はビルドで生成します。
 生成される CSS は、保存する文字列に含めません。
 
 story は、Storybook での表示と、この比較の入力を兼ねます。
-`SpanTree.stories.tsx` のように、コンポーネントのそばに置きます。
+`Badge.stories.tsx` のように、コンポーネントのそばに置きます。
 
 確かめるには、次を実行します。
 

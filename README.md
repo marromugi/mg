@@ -31,7 +31,6 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                            |
 | [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                            |
 | [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                    |
-| [`@mg/ui`](packages/ui/README.md)                     | 汎用の画面コンポーネントと、トークンのファイル                          |
 | [`@mg/trace-ui`](packages/trace-ui/README.md)         | 保存したトレースを見る画面                                              |
 | [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装 |
 | [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                  |
@@ -56,8 +55,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 検証の失敗を LLM にどう返すか                             | harness-loop                        |
 | トレースの語彙とエクスポーター                            | trace                               |
 | トレースを見る画面                                        | trace-ui                            |
-| トレースの意味を持つコンポーネント                        | trace-ui                            |
-| 汎用の画面コンポーネントとトークン                        | ui                                  |
+| 画面のコンポーネント                                      | trace-ui                            |
 | 走行後の判定のインターフェースと、規則と Estimator の実装 | eval                                |
 | 端末に出す文字の色と印                                    | term                                |
 | 検証ごとの組み立ての設定                                  | runs                                |
@@ -101,14 +99,6 @@ trace-ui は、実行の流れの外にいます。
 <table>
   <tr>
     <td align="center"><code>@mg/trace-ui</code> → <code>@mg/trace</code></td>
-  </tr>
-</table>
-
-trace-ui は、画面のコンポーネントとトークンに ui を使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/trace-ui</code> → <code>@mg/ui</code></td>
   </tr>
 </table>
 
@@ -181,14 +171,13 @@ runner は、走る前後で作業場を開いて閉じるために workspace �
 - runner は、eval を使いません。
 - harness-loop は、5 つを使います。core と tools と harness と trace と gate です。
 - trace は、harness と core を使います。
-- trace-ui は、trace と term と ui を使います。
+- trace-ui は、trace と term を使います。
 - eval は、core と trace を使います。
 - harness と tools は、それぞれ core を使います。
 - gate は、core と harness と trace を使います。
 - workspace は、core を使います。
 - term は、このリポジトリの他のパッケージに依存しません。
 - core は、このリポジトリの他のパッケージに依存しません。
-- ui は、このリポジトリの他のパッケージに依存しません。
 - runs と dashboard は、使う側です。互いを使いません。
 - dashboard は、いまは何も使いません。
 - packages のどのパッケージも、dashboard を使いません。

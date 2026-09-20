@@ -232,6 +232,7 @@ describe("gateRunToolCall", () => {
   it("passes parent as context.trace to the gate", async () => {
     const parent: TraceSpan = {
       startSpan: () => parent,
+      startRoot: () => parent,
       setAttributes: (): void => {},
       addEvent: (): void => {},
       end: (): void => {},

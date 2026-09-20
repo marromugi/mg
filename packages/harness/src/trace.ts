@@ -5,6 +5,7 @@ export type TraceAttributes = Readonly<
 
 export interface TraceSpan {
   startSpan(name: string, attributes?: TraceAttributes): TraceSpan;
+  startRoot(name: string, attributes?: TraceAttributes): TraceSpan;
   setAttributes(attributes: TraceAttributes): void;
   addEvent(name: string, attributes?: TraceAttributes): void;
   end(error?: unknown): void;
@@ -12,6 +13,7 @@ export interface TraceSpan {
 
 export const noopSpan: TraceSpan = {
   startSpan: () => noopSpan,
+  startRoot: () => noopSpan,
   setAttributes: () => {},
   addEvent: () => {},
   end: () => {},

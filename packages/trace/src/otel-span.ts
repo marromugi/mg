@@ -26,6 +26,19 @@ class OtelSpan implements TraceSpan {
     }
   }
 
+  startRoot(name: string, attributes?: TraceAttributes): TraceSpan {
+    try {
+      const root = this.tracer.startSpan(
+        name,
+        { attributes },
+        ROOT_CONTEXT,
+      );
+      return new OtelSpan(this.tracer, root);
+    } catch {
+      return noopSpan;
+    }
+  }
+
   setAttributes(attributes: TraceAttributes): void {
     // Recording must never break the caller: every span call below is guarded.
     try {

@@ -20,6 +20,10 @@ export class RecordingSpan implements TraceSpan {
     return child;
   }
 
+  startRoot(name: string, attributes?: TraceAttributes): TraceSpan {
+    return new RecordingSpan(name, attributes);
+  }
+
   setAttributes(attributes: TraceAttributes): void {
     this.setAttributesCalls.push(attributes);
   }

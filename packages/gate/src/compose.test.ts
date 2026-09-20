@@ -93,6 +93,7 @@ describe("composeGates", () => {
     const controller = new AbortController();
     const span: TraceSpan = {
       startSpan: () => span,
+      startRoot: () => span,
       setAttributes: (): void => {},
       addEvent: (): void => {},
       end: (): void => {},

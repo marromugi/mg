@@ -199,6 +199,48 @@ const formatOutput = (
   return parts.join("\n");
 };
 
+const hasSummary = (stdout: string): boolean =>
+  stdout.split("\n").some((rawLine) => {
+    if (rawLine === "") return false;
+    try {
+      const entry: unknown = JSON.parse(rawLine);
+      return (
+        typeof entry === "object" &&
+        entry !== null &&
+        (entry as { type?: unknown }).type === "summary"
+      );
+    } catch {
+      return false;
+    }
+  });
+
+const rewriteStderrLine = (line: string, rootReal: string): string => {
+  const stripped = line.startsWith("rg: ") ? line.slice(4) : line;
+  const prefix = `${rootReal}${path.sep}`;
+  return stripped.startsWith(prefix)
+    ? stripped.slice(prefix.length).split(path.sep).join("/")
+    : stripped;
+};
+
+const maxIncompleteNoteLines = 5;
+
+const buildIncompleteNote = (
+  stderr: string,
+  rootReal: string,
+): string => {
+  const lines = stderr
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => rewriteStderrLine(line, rootReal));
+  const shown = lines.slice(0, maxIncompleteNoteLines);
+  const remaining = lines.length - shown.length;
+  return [
+    "[search incomplete: ripgrep reported errors]",
+    ...shown,
+    ...(remaining > 0 ? [`... and ${remaining} more lines`] : []),
+  ].join("\n");
+};
+
 export const createGrepTool = (
   options: GrepToolOptions,
 ): Tool<typeof grepInput> => {
@@ -275,7 +317,10 @@ export const createGrepTool = (
           maxResults,
           maxLineChars,
         );
-        return formatOutput(lines, true, invalidUtf8, binary);
+        const body = formatOutput(lines, true, invalidUtf8, binary);
+        return stderr.trim() === ""
+          ? body
+          : `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
       }
 
       if (error.killed === true) {
@@ -288,6 +333,25 @@ export const createGrepTool = (
         const location =
           resolved.relative === "." ? "the root" : resolved.relative;
         return `No matches for /${pattern}/ in ${location}.`;
+      }
+
+      if (error.code === 2 && hasSummary(stdout)) {
+        const { lines, truncated, invalidUtf8, binary } = formatMatches(
+          stdout,
+          rootReal,
+          maxResults,
+          maxLineChars,
+        );
+        const location =
+          resolved.relative === "." ? "the root" : resolved.relative;
+        const body =
+          lines.length === 0 &&
+          !truncated &&
+          invalidUtf8 === 0 &&
+          binary === 0
+            ? `No matches for /${pattern}/ in ${location}.`
+            : formatOutput(lines, truncated, invalidUtf8, binary);
+        return `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
       }
 
       const detail =

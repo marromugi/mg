@@ -118,6 +118,7 @@ type FakeConnectorHooks = {
   onOpen?: () => void;
   onClose?: () => void;
   closeError?: Error;
+  closeDelayMs?: number;
 };
 
 const fakeConnector = (
@@ -130,6 +131,11 @@ const fakeConnector = (
     return {
       tools,
       close: async () => {
+        if (hooks?.closeDelayMs) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, hooks.closeDelayMs),
+          );
+        }
         hooks?.onClose?.();
         if (hooks?.closeError) throw hooks.closeError;
       },
@@ -140,11 +146,21 @@ const fakeConnector = (
 const fakeWorkspace = (
   tools: readonly Tool[],
   hooks?: FakeConnectorHooks,
+  name = "fake-workspace",
 ): Workspace =>
   defineWorkspace({
-    name: "fake-workspace",
+    name,
     connectors: [fakeConnector(tools, hooks)],
   });
+
+const spanEndMillis = (
+  span: { endTime: [number, number] } | undefined,
+): number => {
+  if (!span) {
+    throw new Error("spanEndMillis: span not found");
+  }
+  return span.endTime[0] * 1000 + span.endTime[1] / 1e6;
+};
 
 describe("run", () => {
   let dir: string;
@@ -399,6 +415,44 @@ describe("run with a workspace", () => {
     expect(closeAttempted).toBe(true);
   });
 
+  test("a shared tool name ends the mg.run span with the duplicate-name failure only after the workspace finishes closing", async () => {
+    const exporter = new InMemorySpanExporter();
+    const name = "dup";
+    const configTool = stubTool(name);
+    const workspaceTool = stubTool(name);
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+      workspace: fakeWorkspace(
+        [workspaceTool],
+        { closeDelayMs: 50 },
+        "ws",
+      ),
+      trace: { exporters: [exporter] },
+    };
+    const expectedMessage =
+      'Duplicate tool name "dup" from connectors: config, ws';
+
+    await expect(run(config, [])).rejects.toThrow(expectedMessage);
+
+    const spans = exporter.getFinishedSpans();
+    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const workspaceSpan = spans.find(
+      (span) => span.name === "mg.workspace",
+    );
+
+    expect(rootSpan?.status.code).toBe(2);
+    expect(rootSpan?.status.message).toBe(expectedMessage);
+    expect(spanEndMillis(rootSpan)).toBeGreaterThanOrEqual(
+      spanEndMillis(workspaceSpan),
+    );
+  });
+
   test("the workspace is closed after a successful run", async () => {
     let closed = false;
     const provider = stubProvider([
@@ -440,8 +494,35 @@ describe("run with a workspace", () => {
     expect(closed).toBe(true);
   });
 
-  test("a close failure alone (the run itself succeeded) is thrown", async () => {
-    const closeError = new Error("close failed");
+  test("the mg.run span ends no earlier than the mg.workspace span it waits to close", async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace([], { closeDelayMs: 50 }),
+      trace: { exporters: [exporter] },
+    };
+
+    await run(config, []);
+
+    const spans = exporter.getFinishedSpans();
+    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const workspaceSpan = spans.find(
+      (span) => span.name === "mg.workspace",
+    );
+
+    expect(spanEndMillis(rootSpan)).toBeGreaterThanOrEqual(
+      spanEndMillis(workspaceSpan),
+    );
+  });
+
+  test("a close failure alone (the run itself succeeded) is thrown, and both spans end with the close failure", async () => {
+    const exporter = new InMemorySpanExporter();
+    const closeError = new Error("close boom");
     const provider = stubProvider([
       { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
@@ -450,15 +531,62 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       workspace: fakeWorkspace([], { closeError }),
+      trace: { exporters: [exporter] },
     };
+    const expectedMessage = "Failed to close 1 connection(s)";
 
     await expect(run(config, [])).rejects.toMatchObject({
       name: "WorkspaceCloseError",
+      message: expectedMessage,
+      cause: closeError,
       errors: [closeError],
     });
+
+    const spans = exporter.getFinishedSpans();
+    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const workspaceSpan = spans.find(
+      (span) => span.name === "mg.workspace",
+    );
+
+    expect(rootSpan?.status.code).toBe(2);
+    expect(rootSpan?.status.message).toBe(expectedMessage);
+    expect(workspaceSpan?.status.code).toBe(2);
+    expect(workspaceSpan?.status.message).toBe(expectedMessage);
   });
 
-  test("records an mg.workspace span under mg.run, as a sibling of mg.harness", async () => {
+  test("a harness failure and a close failure together reject with the harness failure, and only the mg.workspace span carries the close failure", async () => {
+    const exporter = new InMemorySpanExporter();
+    const providerError = new Error("provider boom");
+    const closeError = new Error("close boom");
+    const provider = throwingProvider(providerError);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace([], { closeError }),
+      trace: { exporters: [exporter] },
+    };
+
+    await expect(run(config, [])).rejects.toThrow("provider boom");
+
+    const spans = exporter.getFinishedSpans();
+    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const workspaceSpan = spans.find(
+      (span) => span.name === "mg.workspace",
+    );
+
+    expect(rootSpan?.status.code).toBe(2);
+    expect(rootSpan?.status.message).toBe("provider boom");
+    expect(workspaceSpan?.status.code).toBe(2);
+    expect(workspaceSpan?.status.message).toBe(
+      "Failed to close 1 connection(s)",
+    );
+    expect(spanEndMillis(rootSpan)).toBeGreaterThanOrEqual(
+      spanEndMillis(workspaceSpan),
+    );
+  });
+
+  test("records exactly one mg.workspace span under mg.run, as a sibling of mg.harness", async () => {
     const exporter = new InMemorySpanExporter();
     const provider = stubProvider([
       { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
@@ -478,12 +606,12 @@ describe("run with a workspace", () => {
     const harnessSpan = spans.find(
       (span) => span.name === "mg.harness",
     );
-    const workspaceSpan = spans.find(
+    const workspaceSpans = spans.filter(
       (span) => span.name === "mg.workspace",
     );
 
-    expect(workspaceSpan).toBeDefined();
-    expect(workspaceSpan?.parentSpanContext?.spanId).toBe(
+    expect(workspaceSpans).toHaveLength(1);
+    expect(workspaceSpans[0]?.parentSpanContext?.spanId).toBe(
       rootSpan?.spanContext().spanId,
     );
     expect(harnessSpan?.parentSpanContext?.spanId).toBe(
@@ -515,7 +643,7 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       workspace: defineWorkspace({
-        name: "my-workspace",
+        name: "ws",
         connectors: [connectorA, connectorB],
       }),
       trace: { exporters: [exporter] },
@@ -527,9 +655,7 @@ describe("run with a workspace", () => {
       .getFinishedSpans()
       .find((span) => span.name === "mg.workspace");
 
-    expect(workspaceSpan?.attributes["mg.workspace.name"]).toBe(
-      "my-workspace",
-    );
+    expect(workspaceSpan?.attributes["mg.workspace.name"]).toBe("ws");
     expect(workspaceSpan?.attributes["mg.workspace.connectors"]).toBe(
       JSON.stringify(["alpha", "beta"]),
     );
@@ -538,9 +664,8 @@ describe("run with a workspace", () => {
     );
   });
 
-  test("a workspace that fails to open records the failure on the mg.workspace span", async () => {
+  test("a workspace that fails to open ends both the mg.workspace and mg.run spans with the connector's failure, and no mg.harness span is recorded", async () => {
     const exporter = new InMemorySpanExporter();
-    const error = new Error("connector blew up");
     const provider = stubProvider([
       { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
@@ -552,23 +677,34 @@ describe("run with a workspace", () => {
         name: "broken-workspace",
         connectors: [
           {
-            kind: "broken",
+            kind: "fake",
             open: async () => {
-              throw error;
+              throw new Error("open boom");
             },
           },
         ],
       }),
       trace: { exporters: [exporter] },
     };
+    const expectedMessage =
+      'Failed to open connector "fake" at index 0';
 
-    await expect(run(config, [])).rejects.toThrow();
+    await expect(run(config, [])).rejects.toThrow(expectedMessage);
 
-    const workspaceSpan = exporter
-      .getFinishedSpans()
-      .find((span) => span.name === "mg.workspace");
-    expect(workspaceSpan).toBeDefined();
+    const spans = exporter.getFinishedSpans();
+    const rootSpan = spans.find((span) => span.name === "mg.run");
+    const workspaceSpan = spans.find(
+      (span) => span.name === "mg.workspace",
+    );
+    const harnessSpan = spans.find(
+      (span) => span.name === "mg.harness",
+    );
+
+    expect(rootSpan?.status.code).toBe(2);
+    expect(rootSpan?.status.message).toBe(expectedMessage);
     expect(workspaceSpan?.status.code).toBe(2);
+    expect(workspaceSpan?.status.message).toBe(expectedMessage);
+    expect(harnessSpan).toBeUndefined();
   });
 
   test("omitting workspace leaves the harness with only the config's tools", async () => {

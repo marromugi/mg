@@ -47,6 +47,10 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
     expect(grep.name).toBe("grep");
   });
 
+  test("description says hidden files are searched", () => {
+    expect(grep.description).toContain("Searches hidden files");
+  });
+
   test("finds matches across files as path:line:col: text with / separators", async () => {
     const result = await grep.execute({ pattern: "hello" }, {});
     expect(result).toContain("a.txt:1:1: hello world");
@@ -204,6 +208,48 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
     await expect(
       grep.execute({ pattern: "hello" }, { signal: controller.signal }),
     ).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe.skipIf(!hasRg)("hidden files", () => {
+  const hiddenDir = mkdtempSync(
+    join(tmpdir(), "mg-tools-files-grep-hidden-"),
+  );
+  const hiddenRoot = realpathSync(hiddenDir);
+  afterAll(() => rmSync(hiddenDir, { recursive: true, force: true }));
+
+  execFileSync("git", ["init"], { cwd: hiddenRoot });
+  mkdirSync(join(hiddenRoot, ".github"), { recursive: true });
+  writeFileSync(join(hiddenRoot, ".github/ci.yml"), "hello hidden\n");
+  writeFileSync(join(hiddenRoot, ".env.sample"), "TOKEN=abc\n");
+  writeFileSync(
+    join(hiddenRoot, ".git/mg-note.txt"),
+    "needle-in-git\n",
+  );
+  writeFileSync(join(hiddenRoot, ".gitignore"), ".secret.txt\n");
+  writeFileSync(join(hiddenRoot, ".secret.txt"), "needle-secret\n");
+
+  const grep = createGrepTool({ root: hiddenRoot });
+
+  test("a match inside a hidden directory is returned", async () => {
+    const result = await grep.execute({ pattern: "hidden" }, {});
+    expect(result).toContain(".github/ci.yml:1:7: hello hidden");
+  });
+
+  test("a match inside a hidden file at the root is returned", async () => {
+    const result = await grep.execute({ pattern: "TOKEN" }, {});
+    expect(result).toContain(".env.sample:1:1: TOKEN=abc");
+  });
+
+  test("a match inside .git is returned", async () => {
+    const result = await grep.execute({ pattern: "needle-in-git" }, {});
+    expect(result).toContain(".git/mg-note.txt:1:1: needle-in-git");
+  });
+
+  test("a hidden file listed in .gitignore is still not searched", async () => {
+    await expect(
+      grep.execute({ pattern: "needle-secret" }, {}),
+    ).resolves.toBe("No matches for /needle-secret/ in the root.");
   });
 });
 

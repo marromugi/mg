@@ -3,9 +3,11 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const GH_MAX_BUFFER = 256 * 1024 * 1024;
 
 const HEADING_RE = /^## /;
 const CHILDREN_HEADING_RE = /^## 子 issue\s*$/;
@@ -46,6 +48,12 @@ function formatState({ state, stateReason }) {
 
 function formatParentRef(number) {
   return number === null ? "none" : `#${number}`;
+}
+
+function firstNonEmptyLine(text) {
+  if (!text) return "";
+  const line = text.split(/\r?\n/).find((l) => l.trim() !== "");
+  return line ?? "";
 }
 
 function parseJsonDocuments(text) {
@@ -141,12 +149,18 @@ async function resolve(gh, n) {
 
   const parentIssue = parents[0];
   const byNumber = new Map(all.map((i) => [i.number, i]));
-  const children = parseChildren(parentIssue.body)
-    .filter((num) => num !== n)
-    .map((num) => {
-      const child = byNumber.get(num);
-      return { number: num, state: child.state, stateReason: child.stateReason };
-    });
+  const children = [];
+  for (const num of parseChildren(parentIssue.body)) {
+    if (num === n) continue;
+    const child = byNumber.get(num);
+    if (!child) {
+      return {
+        ok: false,
+        lines: [`refused: parent #${parentIssue.number} lists #${num}, which could not be read as an issue`],
+      };
+    }
+    children.push({ number: num, state: child.state, stateReason: child.stateReason });
+  }
 
   const notPlanned = children.find((c) => c.state === "CLOSED" && c.stateReason === "NOT_PLANNED");
   if (notPlanned) {
@@ -177,7 +191,8 @@ function formatCheckLines(n, resolved) {
 }
 
 function ghErrorRefusal(err) {
-  return { ok: false, lines: [`refused: could not read GitHub: ${err.message}`] };
+  const message = firstNonEmptyLine(err.stderr) || firstNonEmptyLine(err.message);
+  return { ok: false, lines: [`refused: could not read GitHub: ${message}`] };
 }
 
 export function createGuard({ gh }) {
@@ -208,7 +223,11 @@ export function createGuard({ gh }) {
       parent: resolved.parent,
       humanComments,
     };
-    fs.writeFileSync(path.join(dir, `issue-${n}.json`), `${JSON.stringify(data, null, 2)}\n`);
+    try {
+      fs.writeFileSync(path.join(dir, `issue-${n}.json`), `${JSON.stringify(data, null, 2)}\n`);
+    } catch (err) {
+      return { ok: false, lines: [`refused: could not write the snapshot: ${firstNonEmptyLine(err.message)}`] };
+    }
     return { ok: true, lines: [`ok: issue #${n} snapshot written`] };
   }
 
@@ -303,7 +322,7 @@ async function main() {
 
   const ghBin = process.env.ISSUE_GUARD_GH_BIN ?? "gh";
   const gh = async (args) => {
-    const { stdout } = await execFileAsync(ghBin, args);
+    const { stdout } = await execFileAsync(ghBin, args, { maxBuffer: GH_MAX_BUFFER });
     return stdout;
   };
 
@@ -314,6 +333,14 @@ async function main() {
   process.exit(result.ok ? 0 : 1);
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  main();
+function isEntryPoint() {
+  if (!process.argv[1]) return false;
+  return import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href;
+}
+
+if (isEntryPoint()) {
+  main().catch((err) => {
+    console.log(`refused: unexpected error: ${firstNonEmptyLine(err?.message ?? String(err))}`);
+    process.exit(1);
+  });
 }

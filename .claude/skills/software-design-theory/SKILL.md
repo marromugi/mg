@@ -91,6 +91,10 @@ LLM can judge it.
 - What a piece cannot give back faithfully, it leaves out and says so. This
   holds even when a neighbouring piece shows the same thing in an approximate
   form; keeping the two alike does not outrank it.
+- A record that others can change while the software works, such as an issue,
+  is read again right before the software acts on it. A sign of change that
+  the software cannot interpret, such as a new comment, stops the action. Its
+  content is not interpreted.
 - When the software says that something failed or was left out, it says why,
   with enough detail for the reader to choose the next action. The reader is
   often an agent, and the reason is what it acts on.

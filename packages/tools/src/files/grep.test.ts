@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -260,3 +261,230 @@ describe("column conversion", () => {
     expect(columnOf("préfix hello\n", 8)).toBe(8);
   });
 });
+
+describe.skipIf(!hasRg)(
+  "skipped matches: not valid UTF-8 and binary files",
+  () => {
+    const notesDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-notes-"),
+    );
+    const notesRoot = realpathSync(notesDir);
+    afterAll(() => rmSync(notesDir, { recursive: true, force: true }));
+
+    writeFileSync(
+      join(notesRoot, "latin.txt"),
+      Buffer.from([
+        0x63, 0x61, 0x66, 0xe9, 0x20, 0x6e, 0x65, 0x65, 0x64, 0x6c,
+        0x65, 0x2d, 0x6c, 0x0a,
+      ]),
+    );
+    writeFileSync(
+      join(notesRoot, "twice.txt"),
+      Buffer.concat([
+        Buffer.from([0xff]),
+        Buffer.from(" needle-m needle-m\n"),
+      ]),
+    );
+
+    mkdirSync(join(notesRoot, "mix"), { recursive: true });
+    writeFileSync(join(notesRoot, "mix/good.txt"), "needle-x ok\n");
+    writeFileSync(
+      join(notesRoot, "mix/bad.txt"),
+      Buffer.concat([Buffer.from([0xff]), Buffer.from(" needle-x\n")]),
+    );
+
+    let canCreateRawName = true;
+    mkdirSync(join(notesRoot, "rawname"), { recursive: true });
+    try {
+      writeFileSync(
+        Buffer.concat([
+          Buffer.from(`${join(notesRoot, "rawname")}/bad`),
+          Buffer.from([0xff]),
+          Buffer.from("name.txt"),
+        ]),
+        "needle-n\n",
+      );
+    } catch {
+      canCreateRawName = false;
+    }
+
+    const bigBinary = (firstLine: string): Buffer =>
+      Buffer.concat([
+        Buffer.from(`${firstLine}\n${"x\n".repeat(60_000)}`),
+        Buffer.from([0]),
+      ]);
+
+    mkdirSync(join(notesRoot, "bin"), { recursive: true });
+    writeFileSync(
+      join(notesRoot, "bin/big.bin"),
+      bigBinary("needle-b first"),
+    );
+
+    mkdirSync(join(notesRoot, "cap"), { recursive: true });
+    writeFileSync(
+      join(notesRoot, "cap/big.bin"),
+      bigBinary("needle-k first"),
+    );
+    writeFileSync(join(notesRoot, "cap/ok.txt"), "needle-k ok\n");
+
+    mkdirSync(join(notesRoot, "cut"), { recursive: true });
+    writeFileSync(
+      join(notesRoot, "cut/one.txt"),
+      "needle-c line\n".repeat(2_000),
+    );
+
+    const grep = createGrepTool({ root: notesRoot });
+
+    test("a match on a line that is not valid UTF-8 becomes a skip count", async () => {
+      const result = await grep.execute(
+        { pattern: "needle-l", path: "latin.txt" },
+        {},
+      );
+      expect(result).toBe("[skipped 1 matches: not valid UTF-8]");
+    });
+
+    test("two matches on the same non-UTF-8 line are both counted", async () => {
+      const result = await grep.execute(
+        { pattern: "needle-m", path: "twice.txt" },
+        {},
+      );
+      expect(result).toBe("[skipped 2 matches: not valid UTF-8]");
+    });
+
+    test("a valid match and a non-UTF-8 skip count both come back, match first", async () => {
+      const result = await grep.execute(
+        { pattern: "needle-x", path: "mix" },
+        {},
+      );
+      expect(result).toBe(
+        "mix/good.txt:1:1: needle-x ok\n[skipped 1 matches: not valid UTF-8]",
+      );
+    });
+
+    test.skipIf(!canCreateRawName)(
+      "a match in a file whose name is not valid UTF-8 becomes a skip count",
+      async () => {
+        const result = await grep.execute(
+          { pattern: "needle-n", path: "rawname" },
+          {},
+        );
+        expect(result).toBe("[skipped 1 matches: not valid UTF-8]");
+      },
+    );
+
+    test("a match in a file ripgrep judges binary becomes a skip count", async () => {
+      const result = await grep.execute(
+        { pattern: "needle-b", path: "bin" },
+        {},
+      );
+      expect(result).toBe("[skipped 1 matches: binary file]");
+    });
+
+    test("a binary skip does not consume the results cap", async () => {
+      const capped = createGrepTool({ root: notesRoot, maxResults: 1 });
+      const result = await capped.execute(
+        { pattern: "needle-k", path: "cap" },
+        {},
+      );
+      expect(result).toBe(
+        "cap/ok.txt:1:1: needle-k ok\n[skipped 1 matches: binary file]",
+      );
+    });
+
+    test("output cut off by the byte cap returns only the truncation marker", async () => {
+      const small = createGrepTool({
+        root: notesRoot,
+        maxOutputBytes: 4096,
+      });
+      const result = await small.execute(
+        { pattern: "needle-c", path: "cut" },
+        {},
+      );
+      expect(result).toBe("[results truncated]");
+    });
+
+    test("description says binary files are skipped", () => {
+      expect(grep.description).toContain("Skips binary files");
+    });
+  },
+);
+
+describe.skipIf(!hasRg)(
+  "skip notes follow a fixed order after matches",
+  () => {
+    const fakeDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-fake-"),
+    );
+    const fakeRoot = realpathSync(fakeDir);
+    afterAll(() => rmSync(fakeDir, { recursive: true, force: true }));
+
+    const writeFakeRg = (name: string, script: string): string => {
+      const scriptPath = join(fakeDir, name);
+      writeFileSync(scriptPath, `#!/usr/bin/env node\n${script}`);
+      chmodSync(scriptPath, 0o755);
+      return scriptPath;
+    };
+
+    test("truncation, the UTF-8 note, and the binary note follow the matches in that order", async () => {
+      const rgPath = writeFakeRg(
+        "fake-rg-order.js",
+        `
+const lines = [
+  {"type":"match","data":{"path":{"text":"order/a.txt"},"line_number":1,"lines":{"text":"needle-o one\\n"},"submatches":[{"start":0,"end":10}]}},
+  {"type":"match","data":{"path":{"text":"order/a.txt"},"line_number":2,"lines":{"text":"needle-o two\\n"},"submatches":[{"start":0,"end":10}]}},
+  {"type":"end","data":{"path":{"text":"order/a.txt"},"binary_offset":null}},
+  {"type":"match","data":{"path":{"text":"order/bad.txt"},"line_number":1,"lines":{"bytes":"//8="},"submatches":[{"start":0,"end":8}]}},
+  {"type":"end","data":{"path":{"text":"order/bad.txt"},"binary_offset":null}},
+  {"type":"match","data":{"path":{"text":"order/big.bin"},"line_number":1,"lines":{"text":"needle-o first\\n"},"submatches":[{"start":0,"end":8}]}},
+  {"type":"end","data":{"path":{"text":"order/big.bin"},"binary_offset":100}},
+  {"type":"summary","data":{"elapsed_total":{"secs":0,"nanos":0,"human":"0.000000s"},"stats":{}}}
+];
+for (const line of lines) process.stdout.write(JSON.stringify(line) + "\\n");
+process.exit(0);
+`,
+      );
+
+      const grep = createGrepTool({
+        root: fakeRoot,
+        rgPath,
+        maxResults: 1,
+      });
+      const result = await grep.execute({ pattern: "needle-o" }, {});
+      expect(result).toBe(
+        "order/a.txt:1:1: needle-o one\n" +
+          "[results truncated]\n" +
+          "[skipped 1 matches: not valid UTF-8]\n" +
+          "[skipped 1 matches: binary file]",
+      );
+    });
+
+    test("matches of a file whose end never arrives are dropped, but earlier notes still return", async () => {
+      const rgPath = writeFakeRg(
+        "fake-rg-cutnote.js",
+        `
+const write = (obj) => process.stdout.write(JSON.stringify(obj) + "\\n");
+write({"type":"match","data":{"path":{"text":"cutnote/bad.txt"},"line_number":1,"lines":{"bytes":"//8="},"submatches":[{"start":0,"end":1}]}});
+write({"type":"end","data":{"path":{"text":"cutnote/bad.txt"},"binary_offset":null}});
+write({"type":"match","data":{"path":{"text":"cutnote/big.bin"},"line_number":1,"lines":{"text":"x\\n"},"submatches":[{"start":0,"end":1}]}});
+write({"type":"end","data":{"path":{"text":"cutnote/big.bin"},"binary_offset":50}});
+for (let i = 0; i < 5000; i++) {
+  write({"type":"match","data":{"path":{"text":"cutnote/flood.txt"},"line_number":i + 1,"lines":{"text":"x\\n"},"submatches":[{"start":0,"end":1}]}});
+}
+process.exit(0);
+`,
+      );
+
+      const grep = createGrepTool({
+        root: fakeRoot,
+        rgPath,
+        maxOutputBytes: 4096,
+      });
+      const result = await grep.execute({ pattern: "x" }, {});
+      expect(result).toBe(
+        "[results truncated]\n" +
+          "[skipped 1 matches: not valid UTF-8]\n" +
+          "[skipped 1 matches: binary file]",
+      );
+    });
+  },
+);

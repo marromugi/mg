@@ -39,14 +39,31 @@ LLM can judge it.
   implementations exist today. One implementation is a normal state.
 - Shared parts come from roles, not from resemblance. Code that looks alike is
   not a reason to merge it.
+- Providing parts to other pieces is a role. When a second piece comes to use
+  parts that live inside a piece with another role, the parts move to a piece
+  whose role is to provide them. The first piece does not publish them on the
+  side.
 - The same holds for types and errors. Two concepts do not share a type
   because their contents happen to match today. Each concept has its own
   types, and its own errors.
+- Two concepts may state the same condition in the same words. Each keeps its
+  own copy of the text; matching wording is neither sharing nor a reason to
+  reword one of them.
+- One concept is recorded one way wherever it occurs. When a piece starts
+  another instance of what it is itself — a conversation that starts a
+  conversation — the started one is stored as its own record, in the same form
+  as the starter's, and the starter holds a reference to it. It is not nested
+  inside the starter's record.
 
 ### 2. One responsibility, verifiable alone
 
 - A piece has one role that fits in one sentence.
 - A piece can be verified without running the pieces around it.
+- A piece carries out its role in full on what it is given. A rule about what
+  to leave out — a directory not to enter, a target not to touch — is not part
+  of doing the work. It belongs to the role that holds such rules. That other
+  tools leave something out by habit is not a reason to build the habit into
+  the piece.
 
 ### 3. Independent and injectable
 
@@ -71,12 +88,26 @@ LLM can judge it.
 - What happens when a step fails is decided in the design.
 - On ambiguity the software stops and says so. It does not fill a value with a
   guess, and it does not write something it does not know to be true.
+- What a piece cannot give back faithfully, it leaves out and says so. This
+  holds even when a neighbouring piece shows the same thing in an approximate
+  form; keeping the two alike does not outrank it.
+- When the software says that something failed or was left out, it says why,
+  with enough detail for the reader to choose the next action. The reader is
+  often an agent, and the reason is what it acts on.
 
 ### 6. Let machines hold the rules
 
 - A promise that types can express is expressed in types.
 - A promise that types cannot express is expressed as a check or a test.
 - A promise that lives only in prose is the last resort.
+- A safeguard is optional only where leaving it out harms nothing. Where a
+  piece is handed the means to act on a machine, the safeguard that judges its
+  actions is required by the type. A default does not stand in for it, neither
+  "none" nor one inherited from somewhere else.
+- The means are tools and connections to machines alike. A type cannot tell a
+  tool that reads from one that writes, so any tool counts.
+- A place that already hands out such means without the safeguard is brought
+  into line as its own issue (9), not inside the work that found it.
 
 ### 7. Keep outside specifications behind an entrance and an exit
 
@@ -94,6 +125,10 @@ LLM can judge it.
   Share with that evidence, to the extent the agreement covers. Without it, do
   not share.
 - Where a widely agreed convention exists, follow it.
+- A limit that comes from how one implementation works — what it can run at
+  once, what it holds exclusively — is declared by that implementation through
+  the shared interface, in our own words. Shared code reads the declaration.
+  It does not carry a blanket rule sized to the most limited implementation.
 - Everything that belongs to an outside specification lives inside its
   implementation: its defaults, such as a model name or a URL, and its
   vocabulary. Shared code holds none of it. A shared interface names its

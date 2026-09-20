@@ -309,9 +309,11 @@ describe("createEstimatorGate", () => {
       Number.NaN,
       Number.POSITIVE_INFINITY,
     ]) {
-      expect(() =>
-        createEstimatorGate({ estimator, policy: "policy", threshold }),
-      ).toThrow(new RangeError("threshold must be between 0 and 1"));
+      const create = () =>
+        createEstimatorGate({ estimator, policy: "policy", threshold });
+
+      expect(create).toThrow(RangeError);
+      expect(create).toThrow(/^threshold must be between 0 and 1$/);
     }
   });
 

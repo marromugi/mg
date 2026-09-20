@@ -6,7 +6,14 @@ import {
   SubagentNotFoundError,
 } from "./subagent-errors.js";
 import type { TraceSpan } from "./trace.js";
-import { noopSpan } from "./trace.js";
+
+const stubSpan = (): TraceSpan => ({
+  startSpan: () => stubSpan(),
+  startRoot: () => stubSpan(),
+  setAttributes: () => {},
+  addEvent: () => {},
+  end: () => {},
+});
 
 type Prompt = { prompt: string };
 
@@ -54,7 +61,7 @@ describe("runSubagentCall", () => {
       return "done";
     });
     const controller = new AbortController();
-    const trace = noopSpan;
+    const trace = stubSpan();
     const call: ToolCall = {
       id: "c1",
       name: "researcher",

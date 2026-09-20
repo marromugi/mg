@@ -4,6 +4,7 @@ export class RecordingSpan implements TraceSpan {
   readonly name: string;
   readonly attributes: TraceAttributes;
   readonly children: RecordingSpan[] = [];
+  readonly roots: RecordingSpan[] = [];
   readonly events: { name: string; attributes?: TraceAttributes }[] =
     [];
   readonly setAttributesCalls: TraceAttributes[] = [];
@@ -21,7 +22,9 @@ export class RecordingSpan implements TraceSpan {
   }
 
   startRoot(name: string, attributes?: TraceAttributes): TraceSpan {
-    return new RecordingSpan(name, attributes);
+    const root = new RecordingSpan(name, attributes);
+    this.roots.push(root);
+    return root;
   }
 
   setAttributes(attributes: TraceAttributes): void {

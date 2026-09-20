@@ -8,7 +8,7 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool, run, gate and workspace spans", () => {
+  it("has the harness, llm, tool, run, gate, workspace, subagent and thread spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
@@ -16,6 +16,8 @@ describe("SPAN", () => {
       run: "mg.run",
       gate: "mg.gate",
       workspace: "mg.workspace",
+      subagent: "mg.subagent",
+      thread: "mg.thread",
     });
   });
 });
@@ -56,5 +58,13 @@ describe("ATTR", () => {
     expect(ATTR.gateReason).toBe("mg.gate.reason");
     expect(ATTR.gateModel).toBe("mg.gate.model");
     expect(ATTR.gateProbability).toBe("mg.gate.probability");
+  });
+
+  it("has the subagent and thread attributes", () => {
+    expect(ATTR.subagentName).toBe("mg.subagent.name");
+    expect(ATTR.subagentCallId).toBe("mg.subagent.call_id");
+    expect(ATTR.subagentArguments).toBe("mg.subagent.arguments");
+    expect(ATTR.subagentResult).toBe("mg.subagent.result");
+    expect(ATTR.threadId).toBe("mg.thread.id");
   });
 });

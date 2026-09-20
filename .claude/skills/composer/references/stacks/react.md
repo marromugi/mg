@@ -1,7 +1,7 @@
 # React in this repo
 
-The concrete shape of composer's principles for `packages/trace-ui` and any
-UI package that follows it. Agreed in issue #100.
+The concrete shape of composer's principles for any UI package that follows
+it. Agreed in issue #100.
 
 ## Runtime
 

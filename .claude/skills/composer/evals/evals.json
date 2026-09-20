@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 0,
-      "prompt": "packages/trace-ui にセッション一覧の絞り込みフォームを足したい。保存先の名前（serviceName）で絞れるテキスト入力と送信ボタンがあって、GET /?service=xxx で一覧が絞られる形。コンポーネントとロジックとテストと story まで含めて設計して、ファイル構成と主要なコードを出して。",
+      "prompt": "セッション一覧の絞り込みフォームを足したい。保存先の名前（serviceName）で絞れるテキスト入力と送信ボタンがあって、GET /?service=xxx で一覧が絞られる形。コンポーネントとロジックとテストと story まで含めて設計して、ファイル構成と主要なコードを出して。",
       "expected_output": "Route parses the query and passes it to the page; a feature component (e.g. SessionFilter) composed of ui Button/TextField; filtering logic in a colocated hook with tests; stories with fixtures; no client JS; no className passthrough; no bracket values.",
       "files": []
     },
@@ -15,7 +15,7 @@
     },
     {
       "id": 2,
-      "prompt": "trace-ui に Badge を追加して。成功と失敗と進行中の 3 種類の見た目が要る。",
+      "prompt": "Badge を追加して。成功と失敗と進行中の 3 種類の見た目が要る。",
       "expected_output": "ui/Badge/Badge.tsx with tv() variants tone: ok | error | pending using tokens; no className prop; index.ts export and ui/index.ts re-export; Badge.stories.tsx with one story per tone; no test file needed beyond snapshots; mentions adding tokens if missing.",
       "files": []
     }

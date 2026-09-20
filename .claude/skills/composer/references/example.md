@@ -1,8 +1,8 @@
 # Worked example
 
 One feature component, the ui part it uses, the page, the route, and the
-stories, written the way composer asks. Paths are relative to
-`packages/trace-ui/src/`.
+stories, written the way composer asks. Paths are relative to a UI
+package's `src/`.
 
 ## The task
 

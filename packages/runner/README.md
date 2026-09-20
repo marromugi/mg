@@ -183,6 +183,47 @@ createSubagent(config, { parent: openedWorkspace });
 自分のワークスペースのスパンは、`start` に渡した文脈のスパンの下に付きます。
 子のハーネスのスパンの兄弟です。
 
+#### 並行と順番待ち
+
+自分のワークスペースには、排他的に持つものの名前があることがあります。
+名前は `@mg/workspace` の `exclusiveNamesOf` で調べます。
+
+名前が 1 つもなければ、いくつでも同時に開きます。
+
+名前が 1 つでもあれば、開く前にその名前を全部確保します。
+確保できるまで、来た順に待ちます。
+別々に書いた 2 つのワークスペースでも、名前が重なれば同じ順番待ちに入ります。
+
+確保した名前は、閉じ終えたら手放します。
+閉じるのに失敗しても、名前は手放します。
+
+順番待ちの状態は `ExclusiveNames` という型です。
+`createSubagent` の第 2 引数で渡します。
+
+```ts
+createSubagent(config, { exclusive: createExclusiveNames() });
+```
+
+渡さないと、その組み立てだけで使う状態を内部で作ります。
+1 回の走行で、複数のサブエージェントに同じ状態を渡すこともあります。
+そのときは、名前の重なりを共有して待ち合わせます。
+
+待っている間に中断のシグナルが来ると、開かずに中断の例外で終わります。
+待ちに時間の上限はありません。
+
+自分のワークスペースの名前が、親の開いたワークスペースの名前と重なることもあります。
+親はその名前を、走行の間ずっと確保しています。
+そのままでは、待ちが終わらないからです。
+そのため、組み立ての時点で `InvalidRunConfigError` になります。
+親の名前は `parentExclusiveNames` で渡します。
+
+```ts
+createSubagent(config, {
+  parent: openedWorkspace,
+  parentExclusiveNames: exclusiveNamesOf(runWorkspace),
+});
+```
+
 ## やらないこと
 
 次のことは runner の外に任せます。

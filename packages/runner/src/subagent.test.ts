@@ -1148,9 +1148,11 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
 
     const runA = subagentA.start({ prompt: "x" }, {});
     const runB = subagentB.start({ prompt: "x" }, {});
+    await flushMicrotasks();
 
     first.resolve("a-done");
     await runA;
+    await flushMicrotasks();
     second.resolve("b-done");
     await runB;
 
@@ -1280,9 +1282,11 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
 
     const runA = subagentA.start({ prompt: "x" }, {});
     const runB = subagentB.start({ prompt: "x" }, {});
+    await flushMicrotasks();
 
     first.resolve("a-done");
     await expect(runA).rejects.toThrow();
+    await flushMicrotasks();
     second.resolve("b-done");
     await expect(runB).resolves.toBe("b-done");
   });

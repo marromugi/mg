@@ -1,4 +1,8 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { ToolSchema } from "@mg/core";
+
+type ValidateResult = Awaited<
+  ReturnType<ToolSchema["~standard"]["validate"]>
+>;
 
 export class SubagentNotFoundError extends Error {
   override readonly name = "SubagentNotFoundError";
@@ -16,12 +20,12 @@ export class SubagentInputError extends Error {
   override readonly name = "SubagentInputError";
   readonly callId: string;
   readonly subagentName: string;
-  readonly issues: readonly StandardSchemaV1.Issue[];
+  readonly issues: NonNullable<ValidateResult["issues"]>;
 
   constructor(
     callId: string,
     subagentName: string,
-    issues: readonly StandardSchemaV1.Issue[],
+    issues: NonNullable<ValidateResult["issues"]>,
   ) {
     super(
       `Invalid arguments for subagent call ${callId} (${subagentName})`,

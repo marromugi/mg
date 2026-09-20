@@ -64,9 +64,6 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../core
-      '@standard-schema/spec':
-        specifier: ^1.1.0
-        version: 1.1.0
 
   packages/harness-loop:
     dependencies:

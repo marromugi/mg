@@ -1,5 +1,5 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type {
+  Tool,
   ToolCall,
   ToolDefinition,
   ToolMessage,
@@ -20,7 +20,7 @@ export type Subagent<TInput extends ToolSchema = ToolSchema> =
   ToolDefinition<TInput> & {
     // method syntax on purpose: keeps Subagent<Specific> assignable to Subagent
     start(
-      input: StandardSchemaV1.InferOutput<TInput>,
+      input: Parameters<Tool<TInput>["execute"]>[0],
       context: SubagentContext,
     ): Promise<string>;
   };

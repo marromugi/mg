@@ -42,6 +42,7 @@ const createFakeConnector = (
 ): Connector & { closeCalls: number } => {
   const connector: Connector & { closeCalls: number } = {
     kind: options.kind,
+    exclusive: [],
     closeCalls: 0,
     async open() {
       if (options.openError !== undefined) {

@@ -4,6 +4,7 @@ export type ConnectorContext = { signal?: AbortSignal };
 
 export interface Connector {
   readonly kind: string;
+  readonly exclusive: readonly string[];
   open(context?: ConnectorContext): Promise<Connection>;
 }
 

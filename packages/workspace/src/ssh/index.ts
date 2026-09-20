@@ -12,6 +12,7 @@ export const createSshConnector = (
 
   return {
     kind: "ssh",
+    exclusive: [],
     async open(context) {
       const client = await connect(options, context);
       const tool = createShellTool(client, {

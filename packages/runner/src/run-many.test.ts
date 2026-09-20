@@ -61,6 +61,7 @@ const baseConfig = (
 
 const fakeConnector = (opened: { count: number }): Connector => ({
   kind: "fake",
+  exclusive: [],
   open: async () => {
     opened.count++;
     return { tools: [], close: async () => {} };

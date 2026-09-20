@@ -133,6 +133,7 @@ const fakeConnector = (
   hooks?: FakeConnectorHooks,
 ): Connector => ({
   kind: "fake",
+  exclusive: [],
   open: async () => {
     hooks?.onOpen?.();
     return {
@@ -650,6 +651,7 @@ describe("run with a workspace", () => {
     ]);
     const connectorA: Connector = {
       kind: "alpha",
+      exclusive: [],
       open: async () => ({
         tools: [stubTool("tool-a")],
         close: async () => {},
@@ -657,6 +659,7 @@ describe("run with a workspace", () => {
     };
     const connectorB: Connector = {
       kind: "beta",
+      exclusive: [],
       open: async () => ({
         tools: [stubTool("tool-b")],
         close: async () => {},
@@ -702,6 +705,7 @@ describe("run with a workspace", () => {
         connectors: [
           {
             kind: "fake",
+            exclusive: [],
             open: async () => {
               throw new Error("open boom");
             },

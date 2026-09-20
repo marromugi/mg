@@ -5,6 +5,7 @@ import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
 import { resolveExistingPath } from "./root.js";
+import { isBinary } from "./text.js";
 
 export type GrepToolOptions = {
   root: string;
@@ -271,6 +272,21 @@ export const createGrepTool = (
         root,
         inputPath ?? ".",
       );
+
+      let directContent: string | undefined;
+      try {
+        const resolvedStat = await fs.stat(resolved.absolute);
+        if (resolvedStat.isFile()) {
+          directContent = await fs.readFile(resolved.absolute, {
+            encoding: "utf-8",
+          });
+        }
+      } catch {
+        directContent = undefined;
+      }
+      if (directContent !== undefined && isBinary(directContent)) {
+        throw new FileToolError(`binary file: ${resolved.relative}`);
+      }
 
       const args = [
         "--json",

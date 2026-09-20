@@ -18,13 +18,16 @@ export type ToolCallPayload = {
   tool?: ToolDefinition;
 };
 
-const toToolDefinition = (tool: Tool): ToolDefinition => ({
+const toToolDefinition = (tool: ToolDefinition): ToolDefinition => ({
   name: tool.name,
   description: tool.description,
   input: tool.input,
 });
 
-const describeToolCall = (call: ToolCall, tool?: Tool): string => {
+const describeToolCall = (
+  call: ToolCall,
+  tool?: ToolDefinition,
+): string => {
   const description =
     tool === undefined
       ? "(unknown tool)"
@@ -38,7 +41,7 @@ const describeToolCall = (call: ToolCall, tool?: Tool): string => {
 };
 
 export const toToolCallRequest = (
-  tools: readonly Tool[],
+  tools: readonly ToolDefinition[],
   call: ToolCall,
 ): GateRequest => {
   const tool = tools.find((candidate) => candidate.name === call.name);
@@ -62,17 +65,42 @@ const failedMessage = (message: string): string =>
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-export const gateRunToolCall = (
+type RunCallee<TCallee extends ToolDefinition, TContext> = (
+  callees: readonly TCallee[],
+  call: ToolCall,
+  context?: TContext,
+) => Promise<ToolMessage>;
+
+export function gateRunToolCall(
   gate: Gate,
-  run: RunToolCall = runToolCall,
+  run?: RunToolCall,
   parent?: TraceSpan,
-): RunToolCall => {
+): RunToolCall;
+export function gateRunToolCall<
+  TCallee extends ToolDefinition,
+  TContext extends { signal?: AbortSignal },
+>(
+  gate: Gate,
+  run: RunCallee<TCallee, TContext>,
+  parent?: TraceSpan,
+): RunCallee<TCallee, TContext>;
+export function gateRunToolCall<
+  TCallee extends ToolDefinition = Tool,
+  TContext extends { signal?: AbortSignal } = ToolContext,
+>(
+  gate: Gate,
+  run: RunCallee<
+    TCallee,
+    TContext
+  > = runToolCall as unknown as RunCallee<TCallee, TContext>,
+  parent?: TraceSpan,
+): RunCallee<TCallee, TContext> {
   return async (
-    tools: readonly Tool[],
+    callees: readonly TCallee[],
     call: ToolCall,
-    context?: ToolContext,
+    context?: TContext,
   ): Promise<ToolMessage> => {
-    const request = toToolCallRequest(tools, call);
+    const request = toToolCallRequest(callees, call);
 
     let verdict: Verdict;
     try {
@@ -99,6 +127,6 @@ export const gateRunToolCall = (
       };
     }
 
-    return run(tools, call, context);
+    return run(callees, call, context);
   };
-};
+}

@@ -67,4 +67,10 @@ describe("createSshConnector", () => {
 
     await expect(connector.open()).rejects.toBe(cause);
   });
+
+  test("declares no exclusive names", () => {
+    const connector = createSshConnector(options);
+
+    expect(connector.exclusive).toEqual([]);
+  });
 });

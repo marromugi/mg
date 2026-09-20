@@ -60,4 +60,26 @@ describe("createCdpConnector", () => {
 
     await expect(connector.open()).rejects.toBe(cause);
   });
+
+  test("declares one exclusive name built from the host and port", () => {
+    const connector = createCdpConnector({
+      url: "http://localhost:9222",
+    });
+
+    expect(connector.exclusive).toEqual(["cdp:localhost:9222"]);
+  });
+
+  test("declares the same exclusive name for a websocket URL to the same browser", () => {
+    const connector = createCdpConnector({
+      url: "ws://localhost:9222/devtools/browser/abc",
+    });
+
+    expect(connector.exclusive).toEqual(["cdp:localhost:9222"]);
+  });
+
+  test("throws a TypeError when the url cannot be parsed", () => {
+    expect(() => createCdpConnector({ url: "not a url" })).toThrow(
+      TypeError,
+    );
+  });
 });

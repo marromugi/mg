@@ -6,6 +6,7 @@ import type {
   Provider,
   Tool,
   ToolCall,
+  ToolDefinition,
   Usage,
 } from "@mg/core";
 import {
@@ -17,17 +18,33 @@ import {
 } from "@mg/core";
 import type { Gate } from "@mg/gate";
 import { gateRunToolCall } from "@mg/gate";
-import { noopSpan } from "@mg/harness";
-import type { Harness, HarnessEvent, TraceSpan } from "@mg/harness";
+import { noopSpan, runSubagentCall } from "@mg/harness";
+import type {
+  Harness,
+  HarnessEvent,
+  RunSubagentCall,
+  Subagent,
+  TraceSpan,
+} from "@mg/harness";
 import type { RunToolCall } from "@mg/trace";
-import { ATTR, SPAN, traceProvider, traceRunToolCall } from "@mg/trace";
-import { StreamIncompleteError } from "./errors.js";
+import {
+  ATTR,
+  SPAN,
+  traceProvider,
+  traceRunSubagentCall,
+  traceRunToolCall,
+} from "@mg/trace";
+import {
+  DuplicateCallableNameError,
+  StreamIncompleteError,
+} from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
 
 export type LoopHarnessOptions = {
   provider: Provider;
   model: string;
   tools?: readonly Tool[];
+  subagents?: readonly Subagent[];
   maxTurns: number;
   stream?: boolean;
   gate?: Gate;
@@ -122,6 +139,24 @@ async function* runStreamedTurn(
   };
 }
 
+const checkForDuplicateNames = (
+  tools: readonly ToolDefinition[],
+  subagents: readonly Subagent[],
+): void => {
+  const subagentNames = new Set<string>();
+  for (const subagent of subagents) {
+    if (subagentNames.has(subagent.name)) {
+      throw new DuplicateCallableNameError(subagent.name);
+    }
+    subagentNames.add(subagent.name);
+  }
+  for (const tool of tools) {
+    if (subagentNames.has(tool.name)) {
+      throw new DuplicateCallableNameError(tool.name);
+    }
+  }
+};
+
 export const createLoopHarness = (
   options: LoopHarnessOptions,
 ): Harness => {
@@ -131,15 +166,31 @@ export const createLoopHarness = (
     );
   }
 
-  const toolDefinitions = options.tools
-    ? [...options.tools]
-    : undefined;
+  const tools = options.tools ?? [];
+  const subagents = options.subagents ?? [];
+  checkForDuplicateNames(tools, subagents);
+
+  const toolDefinitions =
+    options.tools || options.subagents
+      ? [
+          ...tools,
+          ...subagents.map((subagent): ToolDefinition => ({
+            name: subagent.name,
+            description: subagent.description,
+            input: subagent.input,
+          })),
+        ]
+      : undefined;
   const stream = options.stream ?? true;
+  const subagentNames = new Set(
+    subagents.map((subagent) => subagent.name),
+  );
 
   return async function* (input) {
     let span: TraceSpan;
     let provider: Provider;
     let run: RunToolCall;
+    let runSubagent: RunSubagentCall;
 
     if (input.trace === undefined) {
       span = noopSpan;
@@ -148,6 +199,10 @@ export const createLoopHarness = (
         options.gate === undefined
           ? runToolCall
           : gateRunToolCall(options.gate, runToolCall);
+      runSubagent =
+        options.gate === undefined
+          ? runSubagentCall
+          : gateRunToolCall(options.gate, runSubagentCall);
     } else {
       try {
         span = input.trace.startSpan(SPAN.harness, {
@@ -162,6 +217,14 @@ export const createLoopHarness = (
         options.gate === undefined
           ? traceRunToolCall(span)
           : gateRunToolCall(options.gate, traceRunToolCall(span), span);
+      runSubagent =
+        options.gate === undefined
+          ? traceRunSubagentCall(span)
+          : gateRunToolCall(
+              options.gate,
+              traceRunSubagentCall(span),
+              span,
+            );
     }
 
     let ended = false;
@@ -224,15 +287,16 @@ export const createLoopHarness = (
         input.signal?.throwIfAborted();
 
         const results = await Promise.all(
-          turnResult.toolCalls.map((call) =>
-            run(options.tools ?? [], call, {
-              signal: input.signal,
-            }).catch((error: unknown) => {
+          turnResult.toolCalls.map((call) => {
+            const callResult = subagentNames.has(call.name)
+              ? runSubagent(subagents, call, { signal: input.signal })
+              : run(tools, call, { signal: input.signal });
+            return callResult.catch((error: unknown) => {
               if (error instanceof Error && error.name === "AbortError")
                 throw error;
               return toolErrorToMessage(call, error);
-            }),
-          ),
+            });
+          }),
         );
         for (const result of results) {
           messages.push(result);

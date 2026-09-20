@@ -37,8 +37,25 @@
       {
         "patterns": [
           {
-            "group": ["**/packages/*/src/**"],
+            "group": [
+              "**/packages/*/src/**",
+              "**/packages/*/dist/**",
+              "@mg/*/src/**",
+              "@mg/*/dist/**"
+            ],
             "message": "他パッケージは @mg/* で import します"
+          },
+          {
+            "regex": "^@mg/dashboard(/.*)?$",
+            "message": "dashboard は使う側です。どこからも import しません"
+          },
+          {
+            "regex": "^(\\.\\./)+([^/]+/)*dashboard(/|$)",
+            "message": "dashboard は使う側です。どこからも import しません"
+          },
+          {
+            "regex": "^(\\.\\./)+([^/]+/)*runs(/|$)",
+            "message": "runs は使う側です。どこからも import しません"
           }
         ]
       }

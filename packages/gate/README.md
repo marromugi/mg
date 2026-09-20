@@ -185,11 +185,11 @@ const verdict = await gate.judge({
 
 `createEstimatorGate` に渡すものを表にまとめます。
 
-| 名前        | 内容                                |
-| ----------- | ----------------------------------- |
-| `estimator` | 使う `Estimator`（`@mg/core` から） |
-| `policy`    | 判定の根拠にする方針の文章          |
-| `threshold` | 通すしきい値の確率（省くと `0.5`）  |
+| 名前        | 内容                                              |
+| ----------- | ------------------------------------------------- |
+| `estimator` | 使う `Estimator`（`@mg/core` から）               |
+| `policy`    | 判定の根拠にする方針の文章                        |
+| `threshold` | 通すしきい値の確率。0 以上 1 以下（省くと `0.5`） |
 
 ```ts
 import { createJevEstimator } from "@mg/core";
@@ -212,6 +212,9 @@ const verdict = await gate.judge({
 
 判定そのものが失敗すると、`GateError` を投げます。
 中断のシグナルだけは、ラップせずにそのまま通します。
+
+しきい値には 0 以上 1 以下の有限の数を渡します。
+外れた値を渡すと、作る時点で `RangeError` を投げます。
 
 `createRulesGate` に渡すものを表にまとめます。
 

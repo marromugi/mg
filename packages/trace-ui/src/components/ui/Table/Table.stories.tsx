@@ -1,11 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { sessionSummaries } from "../../../stories/fixtures.js";
 import { Table } from "./Table.js";
-
-const sessionSummaries = [
-  { sessionId: "session-1", startTime: "2026-01-01T00:00:00.000Z" },
-  { sessionId: "session-2", startTime: "2026-01-01T00:02:00.000Z" },
-  { sessionId: "session-3", startTime: "2026-01-01T00:03:00.000Z" },
-];
 
 const meta = {
   component: Table,

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { parseScheme } from "../../scheme.js";
+import { parseScheme } from "../../../scheme.js";
 import { Layout } from "./Layout.js";
 
 const meta = {
@@ -14,8 +14,6 @@ export const Default: Story = {
   args: {
     title: "Sessions",
     scheme: "system",
-    css: "",
-    schemeAction: "/theme",
     children: <p>Layout content</p>,
   },
   render: (args, { globals }) => (
@@ -27,8 +25,6 @@ export const Dark: Story = {
   args: {
     title: "Sessions",
     scheme: "dark",
-    css: "",
-    schemeAction: "/theme",
     children: <p>Layout content</p>,
   },
 };

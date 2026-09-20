@@ -1,7 +1,20 @@
+import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
-import type { Scheme } from "../../scheme.js";
-import { SCHEME_FIELD } from "../../scheme.js";
+import type { Scheme } from "../../../scheme.js";
 import { Button } from "../Button/index.js";
+
+let css = "";
+try {
+  css = readFileSync(
+    new URL("../../../../dist/styles.css", import.meta.url),
+    "utf-8",
+  );
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+    throw error;
+  }
+  console.warn("trace-ui: dist/styles.css not found; run `pnpm build`");
+}
 
 const schemeClassName: Record<Scheme, string> = {
   system: "scheme-light-dark",
@@ -12,14 +25,10 @@ const schemeClassName: Record<Scheme, string> = {
 export const Layout = ({
   title,
   scheme,
-  css,
-  schemeAction,
   children,
 }: {
   title: string;
   scheme: Scheme;
-  css: string;
-  schemeAction: string;
   children: ReactNode;
 }) => (
   <html lang="ja" className={schemeClassName[scheme]}>
@@ -34,8 +43,8 @@ export const Layout = ({
     </head>
     <body className="max-w-page px-8 py-6 font-sans">
       <nav className="flex gap-2" aria-label="配色">
-        <form method="post" action={schemeAction}>
-          <input type="hidden" name={SCHEME_FIELD} value="system" />
+        <form method="post" action="/theme">
+          <input type="hidden" name="scheme" value="system" />
           <Button
             size="sm"
             tone={scheme === "system" ? "primary" : "neutral"}
@@ -43,8 +52,8 @@ export const Layout = ({
             OS
           </Button>
         </form>
-        <form method="post" action={schemeAction}>
-          <input type="hidden" name={SCHEME_FIELD} value="light" />
+        <form method="post" action="/theme">
+          <input type="hidden" name="scheme" value="light" />
           <Button
             size="sm"
             tone={scheme === "light" ? "primary" : "neutral"}
@@ -52,8 +61,8 @@ export const Layout = ({
             明
           </Button>
         </form>
-        <form method="post" action={schemeAction}>
-          <input type="hidden" name={SCHEME_FIELD} value="dark" />
+        <form method="post" action="/theme">
+          <input type="hidden" name="scheme" value="dark" />
           <Button
             size="sm"
             tone={scheme === "dark" ? "primary" : "neutral"}

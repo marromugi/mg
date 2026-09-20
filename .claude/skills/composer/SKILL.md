@@ -77,7 +77,7 @@ flows down as values; nothing inside reaches up for it.
 Every colour, font, size, radius, and shadow in a component comes from the
 token set. Which tokens exist, what values they hold, and how they are meant
 to be used — one scarce accent, the radius scale, the spacing rhythm, dark
-mode — lives in the token file itself (`packages/ui/src/styles/tokens.css`),
+mode — lives in the token file itself (`packages/trace-ui/src/styles/tokens.css`),
 the only source of those values. composer's rule is
 only about the relationship between a component and the tokens: use them,
 never bypass them, and never add one on your own.

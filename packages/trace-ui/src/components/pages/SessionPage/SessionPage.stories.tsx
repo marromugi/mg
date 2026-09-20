@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { parseScheme } from "@mg/ui";
+import { parseScheme } from "../../../scheme.js";
 import { sessionTree } from "../../../stories/fixtures.js";
 import { SessionPage } from "./SessionPage.js";
 
@@ -15,7 +15,6 @@ export const Default: Story = {
   args: {
     session: sessionTree,
     scheme: "system",
-    css: "",
   },
   render: (args, { globals }) => (
     <SessionPage {...args} scheme={parseScheme(globals.scheme)} />

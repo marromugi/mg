@@ -2,9 +2,9 @@
 
 ## Tokens
 
-`packages/ui/src/styles/tokens.css` is the token set for every UI package in
-this repo. It imports Tailwind and declares every colour, font, radius, and
-shadow in one `@theme` block:
+`src/styles/tokens.css` is the token set. It imports Tailwind and declares
+every colour, font, radius, and shadow the package uses in one `@theme`
+block:
 
 ```css
 @import "tailwindcss";
@@ -62,21 +62,11 @@ so `clsx` is not needed.
 
 ## How the CSS reaches the page
 
-`@mg/ui` does not generate CSS. It exports `tokens.css` as a raw file
-(`"./tokens.css"` in its `package.json`), and the file declares an `@source`
-pointing at its own `components/`, so any package that imports it also picks
-up `@mg/ui`'s classes.
-
-A screen-owning package such as `trace-ui` has its own small CSS entry
-(`src/styles/index.css`) that contains only `@import "@mg/ui/tokens.css";`.
 There is no bundler on the server. `pnpm build` runs `tsc` and then the
-Tailwind CLI on that entry, which scans the package's own `src/` (and, via
-the `@source` in `tokens.css`, `@mg/ui`'s `src/components/`) and writes
-`dist/styles.css`. The `Layout` ui part reads that file once at startup and
-inlines it in a `<style>` tag. Storybook uses `@tailwindcss/vite` and
-imports `tokens.css` in its preview — `@mg/ui/tokens.css` for a package that
-consumes it, the local `src/styles/tokens.css` for `@mg/ui` itself — so
-every Storybook renders from the same token set.
+Tailwind CLI, which scans `src/` for classes and writes `dist/styles.css`.
+The `Layout` ui part reads that file once at startup and inlines it in a
+`<style>` tag. Storybook uses `@tailwindcss/vite` and imports `tokens.css`
+in its preview, so both render from the same token set.
 
 The practical consequence: a class only exists in the output if it appears
 literally in source. Build class names from `tv()` variants or full string

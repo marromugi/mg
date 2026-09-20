@@ -1,6 +1,6 @@
 import type { SpanNode } from "@mg/trace/store";
-import { Badge, Card } from "@mg/ui";
 import { SPAN } from "../../../vocabulary.js";
+import { Badge, Card } from "../../ui/index.js";
 import { useSpanStatus } from "./hooks/useSpanStatus.js";
 import { LlmDetails } from "./LlmDetails.js";
 import { ToolDetails } from "./ToolDetails.js";

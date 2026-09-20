@@ -5,10 +5,12 @@ export const SPAN = {
   run: "mg.run",
   gate: "mg.gate",
   workspace: "mg.workspace",
+  subagent: "mg.subagent",
+  thread: "mg.thread",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread"
   harnessName: "mg.harness.name",
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
@@ -33,4 +35,9 @@ export const ATTR = {
   gateReason: "mg.gate.reason",
   gateModel: "mg.gate.model",
   gateProbability: "mg.gate.probability", // number
+  subagentName: "mg.subagent.name",
+  subagentCallId: "mg.subagent.call_id",
+  subagentArguments: "mg.subagent.arguments", // jsonAttribute(unknown)
+  subagentResult: "mg.subagent.result", // string
+  threadId: "mg.thread.id",
 } as const;

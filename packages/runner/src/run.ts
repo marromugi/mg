@@ -1,16 +1,14 @@
 import type { Message } from "@mg/core";
-import type {
-  HarnessEvent,
-  HarnessResult,
-  TraceSpan,
-} from "@mg/harness";
-import { collect, noopSpan } from "@mg/harness";
-import { ATTR, jsonAttribute, SPAN, startRootSpan } from "@mg/trace";
+import type { HarnessEvent, HarnessResult } from "@mg/harness";
+import { collect } from "@mg/harness";
+import { ATTR, SPAN, startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
-import type { OpenWorkspace } from "@mg/workspace";
-import { DuplicateToolNameError, openWorkspace } from "@mg/workspace";
 import type { RunConfig } from "./config.js";
 import { createHarness } from "./harness.js";
+import {
+  mergeWorkspaceTools,
+  withWorkspace,
+} from "./workspace-scope.js";
 
 export type RunOptions = {
   signal?: AbortSignal;
@@ -48,115 +46,32 @@ export const run = async (
       : {}),
   });
 
-  let workspaceSpan: TraceSpan = noopSpan;
-  if (config.workspace) {
-    try {
-      workspaceSpan = root.startSpan(SPAN.workspace, {
-        [ATTR.op]: "workspace",
-        [ATTR.workspaceName]: config.workspace.name,
-        [ATTR.workspaceConnectors]: jsonAttribute(
-          config.workspace.connectors.map(
-            (connector) => connector.kind,
-          ),
-        ),
-      });
-    } catch {
-      workspaceSpan = noopSpan;
-    }
-  }
-
-  let opened: OpenWorkspace | undefined;
-  const closeWorkspace = async (): Promise<void> => {
-    if (!opened) {
-      return;
-    }
-    try {
-      await opened.close();
-      workspaceSpan.end();
-    } catch (error) {
-      workspaceSpan.end(error);
-      throw error;
-    }
-  };
-
-  let result: HarnessResult | undefined;
-  let runtimeFailed = false;
-  let runtimeError: unknown;
+  let result: HarnessResult;
   try {
-    opened = config.workspace
-      ? await openWorkspace(config.workspace, {
-          signal: options?.signal,
-        }).catch((error: unknown) => {
-          workspaceSpan.end(error);
-          throw error;
-        })
-      : undefined;
-    if (opened) {
-      workspaceSpan.setAttributes({
-        [ATTR.workspaceTools]: jsonAttribute(
-          opened.tools.map((tool) => tool.name),
-        ),
-      });
-    }
-
-    const configTools = config.tools ?? [];
-    if (opened) {
-      const configToolNames = new Set(
-        configTools.map((tool) => tool.name),
-      );
-      const duplicate = opened.tools.find((tool) =>
-        configToolNames.has(tool.name),
-      );
-      if (duplicate) {
-        throw new DuplicateToolNameError(duplicate.name, [
-          "config",
-          opened.name,
-        ]);
-      }
-    }
-    const tools = opened
-      ? [...configTools, ...opened.tools]
-      : configTools;
-
-    const harness = createHarness(config, tools);
-    const events = tee(
-      harness({ messages, signal: options?.signal, trace: root }),
-      options?.onEvent,
+    result = await withWorkspace(
+      config.workspace,
+      { trace: root, signal: options?.signal },
+      async (opened) => {
+        const tools = mergeWorkspaceTools(config.tools ?? [], opened);
+        const harness = createHarness(config, tools);
+        const events = tee(
+          harness({ messages, signal: options?.signal, trace: root }),
+          options?.onEvent,
+        );
+        return collect(events);
+      },
     );
-    result = await collect(events);
   } catch (error) {
-    runtimeFailed = true;
-    runtimeError = error;
-  }
-
-  let closeFailed = false;
-  let closeError: unknown;
-  try {
-    await closeWorkspace();
-  } catch (error) {
-    closeFailed = true;
-    closeError = error;
-  }
-
-  // `run`'s own error wins over a close failure that follows it.
-  const failed = runtimeFailed || closeFailed;
-  const rootError = runtimeFailed ? runtimeError : closeError;
-  root.end(failed ? rootError : undefined);
-
-  if (failed) {
+    root.end(error);
     try {
       await sdk.shutdown();
     } catch {
       // The run error wins over a shutdown failure that follows it.
     }
-    throw rootError;
+    throw error;
   }
 
+  root.end();
   await sdk.shutdown();
-  if (result === undefined) {
-    // Unreachable: `runtimeFailed` is false only when the try block
-    // above ran to completion and assigned `result`.
-    throw new Error("run: result was not assigned despite success");
-  }
   return { sessionId: sdk.sessionId, result };
 };

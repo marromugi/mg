@@ -6,11 +6,7 @@ import {
 } from "@mg/harness";
 import { describe, expect, it, vi } from "vitest";
 import { createRulesGate } from "./rules/index.js";
-import {
-  gateRunToolCall,
-  TOOL_CALL_KIND,
-  type ToolCallPayload,
-} from "./tool-gate.js";
+import { gateRunToolCall, type ToolCallPayload } from "./tool-gate.js";
 import type { Gate, GateRequest, Verdict } from "./types.js";
 
 const stubSpan = (): TraceSpan => ({
@@ -103,7 +99,7 @@ describe("gateRunToolCall with runSubagentCall", () => {
 
     await gateRunToolCall(gate, runSubagentCall)([researcher], call);
 
-    expect(seenRequest?.kind).toBe(TOOL_CALL_KIND);
+    expect(seenRequest?.kind).toBe("tool-call");
     const payload = seenRequest?.payload as ToolCallPayload;
     expect(payload.call).toBe(call);
     expect(payload.tool?.name).toBe("researcher");

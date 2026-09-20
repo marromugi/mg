@@ -1,5 +1,6 @@
 import type { ToolCall, ToolMessage } from "@mg/core";
 import { ToolInputError } from "@mg/core";
+import { SubagentInputError } from "@mg/harness";
 
 export const toolErrorToMessage = (
   call: ToolCall,
@@ -14,7 +15,10 @@ export const toolErrorToMessage = (
   }
 
   let content = `[${error.name}] ${error.message}`;
-  if (error instanceof ToolInputError) {
+  if (
+    error instanceof ToolInputError ||
+    error instanceof SubagentInputError
+  ) {
     content += `\n${error.issues.map((issue) => `- ${issue.message}`).join("\n")}`;
   }
 

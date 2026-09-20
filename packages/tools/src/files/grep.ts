@@ -103,6 +103,7 @@ type ParsedMatches = {
   truncated: boolean;
   invalidUtf8: number;
   binary: number;
+  sawSummary: boolean;
 };
 
 const formatMatches = (
@@ -115,6 +116,7 @@ const formatMatches = (
   let truncated = false;
   let invalidUtf8 = 0;
   let binary = 0;
+  let sawSummary = false;
   let currentFileLines: string[] = [];
 
   for (const rawLine of stdout.split("\n")) {
@@ -128,6 +130,11 @@ const formatMatches = (
     }
     if (typeof entry !== "object" || entry === null) continue;
     const type = (entry as { type?: unknown }).type;
+
+    if (type === "summary") {
+      sawSummary = true;
+      continue;
+    }
 
     if (type === "match") {
       if (!isRgMatch(entry)) continue;
@@ -179,7 +186,13 @@ const formatMatches = (
     }
   }
 
-  return { lines: committed, truncated, invalidUtf8, binary };
+  return {
+    lines: committed,
+    truncated,
+    invalidUtf8,
+    binary,
+    sawSummary,
+  };
 };
 
 const formatOutput = (
@@ -197,6 +210,33 @@ const formatOutput = (
     parts.push(`[skipped ${binary} matches: binary file]`);
   }
   return parts.join("\n");
+};
+
+const rewriteStderrLine = (line: string, rootReal: string): string => {
+  const stripped = line.startsWith("rg: ") ? line.slice(4) : line;
+  const prefix = `${rootReal}${path.sep}`;
+  return stripped.startsWith(prefix)
+    ? stripped.slice(prefix.length).split(path.sep).join("/")
+    : stripped;
+};
+
+const maxIncompleteNoteLines = 5;
+
+const buildIncompleteNote = (
+  stderr: string,
+  rootReal: string,
+): string => {
+  const lines = stderr
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => rewriteStderrLine(line, rootReal));
+  const shown = lines.slice(0, maxIncompleteNoteLines);
+  const remaining = lines.length - shown.length;
+  return [
+    "[search incomplete: ripgrep reported errors]",
+    ...shown,
+    ...(remaining > 0 ? [`... and ${remaining} more lines`] : []),
+  ].join("\n");
 };
 
 export const createGrepTool = (
@@ -275,7 +315,10 @@ export const createGrepTool = (
           maxResults,
           maxLineChars,
         );
-        return formatOutput(lines, true, invalidUtf8, binary);
+        const body = formatOutput(lines, true, invalidUtf8, binary);
+        return stderr.trim() === ""
+          ? body
+          : `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
       }
 
       if (error.killed === true) {
@@ -288,6 +331,24 @@ export const createGrepTool = (
         const location =
           resolved.relative === "." ? "the root" : resolved.relative;
         return `No matches for /${pattern}/ in ${location}.`;
+      }
+
+      if (error.code === 2) {
+        const { lines, truncated, invalidUtf8, binary, sawSummary } =
+          formatMatches(stdout, rootReal, maxResults, maxLineChars);
+
+        if (sawSummary) {
+          const location =
+            resolved.relative === "." ? "the root" : resolved.relative;
+          const body =
+            lines.length === 0 &&
+            !truncated &&
+            invalidUtf8 === 0 &&
+            binary === 0
+              ? `No matches for /${pattern}/ in ${location}.`
+              : formatOutput(lines, truncated, invalidUtf8, binary);
+          return `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
+        }
       }
 
       const detail =

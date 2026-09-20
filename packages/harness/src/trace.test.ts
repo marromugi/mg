@@ -12,6 +12,10 @@ describe("noopSpan", () => {
     expect(noopSpan.startSpan("x")).toBe(noopSpan);
   });
 
+  test("startRoot returns itself", () => {
+    expect(noopSpan.startRoot("x")).toBe(noopSpan);
+  });
+
   test("every method is a no-op", () => {
     expect(() => noopSpan.startSpan("x", { a: 1 })).not.toThrow();
     expect(() => noopSpan.setAttributes({ a: 1 })).not.toThrow();

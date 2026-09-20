@@ -488,3 +488,226 @@ process.exit(0);
     });
   },
 );
+
+describe.skipIf(!hasRg)(
+  "search incomplete: a file permission denies reading",
+  () => {
+    const permDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-incomplete-perm-"),
+    );
+    const permRoot = realpathSync(permDir);
+    const lockedFile = join(permRoot, "perm", "locked.txt");
+    afterAll(() => {
+      chmodSync(lockedFile, 0o644);
+      rmSync(permDir, { recursive: true, force: true });
+    });
+
+    mkdirSync(join(permRoot, "perm"), { recursive: true });
+    writeFileSync(join(permRoot, "perm", "ok.txt"), "needle-p ok\n");
+    writeFileSync(lockedFile, "needle-p locked\n");
+    chmodSync(lockedFile, 0o000);
+
+    const grep = createGrepTool({ root: permRoot });
+
+    test.skipIf(process.getuid?.() === 0)(
+      "a match from a readable file returns alongside a note naming the unreadable one",
+      async () => {
+        const result = await grep.execute(
+          { pattern: "needle-p", path: "perm" },
+          {},
+        );
+        expect(result).toBe(
+          "perm/ok.txt:1:1: needle-p ok\n" +
+            "[search incomplete: ripgrep reported errors]\n" +
+            "perm/locked.txt: Permission denied (os error 13)",
+        );
+      },
+    );
+
+    test.skipIf(process.getuid?.() === 0)(
+      "no matches plus an unreadable file returns the no-match sentence and the note",
+      async () => {
+        const result = await grep.execute(
+          { pattern: "zzz-p", path: "perm" },
+          {},
+        );
+        expect(result).toBe(
+          "No matches for /zzz-p/ in perm.\n" +
+            "[search incomplete: ripgrep reported errors]\n" +
+            "perm/locked.txt: Permission denied (os error 13)",
+        );
+      },
+    );
+  },
+);
+
+describe.skipIf(!hasRg)(
+  "search incomplete: more unreadable files than the note can list",
+  () => {
+    const locked7Dir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-incomplete-locked7-"),
+    );
+    const locked7Root = realpathSync(locked7Dir);
+    const lockedFiles = Array.from({ length: 7 }, (_, i) =>
+      join(locked7Root, "locked7", `l${i + 1}.txt`),
+    );
+    afterAll(() => {
+      for (const file of lockedFiles) chmodSync(file, 0o644);
+      rmSync(locked7Dir, { recursive: true, force: true });
+    });
+
+    mkdirSync(join(locked7Root, "locked7"), { recursive: true });
+    for (const file of lockedFiles) {
+      writeFileSync(file, "x\n");
+      chmodSync(file, 0o000);
+    }
+
+    const grep = createGrepTool({ root: locked7Root });
+
+    test.skipIf(process.getuid?.() === 0)(
+      "the note lists at most five reasons and sums the rest into one line",
+      async () => {
+        const result = await grep.execute(
+          { pattern: "x", path: "locked7" },
+          {},
+        );
+        const lines = result.split("\n");
+        expect(lines).toHaveLength(8);
+        expect(lines[0]).toBe("No matches for /x/ in locked7.");
+        expect(lines[1]).toBe(
+          "[search incomplete: ripgrep reported errors]",
+        );
+        const reasonLines = lines.slice(2, 7);
+        for (const line of reasonLines) {
+          expect(line).toMatch(
+            /^locked7\/l[1-7]\.txt: Permission denied \(os error 13\)$/,
+          );
+        }
+        expect(new Set(reasonLines).size).toBe(5);
+        expect(lines[7]).toBe("... and 2 more lines");
+      },
+    );
+  },
+);
+
+describe.skipIf(!hasRg)(
+  "search incomplete: a fake ripgrep exits with an error",
+  () => {
+    const fakeDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-incomplete-fake-"),
+    );
+    const fakeRoot = realpathSync(fakeDir);
+    afterAll(() => rmSync(fakeDir, { recursive: true, force: true }));
+
+    const writeFakeRg = (name: string, script: string): string => {
+      const scriptPath = join(fakeDir, name);
+      writeFileSync(scriptPath, `#!/usr/bin/env node\n${script}`);
+      chmodSync(scriptPath, 0o755);
+      return scriptPath;
+    };
+
+    test("an exit code of 2 with a summary is treated as a search that ran", async () => {
+      const rgPath = writeFakeRg(
+        "fake-rg-summary-error.js",
+        `
+process.stdout.write(JSON.stringify({"type":"summary","data":{"elapsed_total":{"secs":0,"nanos":0,"human":"0.000000s"},"stats":{}}}) + "\\n");
+process.stderr.write("rg: something odd happened\\n");
+process.exit(2);
+`,
+      );
+
+      const grep = createGrepTool({ root: fakeRoot, rgPath });
+      const result = await grep.execute({ pattern: "x" }, {});
+      expect(result).toBe(
+        "No matches for /x/ in the root.\n" +
+          "[search incomplete: ripgrep reported errors]\n" +
+          "something odd happened",
+      );
+    });
+
+    test("an exit code of 2 with no summary rejects with the ripgrep failure message", async () => {
+      const rgPath = writeFakeRg(
+        "fake-rg-no-summary.js",
+        `
+process.stderr.write("rg: boom\\n");
+process.exit(2);
+`,
+      );
+
+      const grep = createGrepTool({ root: fakeRoot, rgPath });
+      await expect(
+        grep.execute({ pattern: "x" }, {}),
+      ).rejects.toMatchObject({
+        name: "FileToolError",
+        message: "ripgrep failed: rg: boom",
+      });
+    });
+
+    test("output cut off by the byte cap still carries the reported error", async () => {
+      const rgPath = writeFakeRg(
+        "fake-rg-cap-with-error.js",
+        `
+const root = process.cwd();
+process.stderr.write(\`rg: \${root}/x.txt: Permission denied (os error 13)\\n\`);
+for (let i = 0; i < 5000; i++) {
+  process.stdout.write(JSON.stringify({"type":"match","data":{"path":{"text":"flood.txt"},"line_number":i + 1,"lines":{"text":"x\\n"},"submatches":[{"start":0,"end":1}]}}) + "\\n");
+}
+`,
+      );
+
+      const grep = createGrepTool({
+        root: fakeRoot,
+        rgPath,
+        maxOutputBytes: 4096,
+      });
+      const result = await grep.execute({ pattern: "x" }, {});
+      expect(result).toBe(
+        "[results truncated]\n" +
+          "[search incomplete: ripgrep reported errors]\n" +
+          "x.txt: Permission denied (os error 13)",
+      );
+    });
+  },
+);
+
+describe.skipIf(!hasRg)(
+  "search incomplete: an unreadable file alongside a skipped non-UTF-8 match",
+  () => {
+    const perm2Dir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-incomplete-perm2-"),
+    );
+    const perm2Root = realpathSync(perm2Dir);
+    const lockedFile = join(perm2Root, "perm2", "locked.txt");
+    afterAll(() => {
+      chmodSync(lockedFile, 0o644);
+      rmSync(perm2Dir, { recursive: true, force: true });
+    });
+
+    mkdirSync(join(perm2Root, "perm2"), { recursive: true });
+    writeFileSync(join(perm2Root, "perm2", "ok.txt"), "needle-q ok\n");
+    writeFileSync(lockedFile, "needle-q locked\n");
+    chmodSync(lockedFile, 0o000);
+    writeFileSync(
+      join(perm2Root, "perm2", "bad.txt"),
+      Buffer.concat([Buffer.from([0xff]), Buffer.from(" needle-q\n")]),
+    );
+
+    const grep = createGrepTool({ root: perm2Root });
+
+    test.skipIf(process.getuid?.() === 0)(
+      "the UTF-8 skip note and the incomplete note both follow the match, incomplete last",
+      async () => {
+        const result = await grep.execute(
+          { pattern: "needle-q", path: "perm2" },
+          {},
+        );
+        expect(result).toBe(
+          "perm2/ok.txt:1:1: needle-q ok\n" +
+            "[skipped 1 matches: not valid UTF-8]\n" +
+            "[search incomplete: ripgrep reported errors]\n" +
+            "perm2/locked.txt: Permission denied (os error 13)",
+        );
+      },
+    );
+  },
+);

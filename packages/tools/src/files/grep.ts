@@ -103,6 +103,7 @@ type ParsedMatches = {
   truncated: boolean;
   invalidUtf8: number;
   binary: number;
+  sawSummary: boolean;
 };
 
 const formatMatches = (
@@ -115,6 +116,7 @@ const formatMatches = (
   let truncated = false;
   let invalidUtf8 = 0;
   let binary = 0;
+  let sawSummary = false;
   let currentFileLines: string[] = [];
 
   for (const rawLine of stdout.split("\n")) {
@@ -128,6 +130,11 @@ const formatMatches = (
     }
     if (typeof entry !== "object" || entry === null) continue;
     const type = (entry as { type?: unknown }).type;
+
+    if (type === "summary") {
+      sawSummary = true;
+      continue;
+    }
 
     if (type === "match") {
       if (!isRgMatch(entry)) continue;
@@ -179,7 +186,13 @@ const formatMatches = (
     }
   }
 
-  return { lines: committed, truncated, invalidUtf8, binary };
+  return {
+    lines: committed,
+    truncated,
+    invalidUtf8,
+    binary,
+    sawSummary,
+  };
 };
 
 const formatOutput = (
@@ -198,21 +211,6 @@ const formatOutput = (
   }
   return parts.join("\n");
 };
-
-const hasSummary = (stdout: string): boolean =>
-  stdout.split("\n").some((rawLine) => {
-    if (rawLine === "") return false;
-    try {
-      const entry: unknown = JSON.parse(rawLine);
-      return (
-        typeof entry === "object" &&
-        entry !== null &&
-        (entry as { type?: unknown }).type === "summary"
-      );
-    } catch {
-      return false;
-    }
-  });
 
 const rewriteStderrLine = (line: string, rootReal: string): string => {
   const stripped = line.startsWith("rg: ") ? line.slice(4) : line;
@@ -335,23 +333,22 @@ export const createGrepTool = (
         return `No matches for /${pattern}/ in ${location}.`;
       }
 
-      if (error.code === 2 && hasSummary(stdout)) {
-        const { lines, truncated, invalidUtf8, binary } = formatMatches(
-          stdout,
-          rootReal,
-          maxResults,
-          maxLineChars,
-        );
-        const location =
-          resolved.relative === "." ? "the root" : resolved.relative;
-        const body =
-          lines.length === 0 &&
-          !truncated &&
-          invalidUtf8 === 0 &&
-          binary === 0
-            ? `No matches for /${pattern}/ in ${location}.`
-            : formatOutput(lines, truncated, invalidUtf8, binary);
-        return `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
+      if (error.code === 2) {
+        const { lines, truncated, invalidUtf8, binary, sawSummary } =
+          formatMatches(stdout, rootReal, maxResults, maxLineChars);
+
+        if (sawSummary) {
+          const location =
+            resolved.relative === "." ? "the root" : resolved.relative;
+          const body =
+            lines.length === 0 &&
+            !truncated &&
+            invalidUtf8 === 0 &&
+            binary === 0
+              ? `No matches for /${pattern}/ in ${location}.`
+              : formatOutput(lines, truncated, invalidUtf8, binary);
+          return `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
+        }
       }
 
       const detail =

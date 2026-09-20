@@ -167,7 +167,8 @@ export const createGrepTool = (
     description:
       "Searches file contents under the root with ripgrep and returns " +
       "path:line:col: text per match; line and col are what read_file " +
-      `accepts. Respects .gitignore. At most ${maxResults} matches.`,
+      "accepts. Respects .gitignore. Searches hidden files. At most " +
+      `${maxResults} matches.`,
     input: grepInput,
     async execute(
       { pattern, path: inputPath, glob, ignoreCase },
@@ -183,6 +184,7 @@ export const createGrepTool = (
 
       const args = [
         "--json",
+        "--hidden",
         "-e",
         pattern,
         ...(glob !== undefined ? ["-g", glob] : []),

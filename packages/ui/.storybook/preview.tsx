@@ -1,5 +1,5 @@
 import type { Preview } from "@storybook/react-vite";
-import "@mg/ui/tokens.css";
+import "../src/styles/tokens.css";
 
 const colorScheme: Record<string, string> = {
   system: "light dark",

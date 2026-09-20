@@ -11,7 +11,7 @@
   },
   "settings": {
     "tailwindcss": {
-      "entryPoint": "packages/trace-ui/src/styles/tokens.css"
+      "entryPoint": "packages/ui/src/styles/tokens.css"
     }
   },
   "rules": {
@@ -61,7 +61,10 @@
       }
     },
     {
-      "files": ["packages/trace-ui/.storybook/**"],
+      "files": [
+        "packages/trace-ui/.storybook/**",
+        "packages/ui/.storybook/**"
+      ],
       "rules": {
         "import/no-unassigned-import": "off"
       }

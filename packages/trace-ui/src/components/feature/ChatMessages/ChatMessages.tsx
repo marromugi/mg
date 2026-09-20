@@ -1,4 +1,4 @@
-import { Quote, Role } from "../../ui/index.js";
+import { Quote, Role } from "@mg/ui";
 import { useChatMessages } from "./hooks/useChatMessages.js";
 
 export const ChatMessages = ({

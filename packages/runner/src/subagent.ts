@@ -17,7 +17,6 @@ import type {
 } from "./subagent-config.js";
 import {
   mergeWorkspaceTools,
-  resultBeforeCloseFailure,
   withWorkspace,
 } from "./workspace-scope.js";
 
@@ -241,15 +240,23 @@ export const createSubagent = (
         return runWith(mergeWorkspaceTools(tools, parent));
       }
 
+      let succeeded = false;
+      let answer = "";
       try {
         return await withWorkspace(
           source.workspace,
           { trace, signal: context.signal },
-          (opened) => runWith(mergeWorkspaceTools(tools, opened)),
+          async (opened) => {
+            const result = await runWith(
+              mergeWorkspaceTools(tools, opened),
+            );
+            succeeded = true;
+            answer = result;
+            return result;
+          },
         );
       } catch (error) {
-        const answer = resultBeforeCloseFailure(error);
-        if (typeof answer === "string") {
+        if (succeeded) {
           throw new SubagentCloseError(source.workspace.name, answer, {
             cause: error,
           });

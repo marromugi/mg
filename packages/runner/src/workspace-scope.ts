@@ -10,13 +10,6 @@ export type WorkspaceScopeContext = {
   signal?: AbortSignal;
 };
 
-const successBeforeCloseFailure = new WeakMap<object, unknown>();
-
-export const resultBeforeCloseFailure = (error: unknown): unknown =>
-  typeof error === "object" && error !== null
-    ? successBeforeCloseFailure.get(error)
-    : undefined;
-
 export const withWorkspace = async <T>(
   workspace: Workspace | undefined,
   context: WorkspaceScopeContext,
@@ -70,9 +63,6 @@ export const withWorkspace = async <T>(
     await opened.close();
   } catch (closeError) {
     workspaceSpan.end(closeError);
-    if (typeof closeError === "object" && closeError !== null) {
-      successBeforeCloseFailure.set(closeError, result);
-    }
     throw closeError;
   }
   workspaceSpan.end();

@@ -94,9 +94,11 @@ LLM can judge it.
   Share with that evidence, to the extent the agreement covers. Without it, do
   not share.
 - Where a widely agreed convention exists, follow it.
-- An outside specification's own defaults, such as a model name or a URL,
-  live inside its implementation. Shared code holds none of them, and text
-  that shared code shows to the user names no vendor.
+- Everything that belongs to an outside specification lives inside its
+  implementation: its defaults, such as a model name or a URL, and its
+  vocabulary. Shared code holds none of it. A shared interface names its
+  types and fields in our own words, and text that shared code shows to the
+  user names no vendor.
 
 ### 8. No history in the code
 
@@ -172,7 +174,7 @@ After the design is made:
 | Reviewer | Lenses |
 |---|---|
 | Whole and position | The design starts from the picture of the whole and places the piece in it (1). Dependencies point one way (3). |
-| Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named (7). |
+| Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named, and nothing of an outside specification — a default, a term — sits in shared code (7). |
 | Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided (5). No behaviour changes that the record does not name (9). |
 | Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and assumes there is at least one. |
 

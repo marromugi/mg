@@ -13,20 +13,61 @@ conversation partner and does not drift into making design calls while coding.
 The agent works in its own worktree so the developer's checkout is untouched
 and several issues can be in flight.
 
+The issue can be rewritten or withdrawn while the agent works — the developer
+or another session may edit it, close it, or change the parent it belongs to.
+The guard script takes a copy before the agent starts, and that copy, not a
+fresh read, is what the agent builds from and what the later checks compare
+against. Reading fresh at every step would let the agent and the merge
+decision see two different versions of the same issue.
+
+## When an issue can start
+
+An issue that names a parent is only ready once its predecessors in the
+parent's `## 子 issue` list are done. The snapshot (see step 1 below)
+already carries what that needs: `parent.body` holds the ordered list, and
+`parent.children` gives every other child's current `state` (`OPEN` or
+`CLOSED`) and `stateReason` (`COMPLETED`, `NOT_PLANNED`, or `null`). A
+predecessor is done when its `state` is `CLOSED` and its `stateReason` is
+`COMPLETED`.
+
+Every child listed before this one in `parent.body` must be done, unless
+the parent says in words, anywhere in its body, that this issue is
+independent of the others (「他と独立です」 or similar). When the parent's
+wording is unclear, treat the list as strict order: a predecessor that is
+not done means this issue is not ready yet.
+
+An issue with no parent (`parent` is `null` in the snapshot) has no
+predecessors to check.
+
 ## Steps
 
 ### 1. Read the issue
 
+Run the guard script's snapshot operation before anything else, including
+before checking whether the issue is ready to start. The script does not
+create its output folder, so make it first:
+
 ```
-gh issue view <N> --json number,title,body,url
+mkdir -p <scratchpad>/issue-guard
+node .claude/skills/implementer/scripts/issue-guard.mjs snapshot <N> --dir <scratchpad>/issue-guard
 ```
 
-Check that the body has a `To Implementer` section. If it does not, the issue
-did not come through architect; stop and tell the developer to run architect
-for it. If the 設計 section links a parent issue, read that too — it holds the
-decision record and the shared constraints the implementation must respect.
+On a non-zero exit, stop and show the developer the script's lines exactly
+as printed; do not spawn the agent.
 
-Save the body to a scratchpad file and check its shape:
+On success, the snapshot is at `<scratchpad>/issue-guard/issue-<N>.json`.
+Its `body` field is the issue text, and, when the issue has a parent, the
+`parent.body` field is the parent's decision record. These are the copies
+to use from here on; do not fetch either with `gh issue view` again.
+
+Apply the rule under "When an issue can start" above. If a predecessor
+blocks it, stop and tell the developer which predecessor is still open.
+
+Check that the body has a `To Implementer` section. If it does not, the
+issue did not come through architect; stop and tell the developer to run
+architect for it.
+
+Save the `body` field to a scratchpad file and check its shape:
 
 ```
 node .claude/skills/architect/scripts/check-issue.mjs <body.md>
@@ -121,5 +162,14 @@ Run it with a generous timeout. Three outcomes:
 
 ### 5. Hand off to review
 
-Invoke the `reviewer` skill with the PR number. Pass along the Deviations
-section and whether CI ran.
+Run the guard script's verify operation first:
+
+```
+node .claude/skills/implementer/scripts/issue-guard.mjs verify <N> --dir <scratchpad>/issue-guard
+```
+
+On a non-zero exit, do not invoke `reviewer`. Leave the PR open and report
+the script's lines to the developer exactly as printed.
+
+On success, invoke the `reviewer` skill with the PR number. Pass along the
+Deviations section and whether CI ran.

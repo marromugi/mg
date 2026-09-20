@@ -54,6 +54,35 @@ function tempDir() {
 const human = () => ({ user: { type: "User" } });
 const bot = () => ({ user: { type: "Bot" } });
 
+function writeFakeGh(dir) {
+  const fakeGhPath = path.join(dir, "fake-gh.mjs");
+  fs.writeFileSync(
+    fakeGhPath,
+    [
+      "#!/usr/bin/env node",
+      "const args = process.argv.slice(2);",
+      "const issues = {",
+      '  10: { number: 10, state: "OPEN", stateReason: null, body: "## 設計\\n\\n決定の節です。\\n\\n## 子 issue\\n\\n1. #11 a\\n2. #12 b\\n3. #13 c\\n" },',
+      '  11: { number: 11, state: "CLOSED", stateReason: "COMPLETED", body: "## 設計\\n\\n親は #10 です。\\n" },',
+      '  12: { number: 12, state: "OPEN", stateReason: null, body: "## 設計\\n\\n親は #10 です。\\n" },',
+      '  13: { number: 13, state: "OPEN", stateReason: null, body: "## 設計\\n\\n親は #10 です。\\n" },',
+      "};",
+      'if (args[0] === "issue" && args[1] === "view") {',
+      "  process.stdout.write(JSON.stringify(issues[Number(args[2])]));",
+      '} else if (args[0] === "issue" && args[1] === "list") {',
+      "  process.stdout.write(JSON.stringify(Object.values(issues)));",
+      '} else if (args[0] === "api") {',
+      "  process.stdout.write(JSON.stringify([]));",
+      "} else {",
+      "  process.exit(1);",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  fs.chmodSync(fakeGhPath, 0o755);
+  return fakeGhPath;
+}
+
 test("refuses to start a closed issue, naming its state and closed reason", async () => {
   const { issues, gh } = createFixture();
   const closed = issues.get(11);
@@ -138,6 +167,19 @@ test("refuses when a sibling child is closed as not planned", async () => {
   assert.equal(result.ok, false);
   assert.deepEqual(result.lines, [
     "refused: parent #10 lists #11, which is closed as not planned",
+  ]);
+});
+
+test("refuses truthfully when the parent lists a number the issue listing does not return", async () => {
+  const { issues, gh } = createFixture();
+  issues.get(10).body = PARENT_BODY.replace("3. #13 c\n", "3. #13 c\n4. #99 d\n");
+  const guard = createGuard({ gh });
+
+  const result = await guard.check(12);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.lines, [
+    "refused: parent #10 lists #99, which could not be read as an issue",
   ]);
 });
 
@@ -421,33 +463,42 @@ test("reports a GitHub read failure as a refusal carrying the error message", as
   assert.deepEqual(result.lines, ["refused: could not read GitHub: gh: could not connect"]);
 });
 
+test("keeps the refusal to a single line when gh's failure carries a multi-line message and stderr", async () => {
+  const gh = async () => {
+    const err = new Error(
+      "Command failed: gh issue view 99999 --json number,state,stateReason,body\nGraphQL: Could not resolve to an issue or pull request with the number of 99999. (repository.issue)\n",
+    );
+    err.stderr =
+      "GraphQL: Could not resolve to an issue or pull request with the number of 99999. (repository.issue)\n";
+    throw err;
+  };
+  const guard = createGuard({ gh });
+
+  const result = await guard.check(12);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.lines, [
+    "refused: could not read GitHub: GraphQL: Could not resolve to an issue or pull request with the number of 99999. (repository.issue)",
+  ]);
+});
+
+test("refuses without leaving a snapshot file when the destination cannot be written", async () => {
+  const { gh } = createFixture();
+  const guard = createGuard({ gh });
+  const dir = tempDir();
+  const notADirectory = path.join(dir, "not-a-directory");
+  fs.writeFileSync(notADirectory, "");
+
+  const result = await guard.snapshot(12, notADirectory);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.lines.length, 1);
+  assert.match(result.lines[0], /^refused: could not write the snapshot: /);
+});
+
 test("the command line entry point maps the guard's result to the process exit code and prints its lines", async () => {
   const dir = tempDir();
-  const fakeGhPath = path.join(dir, "fake-gh.mjs");
-  fs.writeFileSync(
-    fakeGhPath,
-    [
-      "#!/usr/bin/env node",
-      "const args = process.argv.slice(2);",
-      "const issues = {",
-      '  10: { number: 10, state: "OPEN", stateReason: null, body: "## 設計\\n\\n決定の節です。\\n\\n## 子 issue\\n\\n1. #11 a\\n2. #12 b\\n3. #13 c\\n" },',
-      '  11: { number: 11, state: "CLOSED", stateReason: "COMPLETED", body: "## 設計\\n\\n親は #10 です。\\n" },',
-      '  12: { number: 12, state: "OPEN", stateReason: null, body: "## 設計\\n\\n親は #10 です。\\n" },',
-      '  13: { number: 13, state: "OPEN", stateReason: null, body: "## 設計\\n\\n親は #10 です。\\n" },',
-      "};",
-      'if (args[0] === "issue" && args[1] === "view") {',
-      "  process.stdout.write(JSON.stringify(issues[Number(args[2])]));",
-      '} else if (args[0] === "issue" && args[1] === "list") {',
-      "  process.stdout.write(JSON.stringify(Object.values(issues)));",
-      '} else if (args[0] === "api") {',
-      "  process.stdout.write(JSON.stringify([]));",
-      "} else {",
-      "  process.exit(1);",
-      "}",
-      "",
-    ].join("\n"),
-  );
-  fs.chmodSync(fakeGhPath, 0o755);
+  const fakeGhPath = writeFakeGh(dir);
   const env = { ...process.env, ISSUE_GUARD_GH_BIN: fakeGhPath };
 
   const ok = await execFileAsync(process.execPath, [SCRIPT, "check", "12"], { env });
@@ -468,4 +519,21 @@ test("the command line entry point maps the guard's result to the process exit c
       return true;
     },
   );
+});
+
+test("still runs the command line entry point when its own path has a space and a Japanese character", async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "issue guard 日本語 "));
+  const scriptCopy = path.join(base, "issue-guard.mjs");
+  fs.copyFileSync(SCRIPT, scriptCopy);
+  const fakeGhPath = writeFakeGh(base);
+  const env = { ...process.env, ISSUE_GUARD_GH_BIN: fakeGhPath };
+
+  const result = await execFileAsync(process.execPath, [scriptCopy, "check", "12"], { env });
+
+  assert.deepEqual(result.stdout.trim().split("\n"), [
+    "ok: issue #12 can start",
+    "parent: #10",
+    "child #11: CLOSED COMPLETED",
+    "child #13: OPEN",
+  ]);
 });

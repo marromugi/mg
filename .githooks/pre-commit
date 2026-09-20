@@ -1,12 +1,4 @@
 #!/bin/sh
 set -eu
 
-if [ -z "$(git diff --cached --name-only --diff-filter=ACMR)" ]; then
-  exit 0
-fi
-
-git diff --cached --name-only --diff-filter=ACMR -z |
-  xargs -0 pnpm exec prettier --ignore-unknown --write --log-level warn
-
-git diff --cached --name-only --diff-filter=ACMR -z |
-  xargs -0 git add
+exec node .githooks/format-staged.mts

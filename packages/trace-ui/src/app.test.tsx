@@ -1,6 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
 import type { SessionTree, TraceReader } from "@mg/trace/store";
 import { describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
+import { buildApp, createApp } from "./app.js";
 import {
   END_TIME,
   OBJECT_CONTENT_SESSION_ID,
@@ -25,6 +26,18 @@ class FakeTraceReader implements TraceReader {
     return sessionsById.get(sessionId);
   }
 }
+
+class EmptyTraceReader implements TraceReader {
+  async listSessions() {
+    return [];
+  }
+
+  async readSession() {
+    return undefined;
+  }
+}
+
+const distStylesPath = new URL("../dist/styles.css", import.meta.url);
 
 describe("createApp", () => {
   it("lists the session id, times, and trace count on GET /", async () => {
@@ -140,4 +153,24 @@ describe("createApp", () => {
       "http://localhost:3998/sessions/abc",
     );
   });
+
+  it("renders the given CSS in a style element on GET /", async () => {
+    const app = buildApp(new EmptyTraceReader(), "a{b:c}");
+    const res = await app.request("/");
+    const text = await res.text();
+
+    expect(text).toContain("<style>a{b:c}</style>");
+  });
+
+  it.runIf(existsSync(distStylesPath))(
+    "embeds the built CSS file's contents in a style element on GET /",
+    async () => {
+      const css = readFileSync(distStylesPath, "utf-8");
+      const app = createApp(new EmptyTraceReader());
+      const res = await app.request("/");
+      const text = await res.text();
+
+      expect(text).toContain(`<style>${css}</style>`);
+    },
+  );
 });

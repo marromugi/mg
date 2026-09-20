@@ -114,4 +114,19 @@ describe("createExclusiveNames", () => {
     await third;
     expect(thirdResolved).toBe(true);
   });
+
+  test("releases a name already acquired by the same call when its wait on a later name is aborted", async () => {
+    const exclusive = createExclusiveNames();
+    await exclusive.acquire(["b"]);
+
+    const controller = new AbortController();
+    const pending = exclusive.acquire(["a", "b"], controller.signal);
+    await flushMicrotasks();
+
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+
+    const release = await exclusive.acquire(["a"]);
+    expect(typeof release).toBe("function");
+  });
 });

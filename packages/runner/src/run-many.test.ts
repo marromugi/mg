@@ -272,12 +272,14 @@ describe("runMany", () => {
       }),
     };
 
-    await expect(
-      runMany(config, [makeCase("a")], { concurrency: 2 }),
-    ).rejects.toThrow(
-      new RangeError(
-        'workspace "build-machine" holds "cdp:localhost:9222" exclusively; concurrency must be 1, got 2',
-      ),
+    const outcome = runMany(config, [makeCase("a")], {
+      concurrency: 2,
+    });
+
+    await expect(outcome).rejects.toBeInstanceOf(RangeError);
+    await expect(outcome).rejects.toHaveProperty(
+      "message",
+      'workspace "build-machine" holds "cdp:localhost:9222" exclusively; concurrency must be 1, got 2',
     );
 
     expect(opened.count).toBe(0);

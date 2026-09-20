@@ -7,6 +7,8 @@ import type {
 } from "@mg/core";
 import { defineTool } from "@mg/core";
 import type { Gate, Verdict } from "@mg/gate";
+import type { Workspace } from "@mg/workspace";
+import { defineWorkspace } from "@mg/workspace";
 import { describe, expect, test, vi } from "vitest";
 import type { SubagentConfig } from "./subagent-config.js";
 import { defineSubagent } from "./subagent-config.js";
@@ -68,6 +70,72 @@ describe("SubagentConfig", () => {
 
     expect(defineSubagent(withTools)).toBe(withTools);
     expect(defineSubagent(withoutMeans)).toBe(withoutMeans);
+  });
+
+  test("requires a gate when a workspace receiving mode is written, and allows neither tools nor a workspace", () => {
+    const base = {
+      name: "researcher",
+      description: "Researches a topic",
+      provider: stubProvider(),
+      harness: { kind: "loop", model: "m", maxTurns: 1 },
+    } as const;
+    const ownWorkspace: Workspace = defineWorkspace({
+      name: "clean-browser",
+      connectors: [],
+    });
+
+    // @ts-expect-error a config with a workspace receiving mode requires a gate
+    defineSubagent({
+      ...base,
+      workspace: {
+        pick: "fixed",
+        source: { kind: "own", workspace: ownWorkspace },
+      },
+    });
+
+    const withWorkspace: SubagentConfig = {
+      ...base,
+      gate: stubGate(),
+      workspace: {
+        pick: "fixed",
+        source: { kind: "own", workspace: ownWorkspace },
+      },
+    };
+    const withoutMeans: SubagentConfig = { ...base };
+
+    expect(defineSubagent(withWorkspace)).toBe(withWorkspace);
+    expect(defineSubagent(withoutMeans)).toBe(withoutMeans);
+  });
+
+  test("requires at least one source for the caller-picked workspace receiving mode", () => {
+    const base = {
+      name: "researcher",
+      description: "Researches a topic",
+      provider: stubProvider(),
+      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      gate: stubGate(),
+    } as const;
+
+    ({
+      ...base,
+      workspace: {
+        pick: "caller",
+        // @ts-expect-error the caller-picked source list must not be empty
+        sources: [],
+        required: true,
+      },
+    }) satisfies SubagentConfig;
+
+    const withOneSource: SubagentConfig = {
+      ...base,
+      workspace: {
+        pick: "caller",
+        sources: [{ kind: "parent" }],
+        required: true,
+      },
+    };
+
+    expect(defineSubagent(withOneSource)).toBe(withOneSource);
   });
 
   test("has no item for a list of subagents", () => {

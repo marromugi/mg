@@ -1,7 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc", "import", "vitest"],
-  "jsPlugins": ["oxlint-tailwindcss"],
   "options": {
     "typeAware": true
   },
@@ -9,18 +8,7 @@
     "correctness": "error",
     "suspicious": "error"
   },
-  "settings": {
-    "tailwindcss": {
-      "entryPoint": "packages/trace-ui/src/styles/tokens.css"
-    }
-  },
   "rules": {
-    "tailwindcss/no-unknown-classes": "error",
-    "tailwindcss/no-conflicting-classes": "error",
-    "tailwindcss/no-arbitrary-value": "error",
-    "tailwindcss/no-hardcoded-colors": "error",
-    "tailwindcss/no-duplicate-classes": "warn",
-    "tailwindcss/enforce-sort-order": "warn",
     "import/extensions": [
       "error",
       "always",
@@ -75,12 +63,6 @@
       "rules": {
         "typescript/unbound-method": "off",
         "unicorn/consistent-function-scoping": "off"
-      }
-    },
-    {
-      "files": ["packages/trace-ui/.storybook/**"],
-      "rules": {
-        "import/no-unassigned-import": "off"
       }
     }
   ],

@@ -31,7 +31,6 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                            |
 | [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                            |
 | [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                    |
-| [`@mg/trace-ui`](packages/trace-ui/README.md)         | 保存したトレースを見る画面                                              |
 | [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装 |
 | [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                  |
 | [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                    |
@@ -54,8 +53,6 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | ツールの呼び出しの繰り返し                                | harness-loop                        |
 | 検証の失敗を LLM にどう返すか                             | harness-loop                        |
 | トレースの語彙とエクスポーター                            | trace                               |
-| トレースを見る画面                                        | trace-ui                            |
-| 画面のコンポーネント                                      | trace-ui                            |
 | 走行後の判定のインターフェースと、規則と Estimator の実装 | eval                                |
 | 端末に出す文字の色と印                                    | term                                |
 | 検証ごとの組み立ての設定                                  | runs                                |
@@ -93,16 +90,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
   </tr>
 </table>
 
-trace-ui は、実行の流れの外にいます。
-トレースを見るときだけ、trace とつながります。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/trace-ui</code> → <code>@mg/trace</code></td>
-  </tr>
-</table>
-
-eval も、trace-ui と同じく実行の流れの外にいます。
+eval は、実行の流れの外にいます。
 実行が終わったあとで、トレースを読み直すときだけつながります。
 
 <table>
@@ -119,12 +107,11 @@ eval も、trace-ui と同じく実行の流れの外にいます。
   </tr>
 </table>
 
-term は、runs と trace-ui が端末に書くときに使います。
+term は、runs が端末に書くときに使います。
 
 <table>
   <tr>
     <td align="center"><code>@mg/runs</code> → <code>@mg/term</code></td>
-    <td align="center"><code>@mg/trace-ui</code> → <code>@mg/term</code></td>
   </tr>
 </table>
 
@@ -171,7 +158,6 @@ runner は、走る前後で作業場を開いて閉じるために workspace �
 - runner は、eval を使いません。
 - harness-loop は、5 つを使います。core と tools と harness と trace と gate です。
 - trace は、harness と core を使います。
-- trace-ui は、trace と term を使います。
 - eval は、core と trace を使います。
 - harness と tools は、それぞれ core を使います。
 - gate は、core と harness と trace を使います。

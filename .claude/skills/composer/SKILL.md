@@ -1,6 +1,6 @@
 ---
 name: composer
-description: "How UI code is designed and structured in this repo, independent of framework: one responsibility per component, logic kept out of rendering so it can be tested alone, design tokens as the only source of visual values, and the right granularity — split a part into a generic ui layer when its purpose is generic, keep it with its feature when it is not, and never patch a one-off in place. Framework specifics (React layers, naming, props, hooks, stories) and Tailwind specifics live in references/stacks; token values live in the project's token file. Use this whenever you create, move, split, or review a component, page, hook, story, or route in packages/trace-ui or any other UI package here — even when the user only says 「コンポーネントを作って」「画面を足して」「props を整理して」「hooks に出して」「story を書いて」「どこに置けばいい？」 and never mentions structure. Also use it when the architect or implementer skill touches UI code, so issues and PRs follow the same shape. phrasing decides what the UI must do for the person; composer decides where code goes and how it is shaped. Not for terminal output, the trace store, or non-UI packages."
+description: "How UI code is designed and structured in this repo, independent of framework: one responsibility per component, logic kept out of rendering so it can be tested alone, design tokens as the only source of visual values, and the right granularity — split a part into a generic ui layer when its purpose is generic, keep it with its feature when it is not, and never patch a one-off in place. Framework specifics (React layers, naming, props, hooks, stories) and Tailwind specifics live in references/stacks; token values live in the project's token file. Use this whenever you create, move, split, or review a component, page, hook, story, or route in any UI package here — even when the user only says 「コンポーネントを作って」「画面を足して」「props を整理して」「hooks に出して」「story を書いて」「どこに置けばいい？」 and never mentions structure. Also use it when the architect or implementer skill touches UI code, so issues and PRs follow the same shape. phrasing decides what the UI must do for the person; composer decides where code goes and how it is shaped. Not for terminal output, the trace store, or non-UI packages."
 ---
 
 # composer
@@ -77,8 +77,8 @@ flows down as values; nothing inside reaches up for it.
 Every colour, font, size, radius, and shadow in a component comes from the
 token set. Which tokens exist, what values they hold, and how they are meant
 to be used — one scarce accent, the radius scale, the spacing rhythm, dark
-mode — lives in the token file itself (`packages/trace-ui/src/styles/tokens.css`),
-the only source of those values. composer's rule is
+mode — lives in the token file itself, the only source of those
+values. composer's rule is
 only about the relationship between a component and the tokens: use them,
 never bypass them, and never add one on your own.
 
@@ -167,9 +167,8 @@ it does not.
   test, the review checklist. Read it before writing or reviewing any
   component here.
 - `references/stacks/tailwind.md` — where the token file lives, how
-  variants are declared, why ui parts take no `className`, how the CSS
-  reaches the page. Read it before touching styling. The values themselves
-  live in the token file.
+  variants are declared, why ui parts take no `className`. Read it before
+  touching styling. The values themselves live in the token file.
 - `references/example.md` — one feature component with its hook and test,
   the ui part it uses, the page, the route, and the stories, written the way
   the references ask. Read it the first time you build something in this

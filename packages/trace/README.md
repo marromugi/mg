@@ -143,7 +143,7 @@ trace が扱わないことをまとめます。
 ## 使い方
 
 SDK から親スパンを作り、ハーネスに渡す例です。
-SQLite に保存し、あとで画面から見られるようにします。
+トレースは SQLite に保存します。
 
 ```ts
 import { createTraceSdk } from "@mg/trace/otel";
@@ -169,6 +169,3 @@ await sdk.shutdown();
 
 ルートスパンは、`end` で閉じないと書き出されません。
 `sdk.shutdown()` は、たまったトレースを書き出してから終わります。
-
-保存したトレースは、`@mg/trace-ui` の画面から見られます。
-見る画面の起動の仕方は、そちらの README にあります。

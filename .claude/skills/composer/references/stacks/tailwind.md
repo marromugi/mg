@@ -60,14 +60,6 @@ A new visual state is a new entry in `variants`, never a class string
 passed in by the caller. `tv()` already merges and de-duplicates classes,
 so `clsx` is not needed.
 
-## How the CSS reaches the page
-
-There is no bundler on the server. `pnpm build` runs `tsc` and then the
-Tailwind CLI, which scans `src/` for classes and writes `dist/styles.css`.
-The `Layout` ui part reads that file once at startup and inlines it in a
-`<style>` tag. Storybook uses `@tailwindcss/vite` and imports `tokens.css`
-in its preview, so both render from the same token set.
-
 The practical consequence: a class only exists in the output if it appears
 literally in source. Build class names from `tv()` variants or full string
 literals, never by concatenating fragments (`"bg-" + tone`), or the CLI

@@ -915,9 +915,15 @@ describe("createSubagent with a workspace", () => {
       workspace: { pick: "fixed", source: { kind: "own", workspace } },
     });
 
-    await expect(
-      subagent.start({ prompt: "find x" }, {}),
-    ).rejects.toMatchObject({
+    let caught: unknown;
+    try {
+      await subagent.start({ prompt: "find x" }, {});
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(SubagentCloseError);
+    expect(caught).toMatchObject({
       name: "SubagentCloseError",
       message:
         'The subagent finished, but closing its workspace "clean-browser" failed: Failed to close 1 connection(s). Its answer follows:\nanswer',

@@ -143,12 +143,17 @@ const checkForDuplicateNames = (
   tools: readonly ToolDefinition[],
   subagents: readonly Subagent[],
 ): void => {
-  const seen = new Set<string>();
-  for (const callee of [...tools, ...subagents]) {
-    if (seen.has(callee.name)) {
-      throw new DuplicateCallableNameError(callee.name);
+  const subagentNames = new Set<string>();
+  for (const subagent of subagents) {
+    if (subagentNames.has(subagent.name)) {
+      throw new DuplicateCallableNameError(subagent.name);
     }
-    seen.add(callee.name);
+    subagentNames.add(subagent.name);
+  }
+  for (const tool of tools) {
+    if (subagentNames.has(tool.name)) {
+      throw new DuplicateCallableNameError(tool.name);
+    }
   }
 };
 

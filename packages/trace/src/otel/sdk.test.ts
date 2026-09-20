@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ExportResultCode } from "@opentelemetry/core";
 import type {
   ReadableSpan,
   SpanExporter,
@@ -209,5 +210,109 @@ describe("createTraceSdk", () => {
 
     expect(shutdownCalls).toHaveLength(0);
     expect(exportedNames).toContain("root2");
+  });
+
+  it("receives the child span before the parent span, in the order they ended, before shutdown is called", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const a = startRootSpan(sdk.tracer, "a");
+    const b = a.startSpan("b");
+    b.end();
+    a.end();
+
+    expect(
+      inMemory.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["b", "a"]);
+
+    await sdk.shutdown();
+  });
+
+  it("receives only the span that has ended, leaving its unended parent out", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const a = startRootSpan(sdk.tracer, "a");
+    const b = a.startSpan("b");
+    b.end();
+
+    expect(
+      inMemory.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["b"]);
+
+    await sdk.shutdown();
+  });
+
+  it("orders independent root spans by when they ended, not when they started", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const x = startRootSpan(sdk.tracer, "x");
+    const y = startRootSpan(sdk.tracer, "y");
+    x.end();
+    y.end();
+
+    expect(
+      inMemory.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["x", "y"]);
+
+    await sdk.shutdown();
+
+    const inMemory2 = new InMemorySpanExporter();
+    const sdk2 = await createTraceSdk({ exporters: [inMemory2] });
+
+    const x2 = startRootSpan(sdk2.tracer, "x");
+    const y2 = startRootSpan(sdk2.tracer, "y");
+    y2.end();
+    x2.end();
+
+    expect(
+      inMemory2.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["y", "x"]);
+
+    await sdk2.shutdown();
+  });
+
+  it("gives every exporter the same spans in the same order", async () => {
+    const inMemory1 = new InMemorySpanExporter();
+    const inMemory2 = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({
+      exporters: [inMemory1, inMemory2],
+    });
+
+    const a = startRootSpan(sdk.tracer, "a");
+    const b = a.startSpan("b");
+    b.end();
+    a.end();
+
+    expect(
+      inMemory1.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["b", "a"]);
+    expect(
+      inMemory2.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["b", "a"]);
+
+    await sdk.shutdown();
+  });
+
+  it("waits for an export still in progress before shutdown resolves", async () => {
+    const receivedNames: string[] = [];
+    const fakeExporter: SpanExporter = {
+      export: (readableSpans, resultCallback) => {
+        setTimeout(() => {
+          receivedNames.push(...readableSpans.map((span) => span.name));
+          resultCallback({ code: ExportResultCode.SUCCESS });
+        }, 20);
+      },
+      shutdown: async () => {},
+    };
+
+    const sdk = await createTraceSdk({ exporters: [fakeExporter] });
+    const root = startRootSpan(sdk.tracer, "a");
+    root.end();
+
+    await sdk.shutdown();
+
+    expect(receivedNames).toEqual(["a"]);
   });
 });

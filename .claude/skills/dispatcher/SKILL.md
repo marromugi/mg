@@ -27,6 +27,14 @@ checks and still break after the merge before it. When the file sets are
 disjoint that cannot happen, so those issues go together. When there is any
 doubt, they go one after another. Slower and safe beats fast and sorry.
 
+GitHub is the record of what is ready, and it keeps changing while the loop
+runs: issues get closed, rewritten, or dropped from a parent's list mid-run.
+Deciding whether an issue can start from that record is mechanical, so the
+`.claude/skills/implementer/scripts/issue-guard.mjs` script does it, not
+prose here. dispatcher calls it wherever a decision depends on GitHub's
+current state — building the queue, and again right before each merge —
+instead of holding its own copy of the rule.
+
 ## Before starting
 
 Run these in the main checkout and stop if any fails:
@@ -53,14 +61,17 @@ stop on your own.
 
 ## Step 1: Find the ready issues
 
-List open issues:
+List open issues. Run this every time this step starts, and again each time
+an issue is added to a batch already in flight; nothing from an earlier
+listing is reused, because merges and edits made during the run change what
+is ready.
 
 ```
 gh issue list --state open --limit 100 --json number,title,body
 ```
 
-An issue is ready when all of these hold. Check them by reading the body;
-they are structural, not keyword matches.
+A candidate is an issue where all of these hold. Check them by reading the
+body; they are structural, not keyword matches.
 
 - The body has a `## To Implementer` section. Without it, the issue did not
   come through architect. Leave it alone; it is not work to build.
@@ -73,11 +84,49 @@ they are structural, not keyword matches.
   gh pr list --state open --json number,body --jq '.[] | select(.body | test("Closes #<N>\\b")) | .number'
   ```
 
-- Its predecessors are merged. If 設計 links a parent, read the parent's
-  `## 子 issue` list. Every child listed before this one must be closed,
-  unless the parent says in words that this child is independent of the
-  others (「他と独立です」 or similar). When the parent's wording is unclear,
-  treat the list as strict order.
+For each candidate, run:
+
+```
+node .claude/skills/implementer/scripts/issue-guard.mjs check <N>
+```
+
+A refusal excludes the issue from the queue. Record its number and the
+script's lines in the per-run not-started list, and do not try it again in
+this run (see "Not started" below).
+
+On success the script prints `ok: issue #<N> can start`, then `parent: none`
+or `parent: #<P>` followed by one `child #<n>: …` line per other child of
+the parent. The script does not judge ordering, and its output carries
+neither the parent's body nor this issue's own place in the parent's
+`## 子 issue` list, so the ordering rule cannot be applied from that output
+alone. When it printed `parent: #<P>`, read the parent now:
+
+```
+gh issue view <P> --json body
+```
+
+Read it at this moment, not reused from an earlier pass in this run: the
+parent can be rewritten while the loop runs, and its wording is what
+decides whether a predecessor still blocks this issue. Apply "When an issue
+can start" in `.claude/skills/implementer/SKILL.md` to the list order and
+wording in that body, together with the `child #<n>: …` states `check`
+printed, to decide whether this issue's predecessors are done. This
+judgment stays with the reader rather than moving into the script, because
+it depends on the parent's own words, not only on its children's states.
+
+An issue whose predecessors are not done yet is simply not ready this pass —
+leave it out of the queue without adding it to the not-started list, since a
+merge later in this run may finish it.
+
+**Not started.** Keep a per-run list of issues that did not start: number
+and the reason. An issue lands on it here, when `check` refuses it, or in
+step 3, when implementer stops before spawning an agent for any other
+reason. An issue on the list is not tried again in this run, except one
+whose only reason is a predecessor still being open — that one goes back to
+simply not ready, as above, since a merge later in this run may finish the
+predecessor. The list is a record of what this run did, not a copy of
+GitHub, so it starts empty at the top of the run and is not carried into the
+next one.
 
 ## Step 2: Order and group the ready issues
 
@@ -128,15 +177,30 @@ Invoke the `implementer` skill for each issue in the batch. Spawn all of
 the batch's implementer agents in one message, so they run at the same
 time, each in its own worktree branched from the current main. Then wait.
 
-As each agent reports, carry on with the rest of implementer for that issue
-(CI wait, then `reviewer`), one issue at a time, so that each merge lands
-before the next review starts. Do not shortcut either skill or
-do their work inline; the point of this loop is that each issue gets the
-same treatment it would get alone.
+As each issue's implementer run reports back, carry on with the rest of
+implementer for that issue (CI wait, then `reviewer`) only when a PR was
+opened, one issue at a time, so that each merge lands before the next
+review starts. Do not shortcut either skill or do their work inline; the
+point of this loop is that each issue gets the same treatment it would get
+alone.
+
+Running implementer on an issue ends one of three ways:
+
+- A PR was opened. Continue with CI and reviewer, and gather below.
+- implementer stopped on a design question before touching code. There is
+  no PR; quote the question in full in the report (step 5).
+- implementer stopped before spawning an agent (step 1 of the implementer
+  skill), for any of several reasons: its own snapshot of the issue was
+  refused, a predecessor under "When an issue can start" was still open,
+  the body had no `To Implementer` section, or `check-issue.mjs` found the
+  body's shape wrong. There is no PR and no agent was spawned; add the
+  issue's number and the reason implementer gave — the guard script's lines
+  when there are any — to the not-started list from step 1, and continue
+  with the rest of the batch. An issue whose only reason was an open
+  predecessor goes back to not ready instead, per step 1.
 
 When reviewer's report for an issue is in, gather from the run:
 
-- Did implementer stop on a design question instead of opening a PR?
 - The PR number and the Deviations section.
 - reviewer's design-level findings (the `[design]` ones), and whether the
   code-level fixes were pushed.
@@ -190,6 +254,21 @@ that is the cheap mistake.
   `BEHIND` is fine for a PR in a batch; disjointness was checked in step 2.
   `CONFLICTING` or `DIRTY` is not: the independence call was wrong. Leave
   the PR open and say so in the report.
+- The guard script's verify operation passes. Run it last, immediately
+  before the merge commands below, not earlier while the other conditions
+  were still being checked — review can take time, and the issue or its
+  parent can change again in that gap:
+
+  ```
+  node .claude/skills/implementer/scripts/issue-guard.mjs verify <N> --dir <scratchpad>/issue-guard
+  ```
+
+  `<scratchpad>/issue-guard` is the same folder implementer wrote the
+  snapshot to in this session, in its own step 1; verify reads that
+  snapshot back, not a new one. A refusal leaves the PR open, and the
+  script's lines go into the report. `refused: no snapshot for issue #<N>`
+  means the PR was not built in this run — it stays open for the same
+  reason as any other refusal here.
 
 **Merge.** Remove the agent's worktree first, or the branch deletion fails
 because the branch is still checked out there:
@@ -213,10 +292,11 @@ continue the agent, and reviewer's comments on the PR already say what
 needs deciding. No extra comment is needed. On the next run the open PR
 keeps the issue out of the queue (step 1).
 
-The one case with no PR is a design question from implementer. There is
-nothing on GitHub to record it, so it appears only in the report, and the
-issue will look ready again on the next run. Say this in the report so the
-developer edits the issue before running dispatcher again.
+Two cases end with no PR: a design question from implementer, and an issue
+that did not start (step 1 or step 3). Neither is recorded on GitHub, so
+both appear only in the report, and the issue will look ready again on the
+next run. Say this in the report so the developer edits the issue, or
+repairs whatever the reason pointed at, before running dispatcher again.
 
 An open PR does not stop the loop. Issues after it in the same parent's
 order drop out of the queue on their own; everything else continues.
@@ -243,7 +323,9 @@ close a parent whose children are only partly done, or one that is a
 
 Stop the whole loop, report what was done, and say why, when:
 
-- The queue is empty, or the number the developer named is reached.
+- The queue is empty, or the number the developer named is reached. The
+  queue also counts as empty when every remaining ready issue is on the
+  not-started list from step 1.
 - A merge fails, or `git pull --ff-only` fails. Something changed under the
   loop; the developer needs to look before anything else is built on it.
 - The main checkout is no longer clean on main.
@@ -262,14 +344,17 @@ Japanese, following `.claude/rules/writing.md`. Order:
 3. Left open: issue number, PR number if any, the reason in a few words,
    and what the developer decides. Point at the PR comments rather than
    repeating them. A design question with no PR is quoted here in full.
-4. Questions the developer may reopen: the findings answered on their
+4. Not started: each issue on the not-started list, the reason, and what
+   the developer needs to repair — usually the parent's `子 issue` list.
+   Keep these separate from item 3; there is no PR to point at.
+5. Questions the developer may reopen: the findings answered on their
    threads because the issue already decided them (step 3), one line each
    with the PR number. These merged; they are listed so the developer can
    change the design if the reviewer had a point.
-5. Parents closed during the run, and what is ready next if anything
+6. Parents closed during the run, and what is ready next if anything
    remains.
 
-Then stop. If the developer answers the questions in item 4, those answers
+Then stop. If the developer answers the questions in item 5, those answers
 are new design decisions with no issue yet: take them through `architect`,
 which records them and creates the issues, and then run dispatcher again.
 Do not implement an answer straight from the chat.

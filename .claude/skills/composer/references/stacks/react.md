@@ -18,12 +18,14 @@ UI package that follows it. Agreed in issue #100.
 
 ## Layers
 
-Generic, domain-agnostic parts — Table, Card, Button, Badge, Heading, Meta,
-Quote, Role, TextField — live in the separate `packages/ui` package
+Generic, domain-agnostic parts — Table, Card, Button, Badge, Heading, Layout,
+Meta, Quote, Role, TextField — live in the separate `packages/ui` package
 (`@mg/ui`), one flat `components/<Name>/` per part, with its own
 `styles/tokens.css` (see tailwind.md). Import them as `@mg/ui`, never by a
 relative path into another package's `src/`. `@mg/ui` depends on nothing
-else in this repo.
+else in this repo. The page shell (`Layout`) is one of these generic parts:
+it takes the CSS to embed and the scheme form's destination as props, and
+reads no file itself (see `scheme.ts` below and tailwind.md).
 
 A screen-owning package such as `trace-ui` keeps its own `src/` on top of
 that:
@@ -33,10 +35,9 @@ src/
 ├── routes/                   Hono handlers. The only place a reader is called.
 ├── components/
 │   ├── pages/<Name>Page/     One page = one component. Arranges feature parts.
-│   ├── feature/<Name>/       Knows what a span, session, or message is.
-│   └── ui/<Name>/            This package's own page chrome (e.g. Layout).
-│                              A generic part goes in @mg/ui, not here.
+│   └── feature/<Name>/       Knows what a span, session, or message is.
 ├── hooks/                    Logic shared by more than one component.
+├── styles.ts                 Reads the package's own built CSS once (see tailwind.md).
 ├── styles/index.css          Imports @mg/ui/tokens.css (see tailwind.md).
 ├── stories/fixtures.ts       Fixed SessionTree / SpanNode / SessionSummary values.
 └── vocabulary.ts             Span and attribute names.
@@ -47,19 +48,23 @@ Each layer imports only from the layers below it.
 | Layer | May import | Receives | Must not |
 | --- | --- | --- | --- |
 | routes | pages, `@mg/trace/store` | the reader | render markup, transform data |
-| pages | feature, local ui, `@mg/ui`, `src/hooks` | what the route read, as props | call a reader, parse anything |
+| pages | feature, `@mg/ui`, `src/hooks` | what the route read, plus the CSS, as props | call a reader, parse anything |
 | feature | `@mg/ui`, own `hooks/`, `src/hooks`, store types | domain values (`SpanNode`, `SessionTree`…) | contain raw markup a `@mg/ui` part already provides |
-| ui (local) | `@mg/ui`, own `hooks/`, `src/hooks` | presentational props only | import store types or `vocabulary.ts` |
 
-The route hands the page exactly what the reader returned. Reshaping is a
-hook, not a line in the route and not a line in the page.
+The route hands the page exactly what the reader returned, plus the CSS
+string the package's own `app.tsx` assembled it with. Reshaping is a hook,
+not a line in the route and not a line in the page.
+
+`@mg/ui`'s own `scheme.ts` holds the `Scheme` type, the scheme form's field
+name (`SCHEME_FIELD`), and `parseScheme`. A screen-owning package keeps only
+its own cookie name in its `scheme.ts`, and reads `Scheme` and `parseScheme`
+from `@mg/ui`.
 
 | You are adding | Put it in |
 | --- | --- |
 | a page reachable by URL | `routes/` (handler) + `pages/` (component) |
 | something that shows a span, message, session | `feature/` |
-| a visual element with no domain meaning | `packages/ui`'s `components/<Name>/` |
-| this package's own page chrome (rare) | `components/ui/<Name>/` |
+| a visual element with no domain meaning, including page chrome | `packages/ui`'s `components/<Name>/` |
 | a parse, format, derive, sort, or group step | `hooks/` next to the one component that uses it |
 | the same step used by two components | `src/hooks/` |
 | a colour, font, radius, shadow | `packages/ui/src/styles/tokens.css`, after asking the developer |
@@ -68,15 +73,14 @@ hook, not a line in the route and not a line in the page.
 ## Naming and files
 
 - Directory and file names are the component name in PascalCase:
-  `@mg/ui`'s `components/Badge/Badge.tsx`, a screen package's
-  `feature/SpanTree/SpanTree.tsx`, `pages/SessionPage/SessionPage.tsx`, or
-  its local page chrome as `ui/Layout/Layout.tsx`.
+  `@mg/ui`'s `components/Badge/Badge.tsx` and `components/Layout/Layout.tsx`,
+  a screen package's `feature/SpanTree/SpanTree.tsx`,
+  `pages/SessionPage/SessionPage.tsx`.
 - Hooks are camelCase with the `use` prefix: `hooks/useChatMessages.ts`,
   test beside it as `useChatMessages.test.ts`.
 - Every component directory has an `index.ts` exporting only what other
   directories import. `@mg/ui`'s `src/index.ts` re-exports every generic
-  part; a screen package's local `components/ui/index.ts` re-exports only
-  its own page chrome.
+  part plus `scheme.ts`.
 - Importers stop at the directory: `@mg/ui`, `../../feature/SpanTree`.
   Never reach into another directory's files, in this package or another.
 - A component directory holds at most: the component, sibling

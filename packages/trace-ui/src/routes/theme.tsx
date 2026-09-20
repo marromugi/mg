@@ -1,11 +1,12 @@
+import { parseScheme, SCHEME_FIELD } from "@mg/ui";
 import { deleteCookie, setCookie } from "hono/cookie";
 import type { Hono } from "hono";
-import { SCHEME_COOKIE, parseScheme } from "../scheme.js";
+import { SCHEME_COOKIE } from "../scheme.js";
 
 export const registerThemeRoute = (app: Hono): void => {
   app.post("/theme", async (c) => {
     const body = await c.req.parseBody();
-    const raw = body.scheme;
+    const raw = body[SCHEME_FIELD];
     const scheme = parseScheme(
       typeof raw === "string" ? raw : undefined,
     );

@@ -62,5 +62,5 @@ so `clsx` is not needed.
 
 The practical consequence: a class only exists in the output if it appears
 literally in source. Build class names from `tv()` variants or full string
-literals, never by concatenating fragments (`"bg-" + tone`), or the CLI
+literals, never by concatenating fragments (`"bg-" + tone`), or Tailwind
 will not find them.

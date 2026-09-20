@@ -298,49 +298,56 @@ describe("createEstimatorGate", () => {
     expect(estimate).toHaveBeenCalledTimes(1);
   });
 
-  test("accepts a threshold above 1 without throwing at creation, and denies at probability 1", async () => {
+  test("rejects a threshold of 2, -0.1, NaN, or Infinity at creation", () => {
     const estimator = createFakeEstimator("m", async () => ({
       probability: 1,
     }));
 
-    expect(() =>
-      createEstimatorGate({
-        estimator,
-        policy: "policy",
-        threshold: 2,
-      }),
-    ).not.toThrow();
+    for (const threshold of [
+      2,
+      -0.1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]) {
+      const create = () =>
+        createEstimatorGate({ estimator, policy: "policy", threshold });
+
+      expect(create).toThrow(RangeError);
+      expect(create).toThrow(/^threshold must be between 0 and 1$/);
+    }
+  });
+
+  test("creates a gate at a threshold of 0, and allows at a probability of 0", async () => {
+    const estimator = createFakeEstimator("m", async () => ({
+      probability: 0,
+    }));
     const gate = createEstimatorGate({
       estimator,
       policy: "policy",
-      threshold: 2,
+      threshold: 0,
     });
 
     await expect(gate.judge(request)).resolves.toMatchObject({
-      allowed: false,
+      allowed: true,
     });
   });
 
-  test("accepts a NaN threshold without throwing at creation, and denies at probability 1", async () => {
+  test("creates a gate at a threshold of 1, and denies at 0.99 but allows at 1", async () => {
+    let calls = 0;
     const estimator = createFakeEstimator("m", async () => ({
-      probability: 1,
+      probability: calls++ === 0 ? 0.99 : 1,
     }));
-
-    expect(() =>
-      createEstimatorGate({
-        estimator,
-        policy: "policy",
-        threshold: Number.NaN,
-      }),
-    ).not.toThrow();
     const gate = createEstimatorGate({
       estimator,
       policy: "policy",
-      threshold: Number.NaN,
+      threshold: 1,
     });
 
     await expect(gate.judge(request)).resolves.toMatchObject({
       allowed: false,
+    });
+    await expect(gate.judge(request)).resolves.toMatchObject({
+      allowed: true,
     });
   });
 });

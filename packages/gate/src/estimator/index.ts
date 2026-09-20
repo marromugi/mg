@@ -28,6 +28,14 @@ export const createEstimatorGate = (
   const { estimator, policy } = options;
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
 
+  if (!(
+    Number.isFinite(threshold) &&
+    threshold >= 0 &&
+    threshold <= 1
+  )) {
+    throw new RangeError("threshold must be between 0 and 1");
+  }
+
   return {
     async judge(
       request: GateRequest,

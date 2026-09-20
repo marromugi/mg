@@ -18,6 +18,7 @@ import type {
 } from "@mg/workspace";
 import { defineWorkspace } from "@mg/workspace";
 import { describe, expect, test, vi } from "vitest";
+import type { ExclusiveNames } from "./exclusive-names.js";
 import { createExclusiveNames } from "./exclusive-names.js";
 import { InvalidRunConfigError, SubagentCloseError } from "./errors.js";
 import { createSubagent } from "./subagent.js";
@@ -27,6 +28,22 @@ const flushMicrotasks = async (): Promise<void> => {
     await Promise.resolve();
   }
 };
+
+const environmentFor = (
+  overrides: {
+    parent?: OpenWorkspace;
+    exclusive?: ExclusiveNames;
+    parentExclusiveNames?: readonly string[];
+  } = {},
+): {
+  parent?: OpenWorkspace;
+  exclusive: ExclusiveNames;
+  parentExclusiveNames: readonly string[];
+} => ({
+  parent: overrides.parent,
+  exclusive: overrides.exclusive ?? createExclusiveNames(),
+  parentExclusiveNames: overrides.parentExclusiveNames ?? [],
+});
 
 const stubSchema = (): ToolSchema => ({
   "~standard": {
@@ -173,12 +190,20 @@ class RecordingSpan implements TraceSpan {
 
 describe("createSubagent", () => {
   test("exposes the configured name and description, with an input schema that requires only a described prompt", () => {
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider: scriptedProvider([]).provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider: scriptedProvider([]).provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     expect(subagent.name).toBe("researcher");
     expect(subagent.description).toBe("Researches a topic");
@@ -203,13 +228,21 @@ describe("createSubagent", () => {
         finishReason: "stop",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      system: "You research.",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        system: "You research.",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -227,12 +260,20 @@ describe("createSubagent", () => {
         finishReason: "stop",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     await subagent.start({ prompt: "find x" }, {});
 
@@ -243,12 +284,20 @@ describe("createSubagent", () => {
     const { provider } = scriptedProvider([
       { parts: [], finishReason: "stop" },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -272,12 +321,20 @@ describe("createSubagent", () => {
         finishReason: "tool_calls",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -300,12 +357,20 @@ describe("createSubagent", () => {
         finishReason: "tool_calls",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -321,12 +386,20 @@ describe("createSubagent", () => {
         finishReason: "length",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -339,12 +412,20 @@ describe("createSubagent", () => {
     const { provider } = scriptedProvider([
       { parts: [], finishReason: "length" },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -355,12 +436,20 @@ describe("createSubagent", () => {
 
   test("propagates the error the provider throws", async () => {
     const error = new Error("provider down");
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider: throwingProvider(error),
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider: throwingProvider(error),
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
 
     await expect(
       subagent.start({ prompt: "find x" }, {}),
@@ -389,14 +478,22 @@ describe("createSubagent", () => {
       },
       { parts: [{ type: "text", text: "ok" }], finishReason: "stop" },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
-      tools: [echoTool],
-      gate,
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 2,
+          stream: false,
+        },
+        tools: [echoTool],
+        gate,
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -411,12 +508,20 @@ describe("createSubagent", () => {
         finishReason: "stop",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
     const t = new RecordingSpan("t");
 
     await subagent.start({ prompt: "find x" }, { trace: t });
@@ -436,12 +541,20 @@ describe("createSubagent", () => {
         throw new Error("not scripted");
       },
     };
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      environmentFor(),
+    );
     const controller = new AbortController();
     controller.abort();
 
@@ -456,17 +569,20 @@ describe("createSubagent", () => {
 
   test("throws RangeError at assembly when the turn limit is below one", () => {
     expect(() =>
-      createSubagent({
-        name: "researcher",
-        description: "Researches a topic",
-        provider: scriptedProvider([]).provider,
-        harness: {
-          kind: "loop",
-          model: "m",
-          maxTurns: 0,
-          stream: false,
+      createSubagent(
+        {
+          name: "researcher",
+          description: "Researches a topic",
+          provider: scriptedProvider([]).provider,
+          harness: {
+            kind: "loop",
+            model: "m",
+            maxTurns: 0,
+            stream: false,
+          },
         },
-      }),
+        environmentFor(),
+      ),
     ).toThrow(new RangeError("maxTurns must be >= 1, got 0"));
   });
 });
@@ -491,15 +607,26 @@ describe("createSubagent with a workspace", () => {
       { parts: [{ type: "text", text: "ok" }], finishReason: "stop" },
       { parts: [{ type: "text", text: "ok" }], finishReason: "stop" },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      tools: [stubTool("echo")],
-      gate: stubGate(),
-      workspace: { pick: "fixed", source: { kind: "own", workspace } },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        tools: [stubTool("echo")],
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace },
+        },
+      },
+      environmentFor(),
+    );
 
     const result = await subagent.start({ prompt: "find x" }, {});
 
@@ -543,7 +670,7 @@ describe("createSubagent with a workspace", () => {
         gate: stubGate(),
         workspace: { pick: "fixed", source: { kind: "parent" } },
       },
-      { parent },
+      environmentFor({ parent }),
     );
 
     await subagent.start({ prompt: "find x" }, {});
@@ -582,7 +709,7 @@ describe("createSubagent with a workspace", () => {
           required: true,
         },
       },
-      { parent },
+      environmentFor({ parent }),
     );
 
     const schema = subagent.input["~standard"].jsonSchema.input({
@@ -642,7 +769,7 @@ describe("createSubagent with a workspace", () => {
           required: false,
         },
       },
-      { parent },
+      environmentFor({ parent }),
     );
 
     const schema = subagent.input["~standard"].jsonSchema.input({
@@ -705,7 +832,7 @@ describe("createSubagent with a workspace", () => {
           required: true,
         },
       },
-      { parent },
+      environmentFor({ parent }),
     );
 
     await expect(
@@ -763,7 +890,7 @@ describe("createSubagent with a workspace", () => {
           required: true,
         },
       },
-      { parent },
+      environmentFor({ parent }),
     );
 
     await subagent.start(
@@ -799,15 +926,26 @@ describe("createSubagent with a workspace", () => {
         throw new Error("not scripted");
       },
     };
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      tools: [stubTool("echo")],
-      gate: stubGate(),
-      workspace: { pick: "fixed", source: { kind: "own", workspace } },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        tools: [stubTool("echo")],
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace },
+        },
+      },
+      environmentFor(),
+    );
 
     await expect(
       subagent.start({ prompt: "find x" }, {}),
@@ -835,15 +973,26 @@ describe("createSubagent with a workspace", () => {
         throw new Error("not scripted");
       },
     };
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      tools: [stubTool("echo")],
-      gate: stubGate(),
-      workspace: { pick: "fixed", source: { kind: "own", workspace } },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        tools: [stubTool("echo")],
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace },
+        },
+      },
+      environmentFor(),
+    );
 
     await expect(
       subagent.start({ prompt: "find x" }, {}),
@@ -864,14 +1013,25 @@ describe("createSubagent with a workspace", () => {
       },
       "clean-browser",
     );
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider: throwingProvider(error),
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      gate: stubGate(),
-      workspace: { pick: "fixed", source: { kind: "own", workspace } },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider: throwingProvider(error),
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace },
+        },
+      },
+      environmentFor(),
+    );
 
     await expect(
       subagent.start({ prompt: "find x" }, {}),
@@ -883,17 +1043,25 @@ describe("createSubagent with a workspace", () => {
       { closeError: new Error("close failed") },
       "clean-browser",
     );
-    const subagent2 = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider: throwingProvider(error),
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      gate: stubGate(),
-      workspace: {
-        pick: "fixed",
-        source: { kind: "own", workspace: alsoFailingToClose },
+    const subagent2 = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider: throwingProvider(error),
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: alsoFailingToClose },
+        },
       },
-    });
+      environmentFor(),
+    );
 
     await expect(
       subagent2.start({ prompt: "find x" }, {}),
@@ -913,14 +1081,25 @@ describe("createSubagent with a workspace", () => {
         finishReason: "stop",
       },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      gate: stubGate(),
-      workspace: { pick: "fixed", source: { kind: "own", workspace } },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace },
+        },
+      },
+      environmentFor(),
+    );
 
     let caught: unknown;
     try {
@@ -940,19 +1119,22 @@ describe("createSubagent with a workspace", () => {
   test("throws InvalidRunConfigError at assembly when a fixed parent source is configured without a run workspace", () => {
     let caught: unknown;
     try {
-      createSubagent({
-        name: "helper",
-        description: "Helps",
-        provider: scriptedProvider([]).provider,
-        harness: {
-          kind: "loop",
-          model: "m",
-          maxTurns: 1,
-          stream: false,
+      createSubagent(
+        {
+          name: "helper",
+          description: "Helps",
+          provider: scriptedProvider([]).provider,
+          harness: {
+            kind: "loop",
+            model: "m",
+            maxTurns: 1,
+            stream: false,
+          },
+          gate: stubGate(),
+          workspace: { pick: "fixed", source: { kind: "parent" } },
         },
-        gate: stubGate(),
-        workspace: { pick: "fixed", source: { kind: "parent" } },
-      });
+        environmentFor(),
+      );
     } catch (error) {
       caught = error;
     }
@@ -996,7 +1178,7 @@ describe("createSubagent with a workspace", () => {
             required: true,
           },
         },
-        { parent },
+        environmentFor({ parent }),
       );
     } catch (error) {
       caught = error;
@@ -1019,15 +1201,26 @@ describe("createSubagent with a workspace", () => {
     const { provider } = scriptedProvider([
       { parts: [{ type: "text", text: "ok" }], finishReason: "stop" },
     ]);
-    const subagent = createSubagent({
-      name: "researcher",
-      description: "Researches a topic",
-      provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      tools: [stubTool("echo")],
-      gate: stubGate(),
-      workspace: { pick: "fixed", source: { kind: "own", workspace } },
-    });
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        tools: [stubTool("echo")],
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace },
+        },
+      },
+      environmentFor(),
+    );
     const t = new RecordingSpan("t");
 
     await subagent.start({ prompt: "find x" }, { trace: t });
@@ -1124,7 +1317,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
           source: { kind: "own", workspace: workspaceA },
         },
       },
-      { exclusive },
+      environmentFor({ exclusive }),
     );
     const subagentB = createSubagent(
       {
@@ -1143,7 +1336,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
           source: { kind: "own", workspace: workspaceB },
         },
       },
-      { exclusive },
+      environmentFor({ exclusive }),
     );
 
     const runA = subagentA.start({ prompt: "x" }, {});
@@ -1191,7 +1384,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
           source: { kind: "own", workspace: workspaceA },
         },
       },
-      { exclusive },
+      environmentFor({ exclusive }),
     );
     const subagentB = createSubagent(
       {
@@ -1210,7 +1403,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
           source: { kind: "own", workspace: workspaceB },
         },
       },
-      { exclusive },
+      environmentFor({ exclusive }),
     );
 
     const runA = subagentA.start({ prompt: "x" }, {});
@@ -1258,7 +1451,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
           source: { kind: "own", workspace: workspaceA },
         },
       },
-      { exclusive },
+      environmentFor({ exclusive }),
     );
     const subagentB = createSubagent(
       {
@@ -1277,7 +1470,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
           source: { kind: "own", workspace: workspaceB },
         },
       },
-      { exclusive },
+      environmentFor({ exclusive }),
     );
 
     const runA = subagentA.start({ prompt: "x" }, {});
@@ -1322,10 +1515,10 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
             source: { kind: "own", workspace: cleanBrowser },
           },
         },
-        {
+        environmentFor({
           parent,
           parentExclusiveNames: ["cdp:localhost:9222"],
-        },
+        }),
       );
     } catch (error) {
       caught = error;

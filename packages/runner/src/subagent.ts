@@ -10,7 +10,6 @@ import type { OpenWorkspace } from "@mg/workspace";
 import { exclusiveNamesOf } from "@mg/workspace";
 import { z } from "zod";
 import { InvalidRunConfigError, SubagentCloseError } from "./errors.js";
-import { createExclusiveNames } from "./exclusive-names.js";
 import type { ExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
 import type {
@@ -202,18 +201,17 @@ const resolveSource = (
 
 export const createSubagent = (
   config: SubagentConfig,
-  environment?: {
+  environment: {
     parent?: OpenWorkspace;
-    exclusive?: ExclusiveNames;
-    parentExclusiveNames?: readonly string[];
+    exclusive: ExclusiveNames;
+    parentExclusiveNames: readonly string[];
   },
 ): Subagent => {
   const {
     parent,
-    exclusive,
-    parentExclusiveNames: parentHeldNames = [],
-  } = environment ?? {};
-  const exclusiveNames = exclusive ?? createExclusiveNames();
+    exclusive: exclusiveNames,
+    parentExclusiveNames: parentHeldNames,
+  } = environment;
   const tools = config.tools ?? [];
   const parentName = parent?.name;
   validateWorkspace(config.name, config.workspace, parentName);

@@ -82,6 +82,16 @@ export const transcribe = (
         );
         blocks.push(`[tool ${step.name}] ${result}`);
       }
+    } else if (step.type === "subagent") {
+      if (step.error !== undefined) {
+        blocks.push(`[subagent ${step.name} error] ${step.error}`);
+      } else {
+        const result = truncate(
+          step.result ?? "",
+          options?.maxToolResultLength,
+        );
+        blocks.push(`[subagent ${step.name}] ${result}`);
+      }
     } else {
       blocks.push(transcribeGateStep(step));
     }

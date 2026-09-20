@@ -43,7 +43,20 @@ export type GateStep = {
   error?: string;
 };
 
-export type RunStep = LlmStep | ToolStep | GateStep;
+export type SubagentStep = {
+  type: "subagent";
+  spanId: string;
+  startTime: string;
+  endTime: string;
+  name: string;
+  callId?: string;
+  arguments: unknown;
+  result?: string;
+  error?: string;
+  threadId?: string;
+};
+
+export type RunStep = LlmStep | ToolStep | GateStep | SubagentStep;
 
 export type RunView = {
   sessionId: string;
@@ -54,6 +67,7 @@ export type RunView = {
   llmSteps: LlmStep[];
   toolSteps: ToolStep[];
   gateSteps: GateStep[];
+  subagentSteps?: SubagentStep[];
   turnCount: number;
   finalText: string | undefined;
   usage: Usage;
@@ -62,7 +76,8 @@ export type RunView = {
   endTime: string;
 };
 
-type SpanOp = "run" | "harness" | "llm" | "tool" | "gate";
+type SpanOp =
+  "run" | "harness" | "llm" | "tool" | "gate" | "subagent" | "thread";
 
 const SPAN_OPS: readonly SpanOp[] = [
   "run",
@@ -70,6 +85,8 @@ const SPAN_OPS: readonly SpanOp[] = [
   "llm",
   "tool",
   "gate",
+  "subagent",
+  "thread",
 ];
 
 const SPAN_NAME_TO_OP: Readonly<Record<string, SpanOp>> = {
@@ -78,6 +95,8 @@ const SPAN_NAME_TO_OP: Readonly<Record<string, SpanOp>> = {
   [SPAN.llm]: "llm",
   [SPAN.tool]: "tool",
   [SPAN.gate]: "gate",
+  [SPAN.subagent]: "subagent",
+  [SPAN.thread]: "thread",
 };
 
 const isSpanOp = (value: unknown): value is SpanOp =>
@@ -208,6 +227,25 @@ const toGateStep = (node: SpanNode): GateStep => {
   };
 };
 
+const toSubagentStep = (node: SpanNode): SubagentStep => {
+  const { attributes } = node;
+
+  return {
+    type: "subagent",
+    spanId: node.spanId,
+    startTime: node.startTime,
+    endTime: node.endTime,
+    name: getString(attributes, ATTR.subagentName) ?? "",
+    callId: getString(attributes, ATTR.subagentCallId),
+    arguments: parseToolArguments(
+      getString(attributes, ATTR.subagentArguments),
+    ),
+    result: getString(attributes, ATTR.subagentResult),
+    error: errorOf(node),
+    threadId: getString(attributes, ATTR.threadId),
+  };
+};
+
 type WalkState = {
   steps: RunStep[];
   harnessName: string | undefined;
@@ -230,6 +268,9 @@ const walk = (node: SpanNode, state: WalkState): void => {
     case "gate":
       state.steps.push(toGateStep(node));
       return;
+    case "subagent":
+      state.steps.push(toSubagentStep(node));
+      return;
     default:
       for (const child of node.children) {
         walk(child, state);
@@ -249,6 +290,8 @@ const isToolStep = (step: RunStep): step is ToolStep =>
   step.type === "tool";
 const isGateStep = (step: RunStep): step is GateStep =>
   step.type === "gate";
+const isSubagentStep = (step: RunStep): step is SubagentStep =>
+  step.type === "subagent";
 
 export const viewRun = (session: SessionTree): RunView => {
   const [firstTrace] = session.traces;
@@ -264,6 +307,7 @@ export const viewRun = (session: SessionTree): RunView => {
   const llmSteps = state.steps.filter(isLlmStep);
   const toolSteps = state.steps.filter(isToolStep);
   const gateSteps = state.steps.filter(isGateStep);
+  const subagentSteps = state.steps.filter(isSubagentStep);
 
   const lastLlmStep = llmSteps[llmSteps.length - 1];
   const lastOutputMessage =
@@ -297,6 +341,7 @@ export const viewRun = (session: SessionTree): RunView => {
     llmSteps,
     toolSteps,
     gateSteps,
+    subagentSteps,
     turnCount: llmSteps.length,
     finalText,
     usage,

@@ -35,13 +35,34 @@ import { viewRun } from "@mg/eval";
 
 const view = viewRun(sessionTree);
 
-view.steps; // llm / tool / gate が時間順に並んだステップの列
+view.steps; // llm / tool / gate / subagent が時間順に並んだステップの列
 view.turnCount; // ハーネスのターンの回数
 view.finalText; // 最後の応答の文章
 view.usage; // トークン使用量の合計
 ```
 
 ツリーの中から実行が見つからないときは、`NoRunInSessionError` を投げます。
+
+### サブエージェントの手順
+
+サブエージェントの呼び出しは、`mg.subagent` のスパンで記録されています。
+
+`view.steps` には、サブエージェントの手順も時間順に混ざります。
+ツールの手順の列（`view.toolSteps`）には入りません。
+
+```ts
+view.subagentSteps; // サブエージェントの手順だけの列
+```
+
+サブエージェントの手順は、名前と呼び出しの ID と引数と結果を持ちます。
+呼び出しごとに新しく作る、子の会話のスレッドの ID も持ちます。
+
+子の会話は、走行と同じセッションの中にある別のトレースです。
+`usage` とターンの回数と `finalText` は、走行のトレースの分だけです。
+子の会話の分は混ざりません。
+
+`viewRun` は、子の会話のトレースを読みに行きません。
+サブエージェントの手順が持つのは、スレッドの ID までです。
 
 ## 判定のインターフェース
 
@@ -199,6 +220,15 @@ const text = transcribe(view);
 
 ```ts
 transcribe(view, { maxToolResultLength: 500 });
+```
+
+サブエージェントの手順は、`[subagent <名前>] <結果>` の 1 かたまりです。
+結果が長いときは、ツールの結果と同じ上限で切れます。
+
+誤りで終わったサブエージェントの手順は、次の形になります。
+
+```
+[subagent <名前> error] <誤りの文>
 ```
 
 書き起こしを差し替えたいときは、`createEstimatorChecker` に渡します。

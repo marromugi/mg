@@ -1,5 +1,6 @@
 /* Clears Tailwind's default color palette so every color comes from a named token below; spacing and type-scale defaults stay; corners are never taken from the radius scale, see the utilities below. Each color token carries both a light and a dark value via light-dark(). */
 @import "tailwindcss";
+@source "../components";
 
 @theme {
   --color-*: initial;

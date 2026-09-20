@@ -18,8 +18,15 @@ import type {
 } from "@mg/workspace";
 import { defineWorkspace } from "@mg/workspace";
 import { describe, expect, test, vi } from "vitest";
+import { createExclusiveNames } from "./exclusive-names.js";
 import { InvalidRunConfigError, SubagentCloseError } from "./errors.js";
 import { createSubagent } from "./subagent.js";
+
+const flushMicrotasks = async (): Promise<void> => {
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
+};
 
 const stubSchema = (): ToolSchema => ({
   "~standard": {
@@ -1029,5 +1036,302 @@ describe("createSubagent with a workspace", () => {
       "mg.harness",
       "mg.workspace",
     ]);
+  });
+});
+
+describe("createSubagent sharing exclusive names across separate own workspaces", () => {
+  const deferredProvider = (): {
+    provider: Provider;
+    resolve: (text: string) => void;
+  } => {
+    let resolveGenerate: (
+      response: GenerateResponse,
+    ) => void = () => {};
+    const provider: Provider = {
+      generate: () =>
+        new Promise((resolve) => {
+          resolveGenerate = resolve;
+        }),
+      stream: (): AsyncIterable<StreamEvent> => {
+        throw new Error("deferredProvider: stream is not scripted");
+      },
+    };
+    return {
+      provider,
+      resolve: (text) =>
+        resolveGenerate({
+          parts: [{ type: "text", text }],
+          finishReason: "stop",
+        }),
+    };
+  };
+
+  const recordingWorkspace = (
+    log: string[],
+    exclusive: readonly string[],
+    name: string,
+    hooks?: { closeError?: Error },
+  ): Workspace =>
+    defineWorkspace({
+      name,
+      connectors: [
+        {
+          kind: "fake",
+          exclusive,
+          open: async () => {
+            log.push("open");
+            return {
+              tools: [],
+              close: async () => {
+                log.push("close");
+                if (hooks?.closeError) throw hooks.closeError;
+              },
+            };
+          },
+        },
+      ],
+    });
+
+  test("opens the second own workspace only after the first, holding the same name, has closed", async () => {
+    const log: string[] = [];
+    const workspaceA = recordingWorkspace(
+      log,
+      ["cdp:localhost:9222"],
+      "browser-a",
+    );
+    const workspaceB = recordingWorkspace(
+      log,
+      ["cdp:localhost:9222"],
+      "browser-b",
+    );
+    const exclusive = createExclusiveNames();
+    const first = deferredProvider();
+    const second = deferredProvider();
+    const subagentA = createSubagent(
+      {
+        name: "a",
+        description: "d",
+        provider: first.provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: workspaceA },
+        },
+      },
+      { exclusive },
+    );
+    const subagentB = createSubagent(
+      {
+        name: "b",
+        description: "d",
+        provider: second.provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: workspaceB },
+        },
+      },
+      { exclusive },
+    );
+
+    const runA = subagentA.start({ prompt: "x" }, {});
+    const runB = subagentB.start({ prompt: "x" }, {});
+
+    first.resolve("a-done");
+    await runA;
+    second.resolve("b-done");
+    await runB;
+
+    expect(log).toEqual(["open", "close", "open", "close"]);
+  });
+
+  test("opens both own workspaces without waiting, when they hold different names", async () => {
+    const log: string[] = [];
+    const workspaceA = recordingWorkspace(
+      log,
+      ["cdp:a:1"],
+      "browser-a",
+    );
+    const workspaceB = recordingWorkspace(
+      log,
+      ["cdp:b:1"],
+      "browser-b",
+    );
+    const exclusive = createExclusiveNames();
+    const first = deferredProvider();
+    const second = deferredProvider();
+    const subagentA = createSubagent(
+      {
+        name: "a",
+        description: "d",
+        provider: first.provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: workspaceA },
+        },
+      },
+      { exclusive },
+    );
+    const subagentB = createSubagent(
+      {
+        name: "b",
+        description: "d",
+        provider: second.provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: workspaceB },
+        },
+      },
+      { exclusive },
+    );
+
+    const runA = subagentA.start({ prompt: "x" }, {});
+    const runB = subagentB.start({ prompt: "x" }, {});
+    await flushMicrotasks();
+
+    expect(log).toEqual(["open", "open"]);
+
+    first.resolve("a-done");
+    await runA;
+    second.resolve("b-done");
+    await runB;
+  });
+
+  test("still opens the second own workspace, releasing the shared name, when the first fails to close", async () => {
+    const log: string[] = [];
+    const workspaceA = recordingWorkspace(
+      log,
+      ["cdp:localhost:9222"],
+      "browser-a",
+      { closeError: new Error("socket hang up") },
+    );
+    const workspaceB = recordingWorkspace(
+      log,
+      ["cdp:localhost:9222"],
+      "browser-b",
+    );
+    const exclusive = createExclusiveNames();
+    const first = deferredProvider();
+    const second = deferredProvider();
+    const subagentA = createSubagent(
+      {
+        name: "a",
+        description: "d",
+        provider: first.provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: workspaceA },
+        },
+      },
+      { exclusive },
+    );
+    const subagentB = createSubagent(
+      {
+        name: "b",
+        description: "d",
+        provider: second.provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        gate: stubGate(),
+        workspace: {
+          pick: "fixed",
+          source: { kind: "own", workspace: workspaceB },
+        },
+      },
+      { exclusive },
+    );
+
+    const runA = subagentA.start({ prompt: "x" }, {});
+    const runB = subagentB.start({ prompt: "x" }, {});
+
+    first.resolve("a-done");
+    await expect(runA).rejects.toThrow();
+    second.resolve("b-done");
+    await expect(runB).resolves.toBe("b-done");
+  });
+
+  test("throws InvalidRunConfigError at assembly when its own workspace's held name overlaps a name the run's workspace holds for the whole run", () => {
+    const cleanBrowser = recordingWorkspace(
+      [],
+      ["cdp:localhost:9222"],
+      "clean-browser",
+    );
+    const parent: OpenWorkspace = {
+      name: "build-machine",
+      tools: [],
+      close: async () => {},
+    };
+
+    let caught: unknown;
+    try {
+      createSubagent(
+        {
+          name: "helper",
+          description: "Helps",
+          provider: scriptedProvider([]).provider,
+          harness: {
+            kind: "loop",
+            model: "m",
+            maxTurns: 1,
+            stream: false,
+          },
+          gate: stubGate(),
+          workspace: {
+            pick: "fixed",
+            source: { kind: "own", workspace: cleanBrowser },
+          },
+        },
+        {
+          parent,
+          parentExclusiveNames: ["cdp:localhost:9222"],
+        },
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(InvalidRunConfigError);
+    expect(caught).toMatchObject({
+      name: "InvalidRunConfigError",
+      message:
+        'subagent "helper": workspace "clean-browser" holds "cdp:localhost:9222", which the run\'s workspace holds for the whole run',
+    });
   });
 });

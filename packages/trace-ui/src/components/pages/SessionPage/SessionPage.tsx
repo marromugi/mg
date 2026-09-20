@@ -1,7 +1,8 @@
 import type { SessionTree } from "@mg/trace/store";
+import { Heading, Meta } from "@mg/ui";
 import type { Scheme } from "../../../scheme.js";
 import { SpanTree } from "../../feature/SpanTree/index.js";
-import { Heading, Layout, Meta } from "../../ui/index.js";
+import { Layout } from "../../ui/index.js";
 
 export const SessionPage = ({
   session,

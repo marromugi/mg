@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
+import { Button } from "@mg/ui";
 import type { Scheme } from "../../../scheme.js";
-import { Button } from "../Button/index.js";
 
 let css = "";
 try {

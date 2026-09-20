@@ -2,8 +2,10 @@ import type {
   Meta as StoryMeta,
   StoryObj,
 } from "@storybook/react-vite";
-import { END_TIME, START_TIME } from "../../../stories/fixtures.js";
 import { Meta } from "./Meta.js";
+
+const START_TIME = "2026-01-01T00:00:00.000Z";
+const END_TIME = "2026-01-01T00:00:01.000Z";
 
 const meta = {
   component: Meta,

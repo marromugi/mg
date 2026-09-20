@@ -671,6 +671,99 @@ for (let i = 0; i < 5000; i++) {
 );
 
 describe.skipIf(!hasRg)(
+  "a path pointing directly at a binary file",
+  () => {
+    const directBinDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-direct-bin-"),
+    );
+    const directBinRoot = realpathSync(directBinDir);
+    afterAll(() =>
+      rmSync(directBinDir, { recursive: true, force: true }),
+    );
+
+    writeFileSync(
+      join(directBinRoot, "small.bin"),
+      Buffer.concat([
+        Buffer.from("needle-d"),
+        Buffer.from([0]),
+        Buffer.from("rest\n"),
+      ]),
+    );
+    writeFileSync(
+      join(directBinRoot, "late.bin"),
+      Buffer.concat([
+        Buffer.from(`needle-e first\n${"x\n".repeat(60_000)}`),
+        Buffer.from([0]),
+      ]),
+    );
+
+    const grep = createGrepTool({ root: directBinRoot });
+
+    test("a match in a file named directly is refused as binary", async () => {
+      await expect(
+        grep.execute({ pattern: "needle-d", path: "small.bin" }, {}),
+      ).rejects.toMatchObject({
+        name: "FileToolError",
+        message: "binary file: small.bin",
+      });
+    });
+
+    test("a directly named binary file is refused the same way when there is no match", async () => {
+      await expect(
+        grep.execute({ pattern: "zzz-d", path: "small.bin" }, {}),
+      ).rejects.toMatchObject({
+        name: "FileToolError",
+        message: "binary file: small.bin",
+      });
+    });
+
+    test("a directly named file is refused as binary even when the NUL is far into it", async () => {
+      await expect(
+        grep.execute({ pattern: "needle-e", path: "late.bin" }, {}),
+      ).rejects.toMatchObject({
+        name: "FileToolError",
+        message: "binary file: late.bin",
+      });
+    });
+  },
+);
+
+describe.skipIf(!hasRg)(
+  "a path pointing directly at a file the binary check cannot read",
+  () => {
+    const lockedDirectDir = mkdtempSync(
+      join(tmpdir(), "mg-tools-files-grep-locked-direct-"),
+    );
+    const lockedDirectRoot = realpathSync(lockedDirectDir);
+    const lockedFile = join(lockedDirectRoot, "locked-direct.txt");
+    afterAll(() => {
+      chmodSync(lockedFile, 0o644);
+      rmSync(lockedDirectDir, { recursive: true, force: true });
+    });
+
+    writeFileSync(lockedFile, "x\n");
+    chmodSync(lockedFile, 0o000);
+
+    const grep = createGrepTool({ root: lockedDirectRoot });
+
+    test.skipIf(process.getuid?.() === 0)(
+      "the binary check is skipped and ripgrep's own permission error comes back",
+      async () => {
+        const result = await grep.execute(
+          { pattern: "x", path: "locked-direct.txt" },
+          {},
+        );
+        expect(result).toBe(
+          "No matches for /x/ in locked-direct.txt.\n" +
+            "[search incomplete: ripgrep reported errors]\n" +
+            "locked-direct.txt: Permission denied (os error 13)",
+        );
+      },
+    );
+  },
+);
+
+describe.skipIf(!hasRg)(
   "search incomplete: an unreadable file alongside a skipped non-UTF-8 match",
   () => {
     const perm2Dir = mkdtempSync(

@@ -49,14 +49,6 @@ export const run = async (
   });
 
   let workspaceSpan: TraceSpan = noopSpan;
-  let workspaceSpanEnded = false;
-  const endWorkspaceSpan = (error?: unknown): void => {
-    if (workspaceSpanEnded) {
-      return;
-    }
-    workspaceSpanEnded = true;
-    workspaceSpan.end(error);
-  };
   if (config.workspace) {
     try {
       workspaceSpan = root.startSpan(SPAN.workspace, {
@@ -80,20 +72,23 @@ export const run = async (
     }
     try {
       await opened.close();
-      endWorkspaceSpan();
+      workspaceSpan.end();
     } catch (error) {
-      endWorkspaceSpan(error);
+      workspaceSpan.end(error);
       throw error;
     }
   };
 
-  let result: HarnessResult;
+  // Read only once `runtimeError` is undefined below, which happens
+  // only after this try block ran to completion without throwing.
+  let result!: HarnessResult;
+  let runtimeError: unknown;
   try {
     opened = config.workspace
       ? await openWorkspace(config.workspace, {
           signal: options?.signal,
         }).catch((error: unknown) => {
-          endWorkspaceSpan(error);
+          workspaceSpan.end(error);
           throw error;
         })
       : undefined;
@@ -114,12 +109,6 @@ export const run = async (
         configToolNames.has(tool.name),
       );
       if (duplicate) {
-        try {
-          await closeWorkspace();
-        } catch {
-          // The duplicate-name error is the real cause; a close
-          // failure that follows it does not replace it.
-        }
         throw new DuplicateToolNameError(duplicate.name, [
           "config",
           opened.name,
@@ -136,31 +125,28 @@ export const run = async (
       options?.onEvent,
     );
     result = await collect(events);
-    root.end();
   } catch (error) {
-    root.end(error);
-    try {
-      await closeWorkspace();
-    } catch {
-      // The run error wins over a close failure that follows it.
-    }
+    runtimeError = error;
+  }
+
+  let closeError: unknown;
+  try {
+    await closeWorkspace();
+  } catch (error) {
+    closeError = error;
+  }
+
+  // `run`'s own error wins over a close failure that follows it.
+  const rootError = runtimeError ?? closeError;
+  root.end(rootError);
+
+  if (rootError !== undefined) {
     try {
       await sdk.shutdown();
     } catch {
       // The run error wins over a shutdown failure that follows it.
     }
-    throw error;
-  }
-
-  try {
-    await closeWorkspace();
-  } catch (error) {
-    try {
-      await sdk.shutdown();
-    } catch {
-      // The close error wins over a shutdown failure that follows it.
-    }
-    throw error;
+    throw rootError;
   }
 
   await sdk.shutdown();

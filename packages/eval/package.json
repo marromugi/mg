@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@mg/core": "workspace:*",
-    "@mg/trace": "workspace:*",
-    "zod": "^4.6.2"
+    "@mg/trace": "workspace:*"
   }
 }

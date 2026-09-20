@@ -13,9 +13,9 @@
 - ツリーを読み解きます。
   時間順のステップの列と、最後の応答と、ターンの回数を取り出します。
 - ステップの列を、文章に書き起こします。
-  人と Jev の両方が読める形です。
+  人と Estimator の両方が読める形です。
 - 判定の型を決めます。
-  規則でも Jev でも、同じ形で扱えます。
+  規則でも Estimator でも、同じ形で扱えます。
 - 判定の配列を、書いた順に全部実行します。
   1 件の実行の合否と、判定ごとの結果を返します。
 
@@ -46,7 +46,7 @@ view.usage; // トークン使用量の合計
 ## 判定のインターフェース
 
 判定は `Check` という 1 つの型で扱います。
-規則で決める判定も、Jev に聞く判定も同じ形です。
+規則で決める判定も、Estimator に聞く判定も同じ形です。
 
 `Check` が持つのは、名前と判定を行う関数だけです。
 関数は、トレースのツリーと実行のビューを受け取ります。
@@ -138,18 +138,19 @@ const hasFinalText = rule("has-final-text", (view) => {
 ツールを呼んだ回数の上限などの既製の規則も、このパッケージには含めません。
 判定として使うときは、それぞれのプロジェクトで書いてください。
 
-## Jev
+## Estimator
 
 機械的に書けない条件は、意味で判定します。
-Jev は文章と質問を受け取り、答えが正しい確率を返します。
+core の `Estimator` は、文章と質問を受け取り、答えが「はい」である確率を返します。
 
-`createJevChecker` は、鍵と接続先から判定のインターフェースを作ります。
+`createEstimatorChecker` は、`Estimator` の実装から判定のインターフェースを作ります。
 
 ```ts
-import { createJevChecker } from "@mg/eval";
+import { createJevEstimator } from "@mg/core";
+import { createEstimatorChecker } from "@mg/eval";
 
-const jevCheck = createJevChecker({
-  apiKey: process.env.JEV_API_KEY!,
+const estimatorCheck = createEstimatorChecker({
+  estimator: createJevEstimator({ apiKey: process.env.JEV_API_KEY! }),
 });
 ```
 
@@ -157,35 +158,36 @@ const jevCheck = createJevChecker({
 質問の文章は、判定を書く人が決めます。
 
 ```ts
-const isPolite = jevCheck({
+const isPolite = estimatorCheck({
   name: "polite-reply",
   question: "最後の返事は丁寧な言い方ですか?",
   threshold: 0.9,
 });
 ```
 
-`JevCheckOptions` が受け取るのは、次の 3 つです。
+`EstimatorCheckOptions` が受け取るのは、次の 3 つです。
 
 | フィールド  | 意味                                      |
 | ----------- | ----------------------------------------- |
 | `name`      | 判定の名前です。                          |
-| `question`  | Jev に投げる質問の文章です。              |
+| `question`  | Estimator に投げる質問の文章です。        |
 | `threshold` | 合格の境目です。省くと `0.9` になります。 |
 
 境目は、確率がその値以上なら合格という意味です。
 `0.9` なら「9 割以上の確率で合格」という基準になります。
 
-判定は、走行の書き起こしと質問を Jev に送ります。
+判定は、走行の書き起こしと質問を `Estimator` に送ります。
 返った確率を境目と比べ、結果には確率と境目の両方を残します。
 理由の文章にも、確率と境目の数値を出します。
 
-通信が失敗したときや、返事の形が合わないときは `JevCheckError` を投げます。
+`Estimator` の呼び出しが失敗すると、`EstimatorCheckError` に包み直します。
+元のエラーは `cause` として残ります。
 中断の合図（`AbortSignal`）だけは、包まずにそのまま投げ直します。
 
 ## 書き起こし
 
-`transcribe` は、`RunView` を人と Jev が読める文章に書き起こします。
-Jev の判定は、既定でこの関数を使って走行を文章にします。
+`transcribe` は、`RunView` を人と Estimator が読める文章に書き起こします。
+Estimator の判定は、既定でこの関数を使って走行を文章にします。
 
 ```ts
 import { transcribe } from "@mg/eval";
@@ -199,37 +201,40 @@ const text = transcribe(view);
 transcribe(view, { maxToolResultLength: 500 });
 ```
 
-書き起こしを差し替えたいときは、`createJevChecker` に渡します。
+書き起こしを差し替えたいときは、`createEstimatorChecker` に渡します。
 
 ```ts
-const jevCheck = createJevChecker({
-  apiKey: process.env.JEV_API_KEY!,
+const estimatorCheck = createEstimatorChecker({
+  estimator: createJevEstimator({ apiKey: process.env.JEV_API_KEY! }),
   transcribe: (view) => view.finalText ?? "",
 });
 ```
 
 ## やらないこと
 
-- 規則や Jev による判定そのものの中身（既製のポリシー）は持ちません。
+- 規則や Estimator による判定そのものの中身（既製のポリシー）は持ちません。
   質問の文章や境目の値は、判定を書く側が決めます。
 - トレースの語彙（`SPAN` と `ATTR`）や `@mg/trace/store` には手を入れません。
 - 判定の結果をトレースに書き戻しません。
 
 ## 使い方
 
-`runner` で走らせた 1 件のセッションを、規則と Jev の両方で判定する例です。
+`runner` で走らせた 1 件のセッションを、規則と Estimator の両方で判定する例です。
 
 ```ts
-import { createJevChecker, evaluate, rule } from "@mg/eval";
+import { createJevEstimator } from "@mg/core";
+import { createEstimatorChecker, evaluate, rule } from "@mg/eval";
 import { JsonlTraceReader } from "@mg/trace/store";
 
-const jev = createJevChecker({
-  apiKey: process.env.TYPESAFE_API_KEY!,
+const estimatorCheck = createEstimatorChecker({
+  estimator: createJevEstimator({
+    apiKey: process.env.TYPESAFE_API_KEY!,
+  }),
 });
 
 const checks = [
   rule("has-final-text", (view) => view.finalText !== undefined),
-  jev({
+  estimatorCheck({
     name: "answers-with-listing",
     question:
       "Does the final assistant reply report the actual output of ls?",
@@ -242,7 +247,7 @@ const session = await new JsonlTraceReader("./trace.jsonl").readSession(
 );
 const verdict = await evaluate(session, checks);
 
-verdict.passed; // 規則と Jev の両方が合格したときだけ true
+verdict.passed; // 規則と Estimator の両方が合格したときだけ true
 ```
 
 `runMany` で複数件を走らせ、件ごとに判定する完全な見本は、

@@ -87,10 +87,16 @@ with options, then the `fix` findings.
 
 ## When the maker disagrees
 
-The caller may think a `fix` finding is mistaken. It does not get to drop it.
+The caller may think a finding is mistaken: a `fix` that is wrong, or an
+`ask` that a principle does settle. It does not get to drop either on its own.
 It sends its argument to the reviewer that raised it, once, with SendMessage.
-If the reviewer withdraws, the finding is gone. If it stands, it becomes an
-`ask` and goes to the developer with both arguments.
+For an `ask`, the argument is the decision it would make and the principle
+that makes it.
+
+- If the reviewer withdraws, a `fix` is gone, and an `ask` is decided by the
+  caller as it argued. The developer is not asked.
+- If the reviewer stands, it has a reason that survived the argument. The
+  finding goes to the developer as an `ask`, with both arguments.
 
 ## Rounds
 

@@ -8,7 +8,7 @@
   受け取るのは、種類と説明文と元の値です。
   返すのは、可否と理由です。
 - 方針の文章とプロバイダーとモデルから、LLM で判定する実装を作れます。
-- API キーと方針の文章から、Jev で判定する実装も作れます。
+- `Estimator` と方針の文章から、確率で判定する実装も作れます。
 - 根のパスと規則の並びから、規則だけで判定する実装も作れます。
 - ゲートの並びから、順に聞いて束ねる実装も作れます。
 - 判定そのものが失敗したときのための、専用の例外を持ちます。
@@ -38,13 +38,15 @@ core のプロバイダーと同じ考え方です。
 答えの形は、判定専用のツールの呼び出しを強制して固定します。
 ツールから返った値を検証し、可否と理由に変えます。
 
-### Jev の実装
+### Estimator の実装
 
-`createJevGate` は、API キーと方針の文章を受け取ります。
+`createEstimatorGate` は、core の `Estimator` と方針の文章を受け取ります。
 受け取ったものから、ゲートを作ります。
 
-Jev は TypeSafe の専用モデルです。
-文章を書かず、確率だけを速く安く返します。
+`Estimator` は、文章と質問を受け取り、
+答えが「はい」である確率を返すモデルサービスの型です。
+どのモデルサービスと話すかは、渡す `Estimator` の実装が決めます。
+たとえば core の `createJevEstimator` を渡せます。
 
 聞くのは「この操作は実行して問題ないか」の 1 つだけです。
 返ってきた確率がしきい値以上なら通し、下回れば断ります。
@@ -129,10 +131,10 @@ judge そのものが失敗したときは、そこで止めます。
 LLM の実装は、判定用のプロバイダーへの呼び出しを残します。
 `mg.gate` の下に `mg.llm` のスパンとして残します。
 
-Jev の実装は、呼び出し先が 1 つだけです。
+Estimator の実装は、呼び出し先が 1 つだけです。
 子のスパンは残さず、`mg.gate` だけを残します。
 
-Jev の実装は、返ってきた確率を `mg.gate` に残します。
+Estimator の実装は、返ってきた確率を `mg.gate` に残します。
 トレースを読める人には、確率の数値が見えます。
 
 規則の実装は、外部への問い合わせを持ちません。
@@ -181,23 +183,22 @@ const verdict = await gate.judge({
 中断のシグナルだけは、ラップせずにそのまま通します。
 `context.signal` に中断済みのシグナルを渡すと、プロバイダーを呼ばずに投げます。
 
-`createJevGate` に渡すものを表にまとめます。
+`createEstimatorGate` に渡すものを表にまとめます。
 
-| 名前        | 内容                                     |
-| ----------- | ---------------------------------------- |
-| `apiKey`    | 使う API キー                            |
-| `policy`    | 判定の根拠にする方針の文章               |
-| `model`     | 使うモデルの名前（省くと `jev-latest`）  |
-| `baseUrl`   | 接続先（省くと `api.typesafe.ai` の v1） |
-| `threshold` | 通すしきい値の確率（省くと `0.5`）       |
-| `headers`   | 追加で送る HTTP のヘッダー               |
-| `fetch`     | 差し替え用の `fetch`                     |
+| 名前        | 内容                                |
+| ----------- | ----------------------------------- |
+| `estimator` | 使う `Estimator`（`@mg/core` から） |
+| `policy`    | 判定の根拠にする方針の文章          |
+| `threshold` | 通すしきい値の確率（省くと `0.5`）  |
 
 ```ts
-import { createJevGate } from "@mg/gate";
+import { createJevEstimator } from "@mg/core";
+import { createEstimatorGate } from "@mg/gate";
 
-const gate = createJevGate({
-  apiKey: process.env.TYPESAFE_API_KEY!,
+const gate = createEstimatorGate({
+  estimator: createJevEstimator({
+    apiKey: process.env.TYPESAFE_API_KEY!,
+  }),
   policy: "読み取り専用のコマンドだけ、聞かずに実行してよい。",
 });
 

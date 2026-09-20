@@ -56,14 +56,14 @@ export default defineRun({
 });
 ```
 
-Same gate, judged by Jev instead of the LLM provider (see
+Same gate, judged by an `Estimator` instead of the LLM provider (see
 `runs/loop-bash-jev-gate.config.ts` for the file in the repo):
 
 ```ts
 import { defineRun } from "@mg/runner";
-import { createOpenRouterProvider } from "@mg/core";
+import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
-import { createJevGate } from "@mg/gate";
+import { createEstimatorGate } from "@mg/gate";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -75,17 +75,78 @@ if (jevApiKey === undefined)
 
 const provider = createOpenRouterProvider({ apiKey });
 
+const policy =
+  "Read-only commands are allowed. Deleting files or " +
+  "sending data outside the machine is not.";
+
 export default defineRun({
   name: "loop-bash-jev-gate",
   provider,
   harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
   tools: [createBashTool({ cwd: process.cwd() })],
-  gate: createJevGate({
-    apiKey: jevApiKey,
-    policy:
-      "Read-only commands are allowed. Deleting files or " +
-      "sending data outside the machine is not.",
+  gate: createEstimatorGate({
+    estimator: createJevEstimator({ apiKey: jevApiKey }),
+    policy,
   }),
+  trace: { jsonlPath: "./trace.jsonl" },
+});
+```
+
+Composing a rules gate with an LLM gate via `composeGates`, so path-based rules
+are checked first and the LLM only judges what the rules don't cover (see
+`runs/loop-files.config.ts` for a config that uses the rules gate on its own):
+
+```ts
+import { defineRun } from "@mg/runner";
+import { createOpenRouterProvider } from "@mg/core";
+import {
+  createBashTool,
+  createReadFileTool,
+  createGrepTool,
+  createWriteFileTool,
+  createEditFileTool,
+} from "@mg/tools";
+import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
+
+const apiKey = process.env.OPENROUTER_API_KEY;
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
+
+const provider = createOpenRouterProvider({ apiKey });
+const root = process.cwd();
+
+export default defineRun({
+  name: "loop-files-composed-gate",
+  provider,
+  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  tools: [
+    createBashTool({ cwd: root }),
+    createReadFileTool({ root }),
+    createGrepTool({ root }),
+    createWriteFileTool({ root }),
+    createEditFileTool({ root }),
+  ],
+  gate: composeGates([
+    createRulesGate({
+      root,
+      rules: [
+        {
+          tools: ["write_file", "edit_file"],
+          paths: ["**/.env", "**/.env.*", "**/*.lock", ".git/**"],
+          allowed: false,
+          reason:
+            "Secrets, lockfiles and .git are read-only for the agent.",
+        },
+      ],
+    }),
+    createLlmGate({
+      provider,
+      model: "openai/gpt-4o-mini",
+      policy:
+        "Read-only commands are allowed. Deleting files or " +
+        "sending data outside the machine is not.",
+    }),
+  ]),
   trace: { jsonlPath: "./trace.jsonl" },
 });
 ```
@@ -184,7 +245,7 @@ export default defineRun({
 | `provider`  | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                                                       |
 | `harness`   | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                       |
 | `tools`     | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                                             |
-| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createJevGate`); the runner only passes it through.                             |
+| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createEstimatorGate`); the runner only passes it through.                       |
 | `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                 |
 | `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`. |
 
@@ -222,11 +283,17 @@ Field meanings, how they combine, and how to read the output back are in
 | Provider | `createOpenRouterProvider(options)`     | `@mg/core`  |
 | Provider | `createOllamaProvider(options)`         | `@mg/core`  |
 | Tool     | `createBashTool(options)`               | `@mg/tools` |
+| Tool     | `createReadFileTool(options)`           | `@mg/tools` |
+| Tool     | `createGrepTool(options)`               | `@mg/tools` |
+| Tool     | `createWriteFileTool(options)`          | `@mg/tools` |
+| Tool     | `createEditFileTool(options)`           | `@mg/tools` |
 | Tool     | `createWebSearchTool(options)`          | `@mg/tools` |
 | Backend  | `createOllamaWebSearchBackend(options)` | `@mg/tools` |
 | Gate     | `createLlmGate(options)`                | `@mg/gate`  |
+| Gate     | `createRulesGate(options)`              | `@mg/gate`  |
+| Gate     | `composeGates(gates)`                   | `@mg/gate`  |
 | Check    | `rule(name, predicate)`                 | `@mg/eval`  |
-| Check    | `createJevChecker(options)`             | `@mg/eval`  |
+| Check    | `createEstimatorChecker(options)`       | `@mg/eval`  |
 
 ```ts
 import { createOpenRouterProvider } from "@mg/core";

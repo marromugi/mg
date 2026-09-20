@@ -67,9 +67,12 @@ Write the decision record to a scratchpad file in the format from
 Invoke `software-design-review` with stage `design`, the record, the request,
 and pointers to the code.
 
-- `ask` findings: go to step 4 before revising anything. The answers change
-  the record, and a second round on a record that is about to change is
-  wasted.
+- `ask` findings: hold each against the theory first. What a principle
+  settles is not the developer's to answer, so where you can name the
+  principle and the decision it makes, follow "When the maker disagrees" in
+  that skill. Take what is still `ask` to step 4 before revising anything.
+  The answers change the record, and a second round on a record that is about
+  to change is wasted.
 - `fix` findings: revise the record. If you think a finding is mistaken,
   follow "When the maker disagrees" in that skill; do not drop it.
 - Run the review again on the revised record, as its Rounds section says.
@@ -84,7 +87,12 @@ Otherwise stop here, once, with all of them. Write in Japanese following
 - What is being decided, in plain words. If it rests on a mechanism the
   developer may not know, explain the mechanism first.
 - The options, and what each one gives up, in a table.
-- Which principles come close and why none of them settles it.
+- Which principles come close, why none of them settles it, and which option
+  they lean towards. Recommend that option and name the principle. A
+  recommendation is argued the way a design is, from the theory: likeness to
+  something that already exists, a smaller diff, and ease of backing out are
+  reasons the theory rejects, so they cannot carry a recommendation either.
+  When no principle leans either way, say so and recommend nothing.
 
 Wait for the answers. Then:
 
@@ -136,8 +144,10 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
 
 - The decision, in a few lines, with a link to the issue that holds the
   record.
-- What the reviews found and how it was settled, briefly. List apart anything
-  changed after the last review round, since no reviewer has seen it. Include
+- What the reviews found and how it was settled, briefly. Name each `ask`
+  that was decided without the developer, with the decision and its
+  principle. List apart anything changed after the last review round, since
+  no reviewer has seen it. Include
   anything added to `software-design-theory`, and say that the edit is
   uncommitted.
 - How the split was arrived at, in a few lines.

@@ -34,7 +34,7 @@ const isValidProbability = (value: unknown): value is number =>
   value <= 1;
 
 type JevResponse = {
-  answers: { answer: { type: "noul"; probability: number } };
+  answers: { answer: { type: "noul"; noul: number } };
 };
 
 const isJevResponse = (json: unknown): json is JevResponse => {
@@ -43,11 +43,11 @@ const isJevResponse = (json: unknown): json is JevResponse => {
   if (typeof answers !== "object" || answers === null) return false;
   const { answer } = answers as { answer?: unknown };
   if (typeof answer !== "object" || answer === null) return false;
-  const { type, probability } = answer as {
+  const { type, noul } = answer as {
     type?: unknown;
-    probability?: unknown;
+    noul?: unknown;
   };
-  return type === "noul" && isValidProbability(probability);
+  return type === "noul" && isValidProbability(noul);
 };
 
 export const createJevEstimator = (
@@ -137,7 +137,7 @@ export const createJevEstimator = (
         );
       }
 
-      return { probability: json.answers.answer.probability };
+      return { probability: json.answers.answer.noul };
     },
   };
 };

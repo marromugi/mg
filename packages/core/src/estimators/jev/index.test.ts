@@ -20,8 +20,8 @@ const stubFetch = (
   ) => Promise<Response>,
 ) => vi.fn(impl);
 
-const answer = (probability: unknown): unknown => ({
-  answers: { answer: { type: "noul", probability } },
+const answer = (noul: unknown): unknown => ({
+  answers: { answer: { type: "noul", noul } },
 });
 
 const request: EstimateRequest = { text: "T", question: "Q" };
@@ -139,6 +139,23 @@ describe("createJevEstimator", () => {
     fetchStub.mockResolvedValueOnce(jsonResponse(answer(1)));
     await expect(estimator.estimate(request)).resolves.toEqual({
       probability: 1,
+    });
+  });
+
+  test("reads the probability from a response with the fields the service sends alongside it", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () =>
+        jsonResponse({
+          model: "jev-1.13.0",
+          answers: { answer: { type: "noul", noul: 0.98 } },
+          usage: { input_tokens: 293, output_tokens: 20 },
+        }),
+      ),
+    });
+
+    await expect(estimator.estimate(request)).resolves.toEqual({
+      probability: 0.98,
     });
   });
 
@@ -292,7 +309,7 @@ describe("createJevEstimator", () => {
   test("throws EstimatorResponseError when the answer type is not noul", async () => {
     const fetchStub = stubFetch(async () =>
       jsonResponse({
-        answers: { answer: { type: "text", probability: 0.5 } },
+        answers: { answer: { type: "text", noul: 0.5 } },
       }),
     );
     const estimator = createJevEstimator({

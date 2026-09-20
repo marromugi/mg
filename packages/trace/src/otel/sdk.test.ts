@@ -6,7 +6,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ExportResultCode } from "@opentelemetry/core";
 import type {
   ReadableSpan,
   SpanExporter,
@@ -301,7 +300,8 @@ describe("createTraceSdk", () => {
       export: (readableSpans, resultCallback) => {
         setTimeout(() => {
           receivedNames.push(...readableSpans.map((span) => span.name));
-          resultCallback({ code: ExportResultCode.SUCCESS });
+          // 0 is the exporter interface's success code (ExportResultCode.SUCCESS).
+          resultCallback({ code: 0 });
         }, 20);
       },
       shutdown: async () => {},

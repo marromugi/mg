@@ -1,5 +1,6 @@
 import type { Message } from "@mg/core";
 import type { HarnessResult } from "@mg/harness";
+import { exclusiveNamesOf } from "@mg/workspace";
 import { nanoid } from "nanoid";
 import type { RunConfig } from "./config.js";
 import { run } from "./run.js";
@@ -27,9 +28,13 @@ export const runMany = async (
     );
   }
   if (config.workspace !== undefined && concurrency > 1) {
-    throw new RangeError(
-      `workspace requires concurrency 1, got ${concurrency}`,
-    );
+    const names = exclusiveNamesOf(config.workspace);
+    if (names.length > 0) {
+      const nameList = names.map((name) => `"${name}"`).join(", ");
+      throw new RangeError(
+        `workspace "${config.workspace.name}" holds ${nameList} exclusively; concurrency must be 1, got ${concurrency}`,
+      );
+    }
   }
 
   const signal = options?.signal;

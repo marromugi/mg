@@ -375,9 +375,12 @@ for (const outcome of outcomes) {
 }
 ```
 
-If the config has a `workspace`, `concurrency` must be 1 (or left unset). Passing 2 or more
-throws a `RangeError` before any case runs, since a workspace cannot be opened by two cases
-at once.
+If the config has a `workspace`, whether `concurrency` may be 2 or more depends on what its
+connectors declare as held exclusively (see `packages/workspace/README.md`). If none of them
+hold anything exclusively, cases run in parallel as usual. If any of them do, `concurrency`
+must be 1 (or left unset); passing 2 or more throws a `RangeError` before any case runs,
+naming the workspace and the exclusive names, e.g. `workspace "build-machine" holds
+"cdp:localhost:9222" exclusively; concurrency must be 1, got 2`.
 
 Picking a config by path instead of a static import, with `loadRun`:
 

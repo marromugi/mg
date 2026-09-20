@@ -59,19 +59,25 @@ const baseConfig = (
   ...(exporter ? { trace: { exporters: [exporter] } } : {}),
 });
 
-const fakeConnector = (opened: { count: number }): Connector => ({
+const fakeConnector = (
+  opened: { count: number },
+  exclusive: readonly string[] = [],
+): Connector => ({
   kind: "fake",
-  exclusive: [],
+  exclusive,
   open: async () => {
     opened.count++;
     return { tools: [], close: async () => {} };
   },
 });
 
-const fakeWorkspace = (opened: { count: number }): Workspace =>
+const fakeWorkspace = (
+  opened: { count: number },
+  options?: { name?: string; exclusive?: readonly string[] },
+): Workspace =>
   defineWorkspace({
-    name: "fake-workspace",
-    connectors: [fakeConnector(opened)],
+    name: options?.name ?? "fake-workspace",
+    connectors: [fakeConnector(opened, options?.exclusive)],
   });
 
 describe("runMany", () => {
@@ -222,7 +228,27 @@ describe("runMany", () => {
     ).rejects.toThrow(RangeError);
   });
 
-  test("a workspace config with concurrency 2 rejects with a RangeError, without opening the workspace or calling the provider", async () => {
+  test("a workspace whose connectors declare no exclusive names runs at concurrency 2, both cases get a result", async () => {
+    const opened = { count: 0 };
+    const provider = providerByLastMessage((id) => ({
+      parts: [{ type: "text", text: id }],
+      finishReason: "stop",
+    }));
+    const config: RunConfig = {
+      ...baseConfig(provider),
+      workspace: fakeWorkspace(opened),
+    };
+    const cases = ["a", "b"].map(makeCase);
+
+    const outcomes = await runMany(config, cases, { concurrency: 2 });
+
+    expect(outcomes).toHaveLength(2);
+    for (const outcome of outcomes) {
+      expect("result" in outcome).toBe(true);
+    }
+  });
+
+  test("a workspace whose connector holds an exclusive name rejects concurrency 2 with a RangeError naming the workspace and the name, without opening the workspace or calling the provider", async () => {
     const opened = { count: 0 };
     let providerCalled = false;
     const provider: Provider = {
@@ -240,17 +266,47 @@ describe("runMany", () => {
     };
     const config: RunConfig = {
       ...baseConfig(provider),
-      workspace: fakeWorkspace(opened),
+      workspace: fakeWorkspace(opened, {
+        name: "build-machine",
+        exclusive: ["cdp:localhost:9222"],
+      }),
     };
 
-    await expect(
-      runMany(config, [makeCase("a")], { concurrency: 2 }),
-    ).rejects.toThrow(
-      new RangeError("workspace requires concurrency 1, got 2"),
+    const outcome = runMany(config, [makeCase("a")], {
+      concurrency: 2,
+    });
+
+    await expect(outcome).rejects.toBeInstanceOf(RangeError);
+    await expect(outcome).rejects.toHaveProperty(
+      "message",
+      'workspace "build-machine" holds "cdp:localhost:9222" exclusively; concurrency must be 1, got 2',
     );
 
     expect(opened.count).toBe(0);
     expect(providerCalled).toBe(false);
+  });
+
+  test("the same exclusive workspace runs with concurrency omitted, both cases get a result", async () => {
+    const opened = { count: 0 };
+    const provider = providerByLastMessage((id) => ({
+      parts: [{ type: "text", text: id }],
+      finishReason: "stop",
+    }));
+    const config: RunConfig = {
+      ...baseConfig(provider),
+      workspace: fakeWorkspace(opened, {
+        name: "build-machine",
+        exclusive: ["cdp:localhost:9222"],
+      }),
+    };
+    const cases = ["a", "b"].map(makeCase);
+
+    const outcomes = await runMany(config, cases);
+
+    expect(outcomes).toHaveLength(2);
+    for (const outcome of outcomes) {
+      expect("result" in outcome).toBe(true);
+    }
   });
 
   test("a workspace config with concurrency omitted runs as usual", async () => {

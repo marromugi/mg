@@ -235,19 +235,88 @@ export default defineRun({
 });
 ```
 
+Adding a subagent the parent's LLM can call, letting it pick between the run's own
+workspace and a separate one (see `runs/loop-subagent.config.ts` for the file in the
+repo):
+
+```ts
+import { defineRun } from "@mg/runner";
+import { createOpenRouterProvider } from "@mg/core";
+import { createRulesGate } from "@mg/gate";
+import {
+  createCdpConnector,
+  createSshConnector,
+  defineWorkspace,
+} from "@mg/workspace";
+
+const apiKey = process.env.OPENROUTER_API_KEY;
+if (apiKey === undefined)
+  throw new Error("OPENROUTER_API_KEY is not set");
+
+const provider = createOpenRouterProvider({ apiKey });
+
+const buildMachine = defineWorkspace({
+  name: "build-machine",
+  connectors: [
+    createSshConnector({
+      host: "...",
+      username: "...",
+      auth: { privateKey: "..." },
+    }),
+    createCdpConnector({ url: "ws://localhost:9222" }),
+  ],
+});
+
+const cleanBrowser = defineWorkspace({
+  name: "clean-browser",
+  connectors: [createCdpConnector({ url: "ws://localhost:9223" })],
+});
+
+export default defineRun({
+  name: "loop-subagent",
+  provider,
+  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  workspace: buildMachine,
+  subagents: [
+    {
+      name: "researcher",
+      description:
+        "Researches a topic in a browser and reports what it finds.",
+      provider,
+      harness: {
+        kind: "loop",
+        model: "openai/gpt-4o-mini",
+        maxTurns: 10,
+      },
+      gate: createRulesGate({ root: process.cwd(), rules: [] }),
+      workspace: {
+        pick: "caller",
+        sources: [
+          { kind: "parent" },
+          { kind: "own", workspace: cleanBrowser },
+        ],
+        required: true,
+      },
+    },
+  ],
+  trace: { jsonlPath: "./trace.jsonl" },
+});
+```
+
 ## 2. Field reference
 
 ### `RunConfig` (`packages/runner/src/config.ts`)
 
-| Field       | Type                                 | Required | Meaning                                                                                                                                                                 |
-| ----------- | ------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`      | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).                                                    |
-| `provider`  | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                                                       |
-| `harness`   | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                       |
-| `tools`     | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                                             |
-| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createEstimatorGate`); the runner only passes it through.                       |
-| `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                 |
-| `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`. |
+| Field       | Type                                 | Required | Meaning                                                                                                                                                                                                   |
+| ----------- | ------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).                                                                                      |
+| `provider`  | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                                                                                         |
+| `harness`   | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                                                         |
+| `tools`     | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                                                                               |
+| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createEstimatorGate`); the runner only passes it through.                                                         |
+| `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                                                   |
+| `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`.                                   |
+| `subagents` | `readonly SubagentConfig[]`          | no       | Subagents the parent's LLM can call, alongside `tools`. `run` builds each one after opening `workspace`, passing it the opened workspace and the run's exclusive-name state. Omitting it changes nothing. |
 
 ### `HarnessConfig`: kind `"loop"` (`LoopHarnessConfig`)
 
@@ -260,6 +329,48 @@ listed here, check `packages/runner/src/config.ts` and the matching harness pack
 | `model`    | `string`  | yes                 | Model name passed to `provider`.                  |
 | `maxTurns` | `number`  | yes                 | Max tool-call turns before the harness stops.     |
 | `stream`   | `boolean` | no (default `true`) | Whether the provider is called in streaming mode. |
+
+### `SubagentConfig` (`packages/runner/src/subagent-config.ts`)
+
+One entry in `subagents`. It never inherits `provider`, `gate` or `tools` from the run —
+write everything the subagent needs into its own entry.
+
+| Field         | Type                         | Required                           | Meaning                                                              |
+| ------------- | ---------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| `name`        | `string`                     | yes                                | Name the parent's LLM calls it by.                                   |
+| `description` | `string`                     | yes                                | Description the parent's LLM sees.                                   |
+| `system`      | `string`                     | no                                 | Put at the start of the child's conversation, as a `system` message. |
+| `provider`    | `Provider` (from `@mg/core`) | yes                                | LLM connection the child's harness calls.                            |
+| `harness`     | `HarnessConfig`              | yes                                | The child's harness settings, same type as `RunConfig.harness`.      |
+| `tools`       | `readonly Tool[]`            | no                                 | Tools the child may call.                                            |
+| `gate`        | `Gate` (from `@mg/gate`)     | required if `tools` or `workspace` | Judges each call inside the child.                                   |
+| `workspace`   | `SubagentWorkspace`          | no                                 | How the child receives a workspace. See the table below.             |
+
+`SubagentWorkspace` picks between two shapes:
+
+| `pick`     | Shape                                   | Meaning                                              |
+| ---------- | --------------------------------------- | ---------------------------------------------------- |
+| `"fixed"`  | `{ pick: "fixed", source }`             | Always uses the source written in the config.        |
+| `"caller"` | `{ pick: "caller", sources, required }` | The parent's LLM picks a source, by name, each call. |
+
+A `source` is one of:
+
+| `kind`     | Shape                        | Meaning                                                              |
+| ---------- | ---------------------------- | -------------------------------------------------------------------- |
+| `"parent"` | `{ kind: "parent" }`         | Borrows the run's opened workspace. The child never closes it.       |
+| `"own"`    | `{ kind: "own", workspace }` | Opens the given `Workspace` for the call and closes it when it ends. |
+
+For `pick: "caller"`, the input schema gains a `workspace` argument enumerating the
+sources by name (the parent's workspace's own name; an own source's `workspace.name`).
+`required: false` lets the argument be omitted, running the child with no workspace.
+
+A `"parent"` source with no `RunConfig.workspace` throws `InvalidRunConfigError` when
+`run` assembles the subagent — before the provider is called even once. The same error
+covers a name clash among `pick: "caller"` sources (including against the parent's own
+workspace name), and an own workspace whose exclusive names overlap ones the run's own
+workspace holds for the whole run (see `packages/workspace/README.md` on exclusive
+names). A name shared between a tool and a subagent throws `DuplicateCallableNameError`
+from `@mg/harness-loop` at the same point.
 
 ### `trace` (`TraceSdkOptions`, minus `sessionId`)
 
@@ -375,11 +486,12 @@ for (const outcome of outcomes) {
 }
 ```
 
-If the config has a `workspace`, whether `concurrency` may be 2 or more depends on what its
-connectors declare as held exclusively (see `packages/workspace/README.md`). If none of them
-hold anything exclusively, cases run in parallel as usual. If any of them do, `concurrency`
-must be 1 (or left unset); passing 2 or more throws a `RangeError` before any case runs,
-naming the workspace and the exclusive names, e.g. `workspace "build-machine" holds
+If the config has a `workspace`, or a subagent has an own workspace (`{ kind: "own" }` in a
+`workspace` source), whether `concurrency` may be 2 or more depends on what their connectors
+declare as held exclusively (see `packages/workspace/README.md`). If none of them hold
+anything exclusively, cases run in parallel as usual. If any of them do, `concurrency` must
+be 1 (or left unset); passing 2 or more throws a `RangeError` before any case runs, naming
+the workspace and the exclusive names, e.g. `workspace "build-machine" holds
 "cdp:localhost:9222" exclusively; concurrency must be 1, got 2`.
 
 Picking a config by path instead of a static import, with `loadRun`:

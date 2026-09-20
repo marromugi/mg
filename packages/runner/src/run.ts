@@ -3,8 +3,11 @@ import type { HarnessEvent, HarnessResult } from "@mg/harness";
 import { collect } from "@mg/harness";
 import { ATTR, SPAN, startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
+import { exclusiveNamesOf } from "@mg/workspace";
 import type { RunConfig } from "./config.js";
+import { createExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
+import { createSubagent } from "./subagent.js";
 import {
   mergeWorkspaceTools,
   withWorkspace,
@@ -53,11 +56,24 @@ export const run = async (
       { trace: root, signal: options?.signal },
       async (opened) => {
         const tools = mergeWorkspaceTools(config.tools ?? [], opened);
+        const exclusiveNames = createExclusiveNames();
+        const parentExclusiveNames = config.workspace
+          ? exclusiveNamesOf(config.workspace)
+          : [];
+        const subagents = (config.subagents ?? []).map(
+          (subagentConfig) =>
+            createSubagent(subagentConfig, {
+              parent: opened,
+              exclusive: exclusiveNames,
+              parentExclusiveNames,
+            }),
+        );
         const harness = createHarness(
           config.harness,
           config.provider,
           config.gate,
           tools,
+          subagents,
         );
         const events = tee(
           harness({ messages, signal: options?.signal, trace: root }),

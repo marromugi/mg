@@ -1,11 +1,30 @@
 import type { Message } from "@mg/core";
 import type { HarnessResult } from "@mg/harness";
+import type { Workspace } from "@mg/workspace";
 import { exclusiveNamesOf } from "@mg/workspace";
 import { nanoid } from "nanoid";
 import type { RunConfig } from "./config.js";
 import { run } from "./run.js";
+import type {
+  SubagentConfig,
+  SubagentWorkspaceSource,
+} from "./subagent-config.js";
 
 export type RunCase = { id: string; messages: Message[] };
+
+const ownWorkspacesOf = (
+  subagentConfig: SubagentConfig,
+): readonly Workspace[] => {
+  const workspace = subagentConfig.workspace;
+  if (!workspace) return [];
+  const sources: readonly SubagentWorkspaceSource[] =
+    workspace.pick === "fixed" ? [workspace.source] : workspace.sources;
+  const own: Workspace[] = [];
+  for (const source of sources) {
+    if (source.kind === "own") own.push(source.workspace);
+  }
+  return own;
+};
 
 export type RunManyOptions = {
   signal?: AbortSignal;
@@ -27,13 +46,19 @@ export const runMany = async (
       `concurrency must be an integer >= 1, got ${concurrency}`,
     );
   }
-  if (config.workspace !== undefined && concurrency > 1) {
-    const names = exclusiveNamesOf(config.workspace);
-    if (names.length > 0) {
-      const nameList = names.map((name) => `"${name}"`).join(", ");
-      throw new RangeError(
-        `workspace "${config.workspace.name}" holds ${nameList} exclusively; concurrency must be 1, got ${concurrency}`,
-      );
+  if (concurrency > 1) {
+    const workspaces: readonly Workspace[] = [
+      ...(config.workspace ? [config.workspace] : []),
+      ...(config.subagents ?? []).flatMap(ownWorkspacesOf),
+    ];
+    for (const workspace of workspaces) {
+      const names = exclusiveNamesOf(workspace);
+      if (names.length > 0) {
+        const nameList = names.map((name) => `"${name}"`).join(", ");
+        throw new RangeError(
+          `workspace "${workspace.name}" holds ${nameList} exclusively; concurrency must be 1, got ${concurrency}`,
+        );
+      }
     }
   }
 

@@ -161,14 +161,15 @@ const fakeWorkspace = (
     connectors: [fakeConnector(tools, hooks)],
   });
 
-const spanEndMillis = (
-  span: { endTime: [number, number] } | undefined,
-): number => {
-  if (!span) {
-    throw new Error("spanEndMillis: span not found");
-  }
-  return span.endTime[0] * 1000 + span.endTime[1] / 1e6;
-};
+// The exporter records a span at the moment it ends, so its list is the
+// end order. End times cannot show that order: each span derives its end
+// time from its own millisecond-rounded start, so two spans' end times
+// disagree by up to 1 ms.
+const endOrder = (
+  spans: readonly { name: string }[],
+  names: readonly string[],
+): string[] =>
+  spans.map((span) => span.name).filter((name) => names.includes(name));
 
 describe("run", () => {
   let dir: string;
@@ -467,15 +468,13 @@ describe("run with a workspace", () => {
 
     const spans = exporter.getFinishedSpans();
     const rootSpan = spans.find((span) => span.name === "mg.run");
-    const workspaceSpan = spans.find(
-      (span) => span.name === "mg.workspace",
-    );
 
     expect(rootSpan?.status.code).toBe(2);
     expect(rootSpan?.status.message).toBe(expectedMessage);
-    expect(spanEndMillis(rootSpan)).toBeGreaterThanOrEqual(
-      spanEndMillis(workspaceSpan),
-    );
+    expect(endOrder(spans, ["mg.run", "mg.workspace"])).toEqual([
+      "mg.workspace",
+      "mg.run",
+    ]);
   });
 
   test("the workspace is closed after a successful run", async () => {
@@ -535,14 +534,11 @@ describe("run with a workspace", () => {
     await run(config, []);
 
     const spans = exporter.getFinishedSpans();
-    const rootSpan = spans.find((span) => span.name === "mg.run");
-    const workspaceSpan = spans.find(
-      (span) => span.name === "mg.workspace",
-    );
 
-    expect(spanEndMillis(rootSpan)).toBeGreaterThanOrEqual(
-      spanEndMillis(workspaceSpan),
-    );
+    expect(endOrder(spans, ["mg.run", "mg.workspace"])).toEqual([
+      "mg.workspace",
+      "mg.run",
+    ]);
   });
 
   test("a close failure alone (the run itself succeeded) is thrown, and both spans end with the close failure", async () => {
@@ -606,9 +602,10 @@ describe("run with a workspace", () => {
     expect(workspaceSpan?.status.message).toBe(
       "Failed to close 1 connection(s)",
     );
-    expect(spanEndMillis(rootSpan)).toBeGreaterThanOrEqual(
-      spanEndMillis(workspaceSpan),
-    );
+    expect(endOrder(spans, ["mg.run", "mg.workspace"])).toEqual([
+      "mg.workspace",
+      "mg.run",
+    ]);
   });
 
   test("records exactly one mg.workspace span under mg.run, as a sibling of mg.harness", async () => {

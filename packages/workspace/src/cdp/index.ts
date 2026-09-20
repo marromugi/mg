@@ -9,9 +9,11 @@ export const createCdpConnector = (
   deps?: { connect?: typeof connectCdp },
 ): Connector => {
   const connect = deps?.connect ?? connectCdp;
+  const exclusive = [`cdp:${new URL(options.url).host}`];
 
   return {
     kind: "cdp",
+    exclusive,
     async open(context) {
       const session = await connect(options, context);
       const tools = createBrowserTools(session.page, {

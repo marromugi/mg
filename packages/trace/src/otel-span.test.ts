@@ -122,6 +122,7 @@ describe("startRoot", () => {
       spans.map((span) => [span.name, span]),
     );
 
+    expect(spans.map((span) => span.name).sort()).toEqual(["a", "b"]);
     expect(byName["b"]?.parentSpanContext).toBeUndefined();
     expect(byName["b"]?.spanContext().traceId).not.toBe(
       byName["a"]?.spanContext().traceId,
@@ -148,6 +149,11 @@ describe("startRoot", () => {
       spans.map((span) => [span.name, span]),
     );
 
+    expect(spans.map((span) => span.name).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
     expect(byName["c"]?.spanContext().traceId).toBe(
       byName["b"]?.spanContext().traceId,
     );

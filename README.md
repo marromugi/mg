@@ -21,20 +21,20 @@ LLM で動くエージェントのハーネスを試すための土台です。
 
 いまあるパッケージと、その役割を表にまとめます。
 
-| パッケージ                                            | 役割                                                                    |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                                |
-| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                    |
-| [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                |
-| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装             |
-| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型                                      |
-| [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                            |
-| [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                            |
-| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                    |
-| [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装 |
-| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                  |
-| [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                    |
-| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                                        |
+| パッケージ                                            | 役割                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                                 |
+| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                     |
+| [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                 |
+| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装              |
+| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース |
+| [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                             |
+| [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                             |
+| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                     |
+| [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装  |
+| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                   |
+| [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                     |
+| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                                         |
 
 名前を選ぶと、詳しい説明を読めます。
 
@@ -48,6 +48,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | ツールの型や実行関数                                      | core                                |
 | ハーネスが共通で使うツール                                | tools                               |
 | 1 つのハーネスだけで使うツール                            | ハーネス（core の型で書く）         |
+| サブエージェントのインターフェース                        | harness                             |
 | 別のマシンへのコネクター                                  | workspace                           |
 | 実行の可否を判定するゲートの実装                          | gate                                |
 | ツールの呼び出しの繰り返し                                | harness-loop                        |

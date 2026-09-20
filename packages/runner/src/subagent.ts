@@ -7,8 +7,10 @@ import type {
   SubagentContext,
 } from "@mg/harness";
 import type { OpenWorkspace } from "@mg/workspace";
+import { exclusiveNamesOf } from "@mg/workspace";
 import { z } from "zod";
 import { InvalidRunConfigError, SubagentCloseError } from "./errors.js";
+import type { ExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
 import type {
   SubagentConfig,
@@ -109,6 +111,29 @@ const validateWorkspace = (
   }
 };
 
+const validateHeldNames = (
+  configName: string,
+  workspace: SubagentWorkspace | undefined,
+  parentHeldNames: readonly string[],
+): void => {
+  if (!workspace) return;
+
+  const sources =
+    workspace.pick === "fixed" ? [workspace.source] : workspace.sources;
+  const parentHeld = new Set(parentHeldNames);
+  for (const source of sources) {
+    if (source.kind !== "own") continue;
+    const overlap = exclusiveNamesOf(source.workspace).find((name) =>
+      parentHeld.has(name),
+    );
+    if (overlap === undefined) continue;
+    throw new InvalidRunConfigError(
+      `subagent "${configName}"`,
+      `workspace "${source.workspace.name}" holds "${overlap}", which the run's workspace holds for the whole run`,
+    );
+  }
+};
+
 const sourceSentence = (
   source: SubagentWorkspaceSource,
   name: string,
@@ -176,11 +201,21 @@ const resolveSource = (
 
 export const createSubagent = (
   config: SubagentConfig,
-  environment?: { parent?: OpenWorkspace },
+  environment: {
+    parent?: OpenWorkspace;
+    exclusive: ExclusiveNames;
+    parentExclusiveNames: readonly string[];
+  },
 ): Subagent => {
+  const {
+    parent,
+    exclusive: exclusiveNames,
+    parentExclusiveNames: parentHeldNames,
+  } = environment;
   const tools = config.tools ?? [];
-  const parentName = environment?.parent?.name;
+  const parentName = parent?.name;
   validateWorkspace(config.name, config.workspace, parentName);
+  validateHeldNames(config.name, config.workspace, parentHeldNames);
   createHarness(config.harness, config.provider, config.gate, tools);
 
   const inputSchema = buildInputSchema(
@@ -236,10 +271,13 @@ export const createSubagent = (
       }
 
       if (source.kind === "parent") {
-        const parent = environment?.parent as OpenWorkspace;
         return runWith(mergeWorkspaceTools(tools, parent));
       }
 
+      const release = await exclusiveNames.acquire(
+        exclusiveNamesOf(source.workspace),
+        context.signal,
+      );
       let succeeded = false;
       let answer = "";
       try {
@@ -262,6 +300,8 @@ export const createSubagent = (
           });
         }
         throw error;
+      } finally {
+        release();
       }
     },
   };

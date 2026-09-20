@@ -8,13 +8,14 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool, run and gate spans", () => {
+  it("has the harness, llm, tool, run, gate and workspace spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
       tool: "mg.tool",
       run: "mg.run",
       gate: "mg.gate",
+      workspace: "mg.workspace",
     });
   });
 });
@@ -40,6 +41,12 @@ describe("ATTR", () => {
   it("has the run attributes", () => {
     expect(ATTR.runName).toBe("mg.run.name");
     expect(ATTR.runCase).toBe("mg.run.case");
+  });
+
+  it("has the workspace attributes", () => {
+    expect(ATTR.workspaceName).toBe("mg.workspace.name");
+    expect(ATTR.workspaceConnectors).toBe("mg.workspace.connectors");
+    expect(ATTR.workspaceTools).toBe("mg.workspace.tools");
   });
 
   it("has the gate attributes", () => {

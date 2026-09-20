@@ -79,43 +79,47 @@ LLM の呼び出しの記録は、プロバイダーのラッパーが書きま�
 ### 語彙
 
 トレースに書く名前は、`mg.` で始まるものだけです。
-スパンの名前は、共通のものが 5 つあります。
+スパンの名前は、共通のものが 6 つあります。
 
-| 定数           | 名前         | 意味                   |
-| -------------- | ------------ | ---------------------- |
-| `SPAN.harness` | `mg.harness` | ハーネス全体のスパン   |
-| `SPAN.llm`     | `mg.llm`     | LLM の呼び出しのスパン |
-| `SPAN.tool`    | `mg.tool`    | ツールの実行のスパン   |
-| `SPAN.run`     | `mg.run`     | 1 回の実行のスパン     |
-| `SPAN.gate`    | `mg.gate`    | 判定のスパン           |
+| 定数             | 名前           | 意味                   |
+| ---------------- | -------------- | ---------------------- |
+| `SPAN.harness`   | `mg.harness`   | ハーネス全体のスパン   |
+| `SPAN.llm`       | `mg.llm`       | LLM の呼び出しのスパン |
+| `SPAN.tool`      | `mg.tool`      | ツールの実行のスパン   |
+| `SPAN.run`       | `mg.run`       | 1 回の実行のスパン     |
+| `SPAN.gate`      | `mg.gate`      | 判定のスパン           |
+| `SPAN.workspace` | `mg.workspace` | 作業場の開閉のスパン   |
 
 ハーネス固有のスパンは、`mg.<ハーネス名>.` で始めます。
 
 属性の名前も、表にまとめます。
 
-| 定数                     | 名前                         | 意味                                              |
-| ------------------------ | ---------------------------- | ------------------------------------------------- |
-| `ATTR.op`                | `mg.op`                      | スパンの種類（harness / llm / tool / run / gate） |
-| `ATTR.harnessName`       | `mg.harness.name`            | ハーネスの名前                                    |
-| `ATTR.runName`           | `mg.run.name`                | 設定の名前                                        |
-| `ATTR.runCase`           | `mg.run.case`                | 件の ID                                           |
-| `ATTR.llmModel`          | `mg.llm.model`               | 使ったモデルの名前                                |
-| `ATTR.llmProvider`       | `mg.llm.provider`            | プロバイダーの名前（名前がなければ省く）          |
-| `ATTR.llmStream`         | `mg.llm.stream`              | ストリーミングで受け取ったか                      |
-| `ATTR.llmFinishReason`   | `mg.llm.finish_reason`       | 終わった理由                                      |
-| `ATTR.llmInputTokens`    | `mg.llm.usage.input_tokens`  | 入力のトークン数                                  |
-| `ATTR.llmOutputTokens`   | `mg.llm.usage.output_tokens` | 出力のトークン数                                  |
-| `ATTR.llmInputMessages`  | `mg.llm.messages.input`      | 送った会話（JSON 文字列）                         |
-| `ATTR.llmOutputMessages` | `mg.llm.messages.output`     | 返った会話（JSON 文字列）                         |
-| `ATTR.toolName`          | `mg.tool.name`               | ツールの名前                                      |
-| `ATTR.toolCallId`        | `mg.tool.call_id`            | 呼び出しの ID                                     |
-| `ATTR.toolArguments`     | `mg.tool.arguments`          | 渡した引数（JSON 文字列）                         |
-| `ATTR.toolResult`        | `mg.tool.result`             | 実行の結果                                        |
-| `ATTR.gateKind`          | `mg.gate.kind`               | 判定した対象の種類                                |
-| `ATTR.gateDescription`   | `mg.gate.description`        | 判定した対象の説明文                              |
-| `ATTR.gateAllowed`       | `mg.gate.allowed`            | 判定の可否                                        |
-| `ATTR.gateReason`        | `mg.gate.reason`             | 判定の理由                                        |
-| `ATTR.gateModel`         | `mg.gate.model`              | 判定に使ったモデルの名前（LLM の実装だけ）        |
+| 定数                       | 名前                         | 意味                                                          |
+| -------------------------- | ---------------------------- | ------------------------------------------------------------- |
+| `ATTR.op`                  | `mg.op`                      | スパンの種類（harness / llm / tool / run / gate / workspace） |
+| `ATTR.harnessName`         | `mg.harness.name`            | ハーネスの名前                                                |
+| `ATTR.runName`             | `mg.run.name`                | 設定の名前                                                    |
+| `ATTR.runCase`             | `mg.run.case`                | 件の ID                                                       |
+| `ATTR.workspaceName`       | `mg.workspace.name`          | 作業場の名前                                                  |
+| `ATTR.workspaceConnectors` | `mg.workspace.connectors`    | 接続方法の種類の並び（JSON 文字列）                           |
+| `ATTR.workspaceTools`      | `mg.workspace.tools`         | 生まれた道具の名前の並び（JSON 文字列）                       |
+| `ATTR.llmModel`            | `mg.llm.model`               | 使ったモデルの名前                                            |
+| `ATTR.llmProvider`         | `mg.llm.provider`            | プロバイダーの名前（名前がなければ省く）                      |
+| `ATTR.llmStream`           | `mg.llm.stream`              | ストリーミングで受け取ったか                                  |
+| `ATTR.llmFinishReason`     | `mg.llm.finish_reason`       | 終わった理由                                                  |
+| `ATTR.llmInputTokens`      | `mg.llm.usage.input_tokens`  | 入力のトークン数                                              |
+| `ATTR.llmOutputTokens`     | `mg.llm.usage.output_tokens` | 出力のトークン数                                              |
+| `ATTR.llmInputMessages`    | `mg.llm.messages.input`      | 送った会話（JSON 文字列）                                     |
+| `ATTR.llmOutputMessages`   | `mg.llm.messages.output`     | 返った会話（JSON 文字列）                                     |
+| `ATTR.toolName`            | `mg.tool.name`               | ツールの名前                                                  |
+| `ATTR.toolCallId`          | `mg.tool.call_id`            | 呼び出しの ID                                                 |
+| `ATTR.toolArguments`       | `mg.tool.arguments`          | 渡した引数（JSON 文字列）                                     |
+| `ATTR.toolResult`          | `mg.tool.result`             | 実行の結果                                                    |
+| `ATTR.gateKind`            | `mg.gate.kind`               | 判定した対象の種類                                            |
+| `ATTR.gateDescription`     | `mg.gate.description`        | 判定した対象の説明文                                          |
+| `ATTR.gateAllowed`         | `mg.gate.allowed`            | 判定の可否                                                    |
+| `ATTR.gateReason`          | `mg.gate.reason`             | 判定の理由                                                    |
+| `ATTR.gateModel`           | `mg.gate.model`              | 判定に使ったモデルの名前（LLM の実装だけ）                    |
 
 属性の値は、文字列と数値と真偽値だけです。
 構造がある値は、JSON の文字列にして持たせます。

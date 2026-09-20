@@ -2,6 +2,7 @@ import type { Provider, Tool } from "@mg/core";
 import type { Gate } from "@mg/gate";
 import type { TraceSdkOptions } from "@mg/trace/otel";
 import type { Workspace } from "@mg/workspace";
+import type { SubagentConfig } from "./subagent-config.js";
 
 export type LoopHarnessConfig = {
   kind: "loop";
@@ -19,6 +20,7 @@ export type RunConfig = {
   gate?: Gate;
   trace?: Omit<TraceSdkOptions, "sessionId">;
   workspace?: Workspace;
+  subagents?: readonly SubagentConfig[];
 };
 
 export const defineRun = (config: RunConfig): RunConfig => config;

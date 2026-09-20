@@ -155,7 +155,11 @@ runner は、設定からサブエージェントを組み立てます。
 書き方は、この後の「並行と順番待ち」でまとめます。
 
 ```ts
-createSubagent(config, { parent: openedWorkspace, exclusive });
+createSubagent(config, {
+  parent: openedWorkspace,
+  exclusive,
+  parentExclusiveNames,
+});
 ```
 
 渡さないまま出どころに親のものを書くと、組み立ての時点で例外になります。

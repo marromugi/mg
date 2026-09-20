@@ -240,7 +240,6 @@ workspace and a separate one (see `runs/loop-subagent.config.ts` for the file in
 repo):
 
 ```ts
-import { readFileSync } from "node:fs";
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createRulesGate } from "@mg/gate";

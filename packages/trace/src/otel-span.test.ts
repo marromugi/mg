@@ -6,6 +6,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { beforeEach, describe, expect, it } from "vitest";
 import { startRootSpan } from "./otel-span.js";
+import { createTraceSdk } from "./otel/sdk.js";
 
 const setup = () => {
   const exporter = new InMemorySpanExporter();
@@ -98,5 +99,66 @@ describe("startRootSpan / OtelSpan", () => {
     await ctx.provider.forceFlush();
     const [span] = ctx.exporter.getFinishedSpans();
     expect(span?.status.code).toBe(SpanStatusCode.UNSET);
+  });
+});
+
+describe("startRoot", () => {
+  it("creates a root span with no parent and a different trace id, keeping the same session id", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({
+      sessionId: "s1",
+      exporters: [inMemory],
+    });
+
+    const a = startRootSpan(sdk.tracer, "a");
+    const b = a.startRoot("b");
+    b.end();
+    a.end();
+
+    await sdk.shutdown();
+
+    const spans = inMemory.getFinishedSpans();
+    const byName = Object.fromEntries(
+      spans.map((span) => [span.name, span]),
+    );
+
+    expect(spans.map((span) => span.name).sort()).toEqual(["a", "b"]);
+    expect(byName["b"]?.parentSpanContext).toBeUndefined();
+    expect(byName["b"]?.spanContext().traceId).not.toBe(
+      byName["a"]?.spanContext().traceId,
+    );
+    expect(byName["a"]?.resource.attributes["session.id"]).toBe("s1");
+    expect(byName["b"]?.resource.attributes["session.id"]).toBe("s1");
+  });
+
+  it("keeps a child of the new root in the same trace, with the new root as its parent", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const a = startRootSpan(sdk.tracer, "a");
+    const b = a.startRoot("b");
+    const c = b.startSpan("c");
+    c.end();
+    b.end();
+    a.end();
+
+    await sdk.shutdown();
+
+    const spans = inMemory.getFinishedSpans();
+    const byName = Object.fromEntries(
+      spans.map((span) => [span.name, span]),
+    );
+
+    expect(spans.map((span) => span.name).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(byName["c"]?.spanContext().traceId).toBe(
+      byName["b"]?.spanContext().traceId,
+    );
+    expect(byName["c"]?.parentSpanContext?.spanId).toBe(
+      byName["b"]?.spanContext().spanId,
+    );
   });
 });

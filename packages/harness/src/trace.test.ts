@@ -12,6 +12,10 @@ describe("noopSpan", () => {
     expect(noopSpan.startSpan("x")).toBe(noopSpan);
   });
 
+  test("startRoot returns itself", () => {
+    expect(noopSpan.startRoot("x")).toBe(noopSpan);
+  });
+
   test("every method is a no-op", () => {
     expect(() => noopSpan.startSpan("x", { a: 1 })).not.toThrow();
     expect(() => noopSpan.setAttributes({ a: 1 })).not.toThrow();
@@ -28,6 +32,10 @@ class RecordingSpan implements TraceSpan {
   startSpan(name: string, attributes?: TraceAttributes): TraceSpan {
     this.startSpanCalls.push({ name, attributes });
     return this;
+  }
+
+  startRoot(name: string, attributes?: TraceAttributes): TraceSpan {
+    return this.startSpan(name, attributes);
   }
 
   setAttributes(): void {}

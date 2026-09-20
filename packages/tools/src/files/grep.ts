@@ -98,21 +98,26 @@ const dropTrailingPartialLine = (text: string): string => {
   return lastNewline === -1 ? "" : text.slice(0, lastNewline);
 };
 
-const withTruncationMarker = (lines: string[]): string =>
-  lines.length === 0
-    ? "[results truncated]"
-    : `${lines.join("\n")}\n[results truncated]`;
+type ParsedMatches = {
+  lines: string[];
+  truncated: boolean;
+  invalidUtf8: number;
+  binary: number;
+};
 
 const formatMatches = (
   stdout: string,
   rootReal: string,
   maxResults: number,
   maxLineChars: number,
-): { lines: string[]; truncated: boolean } => {
-  const lines: string[] = [];
+): ParsedMatches => {
+  const committed: string[] = [];
   let truncated = false;
+  let invalidUtf8 = 0;
+  let binary = 0;
+  let currentFileLines: string[] = [];
 
-  outer: for (const rawLine of stdout.split("\n")) {
+  for (const rawLine of stdout.split("\n")) {
     if (rawLine === "") continue;
 
     let entry: unknown;
@@ -121,33 +126,77 @@ const formatMatches = (
     } catch {
       continue;
     }
-    if (!isRgMatch(entry)) continue;
+    if (typeof entry !== "object" || entry === null) continue;
+    const type = (entry as { type?: unknown }).type;
 
-    const { data } = entry;
-    if (data.path.text === undefined || data.lines.text === undefined) {
+    if (type === "match") {
+      if (!isRgMatch(entry)) continue;
+      const { data } = entry;
+
+      if (
+        data.path.text === undefined ||
+        data.lines.text === undefined
+      ) {
+        invalidUtf8 += Math.max(1, data.submatches.length);
+        continue;
+      }
+
+      const relative = path
+        .relative(rootReal, path.resolve(rootReal, data.path.text))
+        .split(path.sep)
+        .join("/");
+      const text = truncateLine(
+        trimTrailingNewline(data.lines.text),
+        maxLineChars,
+      );
+
+      for (const submatch of data.submatches) {
+        const col = columnOf(data.lines.text, submatch.start);
+        currentFileLines.push(
+          `${relative}:${data.line_number}:${col}: ${text}`,
+        );
+      }
       continue;
     }
 
-    const relative = path
-      .relative(rootReal, path.resolve(rootReal, data.path.text))
-      .split(path.sep)
-      .join("/");
-    const text = truncateLine(
-      trimTrailingNewline(data.lines.text),
-      maxLineChars,
-    );
+    if (type === "end") {
+      const binaryOffset = (
+        entry as { data?: { binary_offset?: unknown } }
+      ).data?.binary_offset;
 
-    for (const submatch of data.submatches) {
-      if (lines.length >= maxResults) {
-        truncated = true;
-        break outer;
+      if (typeof binaryOffset === "number") {
+        binary += currentFileLines.length;
+      } else {
+        for (const line of currentFileLines) {
+          if (committed.length >= maxResults) {
+            truncated = true;
+          } else {
+            committed.push(line);
+          }
+        }
       }
-      const col = columnOf(data.lines.text, submatch.start);
-      lines.push(`${relative}:${data.line_number}:${col}: ${text}`);
+      currentFileLines = [];
     }
   }
 
-  return { lines, truncated };
+  return { lines: committed, truncated, invalidUtf8, binary };
+};
+
+const formatOutput = (
+  lines: string[],
+  truncated: boolean,
+  invalidUtf8: number,
+  binary: number,
+): string => {
+  const parts = [...lines];
+  if (truncated) parts.push("[results truncated]");
+  if (invalidUtf8 > 0) {
+    parts.push(`[skipped ${invalidUtf8} matches: not valid UTF-8]`);
+  }
+  if (binary > 0) {
+    parts.push(`[skipped ${binary} matches: binary file]`);
+  }
+  return parts.join("\n");
 };
 
 export const createGrepTool = (
@@ -167,7 +216,8 @@ export const createGrepTool = (
     description:
       "Searches file contents under the root with ripgrep and returns " +
       "path:line:col: text per match; line and col are what read_file " +
-      "accepts. Respects .gitignore. Searches hidden files. At most " +
+      "accepts. Respects .gitignore. Searches hidden files. Skips " +
+      "binary files. At most " +
       `${maxResults} matches.`,
     input: grepInput,
     async execute(
@@ -201,15 +251,13 @@ export const createGrepTool = (
       });
 
       if (error === null) {
-        const { lines, truncated } = formatMatches(
+        const { lines, truncated, invalidUtf8, binary } = formatMatches(
           stdout,
           rootReal,
           maxResults,
           maxLineChars,
         );
-        return truncated
-          ? withTruncationMarker(lines)
-          : lines.join("\n");
+        return formatOutput(lines, truncated, invalidUtf8, binary);
       }
 
       if (isAbortError(error)) throw error;
@@ -221,13 +269,13 @@ export const createGrepTool = (
       }
 
       if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-        const { lines } = formatMatches(
+        const { lines, invalidUtf8, binary } = formatMatches(
           dropTrailingPartialLine(stdout),
           rootReal,
           maxResults,
           maxLineChars,
         );
-        return withTruncationMarker(lines);
+        return formatOutput(lines, true, invalidUtf8, binary);
       }
 
       if (error.killed === true) {

@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mg/core": "workspace:*"
+    "@mg/core": "workspace:*",
+    "@standard-schema/spec": "^1.1.0"
   }
 }

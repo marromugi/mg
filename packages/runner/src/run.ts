@@ -79,9 +79,8 @@ export const run = async (
     }
   };
 
-  // Read only once `runtimeError` is undefined below, which happens
-  // only after this try block ran to completion without throwing.
-  let result!: HarnessResult;
+  let result: HarnessResult | undefined;
+  let runtimeFailed = false;
   let runtimeError: unknown;
   try {
     opened = config.workspace
@@ -126,21 +125,25 @@ export const run = async (
     );
     result = await collect(events);
   } catch (error) {
+    runtimeFailed = true;
     runtimeError = error;
   }
 
+  let closeFailed = false;
   let closeError: unknown;
   try {
     await closeWorkspace();
   } catch (error) {
+    closeFailed = true;
     closeError = error;
   }
 
   // `run`'s own error wins over a close failure that follows it.
-  const rootError = runtimeError ?? closeError;
-  root.end(rootError);
+  const failed = runtimeFailed || closeFailed;
+  const rootError = runtimeFailed ? runtimeError : closeError;
+  root.end(failed ? rootError : undefined);
 
-  if (rootError !== undefined) {
+  if (failed) {
     try {
       await sdk.shutdown();
     } catch {
@@ -150,5 +153,10 @@ export const run = async (
   }
 
   await sdk.shutdown();
+  if (result === undefined) {
+    // Unreachable: `runtimeFailed` is false only when the try block
+    // above ran to completion and assigned `result`.
+    throw new Error("run: result was not assigned despite success");
+  }
   return { sessionId: sdk.sessionId, result };
 };

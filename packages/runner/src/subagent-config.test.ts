@@ -1,5 +1,11 @@
-import type { GenerateResponse, Provider, StreamEvent } from "@mg/core";
-import { defineTool, type Tool, type ToolSchema } from "@mg/core";
+import type {
+  GenerateResponse,
+  Provider,
+  StreamEvent,
+  Tool,
+  ToolSchema,
+} from "@mg/core";
+import { defineTool } from "@mg/core";
 import type { Gate, Verdict } from "@mg/gate";
 import { describe, expect, test, vi } from "vitest";
 import type { SubagentConfig } from "./subagent-config.js";

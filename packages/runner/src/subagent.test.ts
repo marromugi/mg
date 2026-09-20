@@ -36,7 +36,7 @@ const scriptedProvider = (
   const requests: Message[][] = [];
   const provider: Provider = {
     generate: async (request) => {
-      requests.push(request.messages);
+      requests.push([...request.messages]);
       const response = responses[index];
       index++;
       if (!response)
@@ -88,7 +88,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider: scriptedProvider([]).provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     expect(subagent.name).toBe("researcher");
@@ -119,7 +119,7 @@ describe("createSubagent", () => {
       description: "Researches a topic",
       system: "You research.",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     const result = await subagent.start({ prompt: "find x" }, {});
@@ -142,7 +142,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     await subagent.start({ prompt: "find x" }, {});
@@ -158,7 +158,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     const result = await subagent.start({ prompt: "find x" }, {});
@@ -187,7 +187,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     const result = await subagent.start({ prompt: "find x" }, {});
@@ -215,7 +215,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     const result = await subagent.start({ prompt: "find x" }, {});
@@ -236,7 +236,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     const result = await subagent.start({ prompt: "find x" }, {});
@@ -254,7 +254,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     const result = await subagent.start({ prompt: "find x" }, {});
@@ -270,7 +270,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider: throwingProvider(error),
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
 
     await expect(
@@ -304,7 +304,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 2 },
+      harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
       tools: [echoTool],
       gate,
     });
@@ -326,7 +326,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
     const t = new RecordingSpan("t");
 
@@ -351,7 +351,7 @@ describe("createSubagent", () => {
       name: "researcher",
       description: "Researches a topic",
       provider,
-      harness: { kind: "loop", model: "m", maxTurns: 1 },
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     });
     const controller = new AbortController();
     controller.abort();
@@ -371,7 +371,12 @@ describe("createSubagent", () => {
         name: "researcher",
         description: "Researches a topic",
         provider: scriptedProvider([]).provider,
-        harness: { kind: "loop", model: "m", maxTurns: 0 },
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 0,
+          stream: false,
+        },
       }),
     ).toThrow(new RangeError("maxTurns must be >= 1, got 0"));
   });

@@ -1,24 +1,27 @@
-import type { Tool } from "@mg/core";
+import type { Provider, Tool } from "@mg/core";
+import type { Gate } from "@mg/gate";
 import type { Harness } from "@mg/harness";
 import { createLoopHarness } from "@mg/harness-loop";
-import type { RunConfig } from "./config.js";
+import type { HarnessConfig } from "./config.js";
 
 export const createHarness = (
-  config: RunConfig,
+  harnessConfig: HarnessConfig,
+  provider: Provider,
+  gate: Gate | undefined,
   tools: readonly Tool[],
 ): Harness => {
-  switch (config.harness.kind) {
+  switch (harnessConfig.kind) {
     case "loop":
       return createLoopHarness({
-        provider: config.provider,
-        model: config.harness.model,
+        provider,
+        model: harnessConfig.model,
         tools,
-        maxTurns: config.harness.maxTurns,
-        stream: config.harness.stream,
-        gate: config.gate,
+        maxTurns: harnessConfig.maxTurns,
+        stream: harnessConfig.stream,
+        gate,
       });
     default: {
-      const unknown = config.harness as { kind: unknown };
+      const unknown = harnessConfig as { kind: unknown };
       throw new RangeError(
         `unknown harness kind: ${String(unknown.kind)}`,
       );

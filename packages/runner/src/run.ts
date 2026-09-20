@@ -53,7 +53,12 @@ export const run = async (
       { trace: root, signal: options?.signal },
       async (opened) => {
         const tools = mergeWorkspaceTools(config.tools ?? [], opened);
-        const harness = createHarness(config, tools);
+        const harness = createHarness(
+          config.harness,
+          config.provider,
+          config.gate,
+          tools,
+        );
         const events = tee(
           harness({ messages, signal: options?.signal, trace: root }),
           options?.onEvent,

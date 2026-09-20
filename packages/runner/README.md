@@ -141,9 +141,11 @@ runner は、設定からサブエージェントを組み立てます。
 
 親のものを使う設定を組み立てるときは、親の開いたワークスペースを渡します。
 渡す先は `createSubagent` の第 2 引数です。
+この引数には、排他的に持つものの確保の状態も必ず書きます。
+書き方は、この後の「並行と順番待ち」でまとめます。
 
 ```ts
-createSubagent(config, { parent: openedWorkspace });
+createSubagent(config, { parent: openedWorkspace, exclusive });
 ```
 
 渡さないまま出どころに親のものを書くと、組み立ての時点で例外になります。
@@ -198,15 +200,11 @@ createSubagent(config, { parent: openedWorkspace });
 閉じるのに失敗しても、名前は手放します。
 
 順番待ちの状態は `ExclusiveNames` という型です。
-`createSubagent` の第 2 引数で渡します。
-
-```ts
-createSubagent(config, { exclusive: createExclusiveNames() });
-```
-
-渡さないと、その組み立てだけで使う状態を内部で作ります。
-1 回の走行で、複数のサブエージェントに同じ状態を渡すこともあります。
-そのときは、名前の重なりを共有して待ち合わせます。
+1 回の走行につき 1 つ作ります。
+走行がサブエージェントを組み立てるときに、その状態を渡します。
+`createSubagent` の第 2 引数は必須で、`exclusive` にその状態を書きます。
+1 回の走行の中では、全部のサブエージェントが同じ状態を共有します。
+共有しているため、別々のサブエージェントでも名前の重なりを待ち合います。
 
 待っている間に中断のシグナルが来ると、開かずに中断の例外で終わります。
 待ちに時間の上限はありません。
@@ -215,11 +213,12 @@ createSubagent(config, { exclusive: createExclusiveNames() });
 親はその名前を、走行の間ずっと確保しています。
 そのままでは、待ちが終わらないからです。
 そのため、組み立ての時点で `InvalidRunConfigError` になります。
-親の名前は `parentExclusiveNames` で渡します。
+親の名前は、第 2 引数の `parentExclusiveNames` で渡します。
 
 ```ts
 createSubagent(config, {
   parent: openedWorkspace,
+  exclusive,
   parentExclusiveNames: exclusiveNamesOf(runWorkspace),
 });
 ```

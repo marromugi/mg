@@ -74,6 +74,13 @@ const throwingProvider = (error: Error): Provider => ({
   },
 });
 
+const nullRejectingProvider = (): Provider => ({
+  generate: () => Promise.reject(null),
+  stream: () => {
+    throw new Error("nullRejectingProvider: stream is not scripted");
+  },
+});
+
 const trackingProvider = (
   responses: readonly GenerateResponse[],
 ): { provider: Provider; requests: GenerateRequest[] } => {
@@ -258,6 +265,23 @@ describe("run", () => {
       .getFinishedSpans()
       .find((span) => span.name === "mg.run");
     expect(rootSpan).toBeDefined();
+    expect(rootSpan?.status.code).toBe(2);
+  });
+
+  test("a provider that rejects with null makes run reject with null, and the mg.run span ends as an error", async () => {
+    const exporter = new InMemorySpanExporter();
+    const config: RunConfig = {
+      name: "example",
+      provider: nullRejectingProvider(),
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      trace: { exporters: [exporter] },
+    };
+
+    await expect(run(config, [])).rejects.toBeNull();
+
+    const rootSpan = exporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.run");
     expect(rootSpan?.status.code).toBe(2);
   });
 

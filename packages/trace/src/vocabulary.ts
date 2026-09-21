@@ -7,13 +7,16 @@ export const SPAN = {
   workspace: "mg.workspace",
   subagent: "mg.subagent",
   thread: "mg.thread",
+  input: "mg.input",
+  trigger: "mg.trigger",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger"
   harnessName: "mg.harness.name",
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
+  runSession: "mg.run.session", // session id of the started run, written on the input span
   workspaceName: "mg.workspace.name",
   workspaceConnectors: "mg.workspace.connectors", // jsonAttribute(string[])
   workspaceTools: "mg.workspace.tools", // jsonAttribute(string[])
@@ -40,4 +43,10 @@ export const ATTR = {
   subagentArguments: "mg.subagent.arguments", // jsonAttribute(unknown)
   subagentResult: "mg.subagent.result", // string
   threadId: "mg.thread.id",
+  inputValue: "mg.input.value", // jsonAttribute(unknown)
+  triggerFired: "mg.trigger.fired", // boolean
+  triggerReason: "mg.trigger.reason",
+  triggerModel: "mg.trigger.model",
+  triggerProbability: "mg.trigger.probability", // number
+  triggerThreshold: "mg.trigger.threshold", // number
 } as const;

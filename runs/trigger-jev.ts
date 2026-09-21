@@ -1,31 +1,14 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
 import type { Message } from "@mg/core";
-import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
+import { createOpenRouterProvider } from "@mg/core";
 import { defineRun, run, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
-import { createEstimatorTrigger } from "@mg/trigger";
+import { trigger } from "./trigger-jev.trigger.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
-
-const jevApiKey = process.env.TYPESAFE_API_KEY;
-if (jevApiKey === undefined)
-  throw new Error("TYPESAFE_API_KEY is not set");
-
-const prompt =
-  "The input is something the user muttered to themselves, not a " +
-  "request addressed to an assistant. A run should start only when " +
-  "an assistant could concretely help with what they said, such as " +
-  "answering a question, looking something up, or preparing " +
-  "something they will need.";
-
-const trigger = createEstimatorTrigger({
-  estimator: createJevEstimator({ apiKey: jevApiKey }),
-  prompt,
-  threshold: 0.7,
-});
 
 const runConfig = defineRun({
   name: "trigger-jev",

@@ -94,7 +94,7 @@ declare const estimator: Estimator;
 
 const trigger = createEstimatorTrigger({
   estimator,
-  prompt: "Fire when the assistant could help.",
+  question: "Is this input worth acting on?",
 });
 
 const decision = await trigger.decide({
@@ -108,15 +108,23 @@ const decision = await trigger.decide({
 | 名前        | 内容                                 |
 | ----------- | ------------------------------------ |
 | `estimator` | 確率を返す Estimator                 |
-| `prompt`    | 判定の目的を書いた文                 |
+| `question`  | Estimator に渡す質問                 |
 | `threshold` | 発火とみなす確率の下限（省くと 0.7） |
 
 しきい値は 0 から 1 の範囲で渡します。
 範囲の外か、有限の数でなければ、組み立ての時点で `RangeError` を投げます。
 
+`question` は必須です。
+空か、空白だけの文字列は、組み立ての時点で `RangeError` を投げます。
+
 判定は、入力の種類とテキストを Estimator に渡します。
 テキストは `Kind: <種類>` の行と、入力のテキストをつないだものです。
-質問は、渡した `prompt` と、固定の問いをつないだものです。
+質問には、渡した `question` を前後の空白も含めてそのまま送ります。
+何も足しません。
+
+質問の文面は、使う側の入力に合わせて選ぶものです。
+このパッケージは既定の質問を持ちません。
+測って選んだ質問の例は `runs/trigger-jev.trigger.ts` にあります。
 
 確率がしきい値以上なら発火します。
 理由の文には、確率としきい値をそのまま書きます。

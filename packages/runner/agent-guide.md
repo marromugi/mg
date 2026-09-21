@@ -510,7 +510,7 @@ Starting a run only when a trigger fires, with `runOnTrigger`:
 
 ```ts
 import type { Message } from "@mg/core";
-import { runOnTrigger } from "@mg/runner";
+import { run, runOnTrigger } from "@mg/runner";
 import type { Trigger } from "@mg/trigger";
 import config from "./loop-bash.config.ts";
 
@@ -526,10 +526,10 @@ const trigger: Trigger<TweetInput> = {
 const outcome = await runOnTrigger(
   {
     trigger,
-    run: config,
     toMessages: (input): Message[] => [
       { role: "user", content: input.text },
     ],
+    start: (messages, options) => run(config, messages, options),
     trace: { jsonlPath: "./trigger.jsonl" },
   },
   { kind: "tweet", text: "hello" },
@@ -539,20 +539,30 @@ if (outcome.fired) console.log(outcome.run.sessionId);
 else console.log(outcome.decision.reason);
 ```
 
-`config.trace` needs at least one destination (`jsonlPath`, `sqlitePath`, or a non-empty
-`exporters` array) — checked at the type level, separate from `RunConfig`'s own `trace`, which
-stays optional. The input passed as the second argument is limited to a `JsonValue` at the
-type level. The judgement record it writes is its own session, distinct from the run's
-`sessionId` in the fired branch — see "Where results go" below.
+`start` is required, with no default. It receives the converted messages and an options object
+`{ sessionId, signal, onEvent }`, where `sessionId` is the run session id the entrance decided;
+calling `run` from inside it, as above, is the usual way to wire it up. The type parameter that
+`toMessages` returns and the one `start` accepts are tied together, so a `start` that can't
+accept what `toMessages` converts to is a type error. `config.trace` (the entrance's own trace
+option, not `RunConfig`'s) needs at least one destination (`jsonlPath`, `sqlitePath`, or a
+non-empty `exporters` array) — checked at the type level. The input passed as the second
+argument is limited to a `JsonValue` at the type level. The judgement record it writes is its
+own session, distinct from the run's `sessionId` in the fired branch — see "Where results go"
+below.
 
 ## 6. Where results go
 
 - `run` returns `{ sessionId, result }`; `runMany` returns one outcome per case, each carrying
   its own `sessionId` and either `result` or `error`.
-- `runOnTrigger` returns `{ fired: false, sessionId, decision }` when the trigger doesn't fire,
-  or `{ fired: true, sessionId, decision, run }` when it does, where `sessionId` is the
-  judgement session and `run` is `run`'s own `{ sessionId, result }`. Only in the fired branch
-  does the judgement's `mg.input` span carry `mg.run.session`, set to `run.sessionId`.
+- `runOnTrigger` returns `{ fired: false, sessionId, decision }` when the trigger doesn't fire.
+  When it fires, `run` is always `start`'s own return value, unchanged — `runOnTrigger` never
+  calls a run entrance itself. The outcome is `{ fired: true, referenced: true, sessionId,
+decision, run }` when the session id `start` returned matches the one the entrance decided,
+  or `{ fired: true, referenced: false, sessionId, decision, expectedRunSessionId, run }` when
+  it doesn't — reading `expectedRunSessionId` requires narrowing on `referenced`, not just
+  `fired`. `sessionId` is the judgement session throughout. Only in the fired branch does the
+  judgement's `mg.input` span carry `mg.run.session`, set to the session id the entrance
+  decided and passed to `start`.
 - Trace spans go wherever `trace` in the config points: the JSONL file, the SQLite database,
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a

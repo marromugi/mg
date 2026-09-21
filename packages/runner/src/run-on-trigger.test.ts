@@ -15,12 +15,9 @@ import type {
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import type { RunConfig } from "./config.js";
-import type {
-  JsonValue,
-  RunOnTriggerConfig,
-} from "./run-on-trigger.js";
+import type { RunOnTriggerConfig } from "./run-on-trigger.js";
 import { runOnTrigger } from "./run-on-trigger.js";
 
 type TweetInput = { kind: string; text: string };
@@ -521,7 +518,7 @@ describe("RunOnTriggerConfig", () => {
     }) satisfies RunOnTriggerConfig<TweetInput>;
 
     // @ts-expect-error a Date is not a JSON value
-    ({ at: new Date() }) satisfies JsonValue;
+    expectTypeOf<RunOnTriggerConfig<{ at: Date }>>();
 
     expect(true).toBe(true);
   });

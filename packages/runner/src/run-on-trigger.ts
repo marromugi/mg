@@ -9,7 +9,6 @@ import {
 import { createTraceSdk } from "@mg/trace/otel";
 import type { TraceSdkOptions } from "@mg/trace/otel";
 import type { Trigger, TriggerDecision } from "@mg/trigger";
-import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { nanoid } from "nanoid";
 import type { RunConfig } from "./config.js";
 import type { RunOutcome } from "./run.js";
@@ -23,11 +22,13 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+type TraceExporter = NonNullable<TraceSdkOptions["exporters"]>[number];
+
 export type TriggerTraceOptions = Omit<TraceSdkOptions, "sessionId"> &
   (
     | { jsonlPath: string }
     | { sqlitePath: string }
-    | { exporters: [SpanExporter, ...SpanExporter[]] }
+    | { exporters: [TraceExporter, ...TraceExporter[]] }
   );
 
 export type RunOnTriggerConfig<TInput extends JsonValue> = {
@@ -56,10 +57,11 @@ export const runOnTrigger = async <TInput extends JsonValue>(
   input: TInput,
   options?: RunOnTriggerOptions,
 ): Promise<RunOnTriggerOutcome> => {
+  const inputValue = JSON.stringify(input);
   const sdk = await createTraceSdk(config.trace);
   const root = startRootSpan(sdk.tracer, SPAN.input, {
     [ATTR.op]: "input",
-    [ATTR.inputValue]: JSON.stringify(input),
+    [ATTR.inputValue]: inputValue,
   });
 
   let decision: TriggerDecision;

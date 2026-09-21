@@ -100,6 +100,9 @@ importers:
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace
+      '@mg/trigger':
+        specifier: workspace:*
+        version: link:../trigger
       '@mg/workspace':
         specifier: workspace:*
         version: link:../workspace

@@ -159,6 +159,18 @@ importers:
         specifier: 0.31.10
         version: 0.31.10
 
+  packages/trigger:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mg/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../trace
+
   packages/workspace:
     dependencies:
       '@mg/core':

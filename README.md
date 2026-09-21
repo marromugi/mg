@@ -27,6 +27,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                     |
 | [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                 |
 | [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装              |
+| [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品 |
 | [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース |
 | [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                             |
 | [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                             |
@@ -51,6 +52,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | サブエージェントのインターフェース                        | harness                             |
 | 別のマシンへのコネクター                                  | workspace                           |
 | 実行の可否を判定するゲートの実装                          | gate                                |
+| 走行を始めるかを判定するトリガーの実装                    | trigger                             |
 | ツールの呼び出しの繰り返し                                | harness-loop                        |
 | 検証の失敗を LLM にどう返すか                             | harness-loop                        |
 | トレースの語彙とエクスポーター                            | trace                               |

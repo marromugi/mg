@@ -71,9 +71,17 @@ describe("measureTrigger", () => {
 
     expect(calls).toHaveLength(3);
 
-    finish.get("c")?.();
-    finish.get("a")?.();
-    finish.get("b")?.();
+    const finishOne = (text: string): void => {
+      const resolve = finish.get(text);
+      if (resolve === undefined) {
+        throw new Error(`no pending judgement for: ${text}`);
+      }
+      resolve();
+    };
+
+    finishOne("c");
+    finishOne("a");
+    finishOne("b");
 
     const rows = await resultPromise;
     expect(rows.map((row) => row.text)).toEqual(["a", "b", "c"]);

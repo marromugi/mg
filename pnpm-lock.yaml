@@ -209,6 +209,9 @@ importers:
       '@mg/gate':
         specifier: workspace:*
         version: link:../packages/gate
+      '@mg/harness':
+        specifier: workspace:*
+        version: link:../packages/harness
       '@mg/harness-loop':
         specifier: workspace:*
         version: link:../packages/harness-loop

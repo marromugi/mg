@@ -7,10 +7,13 @@ import type {
 import { EstimatorTransportError } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import { TriggerError } from "../errors.js";
 import type { TriggerContext } from "../types.js";
-import type { TextTriggerInput } from "./index.js";
+import type {
+  EstimatorTriggerOptions,
+  TextTriggerInput,
+} from "./index.js";
 import { createEstimatorTrigger } from "./index.js";
 
 class RecordingSpan implements TraceSpan {
@@ -65,7 +68,7 @@ const createFakeEstimator = (
   },
 });
 
-const prompt = "Fire when the assistant could help.";
+const question = "Fire when the assistant could help.";
 const input: TextTriggerInput = {
   kind: "tweet",
   text: "そういえば明日何かあったっけ",
@@ -74,7 +77,7 @@ const input: TextTriggerInput = {
 describe("createEstimatorTrigger", () => {
   test("fires with the default threshold when the probability is above it", async () => {
     const estimator = createFakeEstimator(0.82);
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
 
     await expect(trigger.decide(input)).resolves.toEqual({
       fired: true,
@@ -84,7 +87,7 @@ describe("createEstimatorTrigger", () => {
 
   test("does not fire with the default threshold when the probability is below it", async () => {
     const estimator = createFakeEstimator(0.41);
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
 
     await expect(trigger.decide(input)).resolves.toEqual({
       fired: false,
@@ -94,7 +97,7 @@ describe("createEstimatorTrigger", () => {
 
   test("fires with the default threshold when the probability equals it", async () => {
     const estimator = createFakeEstimator(0.7);
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
 
     await expect(trigger.decide(input)).resolves.toEqual({
       fired: true,
@@ -106,7 +109,7 @@ describe("createEstimatorTrigger", () => {
     const estimator = createFakeEstimator(0.82);
     const trigger = createEstimatorTrigger({
       estimator,
-      prompt,
+      question,
       threshold: 0.9,
     });
 
@@ -116,18 +119,62 @@ describe("createEstimatorTrigger", () => {
     });
   });
 
-  test("sends the kind and text as text and the prompt with the fixed question as the question", async () => {
+  test("sends the kind and text as text and the question passed in as the question, unchanged", async () => {
     const calls: [EstimateRequest, EstimateOptions | undefined][] = [];
     const estimator = createFakeEstimator(0.5, calls);
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({
+      estimator,
+      question: "Is this a bug report?",
+    });
 
     await trigger.decide(input);
 
     expect(calls[0][0]).toEqual({
       text: "Kind: tweet\nそういえば明日何かあったっけ",
-      question:
-        "Fire when the assistant could help.\n\nShould a run be started for this input?",
+      question: "Is this a bug report?",
     });
+  });
+
+  test("keeps the leading and trailing whitespace of the question as sent", async () => {
+    const calls: [EstimateRequest, EstimateOptions | undefined][] = [];
+    const estimator = createFakeEstimator(0.5, calls);
+    const trigger = createEstimatorTrigger({
+      estimator,
+      question: "  Is this a bug report?\n",
+    });
+
+    await trigger.decide(input);
+
+    expect(calls[0][0].question).toBe("  Is this a bug report?\n");
+  });
+
+  test("rejects an empty or whitespace-only question at creation", () => {
+    const estimator = createFakeEstimator(1);
+
+    for (const invalidQuestion of ["", "   "]) {
+      const create = () =>
+        createEstimatorTrigger({
+          estimator,
+          question: invalidQuestion,
+        });
+
+      expect(create).toThrow(RangeError);
+      expect(create).toThrow(/^question must not be empty$/);
+    }
+  });
+
+  test("throws the threshold error, not the question error, when both are invalid", () => {
+    const estimator = createFakeEstimator(1);
+
+    const create = () =>
+      createEstimatorTrigger({
+        estimator,
+        question: "",
+        threshold: 1.5,
+      });
+
+    expect(create).toThrow(RangeError);
+    expect(create).toThrow(/^threshold must be between 0 and 1$/);
   });
 
   test("rejects a threshold of 1.5, -0.1, or NaN at creation, but not 0 or 1", () => {
@@ -135,7 +182,7 @@ describe("createEstimatorTrigger", () => {
 
     for (const threshold of [1.5, -0.1, Number.NaN]) {
       const create = () =>
-        createEstimatorTrigger({ estimator, prompt, threshold });
+        createEstimatorTrigger({ estimator, question, threshold });
 
       expect(create).toThrow(RangeError);
       expect(create).toThrow(/^threshold must be between 0 and 1$/);
@@ -143,7 +190,7 @@ describe("createEstimatorTrigger", () => {
 
     for (const threshold of [0, 1]) {
       const create = () =>
-        createEstimatorTrigger({ estimator, prompt, threshold });
+        createEstimatorTrigger({ estimator, question, threshold });
 
       expect(create).not.toThrow();
     }
@@ -158,7 +205,7 @@ describe("createEstimatorTrigger", () => {
       model: "fake-model",
       estimate: () => Promise.reject(original),
     };
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
 
     const error = await trigger
       .decide(input)
@@ -178,7 +225,7 @@ describe("createEstimatorTrigger", () => {
       model: "fake-model",
       estimate: () => Promise.reject(original),
     };
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
 
     const error = await trigger
       .decide(input)
@@ -190,7 +237,7 @@ describe("createEstimatorTrigger", () => {
   test("rejects without calling the estimator when the signal is already aborted", async () => {
     const calls: [EstimateRequest, EstimateOptions | undefined][] = [];
     const estimator = createFakeEstimator(0.9, calls);
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
     const controller = new AbortController();
     const reason = new Error("stop");
     controller.abort(reason);
@@ -207,7 +254,7 @@ describe("createEstimatorTrigger", () => {
   test("passes the same signal through to the estimator", async () => {
     const calls: [EstimateRequest, EstimateOptions | undefined][] = [];
     const estimator = createFakeEstimator(0.9, calls);
-    const trigger = createEstimatorTrigger({ estimator, prompt });
+    const trigger = createEstimatorTrigger({ estimator, question });
     const controller = new AbortController();
     const context: TriggerContext = { signal: controller.signal };
 
@@ -220,7 +267,7 @@ describe("createEstimatorTrigger", () => {
     const estimator = createFakeEstimator(0.82);
     const trigger = createEstimatorTrigger({
       estimator,
-      prompt,
+      question,
       threshold: 0.9,
     });
     const root = new RecordingSpan("root");
@@ -246,5 +293,18 @@ describe("createEstimatorTrigger", () => {
         "そういえば明日何かあったっけ",
       );
     }
+  });
+
+  test("rejects options built with a prompt, and options missing a question", () => {
+    type Options = EstimatorTriggerOptions;
+    type NoQuestion = { estimator: Estimator };
+
+    // @ts-expect-error a prompt is not a recognised option
+    expectTypeOf<Options>().toHaveProperty("prompt");
+
+    // @ts-expect-error options without a question do not satisfy it
+    expectTypeOf<NoQuestion>().toMatchTypeOf<Options>();
+
+    expect(true).toBe(true);
   });
 });

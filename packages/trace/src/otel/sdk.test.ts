@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ROOT_CONTEXT } from "@opentelemetry/api";
 import type {
   ReadableSpan,
   SpanExporter,
@@ -314,5 +315,264 @@ describe("createTraceSdk", () => {
     await sdk.shutdown();
 
     expect(receivedNames).toEqual(["a"]);
+  });
+});
+
+describe("createTraceSdk's recording, regardless of OpenTelemetry environment variables", () => {
+  const OTEL_ENV_VARS = [
+    "OTEL_TRACES_SAMPLER",
+    "OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT",
+    "OTEL_ATTRIBUTE_COUNT_LIMIT",
+    "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT",
+    "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT",
+    "OTEL_SPAN_EVENT_COUNT_LIMIT",
+    "OTEL_SPAN_ATTRIBUTE_PER_EVENT_COUNT_LIMIT",
+    "OTEL_SPAN_LINK_COUNT_LIMIT",
+    "OTEL_SPAN_ATTRIBUTE_PER_LINK_COUNT_LIMIT",
+  ] as const;
+
+  let originalEnv: Partial<
+    Record<(typeof OTEL_ENV_VARS)[number], string>
+  >;
+
+  beforeEach(() => {
+    originalEnv = {};
+    for (const name of OTEL_ENV_VARS) {
+      originalEnv[name] = process.env[name];
+    }
+  });
+
+  afterEach(() => {
+    for (const name of OTEL_ENV_VARS) {
+      const value = originalEnv[name];
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  });
+
+  it("still exports a root span when the sampler env var is set to always_off", async () => {
+    process.env.OTEL_TRACES_SAMPLER = "always_off";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "a");
+    root.end();
+
+    expect(
+      inMemory.getFinishedSpans().map((span) => span.name),
+    ).toEqual(["a"]);
+
+    await sdk.shutdown();
+  });
+
+  it("keeps a span's attribute when the attribute count limit env vars are 0", async () => {
+    process.env.OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT = "0";
+    process.env.OTEL_ATTRIBUTE_COUNT_LIMIT = "0";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "a", { k: "v" });
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    expect(span?.attributes.k).toBe("v");
+
+    await sdk.shutdown();
+  });
+
+  it("does not truncate an attribute value when the value length limit env vars are 5", async () => {
+    process.env.OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT = "5";
+    process.env.OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT = "5";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "a", { k: "0123456789" });
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    expect(span?.attributes.k).toBe("0123456789");
+
+    await sdk.shutdown();
+  });
+
+  it("keeps a span's event when the event count limit env var is 0", async () => {
+    process.env.OTEL_SPAN_EVENT_COUNT_LIMIT = "0";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "a");
+    root.addEvent("e");
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    expect(span?.events).toHaveLength(1);
+    expect(span?.events[0]?.name).toBe("e");
+
+    await sdk.shutdown();
+  });
+
+  it("keeps an event's attribute when the per-event attribute count limit env var is 0", async () => {
+    process.env.OTEL_SPAN_ATTRIBUTE_PER_EVENT_COUNT_LIMIT = "0";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "a");
+    root.addEvent("e", { k: "v" });
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    expect(span?.events[0]?.attributes?.k).toBe("v");
+
+    await sdk.shutdown();
+  });
+
+  it("keeps a span's link when the link count limit env var is 0", async () => {
+    process.env.OTEL_SPAN_LINK_COUNT_LIMIT = "0";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const t = sdk.tracer.startSpan("t", {}, ROOT_CONTEXT);
+    t.end();
+    const a = sdk.tracer.startSpan(
+      "a",
+      { links: [{ context: t.spanContext() }] },
+      ROOT_CONTEXT,
+    );
+    a.end();
+
+    const span = inMemory
+      .getFinishedSpans()
+      .find((finishedSpan) => finishedSpan.name === "a");
+    expect(span?.links).toHaveLength(1);
+
+    await sdk.shutdown();
+  });
+
+  it("keeps a link's attribute when the per-link attribute count limit env var is 0", async () => {
+    process.env.OTEL_SPAN_ATTRIBUTE_PER_LINK_COUNT_LIMIT = "0";
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const t = sdk.tracer.startSpan("t", {}, ROOT_CONTEXT);
+    t.end();
+    const a = sdk.tracer.startSpan(
+      "a",
+      {
+        links: [{ context: t.spanContext(), attributes: { k: "v" } }],
+      },
+      ROOT_CONTEXT,
+    );
+    a.end();
+
+    const span = inMemory
+      .getFinishedSpans()
+      .find((finishedSpan) => finishedSpan.name === "a");
+    expect(span?.links[0]?.attributes?.k).toBe("v");
+
+    await sdk.shutdown();
+  });
+
+  it("keeps 128 attributes on a span when no limit env var is set", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const attributes: Record<string, string> = {};
+    for (let i = 0; i <= 128; i++) {
+      attributes[`k${i}`] = String(i);
+    }
+    const root = startRootSpan(sdk.tracer, "a", attributes);
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    expect(Object.keys(span?.attributes ?? {})).toHaveLength(128);
+
+    await sdk.shutdown();
+  });
+
+  it("keeps 128 events on a span when no limit env var is set", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const root = startRootSpan(sdk.tracer, "a");
+    for (let i = 0; i <= 128; i++) {
+      root.addEvent(`e${i}`);
+    }
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    expect(span?.events).toHaveLength(128);
+
+    await sdk.shutdown();
+  });
+
+  it("keeps 128 attributes on an event when no limit env var is set", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const attributes: Record<string, string> = {};
+    for (let i = 0; i <= 128; i++) {
+      attributes[`k${i}`] = String(i);
+    }
+    const root = startRootSpan(sdk.tracer, "a");
+    root.addEvent("e", attributes);
+    root.end();
+
+    const [span] = inMemory.getFinishedSpans();
+    const event = span?.events.find(
+      (finishedEvent) => finishedEvent.name === "e",
+    );
+    expect(Object.keys(event?.attributes ?? {})).toHaveLength(128);
+
+    await sdk.shutdown();
+  });
+
+  it("keeps 128 links on a span when no limit env var is set", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const t = sdk.tracer.startSpan("t", {}, ROOT_CONTEXT);
+    t.end();
+    const links = Array.from({ length: 129 }, () => ({
+      context: t.spanContext(),
+    }));
+    const a = sdk.tracer.startSpan("a", { links }, ROOT_CONTEXT);
+    a.end();
+
+    const span = inMemory
+      .getFinishedSpans()
+      .find((finishedSpan) => finishedSpan.name === "a");
+    expect(span?.links).toHaveLength(128);
+
+    await sdk.shutdown();
+  });
+
+  it("keeps 128 attributes on a link when no limit env var is set", async () => {
+    const inMemory = new InMemorySpanExporter();
+    const sdk = await createTraceSdk({ exporters: [inMemory] });
+
+    const attributes: Record<string, string> = {};
+    for (let i = 0; i <= 128; i++) {
+      attributes[`k${i}`] = String(i);
+    }
+    const t = sdk.tracer.startSpan("t", {}, ROOT_CONTEXT);
+    t.end();
+    const a = sdk.tracer.startSpan(
+      "a",
+      { links: [{ context: t.spanContext(), attributes }] },
+      ROOT_CONTEXT,
+    );
+    a.end();
+
+    const span = inMemory
+      .getFinishedSpans()
+      .find((finishedSpan) => finishedSpan.name === "a");
+    expect(Object.keys(span?.links[0]?.attributes ?? {})).toHaveLength(
+      128,
+    );
+
+    await sdk.shutdown();
   });
 });

@@ -506,10 +506,53 @@ const { sessionId } = await run(config, [
 console.log(sessionId);
 ```
 
+Starting a run only when a trigger fires, with `runOnTrigger`:
+
+```ts
+import type { Message } from "@mg/core";
+import { runOnTrigger } from "@mg/runner";
+import type { Trigger } from "@mg/trigger";
+import config from "./loop-bash.config.ts";
+
+type TweetInput = { kind: "tweet"; text: string };
+
+const trigger: Trigger<TweetInput> = {
+  decide: async (input) => ({
+    fired: input.text.length > 0,
+    reason: "has text",
+  }),
+};
+
+const outcome = await runOnTrigger(
+  {
+    trigger,
+    run: config,
+    toMessages: (input): Message[] => [
+      { role: "user", content: input.text },
+    ],
+    trace: { jsonlPath: "./trigger.jsonl" },
+  },
+  { kind: "tweet", text: "hello" },
+);
+
+if (outcome.fired) console.log(outcome.run.sessionId);
+else console.log(outcome.decision.reason);
+```
+
+`config.trace` needs at least one destination (`jsonlPath`, `sqlitePath`, or a non-empty
+`exporters` array) — checked at the type level, separate from `RunConfig`'s own `trace`, which
+stays optional. The input passed as the second argument is limited to a `JsonValue` at the
+type level. The judgement record it writes is its own session, distinct from the run's
+`sessionId` in the fired branch — see "Where results go" below.
+
 ## 6. Where results go
 
 - `run` returns `{ sessionId, result }`; `runMany` returns one outcome per case, each carrying
   its own `sessionId` and either `result` or `error`.
+- `runOnTrigger` returns `{ fired: false, sessionId, decision }` when the trigger doesn't fire,
+  or `{ fired: true, sessionId, decision, run }` when it does, where `sessionId` is the
+  judgement session and `run` is `run`'s own `{ sessionId, result }`. Only in the fired branch
+  does the judgement's `mg.input` span carry `mg.run.session`, set to `run.sessionId`.
 - Trace spans go wherever `trace` in the config points: the JSONL file, the SQLite database,
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a

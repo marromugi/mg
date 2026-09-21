@@ -4,4 +4,5 @@ export * from "./errors.js";
 export * from "./load.js";
 export * from "./run.js";
 export * from "./run-many.js";
+export * from "./run-on-trigger.js";
 export * from "./subagent-config.js";

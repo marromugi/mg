@@ -109,6 +109,8 @@ providers/
 
 tools/
   Tool, defineTool          実行できるツールの型と、定義のヘルパー
+  ToolInput, ToolInputIssue 検証を通った入力の型と、指摘 1 件の型
+  validateToolInput         入力をスキーマで検証する
   runToolCall               呼び出しを 1 回分、検証して実行する
 ```
 

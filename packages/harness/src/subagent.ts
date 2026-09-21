@@ -1,10 +1,11 @@
 import type {
-  Tool,
   ToolCall,
   ToolDefinition,
+  ToolInput,
   ToolMessage,
   ToolSchema,
 } from "@mg/core";
+import { validateToolInput } from "@mg/core";
 import {
   SubagentInputError,
   SubagentNotFoundError,
@@ -20,7 +21,7 @@ export type Subagent<TInput extends ToolSchema = ToolSchema> =
   ToolDefinition<TInput> & {
     // method syntax on purpose: keeps Subagent<Specific> assignable to Subagent
     start(
-      input: Parameters<Tool<TInput>["execute"]>[0],
+      input: ToolInput<TInput>,
       context: SubagentContext,
     ): Promise<string>;
   };
@@ -37,10 +38,11 @@ export const runSubagentCall = async (
     throw new SubagentNotFoundError(call.id, call.name);
   }
 
-  const result = await subagent.input["~standard"].validate(
+  const result = await validateToolInput(
+    subagent.input,
     call.arguments,
   );
-  if (result.issues) {
+  if (!result.ok) {
     throw new SubagentInputError(call.id, call.name, result.issues);
   }
 

@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { ToolInputIssue } from "./types.js";
 
 export abstract class ToolRunBaseError extends Error {
   abstract override readonly name: ToolRunErrorName;
@@ -30,12 +30,12 @@ export class ToolNotFoundError extends ToolRunBaseError {
 
 export class ToolInputError extends ToolRunBaseError {
   override readonly name = "ToolInputError";
-  readonly issues: readonly StandardSchemaV1.Issue[];
+  readonly issues: readonly ToolInputIssue[];
 
   constructor(
     toolCallId: string,
     toolName: string,
-    issues: readonly StandardSchemaV1.Issue[],
+    issues: readonly ToolInputIssue[],
   ) {
     super(
       `Invalid arguments for tool call ${toolCallId} (${toolName})`,

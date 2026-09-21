@@ -12,17 +12,16 @@ export type TextTriggerInput = { kind: string; text: string };
 
 export type EstimatorTriggerOptions = {
   estimator: Estimator;
-  prompt: string;
+  question: string;
   threshold?: number;
 };
 
 const DEFAULT_THRESHOLD = 0.7;
-const QUESTION = "Should a run be started for this input?";
 
 export const createEstimatorTrigger = (
   options: EstimatorTriggerOptions,
 ): Trigger<TextTriggerInput> => {
-  const { estimator, prompt } = options;
+  const { estimator, question } = options;
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
 
   if (!(
@@ -31,6 +30,10 @@ export const createEstimatorTrigger = (
     threshold <= 1
   )) {
     throw new RangeError("threshold must be between 0 and 1");
+  }
+
+  if (question.trim() === "") {
+    throw new RangeError("question must not be empty");
   }
 
   return {
@@ -49,7 +52,7 @@ export const createEstimatorTrigger = (
             ({ probability } = await estimator.estimate(
               {
                 text: `Kind: ${input.kind}\n${input.text}`,
-                question: `${prompt}\n\n${QUESTION}`,
+                question,
               },
               { signal: context?.signal },
             ));

@@ -1,6 +1,7 @@
 import type { ToolCall, ToolMessage } from "../providers/types.js";
 import { ToolInputError, ToolNotFoundError } from "./errors.js";
 import type { Tool, ToolContext } from "./types.js";
+import { validateToolInput } from "./validate.js";
 
 export const runToolCall = async (
   tools: readonly Tool[],
@@ -12,8 +13,8 @@ export const runToolCall = async (
     throw new ToolNotFoundError(call.id, call.name);
   }
 
-  const result = await tool.input["~standard"].validate(call.arguments);
-  if (result.issues) {
+  const result = await validateToolInput(tool.input, call.arguments);
+  if (!result.ok) {
     throw new ToolInputError(call.id, call.name, result.issues);
   }
 

@@ -18,8 +18,11 @@ LLM can judge it.
 - What the principles settle is not put to the developer.
 - What the principles do not settle is put to the developer, as a question
   with options.
-- The developer's answer is then written into this file as a principle or a
-  ruling. The same question is never asked twice.
+- This file is a general theory of software design. An answer enters it only
+  when it states a rule that would hold in any codebase, and then as the
+  wording of the principle it belongs to, so that question is not asked
+  again. An answer about one product — a name, a value, a wording, the shape
+  of one entry point — lives in the decision record of the work that asked.
 
 ## Principles
 
@@ -35,8 +38,12 @@ LLM can judge it.
   can only be argued from what might be needed later, the picture is not
   finished; go back to the picture.
 - Put concrete implementations on the interfaces last.
-- An interface is justified by a role in the picture, not by how many
-  implementations exist today. One implementation is a normal state.
+- An interface comes from a role in the picture, not from the
+  implementations that exist today. That holds for whether it exists — one
+  implementation is a normal state — and for what it takes and gives back.
+  The role's one sentence (2) sets those; what the first implementation
+  happens to need, such as text because the first condition reads text, is
+  that implementation's own.
 - Shared parts come from roles, not from resemblance. Code that looks alike is
   not a reason to merge it.
 - Providing parts to other pieces is a role. When a second piece comes to use
@@ -212,7 +219,7 @@ After the design is made:
 
 | Reviewer | Lenses |
 |---|---|
-| Whole and position | The design starts from the picture of the whole and places the piece in it (1). Dependencies point one way (3). |
+| Whole and position | The design starts from the picture of the whole and places the piece in it (1). Each interface takes and gives back what its role says, not what its first implementation needs (1). Dependencies point one way (3). |
 | Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named, and nothing of an outside specification — a default, a term — sits in shared code (7). |
 | Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided (5). No behaviour changes that the record does not name (9). |
 | Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and assumes there is at least one. |

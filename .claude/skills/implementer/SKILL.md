@@ -139,8 +139,9 @@ waiting.
 
 ### 3. Handle the agent's report
 
-- If the agent stopped on a design question: relay the question to the
-  developer as-is, and stop. The answer may need an issue update; that is the
+- If the agent stopped on a design question: quote it as-is, put it to the
+  developer in the form `architect` step 4 gives (the AskUserQuestion tool),
+  and stop. The answer may need an issue update; that is the
   developer's call.
 - If a PR was opened: note the PR number and the Deviations section. Any
   deviation goes into the reviewer's report later, so keep it.

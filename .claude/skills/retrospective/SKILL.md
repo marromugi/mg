@@ -119,7 +119,7 @@ skill loaded is plain conversation; its cause can only be in the theory.
 |---|---|---|
 | Not applied | A principle covers it, and the agent did not follow it. | The flow: the step or review lens that should have caught it. |
 | Misread | A principle covers it, but its wording allows the agent's reading. | The wording of that principle. |
-| Not covered | No principle speaks to it, and the developer's reason would hold for other work too. | The theory, at the principle nearest to the reason. |
+| Not covered | No principle speaks to it, and the developer's reason would hold in any codebase, not only in this product. | The theory, at the principle nearest to the reason. |
 | Developer's call | A product or preference call, or context only the developer had. | Nothing. |
 
 Then check whether it is already dealt with:

@@ -10,7 +10,9 @@ description: "Design-first intake for any new work in this repo. Use this whenev
 The developer owns the design intent, and that intent is written down in
 `software-design-theory`. Claude makes the design from it, and other Claudes
 judge it against it. The developer is asked only what the theory cannot
-answer, and each answer goes back into the theory so it is not asked again.
+answer. An answer that states a general rule of design goes back into the
+theory so it is not asked again; an answer about this product stays in the
+decision record.
 
 Work passes through a chain of copies: request, design, constraints, cases,
 tests, code. Each copy can lose or bend something. This skill makes the first
@@ -46,7 +48,8 @@ Then follow principle 1 in order:
   new piece will stand next to them.
 - Place the new piece in the picture. Say which role it plays, or which new
   role the picture now needs.
-- Name the interfaces the picture calls for. Check whether they already exist.
+- Name the interfaces the picture calls for, each cut from its role's one
+  sentence. Check whether they already exist.
 - Only then decide the concrete implementations.
 
 Consider at least two whole shapes, not two variations of one. Choose by the
@@ -88,8 +91,11 @@ explain, the principles that come close — goes in a short message before the
 call. Write in Japanese following `.claude/rules/writing.md`. For each
 question:
 
-- What is being decided, in plain words. If it rests on a mechanism the
-  developer may not know, explain the mechanism first.
+- What is being decided, in plain words. When the options are shapes of
+  code — an entry point, an interface, the wiring between pieces — show
+  them on the code: the existing code the question rests on, with its path,
+  and for each option what its user would write. A mechanism told in words
+  alone cannot be chosen between.
 - The options, and what each one gives up, in a table.
 - Which principles come close, why none of them settles it, and which option
   they lean towards. Recommend that option and name the principle. A
@@ -102,14 +108,12 @@ Wait for the answers. Then:
 
 - Revise the record, for the answers and for the `fix` findings together, and
   return to step 3 for the next round.
-- Sort each answer before writing it anywhere. `software-design-theory` is a
-  general theory of software design, not a log of this product's calls. An
-  answer goes into it only when it states a rule that would hold in any
-  codebase; then sharpen the principle it belongs to, or add one if it fits
-  none, and state what holds now without recording that it was asked or when.
-  An answer about this product — a name, a value, a wording, the shape of one
-  entry point — stays in the decision record and nowhere else. When unsure
-  which it is, leave the theory alone and say so in the report.
+- Sort each answer before writing it anywhere, by the rule in
+  `software-design-theory` (How to use this). A general rule goes into the
+  theory: sharpen the principle it belongs to, or add one if it fits none,
+  and state what holds now without recording that it was asked or when. An
+  answer about this product stays in the decision record and nowhere else.
+  When unsure which it is, leave the theory alone and say so in the report.
 
 ### 5. Constraints, cases, issues
 

@@ -354,6 +354,10 @@ Japanese, following `.claude/rules/writing.md`. Order:
 6. Parents closed during the run, and what is ready next if anything
    remains.
 
+After the report, put each decision item 3 leaves with the developer as a
+question, in the form `architect` step 4 gives: the AskUserQuestion tool, one
+entry per decision. Item 5 is not asked; it is there to be read.
+
 Then stop. If the developer answers the questions in item 5, those answers
 are new design decisions with no issue yet: take them through `architect`,
 which records them and creates the issues, and then run dispatcher again.

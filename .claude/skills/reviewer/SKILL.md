@@ -211,5 +211,9 @@ Japanese, following `.claude/rules/writing.md`. Order:
 4. Anything left open, including a scope-check failure from step 2 and the
    modified files noticed in step 1 if there were any.
 
+After the report, put the choice for each design-level finding as a
+question, in the form `architect` step 4 gives: the AskUserQuestion tool, one
+entry per finding.
+
 Then stop. Merging is the developer's action. If they accept a deviation,
 offer to update the issue text so the record stays true.

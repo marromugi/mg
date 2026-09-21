@@ -22,6 +22,7 @@ import type {
   RunOnTriggerConfig,
   RunOnTriggerOutcome,
   StartOptions,
+  TriggerTraceOptions,
 } from "./run-on-trigger.js";
 import { runOnTrigger } from "./run-on-trigger.js";
 import type { RunOutcome } from "./run.js";
@@ -569,10 +570,11 @@ describe("runOnTrigger", () => {
       fired: true,
       reason: "yes",
     }));
-    const { start } = fakeStart(async (_messages, options) => ({
-      sessionId: options.sessionId,
-      tag: "mine",
-    }));
+    let returned: { sessionId: string; tag: string } | undefined;
+    const { start } = fakeStart(async (_messages, options) => {
+      returned = { sessionId: options.sessionId, tag: "mine" };
+      return returned;
+    });
 
     const outcome = await runOnTrigger(
       {
@@ -591,12 +593,8 @@ describe("runOnTrigger", () => {
     if (!outcome.referenced) {
       throw new Error("expected a referenced outcome");
     }
-    const started = await start([{ role: "user", content: "hello" }], {
-      sessionId: "probe",
-    });
-    expect(outcome.run).not.toBe(started);
-    expect(outcome.run).toEqual({ sessionId: "probe", tag: "mine" });
-    expect((outcome.run as { tag: string }).tag).toBe("mine");
+    expect(outcome.run).toBe(returned);
+    expect(outcome.run.tag).toBe("mine");
   });
 
   test("when the start function returns a different session id, the outcome reports the reference is lost without rejecting", async () => {
@@ -760,17 +758,19 @@ describe("RunOnTriggerConfig", () => {
   });
 
   test("requires a start function, and rejects one that cannot receive what toMessages converts to", () => {
-    const trace = { exporters: [new InMemorySpanExporter()] };
+    const trace: TriggerTraceOptions = {
+      exporters: [new InMemorySpanExporter()],
+    };
     const trigger = fakeTrigger(async () => ({
       fired: false,
       reason: "no",
     })).trigger;
 
-    // @ts-expect-error a config without start is rejected
     ({
       trigger,
       toMessages,
       trace,
+      // @ts-expect-error a config without start is rejected
     }) satisfies RunOnTriggerConfig<TweetInput>;
 
     const toUserMessages = (input: TweetInput): Message[] => [
@@ -794,7 +794,7 @@ describe("RunOnTriggerConfig", () => {
       toMessages: toUserMessages,
       // @ts-expect-error start cannot receive what toMessages converts to
       start: startUserMessagesOnly,
-    }) satisfies RunOnTriggerConfig<TweetInput, Message>;
+    }) satisfies RunOnTriggerConfig<TweetInput>;
 
     expect(true).toBe(true);
   });
@@ -804,7 +804,7 @@ describe("RunOnTriggerConfig", () => {
 
     if (outcome.fired) {
       // @ts-expect-error expectedRunSessionId only exists once referenced is narrowed to false
-      outcome.expectedRunSessionId;
+      void outcome.expectedRunSessionId;
     }
 
     expect(true).toBe(true);

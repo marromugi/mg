@@ -4,6 +4,7 @@ import {
   resourceFromAttributes,
 } from "@opentelemetry/resources";
 import {
+  AlwaysOnSampler,
   BasicTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
@@ -15,6 +16,7 @@ import { nanoid } from "nanoid";
 import type { TraceDb } from "../store/sqlite.js";
 import { openTraceDb } from "../store/sqlite.js";
 import { JsonlSpanExporter } from "./jsonl-exporter.js";
+import { generalLimits, spanLimits } from "./limits.js";
 import { SqliteSpanExporter } from "./sqlite-exporter.js";
 
 const ATTR_SESSION_ID = "session.id";
@@ -96,6 +98,9 @@ export const createTraceSdk = async (
     spanProcessors: exporters.map(
       (exporter) => new SimpleSpanProcessor(exporter),
     ),
+    sampler: new AlwaysOnSampler(),
+    spanLimits,
+    generalLimits,
   });
 
   return {

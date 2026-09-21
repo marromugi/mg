@@ -81,8 +81,12 @@ and pointers to the code.
 
 If there are no `ask` findings, skip this step.
 
-Otherwise stop here, once, with all of them. Write in Japanese following
-`.claude/rules/writing.md`. For each question:
+Otherwise stop here, once, with all of them. Put the questions with the
+AskUserQuestion tool, one entry per question, each option's description
+saying what it gives up. What does not fit in the tool — a mechanism to
+explain, the principles that come close — goes in a short message before the
+call. Write in Japanese following `.claude/rules/writing.md`. For each
+question:
 
 - What is being decided, in plain words. If it rests on a mechanism the
   developer may not know, explain the mechanism first.
@@ -98,9 +102,14 @@ Wait for the answers. Then:
 
 - Revise the record, for the answers and for the `fix` findings together, and
   return to step 3 for the next round.
-- Write each answer into `software-design-theory`: sharpen the principle it
-  belongs to, or add a principle if it fits none. State what holds now; do not
-  record that it was asked or when.
+- Sort each answer before writing it anywhere. `software-design-theory` is a
+  general theory of software design, not a log of this product's calls. An
+  answer goes into it only when it states a rule that would hold in any
+  codebase; then sharpen the principle it belongs to, or add one if it fits
+  none, and state what holds now without recording that it was asked or when.
+  An answer about this product — a name, a value, a wording, the shape of one
+  entry point — stays in the decision record and nowhere else. When unsure
+  which it is, leave the theory alone and say so in the report.
 
 ### 5. Constraints, cases, issues
 

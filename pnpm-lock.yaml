@@ -29,6 +29,12 @@ importers:
 
   dashboard: {}
 
+  packages/conversation:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/core:
     dependencies:
       '@standard-schema/spec':

@@ -42,6 +42,10 @@
             "message": "dashboard は使う側です。どこからも import しません"
           },
           {
+            "regex": "^@mg/runs(/.*)?$",
+            "message": "runs は使う側です。どこからも import しません"
+          },
+          {
             "regex": "^(\\.\\./)+([^/]+/)*runs(/|$)",
             "message": "runs は使う側です。どこからも import しません"
           }

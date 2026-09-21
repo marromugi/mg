@@ -584,7 +584,7 @@ describe("run with a workspace", () => {
       name: "example",
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-      workspace: fakeWorkspace([], { closeError }),
+      workspace: fakeWorkspace([], { closeError, closeDelayMs: 50 }),
       trace: { exporters: [exporter] },
     };
 

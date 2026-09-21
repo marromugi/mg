@@ -14,7 +14,7 @@
 
 ゲートは許可を問い、トリガーは必要を問います。
 このパッケージは、トリガーの型とエラーと、判定のスパンを作る部品を持ちます。
-判定そのものの実装は持ちません。
+Estimator を使う判定の実装も持ちます。
 
 ### 型と実装の分け方
 
@@ -47,7 +47,6 @@
 
 ## やらないこと
 
-- 判定の実装は持ちません。
 - 走行を始める入口は持ちません。
 
 ## 使い方
@@ -81,3 +80,49 @@ const decision = await trigger.decide({ kind: "issue", text: "hi" });
 | `context`    | 呼び出し元から受け取ったコンテキスト（省くと記録しない） |
 | `attributes` | スパンに追加で書く属性                                   |
 | `body`       | 判定の処理。スパンを受け取り、判定を返す                 |
+
+## Estimator を使う実装
+
+Estimator から確率を受け取り、しきい値で判定する実装です。
+`createEstimatorTrigger` で組み立てます。
+
+```ts
+import { createEstimatorTrigger } from "@mg/trigger";
+import type { Estimator } from "@mg/core";
+
+declare const estimator: Estimator;
+
+const trigger = createEstimatorTrigger({
+  estimator,
+  prompt: "Fire when the assistant could help.",
+});
+
+const decision = await trigger.decide({
+  kind: "tweet",
+  text: "そういえば明日何かあったっけ",
+});
+```
+
+組み立てに渡すものを表にまとめます。
+
+| 名前        | 内容                                 |
+| ----------- | ------------------------------------ |
+| `estimator` | 確率を返す Estimator                 |
+| `prompt`    | 判定の目的を書いた文                 |
+| `threshold` | 発火とみなす確率の下限（省くと 0.7） |
+
+しきい値は 0 から 1 の範囲で渡します。
+範囲の外か、有限の数でなければ、組み立ての時点で `RangeError` を投げます。
+
+判定は、入力の種類とテキストを Estimator に渡します。
+テキストは `Kind: <種類>` の行と、入力のテキストをつないだものです。
+質問は、渡した `prompt` と、固定の問いをつないだものです。
+
+確率がしきい値以上なら発火します。
+理由の文には、確率としきい値をそのまま書きます。
+
+Estimator が投げたエラーは、トリガーのエラーに包んで投げます。
+それ以外のエラーは、そのまま投げます。
+
+親スパンを受け取ったときは、モデルと確率としきい値も書きます。
+入力の種類とテキストは、この実装のスパンにも書きません。

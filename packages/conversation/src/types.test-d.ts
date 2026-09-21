@@ -16,4 +16,4 @@ export const emptyEntry: ConversationEntry = { messages: [] };
 declare const store: ConversationStore;
 
 // @ts-expect-error read needs a range
-store.read("a");
+void store.read("a");

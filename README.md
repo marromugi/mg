@@ -26,6 +26,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                                                     |
 | [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                                         |
 | [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                                     |
+| [`@mg/conversation`](packages/conversation/README.md) | 会話を保存して返すインターフェースと型とエラー                                               |
 | [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装                                  |
 | [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品と、Estimator の実装 |
 | [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース                     |
@@ -63,6 +64,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 日常の利用だけが要る画面と保存と起動                      | dashboard                           |
 | 実行の方法そのもの（トレースの開閉、複数件、読み込み）    | runner                              |
 | 設定からのサブエージェントの組み立て                      | runner                              |
+| 会話の保存のインターフェースと実装                        | conversation                        |
 | 形の軸のハーネスの部品（記憶、想起、振り返り、出し方）    | harness-persona（これから作るもの） |
 
 迷ったときは、環境に依存するかを見ます。
@@ -160,6 +162,14 @@ workspace は、core だけを使います。
   </tr>
 </table>
 
+conversation は、core だけを使います。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/conversation</code> → <code>@mg/core</code></td>
+  </tr>
+</table>
+
 runner は、走る前後で作業場を開いて閉じるために workspace を使います。
 
 <table>
@@ -182,6 +192,7 @@ runner は、走る前後で作業場を開いて閉じるために workspace �
 - gate は、core と harness と trace を使います。
 - trigger は、core と harness と trace を使います。
 - workspace は、core を使います。
+- conversation は、core を使います。
 - term は、このリポジトリの他のパッケージに依存しません。
 - core は、このリポジトリの他のパッケージに依存しません。
 - runs と dashboard は、使う側です。互いを使いません。

@@ -163,10 +163,8 @@ describe("assertToolPairing", () => {
   });
 
   test("reports the call that has no result", () => {
-    const entry = entryWithMessages([
-      userMessage(),
-      toolCallMessage({ id: "c1", name: "echo", arguments: {} }),
-    ]);
+    const [user, call] = entryWithCall().messages;
+    const entry = entryWithMessages([user, call]);
 
     const error = thrown(() => assertToolPairing(entry));
 
@@ -178,11 +176,8 @@ describe("assertToolPairing", () => {
   });
 
   test("reports the result that has no call before it", () => {
-    const entry = entryWithMessages([
-      userMessage(),
-      toolResultMessage("c1"),
-      toolCallMessage({ id: "c1", name: "echo", arguments: {} }),
-    ]);
+    const [user, call, result] = entryWithCall().messages;
+    const entry = entryWithMessages([user, result, call]);
 
     const error = thrown(() => assertToolPairing(entry));
 
@@ -192,12 +187,8 @@ describe("assertToolPairing", () => {
   });
 
   test("reports a second result for the same call", () => {
-    const entry = entryWithMessages([
-      userMessage(),
-      toolCallMessage({ id: "c1", name: "echo", arguments: {} }),
-      toolResultMessage("c1"),
-      toolResultMessage("c1"),
-    ]);
+    const messages = entryWithCall().messages;
+    const entry = entryWithMessages([...messages, messages[2]]);
 
     const error = thrown(() => assertToolPairing(entry));
 

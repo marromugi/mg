@@ -10,9 +10,7 @@ import { createTraceSdk } from "@mg/trace/otel";
 import type { TraceSdkOptions } from "@mg/trace/otel";
 import type { Trigger, TriggerDecision } from "@mg/trigger";
 import { nanoid } from "nanoid";
-import type { RunConfig } from "./config.js";
 import type { RunOutcome } from "./run.js";
-import { run } from "./run.js";
 
 export type JsonValue =
   | string
@@ -31,10 +29,23 @@ export type TriggerTraceOptions = Omit<TraceSdkOptions, "sessionId"> &
     | { exporters: [TraceExporter, ...TraceExporter[]] }
   );
 
-export type RunOnTriggerConfig<TInput extends JsonValue> = {
+export type StartOptions = {
+  sessionId: string;
+  signal?: AbortSignal;
+  onEvent?: (event: HarnessEvent) => void;
+};
+
+export type RunOnTriggerConfig<
+  TInput extends JsonValue,
+  TMessage extends Message = Message,
+  TStarted extends { sessionId: string } = RunOutcome,
+> = {
   trigger: Trigger<TInput>;
-  run: RunConfig;
-  toMessages: (input: TInput) => Message[];
+  toMessages: (input: TInput) => TMessage[];
+  start: (
+    messages: TMessage[],
+    options: StartOptions,
+  ) => Promise<TStarted>;
   trace: TriggerTraceOptions;
 };
 
@@ -43,20 +54,33 @@ export type RunOnTriggerOptions = {
   onEvent?: (event: HarnessEvent) => void;
 };
 
-export type RunOnTriggerOutcome =
+export type RunOnTriggerOutcome<TStarted> =
   | { fired: false; sessionId: string; decision: TriggerDecision }
   | {
       fired: true;
+      referenced: true;
       sessionId: string;
       decision: TriggerDecision;
-      run: RunOutcome;
+      run: TStarted;
+    }
+  | {
+      fired: true;
+      referenced: false;
+      sessionId: string;
+      decision: TriggerDecision;
+      expectedRunSessionId: string;
+      run: TStarted;
     };
 
-export const runOnTrigger = async <TInput extends JsonValue>(
-  config: RunOnTriggerConfig<TInput>,
+export const runOnTrigger = async <
+  TInput extends JsonValue,
+  TMessage extends Message = Message,
+  TStarted extends { sessionId: string } = RunOutcome,
+>(
+  config: RunOnTriggerConfig<TInput, TMessage, TStarted>,
   input: TInput,
   options?: RunOnTriggerOptions,
-): Promise<RunOnTriggerOutcome> => {
+): Promise<RunOnTriggerOutcome<TStarted>> => {
   const inputValue = JSON.stringify(input);
   const sdk = await createTraceSdk(config.trace);
   const root = startRootSpan(sdk.tracer, SPAN.input, {
@@ -86,7 +110,7 @@ export const runOnTrigger = async <TInput extends JsonValue>(
     return { fired: false, sessionId: sdk.sessionId, decision };
   }
 
-  let messages: Message[];
+  let messages: TMessage[];
   try {
     messages = config.toMessages(input);
   } catch (error) {
@@ -104,16 +128,28 @@ export const runOnTrigger = async <TInput extends JsonValue>(
   root.end();
   await sdk.shutdown();
 
-  const runOutcome = await run(config.run, messages, {
+  const started = await config.start(messages, {
     sessionId: runSessionId,
     signal: options?.signal,
     onEvent: options?.onEvent,
   });
 
+  if (started.sessionId === runSessionId) {
+    return {
+      fired: true,
+      referenced: true,
+      sessionId: sdk.sessionId,
+      decision,
+      run: started,
+    };
+  }
+
   return {
     fired: true,
+    referenced: false,
     sessionId: sdk.sessionId,
     decision,
-    run: runOutcome,
+    expectedRunSessionId: runSessionId,
+    run: started,
   };
 };

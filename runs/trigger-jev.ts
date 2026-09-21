@@ -1,7 +1,7 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
 import type { Message } from "@mg/core";
 import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
-import { defineRun, runOnTrigger } from "@mg/runner";
+import { defineRun, run, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
 import { createEstimatorTrigger } from "@mg/trigger";
@@ -51,8 +51,8 @@ for (const input of inputs) {
   const outcome = await runOnTrigger(
     {
       trigger,
-      run: runConfig,
       toMessages,
+      start: (messages, options) => run(runConfig, messages, options),
       trace: { jsonlPath: "./trigger-trace.jsonl" },
     },
     input,

@@ -8,7 +8,7 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool, run, gate, workspace, subagent and thread spans", () => {
+  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input and trigger spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
@@ -18,6 +18,8 @@ describe("SPAN", () => {
       workspace: "mg.workspace",
       subagent: "mg.subagent",
       thread: "mg.thread",
+      input: "mg.input",
+      trigger: "mg.trigger",
     });
   });
 });
@@ -43,6 +45,7 @@ describe("ATTR", () => {
   it("has the run attributes", () => {
     expect(ATTR.runName).toBe("mg.run.name");
     expect(ATTR.runCase).toBe("mg.run.case");
+    expect(ATTR.runSession).toBe("mg.run.session");
   });
 
   it("has the workspace attributes", () => {
@@ -66,5 +69,17 @@ describe("ATTR", () => {
     expect(ATTR.subagentArguments).toBe("mg.subagent.arguments");
     expect(ATTR.subagentResult).toBe("mg.subagent.result");
     expect(ATTR.threadId).toBe("mg.thread.id");
+  });
+
+  it("has the input attributes", () => {
+    expect(ATTR.inputValue).toBe("mg.input.value");
+  });
+
+  it("has the trigger attributes", () => {
+    expect(ATTR.triggerFired).toBe("mg.trigger.fired");
+    expect(ATTR.triggerReason).toBe("mg.trigger.reason");
+    expect(ATTR.triggerModel).toBe("mg.trigger.model");
+    expect(ATTR.triggerProbability).toBe("mg.trigger.probability");
+    expect(ATTR.triggerThreshold).toBe("mg.trigger.threshold");
   });
 });

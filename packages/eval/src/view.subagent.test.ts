@@ -119,7 +119,7 @@ describe("viewRun with a subagent call", () => {
 
     const view = viewRun(session);
 
-    const subagentStep = view.subagentSteps?.[0];
+    const subagentStep = view.subagentSteps[0];
     expect(subagentStep?.error).toBe("boom");
     expect(subagentStep?.result).toBeUndefined();
   });

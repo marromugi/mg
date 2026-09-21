@@ -77,6 +77,7 @@ const view: RunView = {
   llmSteps: [llmStep1, llmStep2],
   toolSteps: [toolStep],
   gateSteps: [gateStep],
+  subagentSteps: [],
   turnCount: 2,
   finalText: "Done, I listed the files.",
   usage: { inputTokens: 30, outputTokens: 13 },

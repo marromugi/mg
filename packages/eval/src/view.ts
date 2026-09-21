@@ -67,7 +67,7 @@ export type RunView = {
   llmSteps: LlmStep[];
   toolSteps: ToolStep[];
   gateSteps: GateStep[];
-  subagentSteps?: SubagentStep[];
+  subagentSteps: SubagentStep[];
   turnCount: number;
   finalText: string | undefined;
   usage: Usage;

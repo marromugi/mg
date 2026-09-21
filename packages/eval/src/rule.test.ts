@@ -9,6 +9,7 @@ const makeView = (overrides: Partial<RunView> = {}): RunView => ({
   llmSteps: [],
   toolSteps: [],
   gateSteps: [],
+  subagentSteps: [],
   turnCount: 0,
   finalText: undefined,
   usage: { inputTokens: 0, outputTokens: 0 },

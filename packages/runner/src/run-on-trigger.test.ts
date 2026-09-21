@@ -3,6 +3,7 @@ import type {
   GenerateResponse,
   Message,
   Provider,
+  UserMessage,
 } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
 import type {
@@ -17,8 +18,14 @@ import type {
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import type { RunConfig } from "./config.js";
-import type { RunOnTriggerConfig } from "./run-on-trigger.js";
+import type {
+  RunOnTriggerConfig,
+  RunOnTriggerOutcome,
+  StartOptions,
+} from "./run-on-trigger.js";
 import { runOnTrigger } from "./run-on-trigger.js";
+import type { RunOutcome } from "./run.js";
+import { run } from "./run.js";
 
 type TweetInput = { kind: string; text: string };
 
@@ -37,6 +44,11 @@ const runConfig = (
   harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
   ...(exporters !== undefined ? { trace: { exporters } } : {}),
 });
+
+const startRun =
+  (config: RunConfig) =>
+  (messages: Message[], options: StartOptions): Promise<RunOutcome> =>
+    run(config, messages, options);
 
 const fakeProvider = (): {
   provider: Provider;
@@ -93,6 +105,30 @@ const fakeTrigger = (
   };
 };
 
+type FakeStartCall = { messages: Message[]; options: StartOptions };
+
+const fakeStart = <TStarted extends { sessionId: string }>(
+  impl: (
+    messages: Message[],
+    options: StartOptions,
+  ) => Promise<TStarted>,
+): {
+  start: (
+    messages: Message[],
+    options: StartOptions,
+  ) => Promise<TStarted>;
+  calls: FakeStartCall[];
+} => {
+  const calls: FakeStartCall[] = [];
+  return {
+    start: async (messages, options) => {
+      calls.push({ messages, options });
+      return impl(messages, options);
+    },
+    calls,
+  };
+};
+
 type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
 
 class FlushFailingExporter implements SpanExporter {
@@ -127,7 +163,7 @@ describe("runOnTrigger", () => {
     const outcome = await runOnTrigger(
       {
         trigger,
-        run: runConfig(provider, [runExporter]),
+        start: startRun(runConfig(provider, [runExporter])),
         toMessages,
         trace: { exporters: [judgeExporter] },
       },
@@ -174,7 +210,7 @@ describe("runOnTrigger", () => {
     await runOnTrigger(
       {
         trigger,
-        run: runConfig(provider),
+        start: startRun(runConfig(provider)),
         toMessages,
         trace: { exporters: [judgeExporter] },
       },
@@ -205,7 +241,7 @@ describe("runOnTrigger", () => {
     const outcome = await runOnTrigger(
       {
         trigger,
-        run: runConfig(provider, [runExporter]),
+        start: startRun(runConfig(provider, [runExporter])),
         toMessages,
         trace: { exporters: [judgeExporter] },
       },
@@ -267,7 +303,7 @@ describe("runOnTrigger", () => {
     await runOnTrigger(
       {
         trigger,
-        run: runConfig(provider),
+        start: startRun(runConfig(provider)),
         toMessages,
         trace: { exporters: [judgeExporter] },
       },
@@ -289,7 +325,7 @@ describe("runOnTrigger", () => {
       runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages,
           trace: { exporters: [judgeExporter] },
         },
@@ -320,7 +356,7 @@ describe("runOnTrigger", () => {
       runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages: throwingToMessages,
           trace: { exporters: [judgeExporter] },
         },
@@ -347,7 +383,7 @@ describe("runOnTrigger", () => {
       runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages,
           trace: { sqlitePath: ":memory:" },
         },
@@ -372,7 +408,7 @@ describe("runOnTrigger", () => {
       await runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages,
           trace: { exporters: [new FlushFailingExporter(flushError)] },
         },
@@ -400,7 +436,7 @@ describe("runOnTrigger", () => {
       runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages,
           trace: { exporters: [new FlushFailingExporter(flushError)] },
         },
@@ -424,7 +460,7 @@ describe("runOnTrigger", () => {
       runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages,
           trace: { exporters: [judgeExporter] },
         },
@@ -450,7 +486,7 @@ describe("runOnTrigger", () => {
     await runOnTrigger(
       {
         trigger,
-        run: runConfig(provider),
+        start: startRun(runConfig(provider)),
         toMessages,
         trace: { exporters: [new InMemorySpanExporter()] },
       },
@@ -477,7 +513,7 @@ describe("runOnTrigger", () => {
       runOnTrigger(
         {
           trigger,
-          run: runConfig(provider),
+          start: startRun(runConfig(provider)),
           toMessages: abortingToMessages,
           trace: { exporters: [new InMemorySpanExporter()] },
         },
@@ -488,6 +524,206 @@ describe("runOnTrigger", () => {
 
     expect(calls).toHaveLength(0);
   });
+
+  test("passes the converted messages and the decided session id, signal, and event callback to the start function", async () => {
+    const judgeExporter = new InMemorySpanExporter();
+    const { trigger } = fakeTrigger(async () => ({
+      fired: true,
+      reason: "yes",
+    }));
+    const controller = new AbortController();
+    const onEvent = (): void => {};
+    const { start, calls } = fakeStart(async (_messages, options) => ({
+      sessionId: options.sessionId,
+      tag: "mine",
+    }));
+
+    await runOnTrigger(
+      {
+        trigger,
+        toMessages,
+        start,
+        trace: { exporters: [judgeExporter] },
+      },
+      INPUT,
+      { signal: controller.signal, onEvent },
+    );
+
+    const inputSpan = judgeExporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.input");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.messages).toEqual([
+      { role: "user", content: "hello" },
+    ]);
+    expect(calls[0]?.options.signal).toBe(controller.signal);
+    expect(calls[0]?.options.onEvent).toBe(onEvent);
+    expect(calls[0]?.options.sessionId).toBe(
+      inputSpan?.attributes["mg.run.session"],
+    );
+  });
+
+  test("when the start function returns the session id it was given, the outcome carries it as a referenced run", async () => {
+    const { trigger } = fakeTrigger(async () => ({
+      fired: true,
+      reason: "yes",
+    }));
+    const { start } = fakeStart(async (_messages, options) => ({
+      sessionId: options.sessionId,
+      tag: "mine",
+    }));
+
+    const outcome = await runOnTrigger(
+      {
+        trigger,
+        toMessages,
+        start,
+        trace: { exporters: [new InMemorySpanExporter()] },
+      },
+      INPUT,
+    );
+
+    expect(outcome.fired).toBe(true);
+    if (!outcome.fired) throw new Error("expected a fired outcome");
+    expect(outcome.referenced).toBe(true);
+    expect(outcome.decision).toEqual({ fired: true, reason: "yes" });
+    if (!outcome.referenced) {
+      throw new Error("expected a referenced outcome");
+    }
+    const started = await start([{ role: "user", content: "hello" }], {
+      sessionId: "probe",
+    });
+    expect(outcome.run).not.toBe(started);
+    expect(outcome.run).toEqual({ sessionId: "probe", tag: "mine" });
+    expect((outcome.run as { tag: string }).tag).toBe("mine");
+  });
+
+  test("when the start function returns a different session id, the outcome reports the reference is lost without rejecting", async () => {
+    const judgeExporter = new InMemorySpanExporter();
+    const { trigger } = fakeTrigger(async () => ({
+      fired: true,
+      reason: "yes",
+    }));
+    const { start } = fakeStart(async () => ({ sessionId: "other" }));
+
+    const outcome = await runOnTrigger(
+      {
+        trigger,
+        toMessages,
+        start,
+        trace: { exporters: [judgeExporter] },
+      },
+      INPUT,
+    );
+
+    const inputSpan = judgeExporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.input");
+
+    expect(outcome.fired).toBe(true);
+    if (!outcome.fired) throw new Error("expected a fired outcome");
+    expect(outcome.referenced).toBe(false);
+    if (outcome.referenced) {
+      throw new Error("expected an unreferenced outcome");
+    }
+    expect(outcome.expectedRunSessionId).toBe(
+      inputSpan?.attributes["mg.run.session"],
+    );
+    expect(outcome.run).toEqual({ sessionId: "other" });
+  });
+
+  test("a start function that throws rejects the entrance with that error, leaving mg.input closed without an error and with the run reference", async () => {
+    const judgeExporter = new InMemorySpanExporter();
+    const { trigger } = fakeTrigger(async () => ({
+      fired: true,
+      reason: "yes",
+    }));
+    const error = new Error("start broke");
+    const { start } = fakeStart(async () => {
+      throw error;
+    });
+
+    let caught: unknown;
+    try {
+      await runOnTrigger(
+        {
+          trigger,
+          toMessages,
+          start,
+          trace: { exporters: [judgeExporter] },
+        },
+        INPUT,
+      );
+    } catch (thrown) {
+      caught = thrown;
+    }
+
+    expect(caught).toBe(error);
+
+    const inputSpan = judgeExporter
+      .getFinishedSpans()
+      .find((span) => span.name === "mg.input");
+    expect(inputSpan?.status.code).not.toBe(2);
+    expect(inputSpan?.attributes["mg.run.session"]).toBeDefined();
+  });
+
+  test("when the trigger does not fire, the start function is never called", async () => {
+    const { trigger } = fakeTrigger(async () => ({
+      fired: false,
+      reason: "no",
+    }));
+    const { start, calls } = fakeStart(async (_messages, options) => ({
+      sessionId: options.sessionId,
+    }));
+
+    const outcome = await runOnTrigger(
+      {
+        trigger,
+        toMessages,
+        start,
+        trace: { exporters: [new InMemorySpanExporter()] },
+      },
+      INPUT,
+    );
+
+    expect(outcome.fired).toBe(false);
+    expect(outcome).not.toHaveProperty("run");
+    expect(calls).toHaveLength(0);
+  });
+
+  test("the start function is called only after the judgement record is closed and written", async () => {
+    const judgeExporter = new InMemorySpanExporter();
+    const { trigger } = fakeTrigger(async () => ({
+      fired: true,
+      reason: "yes",
+    }));
+    let observed:
+      { ended: boolean; hasRunSession: boolean } | undefined;
+    const { start } = fakeStart(async (_messages, options) => {
+      const inputSpan = judgeExporter
+        .getFinishedSpans()
+        .find((span) => span.name === "mg.input");
+      observed = {
+        ended: inputSpan !== undefined,
+        hasRunSession:
+          inputSpan?.attributes["mg.run.session"] !== undefined,
+      };
+      return { sessionId: options.sessionId };
+    });
+
+    await runOnTrigger(
+      {
+        trigger,
+        toMessages,
+        start,
+        trace: { exporters: [judgeExporter] },
+      },
+      INPUT,
+    );
+
+    expect(observed).toEqual({ ended: true, hasRunSession: true });
+  });
 });
 
 describe("RunOnTriggerConfig", () => {
@@ -495,7 +731,7 @@ describe("RunOnTriggerConfig", () => {
     const base = {
       trigger: fakeTrigger(async () => ({ fired: false, reason: "no" }))
         .trigger,
-      run: runConfig(fakeProvider().provider),
+      start: startRun(runConfig(fakeProvider().provider)),
       toMessages,
     };
 
@@ -519,6 +755,57 @@ describe("RunOnTriggerConfig", () => {
 
     // @ts-expect-error a Date is not a JSON value
     expectTypeOf<RunOnTriggerConfig<{ at: Date }>>();
+
+    expect(true).toBe(true);
+  });
+
+  test("requires a start function, and rejects one that cannot receive what toMessages converts to", () => {
+    const trace = { exporters: [new InMemorySpanExporter()] };
+    const trigger = fakeTrigger(async () => ({
+      fired: false,
+      reason: "no",
+    })).trigger;
+
+    // @ts-expect-error a config without start is rejected
+    ({
+      trigger,
+      toMessages,
+      trace,
+    }) satisfies RunOnTriggerConfig<TweetInput>;
+
+    const toUserMessages = (input: TweetInput): Message[] => [
+      { role: "user", content: input.text },
+    ];
+    const startUserMessagesOnly = async (
+      _messages: UserMessage[],
+      options: StartOptions,
+    ): Promise<RunOutcome> => ({
+      sessionId: options.sessionId,
+      result: {
+        reason: "stop",
+        messages: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      },
+    });
+
+    ({
+      trigger,
+      trace,
+      toMessages: toUserMessages,
+      // @ts-expect-error start cannot receive what toMessages converts to
+      start: startUserMessagesOnly,
+    }) satisfies RunOnTriggerConfig<TweetInput, Message>;
+
+    expect(true).toBe(true);
+  });
+
+  test("requires narrowing on referenced before reading expectedRunSessionId", () => {
+    const outcome = {} as RunOnTriggerOutcome<RunOutcome>;
+
+    if (outcome.fired) {
+      // @ts-expect-error expectedRunSessionId only exists once referenced is narrowed to false
+      outcome.expectedRunSessionId;
+    }
 
     expect(true).toBe(true);
   });

@@ -55,6 +55,7 @@ const createFakeEstimator = (
   limits: { maxLabels: 255, maxLevels: 10 },
   estimate,
   classify: () => Promise.reject(new Error("not used")),
+  score: () => Promise.reject(new Error("not used")),
 });
 
 describe("createEstimatorChecker", () => {

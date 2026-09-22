@@ -65,6 +65,7 @@ const createFakeEstimator = (
   limits: { maxLabels: 255, maxLevels: 10 },
   estimate,
   classify: () => Promise.reject(new Error("not used")),
+  score: () => Promise.reject(new Error("not used")),
 });
 
 const ALLOWED_REASON = "The estimator judged this action acceptable.";

@@ -564,7 +564,10 @@ const outcome = await continueConversation(config, {
   store,
   id: "jev",
   history: { kind: "all" },
-  messages: [{ role: "user", content: "hello" }],
+  messages: [
+    { role: "system", content: "be brief" },
+    { role: "user", content: "hello" },
+  ],
 });
 
 if (outcome.saved)
@@ -573,15 +576,16 @@ else console.log(outcome.reason);
 ```
 
 `conversation.history` has no default (`{ kind: "all" }` or `{ kind: "last", count }`), and
-`conversation.messages` needs at least one entry — both are checked at the type level. Passing
-`system` puts it first in what reaches the model, but it is never written back to the store.
-`options` is the same `RunOptions` as `run`'s and is passed through unchanged, so `sessionId`,
-`signal`, and `onEvent` all work the same way as with `run`.
+`conversation.messages` needs at least one entry — both are checked at the type level. A
+`system` message can be one of `conversation.messages`; it reaches the model at the position
+given and is written back to the entry at that same position. `options` is the same
+`RunOptions` as `run`'s and is passed through unchanged, so `sessionId`, `signal`, and
+`onEvent` all work the same way as with `run`.
 
 Wiring a trigger straight to a saved conversation, using `continueConversation` inside `start`:
 
 ```ts
-import type { ConversationMessage } from "@mg/conversation";
+import type { Message } from "@mg/core";
 import { createMemoryConversationStore } from "@mg/conversation";
 import { continueConversation, runOnTrigger } from "@mg/runner";
 import type { Trigger } from "@mg/trigger";
@@ -602,7 +606,7 @@ await store.create("jev");
 const outcome = await runOnTrigger(
   {
     trigger,
-    toMessages: (input): ConversationMessage[] => [
+    toMessages: (input): Message[] => [
       { role: "user", content: input.text },
     ],
     start: async (messages, options) => {
@@ -630,10 +634,11 @@ if (outcome.fired) console.log(outcome.run.sessionId);
 else console.log(outcome.decision.reason);
 ```
 
-`toMessages` is typed to return `ConversationMessage[]` — a message type with no `system` — so
-what it converts can go straight into `conversation.messages`. `start` still receives a plain
-array (`ConversationMessage[]`), not the non-empty tuple `conversation.messages` needs, so it
-checks the length and rebuilds the tuple before calling `continueConversation`.
+`toMessages` is typed to return `Message[]` — the same core message type `conversation.messages`
+takes, so what it converts, system included, can go straight into `conversation.messages`.
+`start` still receives a plain array (`Message[]`), not the non-empty tuple
+`conversation.messages` needs, so it checks the length and rebuilds the tuple before calling
+`continueConversation`.
 
 ## 6. Where results go
 

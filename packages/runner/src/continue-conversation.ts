@@ -1,9 +1,5 @@
 import type { Message } from "@mg/core";
-import type {
-  ConversationMessage,
-  ConversationStore,
-  ReadRange,
-} from "@mg/conversation";
+import type { ConversationStore, ReadRange } from "@mg/conversation";
 import type { HarnessResult } from "@mg/harness";
 import { addedMessages } from "./added-messages.js";
 import type { RunConfig } from "./config.js";
@@ -14,8 +10,7 @@ export type ConversationTarget = {
   store: ConversationStore;
   id: string;
   history: ReadRange;
-  system?: string;
-  messages: [ConversationMessage, ...ConversationMessage[]];
+  messages: [Message, ...Message[]];
 };
 
 export type NotSavedReason =
@@ -50,9 +45,6 @@ export const createContinueConversation = (deps: {
     );
 
     const built: Message[] = [
-      ...(conversation.system !== undefined
-        ? [{ role: "system" as const, content: conversation.system }]
-        : []),
       ...slice.entries.flatMap((entry) => entry.messages),
       ...conversation.messages,
     ];

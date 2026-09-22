@@ -1,9 +1,7 @@
 import type { Message } from "@mg/core";
-import type { ConversationMessage } from "@mg/conversation";
 
 export type AddedMessages =
-  | { kind: "added"; messages: ConversationMessage[] }
-  | { kind: "diverged" };
+  { kind: "added"; messages: Message[] } | { kind: "diverged" };
 
 const isPlainObject = (value: object): boolean => {
   const proto = Object.getPrototypeOf(value) as unknown;
@@ -58,6 +56,6 @@ export const addedMessages = (
 
   return {
     kind: "added",
-    messages: result.slice(given.length) as ConversationMessage[],
+    messages: result.slice(given.length),
   };
 };

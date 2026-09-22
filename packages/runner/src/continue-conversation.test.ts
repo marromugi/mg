@@ -40,6 +40,14 @@ const ENTRY_B: ConversationEntry = {
   ],
 };
 
+const ENTRY_WITH_SYSTEM: ConversationEntry = {
+  messages: [
+    { role: "user", content: "a" },
+    { role: "system", content: "old" },
+    { role: "assistant", parts: [{ type: "text", text: "A" }] },
+  ],
+};
+
 const REPLY: Message = {
   role: "assistant",
   parts: [{ type: "text", text: "ok" }],
@@ -101,52 +109,123 @@ const echoTool: Tool = defineTool({
 });
 
 describe("continueConversation", () => {
-  test("sends system, the read entries, and the new messages, in that order, and appends what the run added", async () => {
+  test("sends the read entries followed by the new messages in order, including a system message among the new ones in its given place, and appends what the run added at that same place", async () => {
     const store = createMemoryConversationStore();
     await store.create("jev");
     await store.append("jev", ENTRY_A, 0);
-    const { provider, calls } = fakeProvider();
+    const seen: Message[][] = [];
+    const fakeRun = async (
+      _config: RunConfig,
+      messages: Message[],
+    ): Promise<RunOutcome> => {
+      seen.push(messages);
+      return {
+        sessionId: "s1",
+        result: {
+          reason: "stop",
+          messages: [...messages, REPLY],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      };
+    };
+    const entrance = createContinueConversation({ run: fakeRun });
 
-    const outcome = await continueConversation(runConfig(provider), {
+    const outcome = await entrance(runConfig(fakeProvider().provider), {
       store,
       id: "jev",
       history: { kind: "all" },
-      system: "be brief",
-      messages: [{ role: "user", content: "hi" }],
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "system", content: "be brief" },
+      ],
     });
 
-    expect(calls[0]?.messages).toEqual([
-      { role: "system", content: "be brief" },
+    expect(seen[0]).toEqual([
       ...ENTRY_A.messages,
       { role: "user", content: "hi" },
+      { role: "system", content: "be brief" },
     ]);
     expect(outcome.saved).toBe(true);
+    expect(outcome.sessionId).toBe("s1");
+    if (!outcome.saved) throw new Error("unreachable");
     expect(outcome.result.reason).toBe("stop");
     const slice = await store.read("jev", { kind: "all" });
     expect(slice.entries[1]?.messages).toEqual([
       { role: "user", content: "hi" },
+      { role: "system", content: "be brief" },
       REPLY,
     ]);
     expect(slice.length).toBe(2);
   });
 
-  test("sends no system message when the conversation target omits it", async () => {
+  test("sends a system message saved from an earlier entry still in its saved place, ahead of the new messages", async () => {
     const store = createMemoryConversationStore();
     await store.create("jev");
-    await store.append("jev", ENTRY_A, 0);
-    const { provider, calls } = fakeProvider();
+    await store.append("jev", ENTRY_WITH_SYSTEM, 0);
+    const seen: Message[][] = [];
+    const fakeRun = async (
+      _config: RunConfig,
+      messages: Message[],
+    ): Promise<RunOutcome> => {
+      seen.push(messages);
+      return {
+        sessionId: "s1",
+        result: {
+          reason: "stop",
+          messages: [...messages, REPLY],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      };
+    };
+    const entrance = createContinueConversation({ run: fakeRun });
 
-    await continueConversation(runConfig(provider), {
+    await entrance(runConfig(fakeProvider().provider), {
       store,
       id: "jev",
       history: { kind: "all" },
       messages: [{ role: "user", content: "hi" }],
     });
 
-    expect(calls[0]?.messages[0]).toEqual({
-      role: "user",
-      content: "a",
+    expect(seen[0]).toEqual([
+      ...ENTRY_WITH_SYSTEM.messages,
+      { role: "user", content: "hi" },
+    ]);
+  });
+
+  test("appends a system message the run itself added, kept in the place the run put it, ahead of the reply", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("jev");
+    const fakeRun = async (
+      _config: RunConfig,
+      messages: Message[],
+    ): Promise<RunOutcome> => ({
+      sessionId: "s1",
+      result: {
+        reason: "stop",
+        messages: [
+          ...messages,
+          { role: "system", content: "recalled" },
+          REPLY,
+        ],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      },
     });
+    const entrance = createContinueConversation({ run: fakeRun });
+
+    const outcome = await entrance(runConfig(fakeProvider().provider), {
+      store,
+      id: "jev",
+      history: { kind: "all" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(outcome.saved).toBe(true);
+    const slice = await store.read("jev", { kind: "all" });
+    expect(slice.entries[0]?.messages).toEqual([
+      { role: "user", content: "hi" },
+      { role: "system", content: "recalled" },
+      REPLY,
+    ]);
   });
 
   test("still appends against the conversation's full length when only the last entries were read", async () => {

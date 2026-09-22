@@ -56,12 +56,17 @@ export const assertJsonEntry = (entry: ConversationEntry): void => {
 };
 
 export const assertToolPairing = (entry: ConversationEntry): void => {
+  const seen = new Set<string>();
   const pending = new Set<string>();
 
   for (const message of entry.messages) {
     if (message.role === "assistant") {
       for (const part of message.parts) {
         if (part.type === "tool-call") {
+          if (seen.has(part.id)) {
+            throw new EntryToolPairingError("duplicate-call", part.id);
+          }
+          seen.add(part.id);
           pending.add(part.id);
         }
       }

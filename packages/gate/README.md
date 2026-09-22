@@ -43,7 +43,7 @@ core のプロバイダーと同じ考え方です。
 `createEstimatorGate` は、core の `Estimator` と方針の文章を受け取ります。
 受け取ったものから、ゲートを作ります。
 
-`Estimator` は、文章と質問を受け取り、
+`Estimator` は、判定の対象と質問を受け取り、
 答えが「はい」である確率を返すモデルサービスの型です。
 どのモデルサービスと話すかは、渡す `Estimator` の実装が決めます。
 たとえば core の `createJevEstimator` を渡せます。

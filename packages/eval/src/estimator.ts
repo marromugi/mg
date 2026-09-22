@@ -60,7 +60,7 @@ export const createEstimatorChecker = (
         let probability: number;
         try {
           ({ probability } = await estimator.estimate(
-            { text: toText(input.view), question },
+            { subject: toText(input.view), question },
             { signal: context?.signal },
           ));
         } catch (error) {

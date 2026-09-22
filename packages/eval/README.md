@@ -162,7 +162,7 @@ const hasFinalText = rule("has-final-text", (view) => {
 ## Estimator
 
 機械的に書けない条件は、意味で判定します。
-core の `Estimator` は、文章と質問を受け取り、答えが「はい」である確率を返します。
+core の `Estimator` は、判定の対象と質問を受け取り、答えが「はい」である確率を返します。
 
 `createEstimatorChecker` は、`Estimator` の実装から判定のインターフェースを作ります。
 

@@ -52,7 +52,7 @@ export const createEstimatorGate = (
           try {
             ({ probability } = await estimator.estimate(
               {
-                text: toStateText(request),
+                subject: toStateText(request),
                 question: `${policy}\n\n${QUESTION}`,
               },
               { signal: context?.signal },

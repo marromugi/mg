@@ -5,6 +5,11 @@ export type AddedMessages =
   | { kind: "added"; messages: ConversationMessage[] }
   | { kind: "diverged" };
 
+const isPlainObject = (value: object): boolean => {
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
+};
+
 const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (
@@ -24,6 +29,8 @@ const deepEqual = (a: unknown, b: unknown): boolean => {
     if (a.length !== b.length) return false;
     return a.every((item, index) => deepEqual(item, b[index]));
   }
+
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
 
   const aRecord = a as Record<string, unknown>;
   const bRecord = b as Record<string, unknown>;

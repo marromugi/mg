@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mg/conversation": "workspace:*",
     "@mg/core": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",

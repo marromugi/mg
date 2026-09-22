@@ -3,7 +3,10 @@ import {
   EstimatorResponseError,
   EstimatorTransportError,
 } from "../errors.js";
-import { assertClassifyRequest } from "../requests.js";
+import {
+  assertClassifyRequest,
+  assertScoreRequest,
+} from "../requests.js";
 import type {
   Classification,
   ClassifyRequest,
@@ -12,6 +15,8 @@ import type {
   EstimateRequest,
   Estimator,
   EstimatorLimits,
+  Score,
+  ScoreRequest,
 } from "../types.js";
 
 export type JevEstimatorOptions = {
@@ -82,6 +87,37 @@ const isJevChoiceResponse = (
   return (
     type === "choice" &&
     typeof choice === "string" &&
+    typeof probabilities === "object" &&
+    probabilities !== null
+  );
+};
+
+type JevScoreResponse = {
+  answers: {
+    answer: {
+      type: "score";
+      score: number;
+      probabilities: Record<string, unknown>;
+    };
+  };
+};
+
+const isJevScoreResponse = (
+  json: unknown,
+): json is JevScoreResponse => {
+  if (typeof json !== "object" || json === null) return false;
+  const { answers } = json as { answers?: unknown };
+  if (typeof answers !== "object" || answers === null) return false;
+  const { answer } = answers as { answer?: unknown };
+  if (typeof answer !== "object" || answer === null) return false;
+  const { type, score, probabilities } = answer as {
+    type?: unknown;
+    score?: unknown;
+    probabilities?: unknown;
+  };
+  return (
+    type === "score" &&
+    typeof score === "number" &&
     typeof probabilities === "object" &&
     probabilities !== null
   );
@@ -244,6 +280,70 @@ export const createJevEstimator = (
       return {
         label: choice,
         probabilities: Object.fromEntries(entries),
+      };
+    },
+    async score(
+      request: ScoreRequest,
+      scoreOptions?: EstimateOptions,
+    ): Promise<Score> {
+      scoreOptions?.signal?.throwIfAborted();
+      assertScoreRequest(request, LIMITS);
+
+      const body = JSON.stringify({
+        model,
+        state: request.subject,
+        questions: {
+          answer: {
+            type: "score",
+            instructions: request.question,
+            criteria: request.levels,
+          },
+        },
+      });
+
+      const json = await send(body, scoreOptions?.signal);
+
+      if (!isJevScoreResponse(json)) {
+        throw new EstimatorResponseError(
+          "Jev response failed validation: answer is missing or not of type score",
+        );
+      }
+
+      const { score, probabilities } = json.answers.answer;
+
+      const levelKeys = request.levels.map((_, index) => String(index));
+      const probabilityKeys = Object.keys(probabilities);
+      const coversExactlyTheLevels =
+        levelKeys.length === probabilityKeys.length &&
+        levelKeys.every((key) => Object.hasOwn(probabilities, key));
+
+      if (!coversExactlyTheLevels) {
+        throw new EstimatorResponseError(
+          "Jev response failed validation: probabilities do not cover exactly the levels",
+        );
+      }
+
+      const entries: [string, number][] = [];
+      for (const key of levelKeys) {
+        const value = probabilities[key];
+        if (!isValidProbability(value)) {
+          throw new EstimatorResponseError(
+            `Jev response failed validation: probability for "${key}" is not between 0 and 1`,
+          );
+        }
+        entries.push([key, value]);
+      }
+
+      const maxScore = request.levels.length - 1;
+      if (!Number.isFinite(score) || score < 0 || score > maxScore) {
+        throw new EstimatorResponseError(
+          `Jev response failed validation: score ${score} is outside the levels`,
+        );
+      }
+
+      return {
+        score,
+        probabilities: entries.map(([, value]) => value),
       };
     },
   };

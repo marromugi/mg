@@ -61,16 +61,31 @@ describe("ConversationConflictError", () => {
 });
 
 describe("EntryNotJsonError", () => {
-  test("names the path of the offending value", () => {
+  test("names the kind and path of the offending value", () => {
     const error = new EntryNotJsonError(
+      "not-json",
       "messages[1].parts[0].arguments.at",
     );
 
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe("EntryNotJsonError");
+    expect(error.kind).toBe("not-json");
     expect(error.path).toBe("messages[1].parts[0].arguments.at");
     expect(error.message).toBe(
       "The entry holds a value at messages[1].parts[0].arguments.at that does not survive a JSON round trip.",
+    );
+  });
+
+  test("names the path of a value that refers back to a containing value", () => {
+    const error = new EntryNotJsonError(
+      "cycle",
+      "messages[1].parts[0].arguments.self",
+    );
+
+    expect(error.kind).toBe("cycle");
+    expect(error.path).toBe("messages[1].parts[0].arguments.self");
+    expect(error.message).toBe(
+      "The entry holds a value at messages[1].parts[0].arguments.self that refers back to one of the values containing it.",
     );
   });
 });
@@ -94,6 +109,16 @@ describe("EntryToolPairingError", () => {
     expect(error.kind).toBe("orphan-result");
     expect(error.message).toBe(
       'Tool result "c1" has no tool call before it in the same entry.',
+    );
+  });
+
+  test("names the tool call that appears more than once", () => {
+    const error = new EntryToolPairingError("duplicate-call", "c1");
+
+    expect(error.kind).toBe("duplicate-call");
+    expect(error.toolCallId).toBe("c1");
+    expect(error.message).toBe(
+      'Tool call "c1" appears more than once in the same entry.',
     );
   });
 });

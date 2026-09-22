@@ -1,9 +1,7 @@
-import type { Message, SystemMessage } from "@mg/core";
-
-export type ConversationMessage = Exclude<Message, SystemMessage>;
+import type { Message } from "@mg/core";
 
 export type ConversationEntry = {
-  messages: [ConversationMessage, ...ConversationMessage[]];
+  messages: [Message, ...Message[]];
 };
 
 export type ReadRange =

@@ -1,7 +1,7 @@
 import { EntryNotJsonError, EntryToolPairingError } from "./errors.js";
 import type { ConversationEntry, ConversationStore } from "./types.js";
 
-export const systemAsConversationMessage: ConversationEntry["messages"][number] =
+export const systemAsEntryMessage: ConversationEntry["messages"][number] =
   { role: "system", content: "x" };
 
 // @ts-expect-error an entry needs at least one message

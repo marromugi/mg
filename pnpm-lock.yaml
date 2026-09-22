@@ -91,6 +91,9 @@ importers:
 
   packages/runner:
     dependencies:
+      '@mg/conversation':
+        specifier: workspace:*
+        version: link:../conversation
       '@mg/core':
         specifier: workspace:*
         version: link:../core

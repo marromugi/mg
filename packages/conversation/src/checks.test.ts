@@ -151,6 +151,60 @@ describe("assertJsonEntry", () => {
       "messages[1].parts[0].arguments.first",
     );
   });
+
+  test("reports a cycle where an object refers back to an ancestor object", () => {
+    const nested: Record<string, unknown> = {};
+    const args = { text: "ping", nested };
+    nested.back = args;
+
+    const error = thrown(() =>
+      assertJsonEntry(entryWithArguments(args)),
+    );
+
+    expect(error).toBeInstanceOf(EntryNotJsonError);
+    expect((error as EntryNotJsonError).kind).toBe("cycle");
+    expect((error as EntryNotJsonError).path).toBe(
+      "messages[1].parts[0].arguments.nested.back",
+    );
+  });
+
+  test("reports a cycle where an array holds itself as an element", () => {
+    const list: unknown[] = [1];
+    list.push(list);
+    const args = { list };
+
+    const error = thrown(() =>
+      assertJsonEntry(entryWithArguments(args)),
+    );
+
+    expect(error).toBeInstanceOf(EntryNotJsonError);
+    expect((error as EntryNotJsonError).kind).toBe("cycle");
+    expect((error as EntryNotJsonError).path).toBe(
+      "messages[1].parts[0].arguments.list[1]",
+    );
+  });
+
+  test("passes the same object referenced from two different paths", () => {
+    const shared = { x: 1 };
+    const args = { a: shared, b: shared };
+
+    expect(assertJsonEntry(entryWithArguments(args))).toBeUndefined();
+  });
+
+  test("reports a value that cannot survive a JSON round trip even when it also refers back to an ancestor", () => {
+    const args: Record<string, unknown> = { at: new Date(0) };
+    args.self = args;
+
+    const error = thrown(() =>
+      assertJsonEntry(entryWithArguments(args)),
+    );
+
+    expect(error).toBeInstanceOf(EntryNotJsonError);
+    expect((error as EntryNotJsonError).kind).toBe("not-json");
+    expect((error as EntryNotJsonError).path).toBe(
+      "messages[1].parts[0].arguments.at",
+    );
+  });
 });
 
 describe("assertToolPairing", () => {

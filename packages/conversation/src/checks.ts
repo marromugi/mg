@@ -1,10 +1,13 @@
 import { EntryNotJsonError, EntryToolPairingError } from "./errors.js";
 import type { ConversationEntry } from "./types.js";
 
+type NonJsonFound = { kind: "not-json" | "cycle"; path: string };
+
 const findNonJsonPath = (
   value: unknown,
   path: string,
-): string | undefined => {
+  onPath: Set<object>,
+): NonJsonFound | undefined => {
   if (value === null) {
     return undefined;
   }
@@ -16,42 +19,59 @@ const findNonJsonPath = (
   if (typeof value === "number") {
     return Number.isFinite(value) && !Object.is(value, -0)
       ? undefined
-      : path;
+      : { kind: "not-json", path };
   }
 
   if (Array.isArray(value)) {
+    if (onPath.has(value)) {
+      return { kind: "cycle", path };
+    }
+    onPath.add(value);
     for (let index = 0; index < value.length; index++) {
-      const found = findNonJsonPath(value[index], `${path}[${index}]`);
+      const found = findNonJsonPath(
+        value[index],
+        `${path}[${index}]`,
+        onPath,
+      );
       if (found !== undefined) {
+        onPath.delete(value);
         return found;
       }
     }
+    onPath.delete(value);
     return undefined;
   }
 
   if (typeof value === "object") {
     const prototype = Object.getPrototypeOf(value);
     if (prototype === Object.prototype || prototype === null) {
+      if (onPath.has(value)) {
+        return { kind: "cycle", path };
+      }
+      onPath.add(value);
       for (const key of Object.keys(value)) {
         const found = findNonJsonPath(
           (value as Record<string, unknown>)[key],
           `${path}.${key}`,
+          onPath,
         );
         if (found !== undefined) {
+          onPath.delete(value);
           return found;
         }
       }
+      onPath.delete(value);
       return undefined;
     }
   }
 
-  return path;
+  return { kind: "not-json", path };
 };
 
 export const assertJsonEntry = (entry: ConversationEntry): void => {
-  const path = findNonJsonPath(entry.messages, "messages");
-  if (path !== undefined) {
-    throw new EntryNotJsonError("not-json", path);
+  const found = findNonJsonPath(entry.messages, "messages", new Set());
+  if (found !== undefined) {
+    throw new EntryNotJsonError(found.kind, found.path);
   }
 };
 

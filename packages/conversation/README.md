@@ -22,6 +22,8 @@
   操作は、作成と読み出しと追記の 3 つです。
 - 保存と確かめが使う、専用のエラーを持ちます。
 - 追記の前に使う、2 つの確かめの関数を持ちます。
+- `ConversationStore` を、プロセスの中だけで実装したものを
+  持ちます。
 
 ### 型の分け方
 
@@ -47,6 +49,26 @@ system は、走行のたびに使う側が渡すものだからです。
 
 `append` に渡す総数は、読み出した時点でのエントリーの総数です。
 保存先の実際の総数と違うと、追記は失敗します。
+
+## メモリ上の保存
+
+`createMemoryConversationStore` は、`ConversationStore` を
+プロセスの中だけで実装したものです。
+
+引数を受け取りません。
+呼ぶたびに、会話を 1 件も持たない新しい保存を返します。
+
+```ts
+import { createMemoryConversationStore } from "@mg/conversation";
+
+const store = createMemoryConversationStore();
+await store.create("jev");
+await store.append("jev", entry, 0);
+const slice = await store.read("jev", { kind: "all" });
+```
+
+保存した会話は、プロセスが終わると消えます。
+別に作った保存どうしは、会話を共有しません。
 
 ## 2 つの確かめ
 

@@ -192,9 +192,8 @@ describe("assertJsonEntry", () => {
   });
 
   test("reports a value that cannot survive a JSON round trip even when it also refers back to an ancestor", () => {
-    const at = new Date(0) as Date & { self?: unknown };
-    const args = { at };
-    at.self = args;
+    const args: Record<string, unknown> = { at: new Date(0) };
+    args.self = args;
 
     const error = thrown(() =>
       assertJsonEntry(entryWithArguments(args)),

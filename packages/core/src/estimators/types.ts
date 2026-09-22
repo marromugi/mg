@@ -28,6 +28,13 @@ export type Classification = {
   probabilities: Record<string, number>;
 };
 
+export type ScoreRequest = {
+  subject: EstimatorSubject;
+  question: string;
+  levels: readonly [string, string, ...string[]];
+};
+export type Score = { score: number; probabilities: number[] };
+
 export type EstimatorLimits = { maxLabels: number; maxLevels: number };
 
 export interface Estimator {
@@ -41,4 +48,8 @@ export interface Estimator {
     request: ClassifyRequest,
     options?: EstimateOptions,
   ): Promise<Classification>;
+  score(
+    request: ScoreRequest,
+    options?: EstimateOptions,
+  ): Promise<Score>;
 }

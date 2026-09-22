@@ -68,6 +68,7 @@ const createFakeEstimator = (
     return Promise.resolve({ probability });
   },
   classify: () => Promise.reject(new Error("not used")),
+  score: () => Promise.reject(new Error("not used")),
 });
 
 const question = "Fire when the assistant could help.";
@@ -208,6 +209,7 @@ describe("createEstimatorTrigger", () => {
       limits: { maxLabels: 255, maxLevels: 10 },
       estimate: () => Promise.reject(original),
       classify: () => Promise.reject(new Error("not used")),
+      score: () => Promise.reject(new Error("not used")),
     };
     const trigger = createEstimatorTrigger({ estimator, question });
 
@@ -230,6 +232,7 @@ describe("createEstimatorTrigger", () => {
       limits: { maxLabels: 255, maxLevels: 10 },
       estimate: () => Promise.reject(original),
       classify: () => Promise.reject(new Error("not used")),
+      score: () => Promise.reject(new Error("not used")),
     };
     const trigger = createEstimatorTrigger({ estimator, question });
 

@@ -71,6 +71,19 @@ ollama は API キーを確かめないため、API キーは受け取りませ�
 確率は、どれも 0 から 1 の有限の数です。
 Jev が返す確信度は写しません。
 
+#### 段階
+
+段階の操作は、判定の対象と質問と、段階ごとの説明を受け取ります。
+段階ごとの説明は、配列で渡します。
+段階は 2 つ以上あれば成り立ちます。
+段階の位置は、この配列の添字です。
+
+返す判定は、点数と、段階ごとの確率です。
+点数は、0 から、段階の数から 1 を引いた値までの数です。
+段階の間の値も取ります。
+段階ごとの確率は、渡した配列と同じ順の配列です。
+Jev が返す確信度と凡例は写しません。
+
 #### 上限の宣言
 
 Estimator は、上限を値として宣言します。
@@ -124,11 +137,14 @@ src/
 
 ```
 estimators/
-  Estimator              確率と分類で答えるモデルサービスの共通の型
+  Estimator              確率と分類と段階で答えるモデルサービスの共通の型
   ClassifyRequest        分類の要求の型
   Classification         分類の判定の型
+  ScoreRequest           段階の要求の型
+  Score                  段階の判定の型
   EstimatorLimits        ラベルと段階の数の上限の型
   assertClassifyRequest  分類の要求が上限に収まっているかを確かめる
+  assertScoreRequest     段階の要求が上限に収まっているかを確かめる
   createJevEstimator     Jev と話す Estimator を作る
 
 providers/

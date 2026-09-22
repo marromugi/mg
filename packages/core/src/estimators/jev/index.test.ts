@@ -4,7 +4,11 @@ import {
   EstimatorResponseError,
   EstimatorTransportError,
 } from "../errors.js";
-import type { ClassifyRequest, EstimateRequest } from "../types.js";
+import type {
+  ClassifyRequest,
+  EstimateRequest,
+  ScoreRequest,
+} from "../types.js";
 import { createJevEstimator } from "./index.js";
 
 const jsonResponse = (body: unknown, status = 200): Response =>
@@ -46,6 +50,28 @@ const classifyRequest: ClassifyRequest = {
   subject: "T",
   question: "Q",
   labels: { a: "x", b: "y" },
+};
+
+const scoreAnswer = (
+  score: unknown,
+  probabilities: unknown,
+  extra: Record<string, unknown> = {},
+): unknown => ({
+  answers: {
+    answer: {
+      type: "score",
+      score,
+      confidence: 1,
+      probabilities,
+      ...extra,
+    },
+  },
+});
+
+const scoreRequest: ScoreRequest = {
+  subject: "T",
+  question: "Q",
+  levels: ["a", "b", "c"],
 };
 
 describe("createJevEstimator", () => {
@@ -1047,6 +1073,645 @@ describe("createJevEstimator classify", () => {
     const error = await estimator
       .classify(
         { subject: "T", question: "Q", labels: {} },
+        { signal: controller.signal },
+      )
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBe("stop");
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+});
+
+describe("createJevEstimator score", () => {
+  test("sends one POST to the systemone URL with the bearer header, JSON content type, a caller header and the model", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.5, "1": 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      baseUrl: "https://example.test/v1/",
+      model: "jev-x",
+      headers: { "X-Test": "1" },
+      fetch: fetchStub,
+    });
+
+    await estimator.score({
+      subject: "T",
+      question: "Q",
+      levels: ["low", "high"],
+    });
+
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchStub.mock.calls[0];
+    expect(url).toBe("https://example.test/v1/systemone");
+    expect(init?.method).toBe("POST");
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer key");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("X-Test")).toBe("1");
+    if (init === undefined) throw new Error("init not captured");
+    const body = JSON.parse(init.body as string) as { model: string };
+    expect(body.model).toBe("jev-x");
+  });
+
+  test("puts the model, subject and a score question named answer with the levels as criteria into the request body", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.2, "1": 0.5, "2": 0.3 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await estimator.score({
+      subject: "T",
+      question: "Q",
+      levels: ["low", "mid", "high"],
+    });
+
+    const [, init] = fetchStub.mock.calls[0];
+    if (init === undefined) throw new Error("init not captured");
+    const body: unknown = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      model: "jev-latest",
+      state: "T",
+      questions: {
+        answer: {
+          type: "score",
+          instructions: "Q",
+          criteria: ["low", "mid", "high"],
+        },
+      },
+    });
+  });
+
+  test("sends a structured subject as the request state unchanged, not as a string", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.2, "1": 0.5, "2": 0.3 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await estimator.score({
+      subject: { kind: "note", text: "hi" },
+      question: "Q",
+      levels: ["low", "mid", "high"],
+    });
+
+    const [, init] = fetchStub.mock.calls[0];
+    if (init === undefined) throw new Error("init not captured");
+    const body = JSON.parse(init.body as string) as { state: unknown };
+    expect(body.state).toEqual({ kind: "note", text: "hi" });
+    expect(typeof body.state).not.toBe("string");
+  });
+
+  test("returns only the score and the levels' probabilities, without the confidence or legend fields", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse({
+        answers: {
+          answer: {
+            type: "score",
+            score: 1.09,
+            confidence: 0.87,
+            legend: { "0": "low", "1": "mid", "2": "high" },
+            probabilities: { "0": 0.1, "1": 0.71, "2": 0.19 },
+          },
+        },
+      }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const score = await estimator.score({
+      subject: "T",
+      question: "Q",
+      levels: ["low", "mid", "high"],
+    });
+
+    expect(score).toEqual({
+      score: 1.09,
+      probabilities: [0.1, 0.71, 0.19],
+    });
+    expect(score).not.toHaveProperty("confidence");
+    expect(score).not.toHaveProperty("legend");
+  });
+
+  test("rejects a levels array beyond the declared limit with a RangeError before calling fetch", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(0, { "0": 1 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+    const levels = Array.from({ length: 11 }, (_, i) => `l${i}`) as [
+      string,
+      string,
+      ...string[],
+    ];
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels })
+      .catch((thrown: unknown) => thrown);
+
+    expect(fetchStub).not.toHaveBeenCalled();
+    expect(error).toBeInstanceOf(RangeError);
+    expect((error as RangeError).message).toBe(
+      "levels has 11 entries; the estimator accepts at most 10",
+    );
+  });
+
+  test("sends a request at exactly the level limit", async () => {
+    const levels = Array.from({ length: 10 }, (_, i) => `l${i}`) as [
+      string,
+      string,
+      ...string[],
+    ];
+    const probabilities: Record<string, number> = {};
+    for (let i = 0; i < levels.length; i++)
+      probabilities[String(i)] = 0;
+    probabilities["0"] = 1;
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(0, probabilities)),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await estimator.score({ subject: "T", question: "Q", levels });
+
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    const [, init] = fetchStub.mock.calls[0];
+    if (init === undefined) throw new Error("init not captured");
+    const body = JSON.parse(init.body as string) as {
+      questions: { answer: { criteria: string[] } };
+    };
+    expect(body.questions.answer.criteria).toHaveLength(10);
+  });
+
+  test("sends an empty subject, question and levels unchanged", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(0, { "0": 1, "1": 0 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await estimator.score({
+      subject: "",
+      question: "",
+      levels: ["", ""],
+    });
+
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    const [, init] = fetchStub.mock.calls[0];
+    if (init === undefined) throw new Error("init not captured");
+    const body: unknown = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      model: "jev-latest",
+      state: "",
+      questions: {
+        answer: {
+          type: "score",
+          instructions: "",
+          criteria: ["", ""],
+        },
+      },
+    });
+  });
+
+  test("throws EstimatorResponseError when the answer type is not score", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse({
+        answers: {
+          answer: {
+            type: "choice",
+            choice: "a",
+            confidence: 1,
+            probabilities: { a: 1 },
+          },
+        },
+      }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: answer is missing or not of type score",
+    );
+  });
+
+  test("throws EstimatorResponseError when there is no answer at all", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse({ answers: {} }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: answer is missing or not of type score",
+    );
+  });
+
+  test("throws EstimatorResponseError when the score is not a number", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer("1", { "0": 1, "1": 0 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: answer is missing or not of type score",
+    );
+  });
+
+  test("throws EstimatorResponseError when probabilities is not an object", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, "x")),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: answer is missing or not of type score",
+    );
+  });
+
+  test("throws EstimatorResponseError when the probabilities are missing a level", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.5, "1": 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: probabilities do not cover exactly the levels",
+    );
+  });
+
+  test("throws EstimatorResponseError when the probabilities carry an extra key beyond the levels", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(
+        scoreAnswer(1, { "0": 0.5, "1": 0.3, "2": 0.2, "3": 0 }),
+      ),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: probabilities do not cover exactly the levels",
+    );
+  });
+
+  test("throws EstimatorResponseError when a probability is above 1", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.2, "1": 1.1 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels: ["a", "b"] })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      'Jev response failed validation: probability for "1" is not between 0 and 1',
+    );
+  });
+
+  test("throws EstimatorResponseError when a probability is below 0", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": -0.1, "1": 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels: ["a", "b"] })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      'Jev response failed validation: probability for "0" is not between 0 and 1',
+    );
+  });
+
+  test("throws EstimatorResponseError when a probability is a string rather than a number", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": "0.5", "1": 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels: ["a", "b"] })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      'Jev response failed validation: probability for "0" is not between 0 and 1',
+    );
+  });
+
+  test("throws EstimatorResponseError when the score is above the top level", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(2.5, { "0": 0, "1": 0, "2": 1 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: score 2.5 is outside the levels",
+    );
+  });
+
+  test("throws EstimatorResponseError when the score is below 0", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(-0.1, { "0": 1, "1": 0 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels: ["a", "b"] })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: score -0.1 is outside the levels",
+    );
+  });
+
+  test("reports the key set mismatch rather than the out-of-range probability when both are wrong", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(5, { "0": 1.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels: ["a", "b"] })
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response failed validation: probabilities do not cover exactly the levels",
+    );
+  });
+
+  test("reports the out-of-range probability rather than the out-of-range score when both are wrong", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(5, { "0": 1.5, "1": 0 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score({ subject: "T", question: "Q", levels: ["a", "b"] })
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorResponseError).message).toBe(
+      'Jev response failed validation: probability for "0" is not between 0 and 1',
+    );
+  });
+
+  test("throws EstimatorResponseError when the response body is not JSON", async () => {
+    const fetchStub = stubFetch(
+      async () => new Response("not json", { status: 200 }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).message).toBe(
+      "Jev response is not JSON",
+    );
+  });
+
+  test("throws EstimatorHttpError with the status and body in the message on a non-2xx response", async () => {
+    const fetchStub = stubFetch(
+      async () => new Response("boom", { status: 500 }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorHttpError);
+    expect((error as EstimatorHttpError).message).toBe(
+      "Jev request failed: 500 boom",
+    );
+    expect((error as EstimatorHttpError).status).toBe(500);
+    expect((error as EstimatorHttpError).body).toBe("boom");
+  });
+
+  test("truncates the message to 200 characters of the body but keeps the full body on the error", async () => {
+    const longBody = "a".repeat(300);
+    const fetchStub = stubFetch(
+      async () => new Response(longBody, { status: 500 }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorHttpError);
+    expect((error as EstimatorHttpError).message).toBe(
+      `Jev request failed: 500 ${"a".repeat(200)}`,
+    );
+    expect((error as EstimatorHttpError).body).toBe(longBody);
+    expect((error as EstimatorHttpError).body).toHaveLength(300);
+  });
+
+  test("throws EstimatorTransportError with the original error as cause when fetch rejects", async () => {
+    const original = new Error("network down");
+    const fetchStub = stubFetch(async () => {
+      throw original;
+    });
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorTransportError);
+    expect((error as EstimatorTransportError).message).toBe(
+      "Jev request failed",
+    );
+    expect((error as EstimatorTransportError).cause).toBe(original);
+  });
+
+  test("passes the caller's signal through to the transport function unchanged", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.5, "1": 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    await estimator.score(
+      { subject: "T", question: "Q", levels: ["a", "b"] },
+      { signal: controller.signal },
+    );
+
+    const [, init] = fetchStub.mock.calls[0];
+    expect(init?.signal).toBe(controller.signal);
+  });
+
+  test("lets an AbortError from the transport function through unwrapped", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    const fetchStub = stubFetch(async () => {
+      throw abortError;
+    });
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await expect(estimator.score(scoreRequest)).rejects.toBe(
+      abortError,
+    );
+  });
+
+  test("lets an abort while reading the response body through unchanged", async () => {
+    const abortError = new DOMException("aborted", "AbortError");
+    const response = new Response(null, { status: 200 });
+    vi.spyOn(response, "json").mockRejectedValue(abortError);
+    const fetchStub = stubFetch(async () => response);
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await expect(estimator.score(scoreRequest)).rejects.toBe(
+      abortError,
+    );
+  });
+
+  test("rejects with the abort reason without calling fetch when the signal is already aborted", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(1, { "0": 0.5, "1": 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+    controller.abort("stop");
+
+    const error = await estimator
+      .score(scoreRequest, { signal: controller.signal })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBe("stop");
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  test("rejects with the abort reason, not a RangeError, when the signal is aborted and the levels are also invalid", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(0, { "0": 1 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+    controller.abort("stop");
+    const levels = Array.from({ length: 11 }, (_, i) => `l${i}`) as [
+      string,
+      string,
+      ...string[],
+    ];
+
+    const error = await estimator
+      .score(
+        { subject: "T", question: "Q", levels },
         { signal: controller.signal },
       )
       .catch((thrown: unknown) => thrown);

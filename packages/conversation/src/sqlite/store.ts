@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LibsqlError, createClient } from "@libsql/client";
-import { and, count, eq, gte } from "drizzle-orm";
+import { count, desc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { assertJsonEntry, assertToolPairing } from "../checks.js";
@@ -32,6 +32,10 @@ const isPrimaryKeyViolation = (error: unknown): boolean =>
   error.cause instanceof LibsqlError &&
   error.cause.extendedCode === "SQLITE_CONSTRAINT_PRIMARYKEY";
 
+const toEntry = (row: { messages: string }): ConversationEntry => ({
+  messages: JSON.parse(row.messages) as ConversationEntry["messages"],
+});
+
 export const openSqliteConversationStore = async (
   path: string,
 ): Promise<ConversationStore> => {
@@ -45,6 +49,41 @@ export const openSqliteConversationStore = async (
   const client = createClient({ url, timeout: 5000 });
   const db = drizzle(client);
   await migrate(db, { migrationsFolder });
+
+  const countEntries = async (id: string): Promise<number> => {
+    const [row] = await db
+      .select({ n: count() })
+      .from(entries)
+      .where(eq(entries.conversationId, id));
+    return row?.n ?? 0;
+  };
+
+  // 総数の照合と挿入を、await をまたがずに 1 文で実行します。
+  // 別の接続がロックを await の間じゅう持ち続けないようにするためです。
+  const insertEntry = async (
+    id: string,
+    position: number,
+    messages: string,
+  ): Promise<number> => {
+    try {
+      const result = await db.run(sql`
+        insert into entries (conversation_id, position, messages)
+        select ${id}, ${position}, ${messages}
+        where exists (select 1 from conversations where id = ${id})
+          and (select count(*) from entries where conversation_id = ${id}) = ${position}
+      `);
+      return result.rowsAffected;
+    } catch (error) {
+      if (isPrimaryKeyViolation(error)) {
+        throw new ConversationConflictError(
+          id,
+          position,
+          await countEntries(id),
+        );
+      }
+      throw error;
+    }
+  };
 
   const create = async (id: string): Promise<void> => {
     try {
@@ -73,37 +112,30 @@ export const openSqliteConversationStore = async (
       throw new ConversationNotFoundError(id);
     }
 
-    const [lengthRow] = await db
-      .select({ n: count() })
-      .from(entries)
-      .where(eq(entries.conversationId, id));
-    const length = lengthRow?.n ?? 0;
+    const total =
+      sql<number>`(select count(*) from entries where conversation_id = ${id})`.as(
+        "total",
+      );
 
     const rows =
       range.kind === "all"
         ? await db
-            .select()
+            .select({ messages: entries.messages, total })
             .from(entries)
             .where(eq(entries.conversationId, id))
             .orderBy(entries.position)
-        : await db
-            .select()
-            .from(entries)
-            .where(
-              and(
-                eq(entries.conversationId, id),
-                gte(entries.position, length - range.count),
-              ),
-            )
-            .orderBy(entries.position);
+        : (
+            await db
+              .select({ messages: entries.messages, total })
+              .from(entries)
+              .where(eq(entries.conversationId, id))
+              .orderBy(desc(entries.position))
+              .limit(range.count)
+          ).reverse();
 
     return {
-      entries: rows.map((row): ConversationEntry => ({
-        messages: JSON.parse(
-          row.messages,
-        ) as ConversationEntry["messages"],
-      })),
-      length,
+      entries: rows.map(toEntry),
+      length: rows[0]?.total ?? 0,
     };
   };
 
@@ -115,50 +147,27 @@ export const openSqliteConversationStore = async (
     assertJsonEntry(entry);
     assertToolPairing(entry);
 
-    await db.transaction(async (tx) => {
-      const [conversationRow] = await tx
-        .select()
-        .from(conversations)
-        .where(eq(conversations.id, id));
-      if (conversationRow === undefined) {
-        throw new ConversationNotFoundError(id);
-      }
+    const rowsAffected = await insertEntry(
+      id,
+      expectedLength,
+      JSON.stringify(entry.messages),
+    );
+    if (rowsAffected > 0) {
+      return;
+    }
 
-      const [lengthRow] = await tx
-        .select({ n: count() })
-        .from(entries)
-        .where(eq(entries.conversationId, id));
-      const actualLength = lengthRow?.n ?? 0;
-
-      if (actualLength !== expectedLength) {
-        throw new ConversationConflictError(
-          id,
-          expectedLength,
-          actualLength,
-        );
-      }
-
-      try {
-        await tx.insert(entries).values({
-          conversationId: id,
-          position: expectedLength,
-          messages: JSON.stringify(entry.messages),
-        });
-      } catch (error) {
-        if (isPrimaryKeyViolation(error)) {
-          const [reReadRow] = await tx
-            .select({ n: count() })
-            .from(entries)
-            .where(eq(entries.conversationId, id));
-          throw new ConversationConflictError(
-            id,
-            expectedLength,
-            reReadRow?.n ?? 0,
-          );
-        }
-        throw error;
-      }
-    });
+    const [conversationRow] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, id));
+    if (conversationRow === undefined) {
+      throw new ConversationNotFoundError(id);
+    }
+    throw new ConversationConflictError(
+      id,
+      expectedLength,
+      await countEntries(id),
+    );
   };
 
   return { create, read, append };

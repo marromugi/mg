@@ -71,6 +71,76 @@ describe("openSqliteConversationStore", () => {
     expect(fromSecond.entries).toEqual([entryA]);
   });
 
+  test("lets exactly one of two overlapping appends on the same file succeed, and rejects the other with the conflict", async () => {
+    const path = await newDbPath();
+    const first = await openSqliteConversationStore(path);
+    const second = await openSqliteConversationStore(path);
+    await first.create("jev");
+
+    const [firstOutcome, secondOutcome] = await Promise.allSettled([
+      first.append("jev", entryA, 0),
+      second.append("jev", entryB, 0),
+    ]);
+    const outcomes = [firstOutcome, secondOutcome];
+
+    expect(
+      outcomes.filter((outcome) => outcome.status === "fulfilled"),
+    ).toHaveLength(1);
+    const [rejected] = outcomes.filter(
+      (outcome) => outcome.status === "rejected",
+    );
+    if (rejected === undefined) {
+      throw new Error("expected one of the two appends to reject");
+    }
+    expect(rejected.reason).toBeInstanceOf(ConversationConflictError);
+    expect(
+      (rejected.reason as ConversationConflictError).expectedLength,
+    ).toBe(0);
+    expect(
+      (rejected.reason as ConversationConflictError).actualLength,
+    ).toBe(1);
+
+    const winner =
+      firstOutcome.status === "fulfilled" ? entryA : entryB;
+    const fromFirst = await first.read("jev", { kind: "all" });
+    expect(fromFirst).toEqual({ entries: [winner], length: 1 });
+    const fromSecond = await second.read("jev", { kind: "all" });
+    expect(fromSecond).toEqual({ entries: [winner], length: 1 });
+  });
+
+  test("lets exactly one of two overlapping appends on the same in-memory store succeed, and rejects the other with the conflict", async () => {
+    const store = await openSqliteConversationStore(":memory:");
+    await store.create("jev");
+
+    const [firstOutcome, secondOutcome] = await Promise.allSettled([
+      store.append("jev", entryA, 0),
+      store.append("jev", entryB, 0),
+    ]);
+    const outcomes = [firstOutcome, secondOutcome];
+
+    expect(
+      outcomes.filter((outcome) => outcome.status === "fulfilled"),
+    ).toHaveLength(1);
+    const [rejected] = outcomes.filter(
+      (outcome) => outcome.status === "rejected",
+    );
+    if (rejected === undefined) {
+      throw new Error("expected one of the two appends to reject");
+    }
+    expect(rejected.reason).toBeInstanceOf(ConversationConflictError);
+    expect(
+      (rejected.reason as ConversationConflictError).expectedLength,
+    ).toBe(0);
+    expect(
+      (rejected.reason as ConversationConflictError).actualLength,
+    ).toBe(1);
+
+    const winner =
+      firstOutcome.status === "fulfilled" ? entryA : entryB;
+    const slice = await store.read("jev", { kind: "all" });
+    expect(slice).toEqual({ entries: [winner], length: 1 });
+  });
+
   test("rejects with the filesystem error when the store cannot be opened", async () => {
     const dir = await mkdtemp(
       join(tmpdir(), "mg-conversation-sqlite-"),

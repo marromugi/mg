@@ -51,7 +51,7 @@ const findNonJsonPath = (
 export const assertJsonEntry = (entry: ConversationEntry): void => {
   const path = findNonJsonPath(entry.messages, "messages");
   if (path !== undefined) {
-    throw new EntryNotJsonError(path);
+    throw new EntryNotJsonError("not-json", path);
   }
 };
 

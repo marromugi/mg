@@ -230,7 +230,7 @@ export const createJevEstimator = (
         );
       }
 
-      const result: Record<string, number> = {};
+      const entries: [string, number][] = [];
       for (const key of labelKeys) {
         const value = probabilities[key];
         if (!isValidProbability(value)) {
@@ -238,10 +238,13 @@ export const createJevEstimator = (
             `Jev response failed validation: probability for "${key}" is not between 0 and 1`,
           );
         }
-        result[key] = value;
+        entries.push([key, value]);
       }
 
-      return { label: choice, probabilities: result };
+      return {
+        label: choice,
+        probabilities: Object.fromEntries(entries),
+      };
     },
   };
 };

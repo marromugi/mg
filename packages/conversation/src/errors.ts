@@ -54,29 +54,35 @@ export class ConversationConflictError extends Error {
 
 export class EntryNotJsonError extends Error {
   override readonly name = "EntryNotJsonError";
+  readonly kind: "not-json" | "cycle";
   readonly path: string;
 
-  constructor(path: string) {
+  constructor(kind: "not-json" | "cycle", path: string) {
     super(
-      `The entry holds a value at ${path} that does not survive a JSON round trip.`,
+      kind === "not-json"
+        ? `The entry holds a value at ${path} that does not survive a JSON round trip.`
+        : `The entry holds a value at ${path} that refers back to one of the values containing it.`,
     );
+    this.kind = kind;
     this.path = path;
   }
 }
 
 export class EntryToolPairingError extends Error {
   override readonly name = "EntryToolPairingError";
-  readonly kind: "unanswered-call" | "orphan-result";
+  readonly kind: "unanswered-call" | "orphan-result" | "duplicate-call";
   readonly toolCallId: string;
 
   constructor(
-    kind: "unanswered-call" | "orphan-result",
+    kind: "unanswered-call" | "orphan-result" | "duplicate-call",
     toolCallId: string,
   ) {
     super(
       kind === "unanswered-call"
         ? `Tool call "${toolCallId}" has no tool result after it in the same entry.`
-        : `Tool result "${toolCallId}" has no tool call before it in the same entry.`,
+        : kind === "orphan-result"
+          ? `Tool result "${toolCallId}" has no tool call before it in the same entry.`
+          : `Tool call "${toolCallId}" appears more than once in the same entry.`,
     );
     this.kind = kind;
     this.toolCallId = toolCallId;

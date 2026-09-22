@@ -119,12 +119,14 @@ const slice = await store.read("jev", { kind: "all" });
 `ConversationConflictError` は、`conversationId` と、渡された総数
 `expectedLength` と、実際の総数 `actualLength` を持ちます。
 
-`EntryNotJsonError` は、最初に見つかった値の場所 `path` を持ちます。
+`EntryNotJsonError` は、種類 `kind` と、最初に見つかった値の場所
+`path` を持ちます。
+種類は、JSON の値でない値 `not-json` と、循環 `cycle` の 2 つです。
 
 `EntryToolPairingError` は、種類 `kind` と、ツールの呼び出しの id
 `toolCallId` を持ちます。
 種類は、結果のない呼び出し `unanswered-call` と、呼び出しのない結果
-`orphan-result` の 2 つです。
+`orphan-result` と、重複した呼び出し `duplicate-call` の 3 つです。
 
 どの例外も、自分の名前を `name` に持ちます。
 

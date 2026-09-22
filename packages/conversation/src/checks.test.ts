@@ -214,6 +214,106 @@ describe("assertToolPairing", () => {
     );
     expect((error as EntryToolPairingError).toolCallId).toBe("c1");
   });
+
+  test("reports a duplicate call when the same id appears twice in one message", () => {
+    const entry = entryWithMessages([
+      userMessage(),
+      toolCallMessage(
+        { id: "c1", name: "echo", arguments: { text: "ping" } },
+        { id: "c1", name: "echo", arguments: { text: "ping" } },
+      ),
+      toolResultMessage("c1"),
+    ]);
+
+    const error = thrown(() => assertToolPairing(entry));
+
+    expect(error).toBeInstanceOf(EntryToolPairingError);
+    expect((error as EntryToolPairingError).kind).toBe(
+      "duplicate-call",
+    );
+    expect((error as EntryToolPairingError).toolCallId).toBe("c1");
+  });
+
+  test("reports a duplicate call even when the earlier call already has a result", () => {
+    const entry = entryWithMessages([
+      userMessage(),
+      toolCallMessage({
+        id: "c1",
+        name: "echo",
+        arguments: { text: "ping" },
+      }),
+      toolResultMessage("c1"),
+      toolCallMessage({
+        id: "c1",
+        name: "echo",
+        arguments: { text: "ping" },
+      }),
+    ]);
+
+    const error = thrown(() => assertToolPairing(entry));
+
+    expect(error).toBeInstanceOf(EntryToolPairingError);
+    expect((error as EntryToolPairingError).kind).toBe(
+      "duplicate-call",
+    );
+    expect((error as EntryToolPairingError).toolCallId).toBe("c1");
+  });
+
+  test("reports an orphan result that comes before a later duplicate call", () => {
+    const entry = entryWithMessages([
+      userMessage(),
+      toolCallMessage({
+        id: "c1",
+        name: "echo",
+        arguments: { text: "ping" },
+      }),
+      toolResultMessage("c2"),
+      toolCallMessage({
+        id: "c1",
+        name: "echo",
+        arguments: { text: "ping" },
+      }),
+    ]);
+
+    const error = thrown(() => assertToolPairing(entry));
+
+    expect(error).toBeInstanceOf(EntryToolPairingError);
+    expect((error as EntryToolPairingError).kind).toBe("orphan-result");
+    expect((error as EntryToolPairingError).toolCallId).toBe("c2");
+  });
+
+  test("reports a duplicate call found in an earlier message before a later orphan result", () => {
+    const entry = entryWithMessages([
+      userMessage(),
+      toolCallMessage(
+        { id: "c1", name: "echo", arguments: { text: "ping" } },
+        { id: "c1", name: "echo", arguments: { text: "ping" } },
+      ),
+      toolResultMessage("c9"),
+    ]);
+
+    const error = thrown(() => assertToolPairing(entry));
+
+    expect(error).toBeInstanceOf(EntryToolPairingError);
+    expect((error as EntryToolPairingError).kind).toBe(
+      "duplicate-call",
+    );
+    expect((error as EntryToolPairingError).toolCallId).toBe("c1");
+  });
+
+  test("passes an entry with two different calls in one message each paired with a result", () => {
+    const entry = entryWithMessages([
+      userMessage(),
+      toolCallMessage(
+        { id: "c1", name: "echo", arguments: { text: "ping" } },
+        { id: "c2", name: "echo", arguments: { text: "ping" } },
+      ),
+      toolResultMessage("c1"),
+      toolResultMessage("c2"),
+    ]);
+
+    expect(assertToolPairing(entry)).toBeUndefined();
+  });
 });
 
 describe("checks on a frozen entry", () => {

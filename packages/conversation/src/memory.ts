@@ -65,7 +65,7 @@ export const createMemoryConversationStore = (): ConversationStore => {
       );
     }
 
-    entries.push(structuredClone(entry));
+    entries.push({ messages: structuredClone(entry.messages) });
   };
 
   return { create, read, append };

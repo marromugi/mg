@@ -137,11 +137,15 @@ export const describeStoreContract = (
         expect((error as ConversationRangeError).count).toBe(count);
       }
 
-      const notFoundError = await thrown(
+      const rangeErrorBeforeLookup = await thrown(
         store.read("nobody", { kind: "last", count: 0 }),
       );
-      expect(notFoundError).toBeInstanceOf(ConversationRangeError);
-      expect((notFoundError as ConversationRangeError).count).toBe(0);
+      expect(rangeErrorBeforeLookup).toBeInstanceOf(
+        ConversationRangeError,
+      );
+      expect(
+        (rangeErrorBeforeLookup as ConversationRangeError).count,
+      ).toBe(0);
     });
 
     test("refuses an append whose expected length does not match the actual length, and leaves the conversation untouched", async () => {

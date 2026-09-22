@@ -1,8 +1,5 @@
-import type {
-  ConversationMessage,
-  ConversationStore,
-  ReadRange,
-} from "@mg/conversation";
+import type { Message } from "@mg/core";
+import type { ConversationStore, ReadRange } from "@mg/conversation";
 import type {
   ContinueOutcome,
   ConversationTarget,
@@ -10,7 +7,7 @@ import type {
 
 declare const store: ConversationStore;
 declare const history: ReadRange;
-const message: ConversationMessage = { role: "user", content: "hi" };
+const message: Message = { role: "user", content: "hi" };
 
 // @ts-expect-error a conversation target needs a read range
 export const targetWithoutHistory: ConversationTarget = {
@@ -27,12 +24,13 @@ export const targetWithNoMessages: ConversationTarget = {
   messages: [],
 };
 
-export const targetWithSystemAmongMessages: ConversationTarget = {
+export const targetWithSystemArgument: ConversationTarget = {
   store,
   id: "jev",
   history,
-  // @ts-expect-error a system message cannot be one of the new messages
-  messages: [{ role: "system", content: "x" }],
+  // @ts-expect-error a conversation target has no system argument
+  system: "x",
+  messages: [message],
 };
 
 declare const outcome: ContinueOutcome;

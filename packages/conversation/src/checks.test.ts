@@ -1,10 +1,8 @@
+import type { Message } from "@mg/core";
 import { describe, expect, test } from "vitest";
 import { assertJsonEntry, assertToolPairing } from "./checks.js";
 import { EntryNotJsonError, EntryToolPairingError } from "./errors.js";
-import type {
-  ConversationEntry,
-  ConversationMessage,
-} from "./types.js";
+import type { ConversationEntry } from "./types.js";
 
 const thrown = (fn: () => void): unknown => {
   try {
@@ -15,21 +13,19 @@ const thrown = (fn: () => void): unknown => {
   throw new Error("expected the function to throw");
 };
 
-const userMessage = (): ConversationMessage => ({
+const userMessage = (): Message => ({
   role: "user",
   content: "hi",
 });
 
 const toolCallMessage = (
   ...calls: Array<{ id: string; name: string; arguments: unknown }>
-): ConversationMessage => ({
+): Message => ({
   role: "assistant",
   parts: calls.map((call) => ({ type: "tool-call", ...call })),
 });
 
-const toolResultMessage = (
-  toolCallId: string,
-): ConversationMessage => ({
+const toolResultMessage = (toolCallId: string): Message => ({
   role: "tool",
   toolCallId,
   content: "pong",

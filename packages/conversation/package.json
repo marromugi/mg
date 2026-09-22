@@ -5,6 +5,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite/index.d.ts",
+      "default": "./dist/sqlite/index.js"
     }
   },
   "scripts": {
@@ -13,6 +17,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mg/core": "workspace:*"
+    "@libsql/client": "0.18.0",
+    "@mg/core": "workspace:*",
+    "drizzle-orm": "0.45.2"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
   }
 }

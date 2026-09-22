@@ -22,8 +22,8 @@
   操作は、作成と読み出しと追記の 3 つです。
 - 保存と確かめが使う、専用のエラーを持ちます。
 - 追記の前に使う、2 つの確かめの関数を持ちます。
-- `ConversationStore` を、プロセスの中だけで実装したものを
-  持ちます。
+- `ConversationStore` の実装を 2 つ持ちます。
+  プロセスの中だけの実装と、SQLite の実装です。
 
 ### 型の分け方
 
@@ -69,6 +69,43 @@ const slice = await store.read("jev", { kind: "all" });
 
 保存した会話は、プロセスが終わると消えます。
 別に作った保存どうしは、会話を共有しません。
+
+## SQLite の保存
+
+`openSqliteConversationStore` は、`ConversationStore` を
+SQLite で実装したものです。
+`@mg/conversation` の主の入口とは別の入口から出します。
+
+```ts
+import { openSqliteConversationStore } from "@mg/conversation/sqlite";
+
+const store = await openSqliteConversationStore(
+  "path/to/conversations.db",
+);
+await store.create("jev");
+await store.append("jev", entry, 0);
+const slice = await store.read("jev", { kind: "all" });
+```
+
+引数は、開くファイルのパスです。
+保存先のディレクトリがなければ作ります。
+テーブルがなければ作ります。
+
+パスに `":memory:"` を渡すと、ファイルを作らずに開けます。
+
+同じパスをもう一度開くと、前に保存した会話が読めます。
+ファイルが残っていれば、プロセスをまたいでも会話は残ります。
+
+同じパスを 2 つの保存が同時に開いていても、総数の照合は働きます。
+先に追記した側だけが残ります。
+後から追記した側は、`ConversationConflictError` で失敗します。
+
+保存先を開けないときは、開く関数がそのエラーで拒否されます。
+保存は返りません。
+
+SQLite とやり取りするライブラリは、この入口の中だけで
+読み込みます。
+`@mg/conversation` の主の入口からは読み込みません。
 
 ## 2 つの確かめ
 

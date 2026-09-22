@@ -550,6 +550,91 @@ argument is limited to a `JsonValue` at the type level. The judgement record it 
 own session, distinct from the run's `sessionId` in the fired branch — see "Where results go"
 below.
 
+Continuing a saved conversation, with `continueConversation`:
+
+```ts
+import { createMemoryConversationStore } from "@mg/conversation";
+import { continueConversation } from "@mg/runner";
+import config from "./loop-bash.config.ts";
+
+const store = createMemoryConversationStore();
+await store.create("jev");
+
+const outcome = await continueConversation(config, {
+  store,
+  id: "jev",
+  history: { kind: "all" },
+  messages: [{ role: "user", content: "hello" }],
+});
+
+if (outcome.saved)
+  console.log(outcome.sessionId, outcome.result.reason);
+else console.log(outcome.reason);
+```
+
+`conversation.history` has no default (`{ kind: "all" }` or `{ kind: "last", count }`), and
+`conversation.messages` needs at least one entry — both are checked at the type level. Passing
+`system` puts it first in what reaches the model, but it is never written back to the store.
+`options` is the same `RunOptions` as `run`'s and is passed through unchanged, so `sessionId`,
+`signal`, and `onEvent` all work the same way as with `run`.
+
+Wiring a trigger straight to a saved conversation, using `continueConversation` inside `start`:
+
+```ts
+import type { ConversationMessage } from "@mg/conversation";
+import { createMemoryConversationStore } from "@mg/conversation";
+import { continueConversation, runOnTrigger } from "@mg/runner";
+import type { Trigger } from "@mg/trigger";
+import config from "./loop-bash.config.ts";
+
+type TweetInput = { kind: "tweet"; text: string };
+
+const trigger: Trigger<TweetInput> = {
+  decide: async (input) => ({
+    fired: input.text.length > 0,
+    reason: "has text",
+  }),
+};
+
+const store = createMemoryConversationStore();
+await store.create("jev");
+
+const outcome = await runOnTrigger(
+  {
+    trigger,
+    toMessages: (input): ConversationMessage[] => [
+      { role: "user", content: input.text },
+    ],
+    start: async (messages, options) => {
+      if (messages.length === 0) {
+        throw new Error("toMessages returned no messages");
+      }
+      const [first, ...rest] = messages;
+      return continueConversation(
+        config,
+        {
+          store,
+          id: "jev",
+          history: { kind: "all" },
+          messages: [first, ...rest],
+        },
+        options,
+      );
+    },
+    trace: { jsonlPath: "./trigger.jsonl" },
+  },
+  { kind: "tweet", text: "hello" },
+);
+
+if (outcome.fired) console.log(outcome.run.sessionId);
+else console.log(outcome.decision.reason);
+```
+
+`toMessages` is typed to return `ConversationMessage[]` — a message type with no `system` — so
+what it converts can go straight into `conversation.messages`. `start` still receives a plain
+array (`ConversationMessage[]`), not the non-empty tuple `conversation.messages` needs, so it
+checks the length and rebuilds the tuple before calling `continueConversation`.
+
 ## 6. Where results go
 
 - `run` returns `{ sessionId, result }`; `runMany` returns one outcome per case, each carrying
@@ -563,6 +648,13 @@ decision, run }` when the session id `start` returned matches the one the entran
   `fired`. `sessionId` is the judgement session throughout. Only in the fired branch does the
   judgement's `mg.input` span carry `mg.run.session`, set to the session id the entrance
   decided and passed to `start`.
+- `continueConversation` returns `{ saved: true, sessionId, result }` when the append landed.
+  When the run's returned conversation doesn't start with what was sent, it returns
+  `{ saved: false, sessionId, result, reason: { kind: "diverged" } }` without appending. When
+  the append itself fails (e.g. another append landed first), it returns `{ saved: false,
+sessionId, result, reason: { kind: "append-failed", error } }` — it never throws for either
+  case. `sessionId` and `result` come straight from the run; reading `reason` requires
+  narrowing on `saved: false` first, at the type level.
 - Trace spans go wherever `trace` in the config points: the JSONL file, the SQLite database,
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a

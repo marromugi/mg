@@ -140,7 +140,7 @@ describe("createEstimatorChecker", () => {
     await check.evaluate(makeInput(view));
 
     expect(calls[0].question).toBe("Was the agent polite?");
-    expect(calls[0].text).toBe(transcribe(view));
+    expect(calls[0].subject).toBe(transcribe(view));
   });
 
   it("sends the text from a custom transcribe function instead of the default", async () => {
@@ -159,7 +159,7 @@ describe("createEstimatorChecker", () => {
 
     await check.evaluate(makeInput(makeView()));
 
-    expect(calls[0].text).toBe("custom");
+    expect(calls[0].subject).toBe("custom");
   });
 
   it("rejects an empty name or an empty question at creation time", () => {

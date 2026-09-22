@@ -158,7 +158,7 @@ describe("createEstimatorGate", () => {
 
     await gate.judge({ kind: "tool-call", description: "Run: ls" });
 
-    expect(calls[0].text).toBe("Kind: tool-call\nRun: ls");
+    expect(calls[0].subject).toBe("Kind: tool-call\nRun: ls");
     expect(calls[0].question).toBe(
       "Allow read-only commands.\n\nIs it fine to run this action?",
     );

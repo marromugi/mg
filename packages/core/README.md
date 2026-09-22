@@ -37,7 +37,7 @@ ollama は API キーを確かめないため、API キーは受け取りませ�
 
 ### Estimator
 
-判定の対象と質問を受け取り、答えが「はい」である確率を返すモデルサービスの型です。
+判定の対象と質問を受け取り、型のついた判定を返すモデルサービスの型です。
 名前は Estimator です。
 
 判定の対象は、文章か、構造を持つ値です。
@@ -60,6 +60,28 @@ ollama は API キーを確かめないため、API キーは受け取りませ�
 問い合わせるときに中断の合図を渡せます。
 中断されたときは、中断のエラーをそのまま投げます。
 それ以外の失敗は、専用の 3 種類のエラーで返ります。
+
+#### 分類
+
+分類の操作は、判定の対象と質問と、ラベルごとの説明を受け取ります。
+ラベルごとの説明は、ラベルを鍵にした map で渡します。
+ラベルは 1 つ以上あれば成り立ちます。
+
+返す判定は、選ばれたラベルと、ラベルごとの確率です。
+確率は、どれも 0 から 1 の有限の数です。
+Jev が返す確信度は写しません。
+
+#### 上限の宣言
+
+Estimator は、上限を値として宣言します。
+上限は、ラベルの数と段階の数です。
+上限は実装ごとに違います。
+Jev の実装は、ラベルに 255、段階に 10 を宣言します。
+
+要求のラベルが 1 つもないときは、通信の前に拒否します。
+上限を超えるときも、同じく拒否します。
+拒否は RangeError で行います。
+この確かめは、中断の合図を確かめた次に呼びます。
 
 ### 実行できるツール
 
@@ -102,8 +124,12 @@ src/
 
 ```
 estimators/
-  Estimator           確率で答えるモデルサービスの共通の型
-  createJevEstimator  Jev と話す Estimator を作る
+  Estimator              確率と分類で答えるモデルサービスの共通の型
+  ClassifyRequest        分類の要求の型
+  Classification         分類の判定の型
+  EstimatorLimits        ラベルと段階の数の上限の型
+  assertClassifyRequest  分類の要求が上限に収まっているかを確かめる
+  createJevEstimator     Jev と話す Estimator を作る
 
 providers/
   Provider                  プロバイダーの共通の型
@@ -142,7 +168,8 @@ Estimator のエラー
   EstimatorBaseError       親（直接は作れない）
   EstimatorHttpError       失敗の応答が返った
   EstimatorTransportError  通信そのものが失敗した
-  EstimatorResponseError   応答が JSON でない、形が合わない、確率が範囲の外
+  EstimatorResponseError   応答が JSON でない、形が合わない、選ばれた
+                           ラベルが渡したラベルにない、確率が範囲の外
   EstimatorError           3 つのユニオン型
   isEstimatorError         型ガード
 

@@ -59,6 +59,7 @@ const createFakeEstimator = (
   calls: [EstimateRequest, EstimateOptions | undefined][] = [],
 ): Estimator => ({
   model: "fake-model",
+  limits: { maxLabels: 255, maxLevels: 10 },
   estimate: (
     request: EstimateRequest,
     options?: EstimateOptions,
@@ -66,6 +67,7 @@ const createFakeEstimator = (
     calls.push([request, options]);
     return Promise.resolve({ probability });
   },
+  classify: () => Promise.reject(new Error("not used")),
 });
 
 const question = "Fire when the assistant could help.";
@@ -203,7 +205,9 @@ describe("createEstimatorTrigger", () => {
     );
     const estimator: Estimator = {
       model: "fake-model",
+      limits: { maxLabels: 255, maxLevels: 10 },
       estimate: () => Promise.reject(original),
+      classify: () => Promise.reject(new Error("not used")),
     };
     const trigger = createEstimatorTrigger({ estimator, question });
 
@@ -223,7 +227,9 @@ describe("createEstimatorTrigger", () => {
     const original = new Error("boom");
     const estimator: Estimator = {
       model: "fake-model",
+      limits: { maxLabels: 255, maxLevels: 10 },
       estimate: () => Promise.reject(original),
+      classify: () => Promise.reject(new Error("not used")),
     };
     const trigger = createEstimatorTrigger({ estimator, question });
 

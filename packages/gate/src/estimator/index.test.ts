@@ -60,7 +60,12 @@ const createFakeEstimator = (
     request: EstimateRequest,
     options?: EstimateOptions,
   ) => Promise<Estimate>,
-): Estimator => ({ model, estimate });
+): Estimator => ({
+  model,
+  limits: { maxLabels: 255, maxLevels: 10 },
+  estimate,
+  classify: () => Promise.reject(new Error("not used")),
+});
 
 const ALLOWED_REASON = "The estimator judged this action acceptable.";
 const DENIED_REASON = "The estimator judged this action unacceptable.";

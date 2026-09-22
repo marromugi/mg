@@ -50,7 +50,12 @@ const createFakeEstimator = (
     request: EstimateRequest,
     options?: EstimateOptions,
   ) => Promise<Estimate>,
-): Estimator => ({ model: "m", estimate });
+): Estimator => ({
+  model: "m",
+  limits: { maxLabels: 255, maxLevels: 10 },
+  estimate,
+  classify: () => Promise.reject(new Error("not used")),
+});
 
 describe("createEstimatorChecker", () => {
   it("passes at the default threshold when the probability meets it, and fails just below it", async () => {

@@ -24,7 +24,7 @@ const answer = (noul: unknown): unknown => ({
   answers: { answer: { type: "noul", noul } },
 });
 
-const request: EstimateRequest = { text: "T", question: "Q" };
+const request: EstimateRequest = { subject: "T", question: "Q" };
 
 describe("createJevEstimator", () => {
   test("sends to the systemone URL with the bearer header and JSON content type", async () => {
@@ -74,7 +74,7 @@ describe("createJevEstimator", () => {
     expect(headers.get("X-Test")).toBe("1");
   });
 
-  test("puts the model, text and single question into the request body", async () => {
+  test("puts the model, subject and single question into the request body", async () => {
     const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
     const estimator = createJevEstimator({
       apiKey: "key",
@@ -95,6 +95,43 @@ describe("createJevEstimator", () => {
     expect(Object.keys(body.questions)).toEqual(["answer"]);
     expect(body.questions.answer.type).toBe("noul");
     expect(body.questions.answer.instructions).toBe("Q");
+  });
+
+  test("sends a structured subject as the request state unchanged, not as a string", async () => {
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await estimator.estimate({
+      subject: { kind: "note", text: "hi" },
+      question: "Q",
+    });
+
+    const [, init] = fetchStub.mock.calls[0];
+    if (init === undefined) throw new Error("init not captured");
+    const body = JSON.parse(init.body as string) as { state: unknown };
+    expect(body.state).toEqual({ kind: "note", text: "hi" });
+    expect(typeof body.state).not.toBe("string");
+  });
+
+  test("sends an array subject as the request state unchanged", async () => {
+    const fetchStub = stubFetch(async () => jsonResponse(answer(0.9)));
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    await estimator.estimate({
+      subject: ["a", { b: 1 }],
+      question: "Q",
+    });
+
+    const [, init] = fetchStub.mock.calls[0];
+    if (init === undefined) throw new Error("init not captured");
+    const body = JSON.parse(init.body as string) as { state: unknown };
+    expect(body.state).toEqual(["a", { b: 1 }]);
   });
 
   test("defaults the model to jev-latest, and a custom model is both named and sent", async () => {

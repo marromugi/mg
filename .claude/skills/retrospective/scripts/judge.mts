@@ -30,7 +30,7 @@ const judgeTurn = async (
 ): Promise<JudgedTurn> => {
   if (turn.agent === "") return { ...turn, override: 0 };
   const { probability } = await estimator.estimate({
-    text: pairOf(turn),
+    subject: pairOf(turn),
     question: QUESTION,
   });
   return { ...turn, override: probability };

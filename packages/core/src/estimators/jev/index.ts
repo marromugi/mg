@@ -79,7 +79,7 @@ export const createJevEstimator = (
 
       const body = JSON.stringify({
         model,
-        state: request.text,
+        state: request.subject,
         questions: {
           answer: {
             type: "noul",

@@ -51,7 +51,7 @@ export const createEstimatorTrigger = (
           try {
             ({ probability } = await estimator.estimate(
               {
-                text: `Kind: ${input.kind}\n${input.text}`,
+                subject: `Kind: ${input.kind}\n${input.text}`,
                 question,
               },
               { signal: context?.signal },

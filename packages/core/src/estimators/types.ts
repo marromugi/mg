@@ -1,4 +1,20 @@
-export type EstimateRequest = { text: string; question: string };
+export type EstimatorSubjectValue =
+  | string
+  | number
+  | boolean
+  | null
+  | EstimatorSubjectValue[]
+  | { [key: string]: EstimatorSubjectValue };
+
+export type EstimatorSubject =
+  | string
+  | EstimatorSubjectValue[]
+  | { [key: string]: EstimatorSubjectValue };
+
+export type EstimateRequest = {
+  subject: EstimatorSubject;
+  question: string;
+};
 export type Estimate = { probability: number };
 export type EstimateOptions = { signal?: AbortSignal };
 

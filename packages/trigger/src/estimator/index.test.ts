@@ -130,7 +130,7 @@ describe("createEstimatorTrigger", () => {
     await trigger.decide(input);
 
     expect(calls[0][0]).toEqual({
-      text: "Kind: tweet\nそういえば明日何かあったっけ",
+      subject: "Kind: tweet\nそういえば明日何かあったっけ",
       question: "Is this a bug report?",
     });
   });

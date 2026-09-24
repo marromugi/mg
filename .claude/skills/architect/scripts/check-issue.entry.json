@@ -1,0 +1,5 @@
+{
+  "command": "node .claude/skills/architect/scripts/check-issue.mjs <body.md>",
+  "needs": [],
+  "burdens": []
+}

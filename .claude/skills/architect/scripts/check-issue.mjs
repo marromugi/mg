@@ -2,11 +2,20 @@
 import fs from "node:fs";
 import process from "node:process";
 
-const CHILD_H2 = ["背景", "設計", "対応内容", "制約", "ケース", "To Implementer"];
+const CHILD_H2 = [
+  "背景",
+  "設計",
+  "対応内容",
+  "制約",
+  "ケース",
+  "実物での確認",
+  "To Implementer",
+];
 const RECORD_H2 = [
   "決定",
   "変わる振る舞い",
   "全体の中の位置",
+  "確かめたこと",
   "理由",
   "見送った形",
   "手放したもの",
@@ -135,6 +144,44 @@ if (cases) {
 
 for (const [id, n] of ids) {
   if (id.startsWith("B") && !received.has(id)) fail(n, `${id} is received by no case`);
+}
+
+const hasBehaviourConstraints = [...ids.keys()].some((id) => id.startsWith("B"));
+const checks = find("実物での確認");
+if (checks) {
+  const items = bullets(checks.lines);
+  const isBareNone = items.length === 1 && items[0].item === NONE;
+
+  for (const { n, item } of items) {
+    if (item === NONE || /^なし: \S/.test(item)) continue;
+    const m = /^V(\d+)(?: \[([^\]]*)\])?: (\S.*)$/.exec(item);
+    if (!m) {
+      fail(n, 'check is not "V<n>: <entry> ..." or "なし: <reason>"');
+      continue;
+    }
+    const vId = `V${m[1]}`;
+    const refs = m[2]
+      ?.split(",")
+      .map((r) => r.trim())
+      .filter(Boolean);
+    if (!/`[^`]+`/.test(m[3])) fail(n, `${vId} names no entry in backticks`);
+    for (const ref of refs ?? []) {
+      if (!/^B\d+$/.test(ref)) fail(n, `${vId} names ${ref}: only B ids are named by checks`);
+      else if (!ids.has(ref)) fail(n, `${vId} names ${ref}, which is not declared`);
+    }
+    declare(vId, n);
+  }
+
+  if (!hasBehaviourConstraints) {
+    if (!isBareNone) {
+      fail(checks.n, '"実物での確認" must be "- なし" when there are no behaviour constraints');
+    }
+  } else if (isBareNone) {
+    fail(
+      checks.n,
+      '"実物での確認" needs "V<n>" items or "なし: <reason>" when there are behaviour constraints',
+    );
+  }
 }
 
 if (problems.length > 0) {

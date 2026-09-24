@@ -191,6 +191,45 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
 
 After the report, stop.
 
+## Redoing a design
+
+The one entry other skills use when work already under way finds the design
+does not hold. `implementer` calls it with an implementation agent's design
+question, or with `reviewer`'s design-level findings; `dispatcher` reads its
+result the same way `implementer` does. Principle 1 puts design decisions
+here, so no other skill repeats these steps or decides one on its own.
+
+Input: the issue number, the facts implementation or review found, and the
+question left open.
+
+1. Read the issue and its parent's decision record from GitHub fresh — the
+   snapshot the caller built from is exactly what surfaced the question, so
+   it cannot be trusted to still describe the design.
+2. Run step 2 (Design from the whole) over the existing record as if
+   drawing it from the start, keeping the original request and scope. The
+   facts passed in are read the same way a `prototyper` answer is: they
+   settle whatever they settle, and go into `確かめたこと`.
+3. Run step 3 (Design review) on the redrawn record, with the same Rounds.
+4. Run step 4 only for what the theory still sends to the developer, plus
+   one more case: when the shape the redraw settles on is one already
+   listed under `## 見送った形`, stop and ask instead of choosing it again —
+   it was rejected once already, so choosing it again is not this skill's
+   call. Otherwise carry on without asking.
+5. Run steps 5 and 6 (Constraints, cases, issues; Case review) again, but
+   only for the children whose record actually changed.
+6. Edit the parent and every child not yet merged with
+   `gh issue edit <n> --body-file <file>`, each file passing
+   `check-issue.mjs` first. Where the new design contradicts work already
+   merged, leave that work alone and open a new issue instead — principle 9
+   settled that behaviour once, and a redo does not reopen it in place. Add
+   every shape the redraw did not choose to `## 見送った形`, including ones
+   already listed there.
+
+Return the list of edited and created issue numbers. This is not a report
+to the developer: when the call came from another skill, that skill reports
+what happened as its own step says to; called directly, report the same
+list plainly.
+
 ## Things to keep in mind
 
 - Human-facing issue text (背景, 設計, 対応内容, 制約, ケース) is Japanese and

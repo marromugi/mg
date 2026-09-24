@@ -194,12 +194,22 @@ the next review starts. Do not shortcut either skill or do their work
 inline; the point of this loop is that each issue gets the same treatment
 it would get alone.
 
-Running implementer on an issue ends one of three ways:
+Running implementer on an issue ends one of four ways:
 
 - A PR was opened. Continue with CI, reviewer, and verifier, and gather
   below.
 - implementer stopped on a design question before touching code. There is
   no PR; quote the question in full in the report (step 5).
+- implementer returned a list of edited and created issue numbers from
+  architect's "Redoing a design" — an implementation agent's design
+  question, or reviewer's design-level findings, went there instead of
+  stopping here. implementer itself already closed the PR for the issue it
+  was running, if any, and carried on building under the redrawn issue. For
+  every other issue in that returned list that has a run in flight
+  elsewhere in this batch, close its PR the same way implementer does (keep
+  the branch), drop its issue-guard snapshot, and put it back into this
+  run's queue — the redrawn issue, not the one that run started from, is
+  what the rest of the run builds. Continue with the rest of the batch.
 - implementer stopped before spawning an agent (step 1 of the implementer
   skill), for any of several reasons: its own snapshot of the issue was
   refused, a predecessor under "When an issue can start" was still open,

@@ -133,11 +133,16 @@ waiting.
 
 ### 3. Handle the agent's report
 
-- If the agent stopped on a design question: quote it as-is, put it to the
-  developer the way `architect` step 4 puts its questions (the
-  AskUserQuestion tool, the code the options rest on, and a recommendation
-  only where a principle leans), and stop. The answer may need an issue update; that is the
-  developer's call.
+- If the agent stopped on a design question: call architect's "Redoing a
+  design" with this issue's number, the facts the agent found, and the
+  question, and wait for the returned list of edited and created issue
+  numbers. If a PR exists, close it with
+  `gh pr close <PR> --comment "設計をやり直しました。#<N> を見てください。"`,
+  naming the issue from that list the work continues under. Remove the
+  agent's worktree with `git worktree remove --force <path>`; never delete
+  the branch, since it may still hold work the developer wants. Start again
+  at step 1 with a fresh snapshot of that issue. Pass the returned list on
+  to whoever called this skill.
 - If a PR was opened: note the PR number and the Deviations section. Any
   deviation goes into the reviewer's report later, so keep it.
 
@@ -175,7 +180,11 @@ On a non-zero exit, do not invoke `reviewer`. Leave the PR open and report
 the script's lines to the developer exactly as printed.
 
 On success, invoke the `reviewer` skill with the PR number. Pass along the
-Deviations section and whether CI ran.
+Deviations section and whether CI ran. When `reviewer` returns design-level
+findings, handle them the same way step 3 handles an agent's design
+question: call architect's "Redoing a design" with this issue's number, the
+findings as facts, and the open question, then close the PR, drop the
+worktree, and restart at step 1.
 
 ### 6. Verify
 

@@ -52,6 +52,11 @@ Then follow principle 1 in order:
   sentence. Check whether they already exist.
 - Only then decide the concrete implementations.
 
+Before choosing, sort any fact the choice rests on: a question that running
+something would settle in one reading — behaviour, output, timing, whether
+an outside system accepts something — goes to `prototyper`, not to a guess.
+Write its answer into `確かめたこと` and let it settle the choice.
+
 Consider at least two whole shapes, not two variations of one. Choose by the
 principles, and keep the rejected shapes with the principle that rejected
 each.
@@ -73,8 +78,15 @@ and pointers to the code.
 - `ask` findings: hold each against the theory first. What a principle
   settles is not the developer's to answer, so where you can name the
   principle and the decision it makes, follow "When the maker disagrees" in
-  that skill. Take what is still `ask` to step 4 before revising anything.
-  The answers change the record, and a second round on a record that is about
+  that skill. Then sort what is left: a question that running something
+  would settle in one reading — behaviour, output, timing, whether an
+  outside system accepts something — goes to `prototyper`, not to step 4.
+  Write its answer into `確かめたこと` and let the decision rest on it, with
+  the principle that now settles it. Take what is still `ask` to step 4
+  before revising anything: questions the theory sends to the developer, and
+  questions whose observation came back open to more than one reading, or
+  that could not be made at all — with the observation attached. The
+  answers change the record, and a second round on a record that is about
   to change is wasted.
 - `fix` findings: revise the record. If you think a finding is mistaken,
   follow "When the maker disagrees" in that skill; do not drop it.

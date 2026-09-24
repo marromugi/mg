@@ -15,6 +15,11 @@ import type {
 import { nanoid } from "nanoid";
 import type { TraceDb } from "../store/sqlite.js";
 import { openTraceDb } from "../store/sqlite.js";
+import type {
+  TraceShutdownFailure,
+  TraceShutdownStep,
+} from "./errors.js";
+import { TraceShutdownError } from "./errors.js";
 import { JsonlSpanExporter } from "./jsonl-exporter.js";
 import { generalLimits, spanLimits } from "./limits.js";
 import { SqliteSpanExporter } from "./sqlite-exporter.js";
@@ -59,10 +64,85 @@ class NonClosingExporter implements SpanExporter {
   }
 }
 
+// Takes the export result's code as a plain number so a failed export
+// (any code other than 0, ExportResultCode.SUCCESS) can be checked without
+// comparing across the exporter interface's own enum type.
+const isFailedExportCode = (code: number): boolean => code !== 0;
+
+type WatchedFailure = { step: "flush" | "shutdown"; error: unknown };
+
+// Wraps one exporter so every failure it produces after this point is kept
+// under its own label, for TraceShutdownError to report by target and step.
+// OpenTelemetry only ever surfaces these failures back through the values it
+// throws while closing; unclaimed thrown values are attributed elsewhere.
+class WatchedExporter implements SpanExporter {
+  private readonly recorded: WatchedFailure[] = [];
+
+  constructor(
+    readonly target: string,
+    private readonly inner: SpanExporter,
+  ) {}
+
+  export(
+    spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
+    this.inner.export(spans, (result) => {
+      if (!isFailedExportCode(result.code)) {
+        resultCallback(result);
+        return;
+      }
+      const error =
+        result.error ??
+        new Error(
+          `${this.target} reported a failed export without an error`,
+        );
+      this.recorded.push({ step: "flush", error });
+      resultCallback({ code: result.code, error });
+    });
+  }
+
+  async forceFlush(): Promise<void> {
+    try {
+      await (this.inner.forceFlush?.() ?? Promise.resolve());
+    } catch (error) {
+      this.recorded.push({ step: "flush", error });
+      throw error;
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    try {
+      await this.inner.shutdown();
+    } catch (error) {
+      this.recorded.push({ step: "shutdown", error });
+      throw error;
+    }
+  }
+
+  // Removes and returns, in recorded order, this exporter's own failures
+  // found among the still-unclaimed values OpenTelemetry threw.
+  claim(unclaimed: unknown[]): TraceShutdownFailure[] {
+    const claimed: TraceShutdownFailure[] = [];
+    for (const failure of this.recorded) {
+      const index = unclaimed.indexOf(failure.error);
+      if (index !== -1) {
+        unclaimed.splice(index, 1);
+        claimed.push({
+          target: this.target,
+          step: failure.step,
+          error: failure.error,
+        });
+      }
+    }
+    return claimed;
+  }
+}
+
 export const createTraceSdk = async (
   options: TraceSdkOptions = {},
 ): Promise<TraceSdk> => {
-  const exporters: SpanExporter[] = [];
+  const watchedExporters: WatchedExporter[] = [];
   let sqliteDb: TraceDb | undefined;
 
   if (options.sqlitePath !== undefined) {
@@ -72,17 +152,27 @@ export const createTraceSdk = async (
       );
     }
     sqliteDb = await openTraceDb(options.sqlitePath);
-    exporters.push(new SqliteSpanExporter(sqliteDb));
+    watchedExporters.push(
+      new WatchedExporter("sqlite", new SqliteSpanExporter(sqliteDb)),
+    );
   }
   if (options.jsonlPath !== undefined) {
-    exporters.push(new JsonlSpanExporter(options.jsonlPath));
-  }
-  if (options.exporters !== undefined) {
-    exporters.push(
-      ...options.exporters.map(
-        (exporter) => new NonClosingExporter(exporter),
+    watchedExporters.push(
+      new WatchedExporter(
+        "jsonl",
+        new JsonlSpanExporter(options.jsonlPath),
       ),
     );
+  }
+  if (options.exporters !== undefined) {
+    options.exporters.forEach((exporter, index) => {
+      watchedExporters.push(
+        new WatchedExporter(
+          `exporters[${index}]`,
+          new NonClosingExporter(exporter),
+        ),
+      );
+    });
   }
 
   const serviceName = options.serviceName ?? "mg";
@@ -95,7 +185,7 @@ export const createTraceSdk = async (
         [ATTR_SESSION_ID]: sessionId,
       }),
     ),
-    spanProcessors: exporters.map(
+    spanProcessors: watchedExporters.map(
       (exporter) => new SimpleSpanProcessor(exporter),
     ),
     sampler: new AlwaysOnSampler(),
@@ -103,14 +193,57 @@ export const createTraceSdk = async (
     generalLimits,
   });
 
+  // Runs one closing step, translating whatever OpenTelemetry throws into
+  // TraceShutdownFailure entries: each watched exporter's own recorded
+  // failures first, in exporter order, then any value none of them claimed.
+  const runClosingStep = async (
+    step: TraceShutdownStep,
+    action: () => Promise<void>,
+  ): Promise<TraceShutdownFailure[] | undefined> => {
+    try {
+      await action();
+      return undefined;
+    } catch (thrown) {
+      const unclaimed: unknown[] = Array.isArray(thrown)
+        ? [...thrown]
+        : [thrown];
+      const failures: TraceShutdownFailure[] = [];
+      for (const exporter of watchedExporters) {
+        failures.push(...exporter.claim(unclaimed));
+      }
+      for (const error of unclaimed) {
+        failures.push({ target: "trace", step, error });
+      }
+      return failures;
+    }
+  };
+
   return {
     tracer: provider.getTracer(serviceName),
     sessionId,
     shutdown: async () => {
-      await provider.forceFlush();
-      await provider.shutdown();
+      const flushFailures = await runClosingStep("flush", () =>
+        provider.forceFlush(),
+      );
+      if (flushFailures !== undefined) {
+        throw new TraceShutdownError(flushFailures);
+      }
+
+      const shutdownFailures = await runClosingStep("shutdown", () =>
+        provider.shutdown(),
+      );
+      if (shutdownFailures !== undefined) {
+        throw new TraceShutdownError(shutdownFailures);
+      }
+
       if (sqliteDb !== undefined) {
-        sqliteDb.$client.close();
+        try {
+          sqliteDb.$client.close();
+        } catch (error) {
+          throw new TraceShutdownError([
+            { target: "sqlite", step: "close", error },
+          ]);
+        }
       }
     },
   };

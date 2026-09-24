@@ -6,6 +6,7 @@ import type {
   UserMessage,
 } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
+import { TraceShutdownError } from "@mg/trace/otel";
 import type {
   Trigger,
   TriggerContext,
@@ -396,7 +397,7 @@ describe("runOnTrigger", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("a judgement record flush failure rejects with the array the trace SDK throws, and never calls the provider", async () => {
+  test("a judgement record flush failure rejects with a TraceShutdownError naming the failure, and never calls the provider", async () => {
     const flushError = new Error("flush broke");
     const { trigger } = fakeTrigger(async () => ({
       fired: true,
@@ -419,9 +420,10 @@ describe("runOnTrigger", () => {
       caught = error;
     }
 
-    expect(Array.isArray(caught)).toBe(true);
-    expect(caught).toHaveLength(1);
-    expect((caught as unknown[])[0]).toBe(flushError);
+    expect(caught).toBeInstanceOf(TraceShutdownError);
+    expect((caught as TraceShutdownError).failures[0]?.error).toBe(
+      flushError,
+    );
     expect(calls).toHaveLength(0);
   });
 

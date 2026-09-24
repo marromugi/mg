@@ -76,31 +76,22 @@ export class MemoryItemNotFoundError extends Error {
   }
 }
 
+type MemoryArgumentErrorKind =
+  | "empty-id"
+  | "empty-text"
+  | "duplicate-id"
+  | "hit-and-miss"
+  | "empty-change"
+  | "invalid-version"
+  | "invalid-time"
+  | "empty-list";
+
 export class MemoryArgumentError extends Error {
   override readonly name = "MemoryArgumentError";
-  readonly kind:
-    | "empty-id"
-    | "empty-text"
-    | "duplicate-id"
-    | "hit-and-miss"
-    | "empty-change"
-    | "invalid-version"
-    | "invalid-time"
-    | "empty-list";
+  readonly kind: MemoryArgumentErrorKind;
   readonly detail: string;
 
-  constructor(
-    kind:
-      | "empty-id"
-      | "empty-text"
-      | "duplicate-id"
-      | "hit-and-miss"
-      | "empty-change"
-      | "invalid-version"
-      | "invalid-time"
-      | "empty-list",
-    detail: string,
-  ) {
+  constructor(kind: MemoryArgumentErrorKind, detail: string) {
     super(detail);
     this.kind = kind;
     this.detail = detail;

@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file=.env runs/eval-example.ts",
+  "needs": ["OPENROUTER_API_KEY", "TYPESAFE_API_KEY"],
+  "burdens": ["cost"]
+}

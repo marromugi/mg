@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file=.env runs/trigger-jev.ts",
+  "needs": ["TYPESAFE_API_KEY", "OPENROUTER_API_KEY"],
+  "burdens": ["cost"]
+}

@@ -101,6 +101,24 @@ importers:
 
   packages/memory: {}
 
+  packages/persona:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mg/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@mg/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../trace
+      zod:
+        specifier: ^4.6.2
+        version: 4.6.2
+
   packages/runner:
     dependencies:
       '@mg/conversation':

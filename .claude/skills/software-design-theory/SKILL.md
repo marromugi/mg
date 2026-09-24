@@ -18,6 +18,9 @@ LLM can judge it.
 - What the principles settle is not put to the developer.
 - What the principles do not settle is put to the developer, as a question
   with options.
+- A question that running something can answer is not a preference call. It
+  is settled by running it, and only what the run cannot settle goes to the
+  developer.
 - This file is a general theory of software design. An answer enters it only
   when it states a rule that would hold in any codebase, and then as the
   wording of the principle it belongs to, so that question is not asked
@@ -218,6 +221,20 @@ different means. Write them apart.
 - The implementation of an interface is the one place that fakes what lies
   beyond it.
 
+### Confirmation on the running software
+
+- A child issue with behaviour constraints gets a confirmation on the running
+  software, by someone who did not write or review the code, before the work
+  lands.
+- What to run and what counts as a pass is decided with the design and
+  written in the issue. It is never worked out from the diff.
+- A child with no behaviour constraints gets no such confirmation; the
+  existing tests are the evidence (9).
+- A child whose behaviour no runnable entry reaches says why.
+- Each entry an implementation can be run from declares how it runs and what
+  it costs, next to itself (7).
+- A confirmation that could not be done is not a pass.
+
 ## Review lenses
 
 A review is split by lens, and each reviewer holds few lenses so that none is
@@ -236,7 +253,7 @@ After the cases are written:
 
 | Reviewer | Lenses |
 |---|---|
-| Coverage and intent | Every behaviour constraint is received. Each case follows the intent of the design it guards. |
+| Coverage and intent | Every behaviour constraint is received. Each case follows the intent of the design it guards. Every child with behaviour constraints either names what to run and what passes, or says why nothing reaches it. |
 | Hollow tests | No case is hollow, and none is there only to add to the count. |
 
 On the pull request, the reviewer skill repeats the two case lenses against the
@@ -249,3 +266,5 @@ implementation.
 - A product or preference call that no principle settles.
 - A collision between principles that this file does not settle.
 - Any action that cannot be undone.
+- Running the software under work, or an experiment, against a paid service
+  or an outside machine. Asked right before it runs.

@@ -6,7 +6,11 @@ import {
 } from "@mg/harness";
 import { ATTR, endSpan, setSpanAttributes, SPAN } from "@mg/trace";
 import type { RecallRead } from "./read.js";
-import type { PersonaContext, Recall } from "./types.js";
+import type {
+  PersonaContext,
+  Recall,
+  RememberOutcome,
+} from "./types.js";
 
 export type RecallSpanResult = {
   recall: Recall<RecallRead>;
@@ -54,4 +58,52 @@ export const withRecallSpan = async (
     endSpan(span, error);
     throw error;
   }
+};
+
+export type ReflectionSpanResult = {
+  outcome: RememberOutcome<RecallRead>;
+  candidates: number;
+  kept: number;
+  personaChanged: boolean;
+  forgotten: readonly string[];
+};
+
+export const withReflectionSpan = async (
+  context: PersonaContext | undefined,
+  personaId: string,
+  estimator: Estimator,
+  body: (span: TraceSpan) => Promise<ReflectionSpanResult>,
+): Promise<RememberOutcome<RecallRead>> => {
+  if (context?.trace === undefined) {
+    const { outcome } = await body(noopSpan);
+    return outcome;
+  }
+
+  let span: TraceSpan;
+  try {
+    span = context.trace.startSpan(SPAN.reflection, {
+      [ATTR.op]: "reflection",
+      [ATTR.personaId]: personaId,
+      [ATTR.reflectionModel]: estimator.model,
+    });
+  } catch {
+    span = noopSpan;
+  }
+
+  const { outcome, candidates, kept, personaChanged, forgotten } =
+    await body(span);
+
+  if (outcome.updated) {
+    setSpanAttributes(span, {
+      [ATTR.reflectionCandidates]: candidates,
+      [ATTR.reflectionKept]: kept,
+      [ATTR.reflectionPersonaChanged]: personaChanged,
+      [ATTR.reflectionForgotten]: JSON.stringify(forgotten),
+    });
+    endSpan(span);
+  } else {
+    endSpan(span, outcome.error);
+  }
+
+  return outcome;
 };

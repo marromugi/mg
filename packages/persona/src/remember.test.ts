@@ -28,8 +28,27 @@ import type {
   Extractor,
   ExtractorInput,
   PersonaContext,
+  RememberOutcome,
   RememberRequest,
 } from "./types.js";
+
+const asUpdated = (
+  outcome: RememberOutcome<RecallRead>,
+): Extract<RememberOutcome<RecallRead>, { updated: true }> => {
+  if (!outcome.updated) {
+    throw new Error("expected an updated outcome");
+  }
+  return outcome;
+};
+
+const asUndecided = (
+  outcome: RememberOutcome<RecallRead>,
+): Extract<RememberOutcome<RecallRead>, { reason: "undecided" }> => {
+  if (outcome.updated || outcome.reason !== "undecided") {
+    throw new Error("expected an undecided outcome");
+  }
+  return outcome;
+};
 
 const createFakeExtractor = (
   extract: (input: ExtractorInput) => Promise<Extraction>,
@@ -456,7 +475,7 @@ describe("remember", () => {
       createOptions({ store, estimator, extractor }),
     );
 
-    await remember({ read: readWithoutSummary as RecallRead, entry });
+    await remember({ read: readWithoutSummary, entry });
 
     expect(store.writeCalls[0]?.[1].summary).toEqual({
       conversation: "t1",
@@ -506,12 +525,9 @@ describe("remember", () => {
     expect(new Set(store.deleteCalls[0]?.[1])).toEqual(
       new Set(["n1", "m1", "m2", "m4"]),
     );
-    expect(outcome).toMatchObject({ updated: true });
-    if (outcome.updated) {
-      expect(new Set(outcome.forgotten)).toEqual(
-        new Set(["n1", "m1", "m2", "m4"]),
-      );
-    }
+    expect(new Set(asUpdated(outcome).forgotten)).toEqual(
+      new Set(["n1", "m1", "m2", "m4"]),
+    );
   });
 
   describe("contract violations from the extractor", () => {
@@ -531,18 +547,13 @@ describe("remember", () => {
       };
 
       const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
 
-      expect(outcome).toMatchObject({
-        updated: false,
-        reason: "undecided",
-      });
-      if (!outcome.updated && outcome.reason === "undecided") {
-        expect(outcome.error).toBeInstanceOf(ExtractorContractError);
-        expect((outcome.error as ExtractorContractError).kind).toBe(
-          "unknown-counterpart",
-        );
-        expect(outcome.request).toBe(request);
-      }
+      expect(undecided.error).toBeInstanceOf(ExtractorContractError);
+      expect((undecided.error as ExtractorContractError).kind).toBe(
+        "unknown-counterpart",
+      );
+      expect(undecided.request).toBe(request);
       expect(store.writeCalls).toHaveLength(0);
     });
 
@@ -558,14 +569,11 @@ describe("remember", () => {
       );
 
       const outcome = await remember({ read: baseRead, entry });
+      const undecided = asUndecided(outcome);
 
-      if (!outcome.updated && outcome.reason === "undecided") {
-        expect((outcome.error as ExtractorContractError).kind).toBe(
-          "empty-text",
-        );
-      } else {
-        throw new Error("expected an undecided outcome");
-      }
+      expect((undecided.error as ExtractorContractError).kind).toBe(
+        "empty-text",
+      );
       expect(store.writeCalls).toHaveLength(0);
     });
 
@@ -584,14 +592,11 @@ describe("remember", () => {
       );
 
       const outcome = await remember({ read: baseRead, entry });
+      const undecided = asUndecided(outcome);
 
-      if (!outcome.updated && outcome.reason === "undecided") {
-        expect((outcome.error as ExtractorContractError).kind).toBe(
-          "duplicate-item",
-        );
-      } else {
-        throw new Error("expected an undecided outcome");
-      }
+      expect((undecided.error as ExtractorContractError).kind).toBe(
+        "duplicate-item",
+      );
       expect(store.writeCalls).toHaveLength(0);
     });
   });
@@ -612,15 +617,10 @@ describe("remember", () => {
       };
 
       const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
 
-      expect(outcome).toMatchObject({
-        updated: false,
-        reason: "undecided",
-        error: boom,
-      });
-      if (!outcome.updated && outcome.reason === "undecided") {
-        expect(outcome.request).toBe(request);
-      }
+      expect(undecided.error).toBe(boom);
+      expect(undecided.request).toBe(request);
       expect(store.writeCalls).toHaveLength(0);
       expect(store.deleteCalls).toHaveLength(0);
     });

@@ -18,11 +18,11 @@ import type {
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import type { RunConfig } from "./config.js";
+import type { RecordTraceOptions } from "./record-trace.js";
 import type {
   RunOnTriggerConfig,
   RunOnTriggerOutcome,
   StartOptions,
-  TriggerTraceOptions,
 } from "./run-on-trigger.js";
 import { runOnTrigger } from "./run-on-trigger.js";
 import type { RunOutcome } from "./run.js";
@@ -758,7 +758,7 @@ describe("RunOnTriggerConfig", () => {
   });
 
   test("requires a start function, and rejects one that cannot receive what toMessages converts to", () => {
-    const trace: TriggerTraceOptions = {
+    const trace: RecordTraceOptions = {
       exporters: [new InMemorySpanExporter()],
     };
     const trigger = fakeTrigger(async () => ({

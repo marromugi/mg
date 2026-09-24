@@ -355,8 +355,10 @@ Japanese, following `.claude/rules/writing.md`. Order:
    remains.
 
 After the report, put each decision item 3 leaves with the developer as a
-question, in the form `architect` step 4 gives: the AskUserQuestion tool, one
-entry per decision. Item 5 is not asked; it is there to be read.
+question, one entry per decision, put the way `architect` step 4 puts its
+questions: the AskUserQuestion tool, the code the options rest on, and a
+recommendation only where a principle leans. Item 5 is not asked; it is there
+to be read.
 
 Then stop. If the developer answers the questions in item 5, those answers
 are new design decisions with no issue yet: take them through `architect`,

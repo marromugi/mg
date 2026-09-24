@@ -105,8 +105,9 @@ Rules:
   find that the design as written cannot work, or you would need to make a
   design decision the issue does not cover, stop, do not choose, and report
   the question in your final message.
-- Read the Tests section of .claude/skills/software-design-theory/SKILL.md
-  before writing any test.
+- Read the Tests section and principle 8 (No history in the code) of
+  .claude/skills/software-design-theory/SKILL.md before writing any code.
+  Principle 8 governs comments, test names, and documents.
 - Tests come first. Turn every case under ケース into a test, run them, and
   confirm each fails because the behaviour is missing, not because of a typo
   or a missing import that the implementation would not fix. Commit the tests
@@ -115,16 +116,9 @@ Rules:
 - A test asserts what the case says is seen, with the literal values from the
   case. Do not add tests the cases do not call for. If you believe a case is
   missing, say so in Deviations; do not invent it.
-- Test names and descriptions say what is observed. No case ids, no issue
-  numbers.
+- Test names and descriptions say what is observed. No case ids.
 - Run every command under "Structural checks", and the project's test, type
   check, and lint commands. Do not open a PR with failures you know about.
-- Code comments: default to none. Write one only when the code itself cannot
-  tell the reader something they need right now — a non-obvious invariant, a
-  constraint from outside the code, a deliberate oddity. Never describe what
-  the code does, and never refer to history: no "previously", "changed from",
-  "as decided in the issue". History lives in git log and the issue; a comment
-  pointing at it is a debt that goes stale the moment the code moves.
 - Commit on a branch named issue-<N>-<short-slug>, push it, and open a PR
   with `gh pr create`. The PR body starts with `Closes #<N>`, then a short
   summary, then a section "Cases" with a table of case id, test file, and
@@ -140,8 +134,9 @@ waiting.
 ### 3. Handle the agent's report
 
 - If the agent stopped on a design question: quote it as-is, put it to the
-  developer in the form `architect` step 4 gives (the AskUserQuestion tool),
-  and stop. The answer may need an issue update; that is the
+  developer the way `architect` step 4 puts its questions (the
+  AskUserQuestion tool, the code the options rest on, and a recommendation
+  only where a principle leans), and stop. The answer may need an issue update; that is the
   developer's call.
 - If a PR was opened: note the PR number and the Deviations section. Any
   deviation goes into the reviewer's report later, so keep it.

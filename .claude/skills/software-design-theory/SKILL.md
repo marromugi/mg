@@ -93,8 +93,11 @@ LLM can judge it.
 ### 5. Defined failure, no guessing
 
 - What happens when a step fails is decided in the design.
-- On ambiguity the software stops and says so. It does not fill a value with a
-  guess, and it does not write something it does not know to be true.
+- On ambiguity the software stops and says so. Ambiguity is anything it would
+  have to guess to go on: a value it does not have, or input that can be read
+  more than one way, such as two items sharing what should tell them apart.
+  It does not pick a reading, fill a value with a guess, or write something
+  it does not know to be true.
 - What a piece cannot give back faithfully, it leaves out and says so. This
   holds even when a neighbouring piece shows the same thing in an approximate
   form; keeping the two alike does not outrank it.
@@ -102,6 +105,11 @@ LLM can judge it.
   is read again right before the software acts on it. A sign of change that
   the software cannot interpret, such as a new comment, stops the action. Its
   content is not interpreted.
+- A failure shows the way the caller reads failure, and what counts as one
+  follows from the piece's role. For a piece whose role is to judge — a
+  check, a verification — a failed judgment is its failure, so it shows as
+  one, such as a non-zero exit. A piece that only measures or computes has
+  succeeded once it has done so, whatever the numbers say.
 - When the software says that something failed or was left out, it says why,
   with enough detail for the reader to choose the next action. The reader is
   often an agent, and the reason is what it acts on.
@@ -221,7 +229,7 @@ After the design is made:
 |---|---|
 | Whole and position | The design starts from the picture of the whole and places the piece in it (1). Each interface takes and gives back what its role says, not what its first implementation needs (1). Dependencies point one way (3). |
 | Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named, and nothing of an outside specification — a default, a term — sits in shared code (7). |
-| Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided (5). No behaviour changes that the record does not name (9). |
+| Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided, shows as its role calls for, and no ambiguous input is given a reading (5). No behaviour changes that the record does not name (9). |
 | Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and assumes there is at least one. |
 
 After the cases are written:

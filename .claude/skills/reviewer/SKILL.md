@@ -132,9 +132,8 @@ Two buckets. Getting this split right is the whole point of the skill.
 weaker than its case, a hollow or padding test, tests committed together with
 or after the implementation, an error path not handled as the issue
 specified, naming, dead code, an inefficiency that does not change the
-design, and comments that should not exist: ones that narrate what the code
-does, or refer to history ("was", "previously", "per the issue"). Remove
-them. The developer wants these handled, not reported.
+design, and comments, test names, or documents that break principle 8 (No
+history in the code). The developer wants these handled, not reported.
 
 A departure from the issue that the agent did not argue for is also
 code-level: a broken 構造 or 向き constraint, an out-of-scope change, a
@@ -212,8 +211,9 @@ Japanese, following `.claude/rules/writing.md`. Order:
    modified files noticed in step 1 if there were any.
 
 After the report, put the choice for each design-level finding as a
-question, in the form `architect` step 4 gives: the AskUserQuestion tool, one
-entry per finding.
+question, one entry per finding, put the way `architect` step 4 puts its
+questions: the AskUserQuestion tool, the code the options rest on, and a
+recommendation only where a principle leans.
 
 Then stop. Merging is the developer's action. If they accept a deviation,
 offer to update the issue text so the record stays true.

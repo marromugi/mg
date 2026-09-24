@@ -99,6 +99,8 @@ importers:
         specifier: workspace:*
         version: link:../trace
 
+  packages/memory: {}
+
   packages/runner:
     dependencies:
       '@mg/conversation':

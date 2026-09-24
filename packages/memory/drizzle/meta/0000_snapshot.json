@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d8132bd5-28fe-4dc3-9165-5f61c5d33d8a",
+  "id": "04bbaa85-a4c4-41e0-9621-49c64610b894",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "items": {
@@ -37,7 +37,7 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "integer",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false

@@ -143,7 +143,8 @@ const view = await store.read("jev", { counterparts: ["alice"] });
 同じパスを 2 つの保存が同時に開いていても、版の照合と項目の存在の
 確かめは働きます。
 先に書いた側だけが残ります。
-後から書いた側は、`MemoryConflictError` か、項目のエラーで失敗します。
+後から書いた側は失敗します。
+エラーは、`MemoryConflictError` か項目のエラーです。
 
 保存先を開けないときは、開く関数がそのエラーで拒否されます。
 保存は返りません。

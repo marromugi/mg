@@ -266,7 +266,12 @@ export const openSqliteMemoryStore = async (
   }
   const client = createClient({ url, timeout: 5000 });
   const db = drizzle(client);
-  await migrate(db, { migrationsFolder });
+  try {
+    await migrate(db, { migrationsFolder });
+  } catch (error) {
+    client.close();
+    throw error;
+  }
 
   const getPersona = async (
     personaId: string,
@@ -375,9 +380,6 @@ export const openSqliteMemoryStore = async (
     personaId: string,
     change: MemoryChange,
   ): Promise<MissCounts> => {
-    await requirePersona(personaId);
-    validateChange(change);
-
     return db.transaction(async (tx) => {
       const [personaRow] = await tx
         .select()
@@ -386,6 +388,7 @@ export const openSqliteMemoryStore = async (
       if (personaRow === undefined) {
         throw new PersonaNotFoundError(personaId);
       }
+      validateChange(change);
 
       const mismatches: MemoryConflictMismatch[] = [];
       if (

@@ -3,7 +3,7 @@ CREATE TABLE `items` (
 	`id` text NOT NULL,
 	`counterpart` text NOT NULL,
 	`text` text NOT NULL,
-	`created_at` integer NOT NULL,
+	`created_at` real NOT NULL,
 	`misses` integer NOT NULL,
 	`seq` integer NOT NULL,
 	PRIMARY KEY(`persona_id`, `id`)

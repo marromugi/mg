@@ -1,6 +1,7 @@
 import {
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
@@ -31,7 +32,7 @@ export const items = sqliteTable(
     id: text("id").notNull(),
     counterpart: text("counterpart").notNull(),
     text: text("text").notNull(),
-    createdAt: integer("created_at").notNull(),
+    createdAt: real("created_at").notNull(),
     misses: integer("misses").notNull(),
     seq: integer("seq").notNull(),
   },

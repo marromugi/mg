@@ -130,5 +130,6 @@ describe("openSqliteMemoryStore", () => {
     );
 
     expect(error).toBeInstanceOf(Error);
+    expect((error as NodeJS.ErrnoException).code).toBe("EEXIST");
   });
 });

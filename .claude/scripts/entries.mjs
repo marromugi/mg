@@ -86,10 +86,12 @@ function show({ root, entry, envFile }) {
 
 function findDeclarationFiles(root) {
   const results = [];
+  const skipDir = path.join(root, ".claude", "worktrees");
   const walk = (dir) => {
     for (const name of fs.readdirSync(dir)) {
       if (name === "node_modules" || name === ".git") continue;
       const full = path.join(dir, name);
+      if (full === skipDir) continue;
       if (fs.statSync(full).isDirectory()) {
         walk(full);
       } else if (name.endsWith(ENTRY_JSON_SUFFIX)) {
@@ -116,7 +118,12 @@ function validateDeclaration(declaration, label, base, root, problems) {
     problems.push(`${label}: needs must be an array of strings`);
   }
 
-  if (Array.isArray(declaration.burdens)) {
+  if (
+    !Array.isArray(declaration.burdens) ||
+    !declaration.burdens.every((burden) => typeof burden === "string")
+  ) {
+    problems.push(`${label}: burdens must be an array of strings`);
+  } else {
     for (const burden of declaration.burdens) {
       if (!KNOWN_BURDENS.includes(burden)) {
         problems.push(`${label}: unknown burden "${burden}"`);
@@ -142,7 +149,24 @@ function check({ root }) {
   for (const file of files) {
     const label = toPosix(path.relative(root, file));
     const base = file.slice(0, file.length - ENTRY_JSON_SUFFIX.length);
-    const declaration = JSON.parse(fs.readFileSync(file, "utf8"));
+
+    let declaration;
+    try {
+      declaration = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+      problems.push(`${label}: not valid JSON`);
+      continue;
+    }
+
+    if (
+      typeof declaration !== "object" ||
+      declaration === null ||
+      Array.isArray(declaration)
+    ) {
+      problems.push(`${label}: declaration must be an object`);
+      continue;
+    }
+
     validateDeclaration(declaration, label, base, root, problems);
   }
 

@@ -76,13 +76,16 @@ id を公開し、想起 `recall` と振り返り `remember` の 2 つの操作�
 
 投げる例外を表にまとめます。
 
-| 例外                     | 投げるとき                                         |
-| ------------------------ | -------------------------------------------------- |
-| `RecallError`            | 想起の中で、Estimator の呼び出しが失敗したとき     |
-| `ExtractorError`         | 決め手が、約束を守れない答えしか得られなかったとき |
-| `ExtractorContractError` | 振り返りが、決め手の答えの約束違反を見つけたとき   |
+| 例外             | 投げるとき                                         |
+| ---------------- | -------------------------------------------------- |
+| `RecallError`    | 想起の中で、Estimator の呼び出しが失敗したとき     |
+| `ExtractorError` | 決め手が、約束を守れない答えしか得られなかったとき |
 
 `RecallError` と `ExtractorError` は、投げた値を `cause` に持ちます。
+
+`ExtractorContractError` は、投げません。
+決め手の答えが約束を破ったときに、振り返りが使います。
+`RememberOutcome` の決められなかった形で、`error` に入って返ります。
 
 `ExtractorContractError` は、種類 `kind` と、詳しい説明 `detail` を持ちます。
 種類は、次の 3 つです。

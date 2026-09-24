@@ -298,14 +298,14 @@ describe("recall", () => {
     const estimator = createFakeEstimator(() => Promise.reject(cause));
     const recall = createRecall({ ...baseOptions, store, estimator });
 
-    const error: unknown = await recall({
+    const rejection: unknown = await recall({
       counterparts,
       conversation,
       input,
     }).catch((error: unknown) => error);
 
-    expect(error).toBeInstanceOf(RecallError);
-    expect((error as RecallError).cause).toBe(cause);
+    expect(rejection).toBeInstanceOf(RecallError);
+    expect((rejection as RecallError).cause).toBe(cause);
   });
 
   test("passes an abort error from the estimator through unchanged", async () => {
@@ -467,14 +467,14 @@ describe("recall", () => {
     const recall = createRecall({ ...baseOptions, store, estimator });
     const root = new RecordingSpan("root");
 
-    const error: unknown = await recall(
+    const rejection: unknown = await recall(
       { counterparts, conversation, input },
       { trace: root },
     ).catch((error: unknown) => error);
 
-    expect(error).toBeInstanceOf(RecallError);
+    expect(rejection).toBeInstanceOf(RecallError);
     const span = root.children[0];
-    expect(span?.endCalls).toEqual([error]);
+    expect(span?.endCalls).toEqual([rejection]);
   });
 
   test("orders counterpart sections by the counterpart list and items within a section by candidate order", async () => {

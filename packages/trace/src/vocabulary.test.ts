@@ -8,7 +8,7 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input and trigger spans", () => {
+  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input, trigger, persona, recall and reflection spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
@@ -20,6 +20,9 @@ describe("SPAN", () => {
       thread: "mg.thread",
       input: "mg.input",
       trigger: "mg.trigger",
+      persona: "mg.persona",
+      recall: "mg.recall",
+      reflection: "mg.reflection",
     });
   });
 });
@@ -81,5 +84,31 @@ describe("ATTR", () => {
     expect(ATTR.triggerModel).toBe("mg.trigger.model");
     expect(ATTR.triggerProbability).toBe("mg.trigger.probability");
     expect(ATTR.triggerThreshold).toBe("mg.trigger.threshold");
+  });
+
+  it("has the persona attributes", () => {
+    expect(ATTR.personaId).toBe("mg.persona.id");
+    expect(ATTR.personaConversation).toBe("mg.persona.conversation");
+    expect(ATTR.personaCounterparts).toBe("mg.persona.counterparts");
+    expect(ATTR.personaSaved).toBe("mg.persona.saved");
+    expect(ATTR.personaUpdated).toBe("mg.persona.updated");
+    expect(ATTR.personaReferenced).toBe("mg.persona.referenced");
+  });
+
+  it("has the recall attributes", () => {
+    expect(ATTR.recallModel).toBe("mg.recall.model");
+    expect(ATTR.recallCandidates).toBe("mg.recall.candidates");
+    expect(ATTR.recallSelected).toBe("mg.recall.selected");
+    expect(ATTR.recallProbabilities).toBe("mg.recall.probabilities");
+  });
+
+  it("has the reflection attributes", () => {
+    expect(ATTR.reflectionModel).toBe("mg.reflection.model");
+    expect(ATTR.reflectionCandidates).toBe("mg.reflection.candidates");
+    expect(ATTR.reflectionKept).toBe("mg.reflection.kept");
+    expect(ATTR.reflectionPersonaChanged).toBe(
+      "mg.reflection.persona_changed",
+    );
+    expect(ATTR.reflectionForgotten).toBe("mg.reflection.forgotten");
   });
 });

@@ -9,10 +9,13 @@ export const SPAN = {
   thread: "mg.thread",
   input: "mg.input",
   trigger: "mg.trigger",
+  persona: "mg.persona",
+  recall: "mg.recall",
+  reflection: "mg.reflection",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection"
   harnessName: "mg.harness.name",
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
@@ -49,4 +52,19 @@ export const ATTR = {
   triggerModel: "mg.trigger.model",
   triggerProbability: "mg.trigger.probability", // number
   triggerThreshold: "mg.trigger.threshold", // number
+  personaId: "mg.persona.id",
+  personaConversation: "mg.persona.conversation",
+  personaCounterparts: "mg.persona.counterparts", // jsonAttribute(string[])
+  personaSaved: "mg.persona.saved", // boolean
+  personaUpdated: "mg.persona.updated", // boolean
+  personaReferenced: "mg.persona.referenced", // boolean
+  recallModel: "mg.recall.model",
+  recallCandidates: "mg.recall.candidates", // number
+  recallSelected: "mg.recall.selected", // jsonAttribute(string[])
+  recallProbabilities: "mg.recall.probabilities", // jsonAttribute(Record<string, number>)
+  reflectionModel: "mg.reflection.model",
+  reflectionCandidates: "mg.reflection.candidates", // number
+  reflectionKept: "mg.reflection.kept", // number
+  reflectionPersonaChanged: "mg.reflection.persona_changed", // boolean
+  reflectionForgotten: "mg.reflection.forgotten", // jsonAttribute(string[])
 } as const;

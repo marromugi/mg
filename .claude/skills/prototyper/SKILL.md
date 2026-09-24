@@ -92,9 +92,21 @@ anything.
 Spawn one agent to build and run the throwaway — Agent tool, `subagent_type`:
 `general-purpose`, `model`: `sonnet`, `isolation`: `worktree`. It builds the
 throwaway, runs it, and returns the raw observations. It commits nothing and
-pushes nothing; the worktree is discarded once it reports back.
+pushes nothing.
 
-### 5. Return the observations
+### 5. Return the observations and remove the worktree
+
+The agent's own cleanup only fires when its worktree is left unchanged, and
+the throwaway always leaves files behind, so remove it explicitly. The
+agent's result names its worktree path and its branch:
+
+```
+git worktree remove --force <path>
+git branch -D <branch>
+```
+
+The branch holds no commits — the agent never committed to it — so deleting
+it loses nothing.
 
 Return `observed`, `ran`, and `could not run` (if any) verbatim, exactly as
 the agent reported them. Do not summarize them into a conclusion or a

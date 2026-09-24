@@ -12,12 +12,13 @@
 - 2 つのインターフェースの入出力の型を決めます。
 - 想起の実装 `createRecall` を持ちます。
 - 振り返りの実装 `createRemember` を持ちます。
+- 想起と振り返りの部品から `Persona` を組み立てる `createPersona` を
+  持ちます。
 - 決め手の約束を確かめる純粋な関数 `checkExtraction` を持ちます。
 - 会話のメッセージを書き起こしの文章にする `transcribe` を持ちます。
 - 想起と決め手が使う、専用のエラーを持ちます。
 
-`Persona` をまるごと組み立てる `createPersona` と、決め手の実装
-`createLlmExtractor` は、まだこのパッケージにありません。
+決め手の実装 `createLlmExtractor` は、まだこのパッケージにありません。
 後の issue で足します。
 
 ## `Persona`
@@ -192,6 +193,41 @@ assistant のメッセージは、部分ごとに 1 つの行を作ります。
 | 書けなかった     | `false`   | `"write-failed"`  | 投げた値 `error`                                                                          |
 | 消せなかった     | `false`   | `"forget-failed"` | 投げた値 `error`、`added`、`personaChanged`、消せなかった項目の id `pending`              |
 
+## 個体の組み立て
+
+`createPersona(options)` は、想起と振り返りの部品から `Persona` を
+1 体組み立てます。走らせる側は、組み立てたものの `recall` と
+`remember` だけを見ます。
+
+options は次を持ちます。
+
+| 項目         | 内容                                                                                            |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| `id`         | この個体の id です。                                                                            |
+| `store`      | `@mg/memory` の `MemoryStore` です。                                                            |
+| `estimator`  | `@mg/core` の `Estimator` です。                                                                |
+| `recall`     | 想起の質問 `question`、関係なしの説明 `noneDescription`、割合 `ratio`、見出し `headings` です。 |
+| `extractor`  | `Extractor` です。                                                                              |
+| `keep`       | 残す質問 `question` と、残すしきい値 `threshold` です。                                         |
+| `persona`    | 人格の質問 `question` と、人格のしきい値 `threshold` です。                                     |
+| `forgetting` | 忘却の上限 `missLimit` と、相手ごとの項目の上限 `itemsPerCounterpart` です。                    |
+| `now`        | 作られた時刻を返す関数です。省くと `Date.now` を使います。                                      |
+| `newId`      | 項目の id を返す関数です。省くと nanoid を使います。                                            |
+
+質問と説明と見出しと、割合としきい値と上限に、既定はありません。
+
+組み立てた個体の `id` は渡した id で、`recall` と `remember` は想起と
+振り返りの部品にそのまま委ねます。
+
+組み立ての時点で、次のときに `RangeError` を投げます。
+
+- 個体の id、質問、説明、見出しのどれかが空のとき。
+- 割合としきい値が、0 から 1 の有限の数でないとき。
+- 忘却の上限と相手ごとの項目の上限が、1 以上の整数でないとき。
+- Estimator の `limits.maxLabels` が、2 以上の整数でないとき。
+- 相手ごとの項目の上限が、`limits.maxLabels` から 1 を引いた数より
+  大きいとき。
+
 ## `Extractor`
 
 `Extractor` は、会話から何を覚えるかの候補を決めるインターフェースです。
@@ -239,7 +275,7 @@ assistant のメッセージは、部分ごとに 1 つの行を作ります。
 
 ## やらないこと
 
-- `Persona` をまるごと組み立てる `createPersona` と、決め手の実装
-  `createLlmExtractor` は、持ちません。後の issue で足します。
+- 決め手の実装 `createLlmExtractor` は、持ちません。後の issue で
+  足します。
 - 個体の記憶の保存は、持ちません。保存のインターフェースは `@mg/memory`
   が持ちます。

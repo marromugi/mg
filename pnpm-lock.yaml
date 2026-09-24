@@ -115,6 +115,9 @@ importers:
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace
+      nanoid:
+        specifier: 5.1.16
+        version: 5.1.16
       zod:
         specifier: ^4.6.2
         version: 4.6.2

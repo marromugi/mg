@@ -45,6 +45,10 @@ the design, and in the single issue otherwise.
 <the roles in the whole software that this touches, and where this piece
 stands among them. Name the interfaces this design cuts or relies on.>
 
+## 確かめたこと
+- <a question that only running something could answer>: <what was seen>。
+  <how it was run>。`- なし` when the design rests on no such question.
+
 ## 理由
 - 原則 <n>: <how the design follows it>
 
@@ -58,7 +62,7 @@ stands among them. Name the interfaces this design cuts or relies on.>
 Every reason and every rejection cites a principle of
 `software-design-theory` by number. A reason that cites none is a preference,
 and preferences belong to the developer: raise it as a question instead of
-writing it down as a reason.
+writing it down as a reason. A reason may rest on an item in `確かめたこと`.
 
 ## Constraints and cases
 
@@ -113,6 +117,9 @@ if there is one. If there is none, the decision record goes here instead.>
 ## ケース
 ...
 
+## 実物での確認
+...
+
 ## To Implementer
 - Files / modules: ...
 - Interfaces (signatures, data shapes): ...
@@ -123,6 +130,20 @@ if there is one. If there is none, the decision record goes here instead.>
 ```
 
 `To Implementer` does not list tests. The cases are the tests.
+
+`実物での確認` names the entries the behaviour constraints are confirmed
+through, not the burden of running them; the burden sits in the entry's own
+declaration. Item forms:
+
+- `- なし` — only when 振る舞い is `- なし`.
+- `- なし: <理由>` — there are behaviour constraints, but no entry reaches
+  them.
+- `- V<n>: <entry, in backticks>。<手順>。<合格の条件、見える値はそのまま>`
+- `- V<n> [B<n>, ...]: ...` — the same, naming the behaviour constraints
+  this entry confirms.
+
+The entry is a path from the repo root, given with the entry's declaration
+next to it.
 
 ## Parent issue
 

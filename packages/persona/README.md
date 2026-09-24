@@ -10,10 +10,12 @@
 - 想起と振り返りの操作を持つインターフェース `Persona` を決めます。
 - 会話から何を覚えるかの候補を決めるインターフェース `Extractor` を決めます。
 - 2 つのインターフェースの入出力の型を決めます。
+- 想起の実装 `createRecall` を持ちます。
 - 想起と決め手が使う、専用のエラーを持ちます。
 
-実装は、まだこのパッケージにありません。
-`createPersona` と `createLlmExtractor` は、後の issue で足します。
+`Persona` をまるごと組み立てる `createPersona` と、決め手の実装
+`createLlmExtractor` は、まだこのパッケージにありません。
+後の issue で足します。
 
 ## `Persona`
 
@@ -41,6 +43,52 @@ id を公開し、想起 `recall` と振り返り `remember` の 2 つの操作�
 
 `RememberRequest<TRead>` は、読んだもの `read` と、走行のエントリーの
 メッセージの並び `entry` を持ちます。
+
+## 想起
+
+`createRecall(options)` は、`Persona.recall` として使える関数を作ります。
+options は次を持ちます。
+
+| 項目              | 内容                                                      |
+| ----------------- | --------------------------------------------------------- |
+| `id`              | この個体の id です。                                      |
+| `store`           | `@mg/memory` の `MemoryStore` です。                      |
+| `estimator`       | `@mg/core` の `Estimator` です。                          |
+| `question`        | 「この入力に関係ある記憶はどれか」を問う質問の文章です。  |
+| `noneDescription` | 「どれも関係ない」ラベルの説明の文章です。                |
+| `ratio`           | 選ばれたラベルの確率に対する比の下限です。0 から 1 です。 |
+| `headings`        | 相手の見出し `about` と、要約の見出し `earlier` です。    |
+
+作った関数は、次の順に動きます。
+
+1. 相手の並びの id と会話の id で、保存先から読み出します。
+2. 読んだ項目を新しい順に、`estimator.limits.maxLabels` から 1 を
+   引いた数だけ取り、候補にします。
+3. 候補が 0 件なら、Estimator を呼ばず、選ばれた項目も 0 件にします。
+4. 候補が 1 件以上なら、Estimator の `classify` を 1 回呼びます。
+   判定の対象はいまの入力、ラベルは候補の文章と `noneDescription` です。
+5. 選ばれたラベルが `none` なら、選ばれた項目は 0 件です。
+   そうでなければ、確率が選ばれたラベルの確率に `ratio` を掛けた値
+   以上の候補を選びます。
+6. 人格の文章、相手ごとの見出しと選ばれた項目、要約の見出しと文章を
+   組み合わせて、指示の文章にします。
+
+相手の id か表示名か会話の id が空のとき、相手の id が重複するときは、
+読み出す前に `RangeError` で拒否します。
+
+指示の文章を組む部分は、`composeInstruction(read, headings)` という
+純粋な関数に分けています。
+読んだもの `RecallRead` と見出しだけから、指示の文章を返します。
+
+`RecallRead` は、相手の並び `counterparts`、会話の id `conversation`、
+人格の文書 `persona`、要約 `summary`（あれば）、相手ごとの読んだ項目の
+全部 `items`、候補の項目の id の並び `candidates`、選ばれた項目の id の
+並び `selected` を持ちます。
+
+文脈にスパン `trace` があれば、その下に `mg.recall` のスパンを作ります。
+属性は、個体の id、Estimator のモデル、候補の数、選ばれた項目の id の
+JSON、ラベルごとの確率の JSON（Estimator を呼んだときだけ）です。
+スパンの操作が失敗しても、想起の返り値は変わりません。
 
 ## 振り返りの結果
 
@@ -82,6 +130,8 @@ id を公開し、想起 `recall` と振り返り `remember` の 2 つの操作�
 | `ExtractorError` | 決め手が、約束を守れない答えしか得られなかったとき |
 
 `RecallError` と `ExtractorError` は、投げた値を `cause` に持ちます。
+保存先が投げたエラーと、中断のエラー（`name` が `AbortError`）は、
+`createRecall` が作った関数もそのまま投げます。
 
 `ExtractorContractError` は、投げません。
 決め手の答えが約束を破ったときに、振り返りが使います。
@@ -98,7 +148,8 @@ id を公開し、想起 `recall` と振り返り `remember` の 2 つの操作�
 
 ## やらないこと
 
-- `Persona` と `Extractor` の実装は、持ちません。
-  `createPersona` と `createLlmExtractor` は、後の issue で足します。
+- `Persona` をまるごと組み立てる `createPersona` と、決め手の実装
+  `createLlmExtractor` は、持ちません。後の issue で足します。
+- 振り返り `remember` の実装は、持ちません。後の issue で足します。
 - 個体の記憶の保存は、持ちません。保存のインターフェースは `@mg/memory`
   が持ちます。

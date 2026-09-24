@@ -635,15 +635,18 @@ describe("remember", () => {
       const remember = createRemember(
         createOptions({ store, estimator, extractor }),
       );
+      const request: RememberRequest<RecallRead> = {
+        read: baseRead,
+        entry,
+      };
 
-      const outcome = await remember({ read: baseRead, entry });
+      const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
 
-      expect(outcome).toMatchObject({
-        updated: false,
-        reason: "undecided",
-        error: boom,
-      });
+      expect(undecided.error).toBe(boom);
+      expect(undecided.request).toBe(request);
       expect(store.writeCalls).toHaveLength(0);
+      expect(store.deleteCalls).toHaveLength(0);
     });
 
     test("returns undecided when the id-making function throws", async () => {
@@ -663,15 +666,18 @@ describe("remember", () => {
           },
         }),
       );
+      const request: RememberRequest<RecallRead> = {
+        read: baseRead,
+        entry,
+      };
 
-      const outcome = await remember({ read: baseRead, entry });
+      const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
 
-      expect(outcome).toMatchObject({
-        updated: false,
-        reason: "undecided",
-        error: boom,
-      });
+      expect(undecided.error).toBe(boom);
+      expect(undecided.request).toBe(request);
       expect(store.writeCalls).toHaveLength(0);
+      expect(store.deleteCalls).toHaveLength(0);
     });
 
     test("returns undecided when the clock throws", async () => {
@@ -691,15 +697,18 @@ describe("remember", () => {
           },
         }),
       );
+      const request: RememberRequest<RecallRead> = {
+        read: baseRead,
+        entry,
+      };
 
-      const outcome = await remember({ read: baseRead, entry });
+      const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
 
-      expect(outcome).toMatchObject({
-        updated: false,
-        reason: "undecided",
-        error: boom,
-      });
+      expect(undecided.error).toBe(boom);
+      expect(undecided.request).toBe(request);
       expect(store.writeCalls).toHaveLength(0);
+      expect(store.deleteCalls).toHaveLength(0);
     });
 
     test("returns undecided without rejecting when a collaborator throws an abort error", async () => {
@@ -714,14 +723,18 @@ describe("remember", () => {
       const remember = createRemember(
         createOptions({ store, estimator, extractor }),
       );
+      const request: RememberRequest<RecallRead> = {
+        read: baseRead,
+        entry,
+      };
 
-      const outcome = await remember({ read: baseRead, entry });
+      const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
 
-      expect(outcome).toMatchObject({
-        updated: false,
-        reason: "undecided",
-        error: abortError,
-      });
+      expect(undecided.error).toBe(abortError);
+      expect(undecided.request).toBe(request);
+      expect(store.writeCalls).toHaveLength(0);
+      expect(store.deleteCalls).toHaveLength(0);
     });
   });
 

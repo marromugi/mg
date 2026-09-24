@@ -90,20 +90,25 @@ export const withReflectionSpan = async (
     span = noopSpan;
   }
 
-  const { outcome, candidates, kept, personaChanged, forgotten } =
-    await body(span);
+  try {
+    const { outcome, candidates, kept, personaChanged, forgotten } =
+      await body(span);
 
-  if (outcome.updated) {
-    setSpanAttributes(span, {
-      [ATTR.reflectionCandidates]: candidates,
-      [ATTR.reflectionKept]: kept,
-      [ATTR.reflectionPersonaChanged]: personaChanged,
-      [ATTR.reflectionForgotten]: JSON.stringify(forgotten),
-    });
-    endSpan(span);
-  } else {
-    endSpan(span, outcome.error);
+    if (outcome.updated) {
+      setSpanAttributes(span, {
+        [ATTR.reflectionCandidates]: candidates,
+        [ATTR.reflectionKept]: kept,
+        [ATTR.reflectionPersonaChanged]: personaChanged,
+        [ATTR.reflectionForgotten]: JSON.stringify(forgotten),
+      });
+      endSpan(span);
+    } else {
+      endSpan(span, outcome.error);
+    }
+
+    return outcome;
+  } catch (error) {
+    endSpan(span, error);
+    throw error;
   }
-
-  return outcome;
 };

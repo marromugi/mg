@@ -202,6 +202,12 @@ here, so no other skill repeats these steps or decides one on its own.
 Input: the issue number, the facts implementation or review found, and the
 question left open.
 
+Two results:
+
+- `redone`, with the list of edited and created issue numbers.
+- `stopped`, with the question, unresolved. Nothing is edited, so the issue
+  is left as it was and any PR stays open; the question is the report.
+
 1. Read the issue and its parent's decision record from GitHub fresh — the
    snapshot the caller built from is exactly what surfaced the question, so
    it cannot be trusted to still describe the design.
@@ -214,10 +220,20 @@ question left open.
    one more case: when the shape the redraw settles on is one already
    listed under `## 見送った形`, stop and ask instead of choosing it again —
    it was rejected once already, so choosing it again is not this skill's
-   call. Otherwise carry on without asking.
+   call. Ask with the AskUserQuestion tool the way step 4 does. When the
+   developer answers, revise the record for it and carry on to step 5. When
+   they decline to answer, or ask to stop here, return `stopped` with the
+   question as it stands. Skip this step, and carry on without asking, when
+   there is nothing left to ask.
 5. Run steps 5 and 6 (Constraints, cases, issues; Case review) again, but
    only for the children whose record actually changed.
-6. Edit the parent and every child not yet merged with
+6. If step 5 left every constraint, case, and child exactly as it already
+   was, the redraw changed nothing. Return `stopped` with
+   "設計を組み直しても変わりませんでした" and the original question — running
+   step 7 and restarting the caller would only repeat the failure that
+   asked for the redo, and no principle says which way to guess past that
+   (5).
+7. Edit the parent and every child not yet merged with
    `gh issue edit <n> --body-file <file>`, each file passing
    `check-issue.mjs` first. Where the new design contradicts work already
    merged, leave that work alone and open a new issue instead — principle 9
@@ -225,10 +241,10 @@ question left open.
    every shape the redraw did not choose to `## 見送った形`, including ones
    already listed there.
 
-Return the list of edited and created issue numbers. This is not a report
-to the developer: when the call came from another skill, that skill reports
-what happened as its own step says to; called directly, report the same
-list plainly.
+Return `redone` with the list of edited and created issue numbers. This is
+not a report to the developer: when the call came from another skill, that
+skill reports what happened as its own step says to; called directly,
+report the same list plainly.
 
 ## Things to keep in mind
 

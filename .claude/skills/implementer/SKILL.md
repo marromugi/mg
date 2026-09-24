@@ -135,14 +135,17 @@ waiting.
 
 - If the agent stopped on a design question: call architect's "Redoing a
   design" with this issue's number, the facts the agent found, and the
-  question, and wait for the returned list of edited and created issue
-  numbers. If a PR exists, close it with
-  `gh pr close <PR> --comment "設計をやり直しました。#<N> を見てください。"`,
-  naming the issue from that list the work continues under. Remove the
-  agent's worktree with `git worktree remove --force <path>`; never delete
-  the branch, since it may still hold work the developer wants. Start again
-  at step 1 with a fresh snapshot of that issue. Pass the returned list on
-  to whoever called this skill.
+  question.
+  - `redone`: if a PR exists, close it with
+    `gh pr close <PR> --comment "設計をやり直しました。#<N> を見てください。"`,
+    naming the issue from the returned list the work continues under.
+    Remove the agent's worktree with `git worktree remove --force <path>`;
+    never delete the branch, since it may still hold work the developer
+    wants. Start again at step 1 with a fresh snapshot of that issue. Pass
+    the returned list on to whoever called this skill.
+  - `stopped`: leave the PR open if one exists, and leave the worktree as
+    it is — there is nothing new to build on yet. Do not restart. Report
+    the question to the developer, and stop.
 - If a PR was opened: note the PR number and the Deviations section. Any
   deviation goes into the reviewer's report later, so keep it.
 
@@ -181,10 +184,9 @@ the script's lines to the developer exactly as printed.
 
 On success, invoke the `reviewer` skill with the PR number. Pass along the
 Deviations section and whether CI ran. When `reviewer` returns design-level
-findings, handle them the same way step 3 handles an agent's design
-question: call architect's "Redoing a design" with this issue's number, the
-findings as facts, and the open question, then close the PR, drop the
-worktree, and restart at step 1.
+findings, call architect's "Redoing a design" with this issue's number, the
+findings as facts, and the open question, and handle `redone` and `stopped`
+exactly as step 3 does.
 
 ### 6. Verify
 

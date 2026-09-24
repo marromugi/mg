@@ -198,14 +198,19 @@ Running implementer on an issue ends one of four ways:
 
 - A PR was opened. Continue with CI, reviewer, and verifier, and gather
   below.
-- implementer stopped on a design question before touching code. There is
-  no PR; quote the question in full in the report (step 5).
-- implementer returned a list of edited and created issue numbers from
-  architect's "Redoing a design" — an implementation agent's design
-  question, or reviewer's design-level findings, went there instead of
-  stopping here. implementer itself already closed the PR for the issue it
-  was running, if any, and carried on building under the redrawn issue. For
-  every other issue in that returned list that has a run in flight
+- implementer returned `stopped` from architect's "Redoing a design" — an
+  implementation agent's design question, or reviewer's design-level
+  findings, went there and came back with the question still unresolved. A
+  PR from before the question stays open if there was one; there is nothing
+  else to continue. Quote the question in full in the report (step 5).
+- implementer returned `redone`, the list of issue numbers architect's
+  "Redoing a design" edited and created — the same question, but this time
+  it was settled. implementer itself already restarted at its own step 1
+  on the redrawn issue and ran its whole chain again from there, so that
+  run ends in one of the other outcomes on this list: a PR through CI,
+  reviewer, and verifier; `stopped` on a further question; or not started.
+  Say which one it was, and handle it exactly as that outcome says here.
+  For every *other* issue in the returned list that has a run in flight
   elsewhere in this batch, close its PR the same way implementer does (keep
   the branch), drop its issue-guard snapshot, and put it back into this
   run's queue — the redrawn issue, not the one that run started from, is

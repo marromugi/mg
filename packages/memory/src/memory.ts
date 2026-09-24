@@ -402,16 +402,16 @@ export const createMemoryStore = (): MemoryStore => {
       }
     }
 
-    const missCounts: MissCounts = {};
+    const missCounts: [string, number][] = [];
     for (const id of change.misses ?? []) {
       const item = stored.items.get(id);
       if (item !== undefined) {
         item.misses += 1;
-        missCounts[id] = item.misses;
+        missCounts.push([id, item.misses]);
       }
     }
 
-    return missCounts;
+    return Object.fromEntries(missCounts);
   };
 
   const deleteItems = async (

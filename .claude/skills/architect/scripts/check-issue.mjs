@@ -153,7 +153,12 @@ if (checks) {
   const isBareNone = items.length === 1 && items[0].item === NONE;
 
   for (const { n, item } of items) {
-    if (item === NONE || /^なし: \S/.test(item)) continue;
+    if (item === NONE || /^なし: \S/.test(item)) {
+      if (items.length > 1) {
+        fail(n, '"なし" must be the only item in "実物での確認"');
+      }
+      continue;
+    }
     const m = /^V(\d+)(?: \[([^\]]*)\])?: (\S.*)$/.exec(item);
     if (!m) {
       fail(n, 'check is not "V<n>: <entry> ..." or "なし: <reason>"');
@@ -176,7 +181,7 @@ if (checks) {
     if (!isBareNone) {
       fail(checks.n, '"実物での確認" must be "- なし" when there are no behaviour constraints');
     }
-  } else if (isBareNone) {
+  } else if (isBareNone || items.length === 0) {
     fail(
       checks.n,
       '"実物での確認" needs "V<n>" items or "なし: <reason>" when there are behaviour constraints',

@@ -194,7 +194,9 @@ describe("createTraceSdk's shutdown failures", () => {
       caught = thrown;
     }
 
-    const [failure] = (caught as TraceShutdownError).failures;
+    const failures = (caught as TraceShutdownError).failures;
+    expect(failures).toHaveLength(1);
+    const [failure] = failures;
     if (failure === undefined) throw new Error("expected a failure");
     expect(failure.target).toBe("jsonl");
     expect(failure.step).toBe("flush");
@@ -239,13 +241,16 @@ describe("createTraceSdk's shutdown failures", () => {
       caught = thrown;
     }
 
-    const [failure] = (caught as TraceShutdownError).failures;
-    if (failure === undefined) throw new Error("expected a failure");
-    expect(failure.target).toBe("exporters[0]");
-    expect(failure.step).toBe("flush");
-    expect((failure.error as Error).message).toBe(
-      "exporters[0] reported a failed export without an error",
-    );
+    expect((caught as TraceShutdownError).failures).toEqual([
+      {
+        target: "exporters[0]",
+        step: "flush",
+        error: expect.objectContaining({
+          message:
+            "exporters[0] reported a failed export without an error",
+        }),
+      },
+    ]);
   });
 
   it("names the failure as trace's own when ending OpenTelemetry fails", async () => {

@@ -11,9 +11,10 @@
 - 読み出しの選択と、書き込みの変更と、書き込みの返り値の型を決めます。
 - 記憶の保存のインターフェース `MemoryStore` を決めます。
 - 保存が使う、専用のエラーを持ちます。
+- `MemoryStore` を実装する、メモリ上の保存 `createMemoryStore` を持ちます。
 
-実装は、まだこのパッケージにありません。
-メモリ上の実装と SQLite の実装は、後の issue で足します。
+SQLite の実装は、まだこのパッケージにありません。
+後の issue で足します。
 
 ## 3 種類の記憶
 
@@ -99,10 +100,29 @@
 
 どの例外も、自分の名前を `name` に持ちます。
 
+## メモリ上の保存
+
+`createMemoryStore` は、`MemoryStore` をプロセスの中だけで実装したものです。
+
+引数を受け取りません。
+呼ぶたびに、記憶を 1 件も持たない新しい保存を返します。
+
+```ts
+import { createMemoryStore } from "@mg/memory";
+
+const store = createMemoryStore();
+await store.create("jev", "I am Jev.");
+await store.write("jev", { add: [item] });
+const view = await store.read("jev", { counterparts: ["alice"] });
+```
+
+保存した記憶は、プロセスが終わると消えます。
+別に作った保存どうしは、記憶を共有しません。
+
 ## やらないこと
 
-- `MemoryStore` の実装は、持ちません。
-  メモリ上の実装と SQLite の実装は、後の issue で足します。
+- SQLite の実装は、持ちません。
+  後の issue で足します。
 - 忘却の規則は、持ちません。
   回数の上限や、相手ごとの項目の上限は、使う側が決めます。
 - このリポジトリの他のパッケージへの依存は、持ちません。

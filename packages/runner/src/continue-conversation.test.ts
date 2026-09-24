@@ -110,9 +110,10 @@ const echoTool: Tool = defineTool({
 
 describe("continueConversation", () => {
   test("sends the read entries followed by the new messages in order, including a system message among the new ones in its given place, and appends what the run added at that same place", async () => {
-    const store = createMemoryConversationStore();
-    await store.create("jev");
-    await store.append("jev", ENTRY_A, 0);
+    const inner = createMemoryConversationStore();
+    await inner.create("jev");
+    await inner.append("jev", ENTRY_A, 0);
+    const { store, readCalls } = countingReadStore(inner);
     const seen: Message[][] = [];
     const fakeRun = async (
       _config: RunConfig,
@@ -149,13 +150,22 @@ describe("continueConversation", () => {
     expect(outcome.sessionId).toBe("s1");
     if (!outcome.saved) throw new Error("unreachable");
     expect(outcome.result.reason).toBe("stop");
-    const slice = await store.read("jev", { kind: "all" });
+    const slice = await inner.read("jev", { kind: "all" });
     expect(slice.entries[1]?.messages).toEqual([
       { role: "user", content: "hi" },
       { role: "system", content: "be brief" },
       REPLY,
     ]);
     expect(slice.length).toBe(2);
+    expect(outcome.entry).toEqual({
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "system", content: "be brief" },
+        REPLY,
+      ],
+    });
+    expect(outcome.entry).toEqual(slice.entries[1]);
+    expect(readCalls()).toBe(1);
   });
 
   test("sends a system message saved from an earlier entry still in its saved place, ahead of the new messages", async () => {
@@ -517,6 +527,7 @@ describe("createContinueConversation", () => {
       sessionId: "s1",
       result: { reason: "stop" },
     });
+    expect(Object.hasOwn(outcome, "entry")).toBe(false);
     expect(await store.read("jev", { kind: "all" })).toEqual({
       entries: [],
       length: 0,

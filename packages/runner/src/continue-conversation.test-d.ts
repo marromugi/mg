@@ -37,3 +37,6 @@ declare const outcome: ContinueOutcome;
 
 // @ts-expect-error `reason` only exists once `saved` narrows to false
 export const reasonWithoutNarrowing = outcome.reason;
+
+// @ts-expect-error `entry` only exists once `saved` narrows to true
+export const entryWithoutNarrowing = outcome.entry;

@@ -7,6 +7,13 @@ export const checkExtraction = (
   extraction: Extraction,
   counterparts: readonly Counterpart[],
 ): ExtractorContractError | undefined => {
+  if (isEmpty(extraction.summary)) {
+    return new ExtractorContractError(
+      "empty-text",
+      "The summary text is empty.",
+    );
+  }
+
   const knownIds = new Set(
     counterparts.map((counterpart) => counterpart.id),
   );
@@ -35,6 +42,13 @@ export const checkExtraction = (
       );
     }
     seen.add(key);
+  }
+
+  if (extraction.persona !== undefined && isEmpty(extraction.persona)) {
+    return new ExtractorContractError(
+      "empty-text",
+      "The persona text is empty.",
+    );
   }
 
   return undefined;

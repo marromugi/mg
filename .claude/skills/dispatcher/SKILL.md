@@ -188,15 +188,16 @@ the batch's implementer agents in one message, so they run at the same
 time, each in its own worktree branched from the current main. Then wait.
 
 As each issue's implementer run reports back, carry on with the rest of
-implementer for that issue (CI wait, then `reviewer`) only when a PR was
-opened, one issue at a time, so that each merge lands before the next
-review starts. Do not shortcut either skill or do their work inline; the
-point of this loop is that each issue gets the same treatment it would get
-alone.
+implementer for that issue (CI wait, then `reviewer`, then `verifier`) only
+when a PR was opened, one issue at a time, so that each merge lands before
+the next review starts. Do not shortcut either skill or do their work
+inline; the point of this loop is that each issue gets the same treatment
+it would get alone.
 
 Running implementer on an issue ends one of three ways:
 
-- A PR was opened. Continue with CI and reviewer, and gather below.
+- A PR was opened. Continue with CI, reviewer, and verifier, and gather
+  below.
 - implementer stopped on a design question before touching code. There is
   no PR; quote the question in full in the report (step 5).
 - implementer stopped before spawning an agent (step 1 of the implementer
@@ -209,7 +210,8 @@ Running implementer on an issue ends one of three ways:
   with the rest of the batch. An issue whose only reason was an open
   predecessor goes back to not ready instead, per step 1.
 
-When reviewer's report for an issue is in, gather from the run:
+When implementer's chain for an issue — reviewer, then verifier — is in,
+gather from the run:
 
 - The PR number and the Deviations section.
 - reviewer's design-level findings (the `[design]` ones), and whether the

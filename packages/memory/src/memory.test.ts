@@ -1,10 +1,11 @@
 import { expect, test } from "vitest";
 import { PersonaNotFoundError } from "./errors.js";
 import { createMemoryStore } from "./memory.js";
-import { describeMemoryStoreContract } from "./store-contract.test-helper.js";
+import * as storeContract from "./store-contract.test-helper.js";
 
-describeMemoryStoreContract("createMemoryStore", async () =>
-  createMemoryStore(),
+storeContract.describeMemoryStoreContract(
+  "createMemoryStore",
+  async () => createMemoryStore(),
 );
 
 test("does not share personas between separately created stores", async () => {

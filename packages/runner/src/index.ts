@@ -4,6 +4,7 @@ export * from "./continue-conversation.js";
 export * from "./harness.js";
 export * from "./errors.js";
 export * from "./load.js";
+export * from "./record-trace.js";
 export * from "./run.js";
 export * from "./run-many.js";
 export * from "./run-on-trigger.js";

@@ -62,7 +62,7 @@ stands among them. Name the interfaces this design cuts or relies on.>
 Every reason and every rejection cites a principle of
 `software-design-theory` by number. A reason that cites none is a preference,
 and preferences belong to the developer: raise it as a question instead of
-writing it down as a reason.
+writing it down as a reason. A reason may rest on an item in `確かめたこと`.
 
 ## Constraints and cases
 

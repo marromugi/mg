@@ -130,6 +130,13 @@ nothing is asked why it is there.
 Then write the cases for the behaviour constraints
 (`software-design-theory`, Cases).
 
+Then write `## 実物での確認` as `references/issue-format.md` describes. For
+every entry a V item names that already exists, run
+`node .claude/scripts/entries.mjs show <entry>` and put its declared command
+in the item, so the item names the command the entry actually declares, not
+one written from memory. When the issue itself adds the entry, its
+`To Implementer` says to add the declaration instead.
+
 Write each issue body to a scratchpad file and run the check until it prints
 no problems:
 

@@ -12,9 +12,7 @@
 - 記憶の保存のインターフェース `MemoryStore` を決めます。
 - 保存が使う、専用のエラーを持ちます。
 - `MemoryStore` を実装する、メモリ上の保存 `createMemoryStore` を持ちます。
-
-SQLite の実装は、まだこのパッケージにありません。
-後の issue で足します。
+- `MemoryStore` を実装する、SQLite の保存 `openSqliteMemoryStore` を持ちます。
 
 ## 3 種類の記憶
 
@@ -119,10 +117,42 @@ const view = await store.read("jev", { counterparts: ["alice"] });
 保存した記憶は、プロセスが終わると消えます。
 別に作った保存どうしは、記憶を共有しません。
 
+## SQLite の保存
+
+`openSqliteMemoryStore` は、`MemoryStore` を SQLite で実装したものです。
+`@mg/memory` の主の入口とは別の入口から出します。
+
+```ts
+import { openSqliteMemoryStore } from "@mg/memory/sqlite";
+
+const store = await openSqliteMemoryStore("path/to/memory.db");
+await store.create("jev", "I am Jev.");
+await store.write("jev", { add: [item] });
+const view = await store.read("jev", { counterparts: ["alice"] });
+```
+
+引数は、開くファイルのパスです。
+保存先のディレクトリがなければ作ります。
+テーブルがなければ作ります。
+
+パスに `":memory:"` を渡すと、ファイルを作らずに開けます。
+
+同じパスをもう一度開くと、前に保存した記憶が読めます。
+ファイルが残っていれば、プロセスをまたいでも記憶は残ります。
+
+同じパスを 2 つの保存が同時に開いていても、版の照合と項目の存在の
+確かめは働きます。
+先に書いた側だけが残ります。
+後から書いた側は、`MemoryConflictError` か、項目のエラーで失敗します。
+
+保存先を開けないときは、開く関数がそのエラーで拒否されます。
+保存は返りません。
+
+SQLite とやり取りするライブラリは、この入口の中だけで読み込みます。
+`@mg/memory` の主の入口からは読み込みません。
+
 ## やらないこと
 
-- SQLite の実装は、持ちません。
-  後の issue で足します。
 - 忘却の規則は、持ちません。
   回数の上限や、相手ごとの項目の上限は、使う側が決めます。
 - このリポジトリの他のパッケージへの依存は、持ちません。

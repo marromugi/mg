@@ -99,7 +99,18 @@ importers:
         specifier: workspace:*
         version: link:../trace
 
-  packages/memory: {}
+  packages/memory:
+    dependencies:
+      '@libsql/client':
+        specifier: 0.18.0
+        version: 0.18.0
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)
+    devDependencies:
+      drizzle-kit:
+        specifier: 0.31.10
+        version: 0.31.10
 
   packages/persona:
     dependencies:

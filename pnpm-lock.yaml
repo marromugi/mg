@@ -139,6 +139,9 @@ importers:
       '@mg/harness-loop':
         specifier: workspace:*
         version: link:../harness-loop
+      '@mg/persona':
+        specifier: workspace:*
+        version: link:../persona
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace

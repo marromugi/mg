@@ -18,6 +18,7 @@
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
     "@mg/harness-loop": "workspace:*",
+    "@mg/persona": "workspace:*",
     "@mg/trace": "workspace:*",
     "@mg/trigger": "workspace:*",
     "@mg/workspace": "workspace:*",

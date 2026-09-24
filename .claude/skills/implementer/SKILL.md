@@ -147,7 +147,14 @@ waiting.
 gh pr checks <PR> --watch --fail-fast
 ```
 
-Run it with a generous timeout. Three outcomes:
+Run it with a generous timeout. `verifier` runs later, in step 6, so this
+wait must not treat its status as a CI result. Decide green or red from:
+
+```
+gh pr checks <PR> --json name,bucket --jq '[.[] | select(.name != "verifier")]'
+```
+
+leaving out any entry named `verifier`. Three outcomes:
 
 - **No checks configured**: continue to review, and say so in the handoff.
 - **Green**: continue to review.
@@ -169,3 +176,18 @@ the script's lines to the developer exactly as printed.
 
 On success, invoke the `reviewer` skill with the PR number. Pass along the
 Deviations section and whether CI ran.
+
+### 6. Verify
+
+Invoke the `verifier` skill with the PR number, the snapshot file at
+`<scratchpad>/issue-guard/issue-<N>.json`, and the path to the developer's
+main checkout.
+
+- **pass** or **not-needed**: done. Pass the result on to the developer.
+- **fail**: send verifier's PR comment to the same implementation agent with
+  SendMessage, and ask it to fix and push. Once. Then repeat step 4 (CI),
+  step 5 (issue-guard verify, then reviewer), and this step, from the start.
+  If the agent answers the fix request with a design question, handle it as
+  step 3 handles one.
+- Still **fail** after that one retry, or **unverifiable**: leave the PR
+  open and report the reason.

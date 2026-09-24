@@ -13,13 +13,23 @@ developer at the end, which is right when the developer is watching one
 issue. When they want the backlog worked through, the waiting is the cost.
 
 dispatcher is the loop around those two skills. It picks the issues that
-can be built, runs implementer (which chains into reviewer), and then makes
-the one call the other skills leave to the developer: merge, or leave the
-PR open. reviewer stays a reviewer; the merge decision lives here. The rule
-for it is narrow on purpose. Merge only when nothing in the run asked for a
-decision. Everything else stays open, and the PR itself is the record of
-why. A PR left open costs one look; a wrongly merged one costs a revert
-plus whatever was built on top of it.
+can be built, runs implementer (which chains into reviewer and, after that,
+verifier), and then makes the one call the other skills leave to the
+developer: merge, or leave the PR open. reviewer stays a reviewer; verifier
+stays a verifier; the merge decision lives here. The rule for it is narrow
+on purpose. Merge only when nothing in the run asked for a decision.
+Everything else stays open, and the PR itself is the record of why. A PR
+left open costs one look; a wrongly merged one costs a revert plus whatever
+was built on top of it.
+
+A verifier result of unverifiable means some check never actually ran — a
+missing declaration, a missing key, or something only a person could judge.
+That tells us nothing about whether the change works, so it blocks the
+merge the same way a failing result does; treating it as a pass would let a
+PR merge on the strength of a check nobody performed. Any approval a
+checked entry point needs is asked by verifier itself, at the moment it
+runs, wherever in the chain that is — dispatcher does not collect approvals
+on verifier's behalf ahead of time.
 
 Issues run in parallel only when they certainly cannot touch each other.
 Every merge changes main, and a PR built on the old main can pass its own
@@ -178,15 +188,16 @@ the batch's implementer agents in one message, so they run at the same
 time, each in its own worktree branched from the current main. Then wait.
 
 As each issue's implementer run reports back, carry on with the rest of
-implementer for that issue (CI wait, then `reviewer`) only when a PR was
-opened, one issue at a time, so that each merge lands before the next
-review starts. Do not shortcut either skill or do their work inline; the
-point of this loop is that each issue gets the same treatment it would get
-alone.
+implementer for that issue (CI wait, then `reviewer`, then `verifier`) only
+when a PR was opened, one issue at a time, so that each merge lands before
+the next review starts. Do not shortcut either skill or do their work
+inline; the point of this loop is that each issue gets the same treatment
+it would get alone.
 
 Running implementer on an issue ends one of three ways:
 
-- A PR was opened. Continue with CI and reviewer, and gather below.
+- A PR was opened. Continue with CI, reviewer, and verifier, and gather
+  below.
 - implementer stopped on a design question before touching code. There is
   no PR; quote the question in full in the report (step 5).
 - implementer stopped before spawning an agent (step 1 of the implementer
@@ -199,7 +210,8 @@ Running implementer on an issue ends one of three ways:
   with the rest of the batch. An issue whose only reason was an open
   predecessor goes back to not ready instead, per step 1.
 
-When reviewer's report for an issue is in, gather from the run:
+When implementer's chain for an issue — reviewer, then verifier — is in,
+gather from the run:
 
 - The PR number and the Deviations section.
 - reviewer's design-level findings (the `[design]` ones), and whether the
@@ -211,6 +223,8 @@ When reviewer's report for an issue is in, gather from the run:
   the thread with the issue or parent section that decides it, do not fix,
   and keep them for the report as questions the developer may reopen.
 - Whether CI ran, and its final result.
+- The verifier result implementer's step 6 reported — pass, fail,
+  not-needed, or unverifiable — and its reason.
 
 Then decide for that PR (step 4) before reviewing the next one in the
 batch, so the merged state is what the following review sees.
@@ -248,12 +262,13 @@ that is the cheap mistake.
 - The PR is mergeable:
 
   ```
-  gh pr view <PR> --json mergeable,mergeStateStatus
+  gh pr view <PR> --json mergeable,mergeStateStatus,headRefOid
   ```
 
   `BEHIND` is fine for a PR in a batch; disjointness was checked in step 2.
   `CONFLICTING` or `DIRTY` is not: the independence call was wrong. Leave
-  the PR open and say so in the report.
+  the PR open and say so in the report. `headRefOid` from this same call is
+  the commit to read the verifier status from below.
 - The guard script's verify operation passes. Run it last, immediately
   before the merge commands below, not earlier while the other conditions
   were still being checked — review can take time, and the issue or its
@@ -269,6 +284,15 @@ that is the cheap mistake.
   script's lines go into the report. `refused: no snapshot for issue #<N>`
   means the PR was not built in this run — it stays open for the same
   reason as any other refusal here.
+- The head commit's verifier status is success:
+
+  ```
+  gh api "repos/{owner}/{repo}/commits/<headRefOid>/status" --jq '.statuses[] | select(.context=="verifier") | .state'
+  ```
+
+  A missing status is not success. Run this immediately before merging too,
+  for the same reason as the guard script's verify above: a push can land
+  on the PR while review was still running.
 
 **Merge.** Remove the agent's worktree first, or the branch deletion fails
 because the branch is still checked out there:
@@ -339,9 +363,11 @@ Japanese, following `.claude/rules/writing.md`. Order:
 
 1. One line: how many merged, how many left open, and why the loop stopped
    (queue empty, the developer's number, or a stop condition).
-2. Merged: issue number, PR number, one line each. Name any deviation you
-   read as mechanics (step 4) so the developer can disagree.
-3. Left open: issue number, PR number if any, the reason in a few words,
+2. Merged: issue number, PR number, whether verifier's result was pass or
+   not-needed, one line each. Name any deviation you read as mechanics
+   (step 4) so the developer can disagree.
+3. Left open: issue number, PR number if any, the reason in a few words —
+   when the reason is verifier, say fail or unverifiable and its reason —
    and what the developer decides. Point at the PR comments rather than
    repeating them. A design question with no PR is quoted here in full.
 4. Not started: each issue on the not-started list, the reason, and what

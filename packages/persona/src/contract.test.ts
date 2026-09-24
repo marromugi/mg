@@ -43,4 +43,27 @@ describe("checkExtraction", () => {
 
     expect(error?.kind).toBe("duplicate-item");
   });
+
+  test("reports empty-text when the summary is blank", () => {
+    const extraction: Extraction = {
+      summary: " ",
+      items: [{ counterpart: "alice", text: "has a dog" }],
+    };
+
+    const error = checkExtraction(extraction, counterparts);
+
+    expect(error?.kind).toBe("empty-text");
+  });
+
+  test("reports empty-text when the returned persona text is blank", () => {
+    const extraction: Extraction = {
+      summary: "we met; alice got a dog",
+      items: [{ counterpart: "alice", text: "has a dog" }],
+      persona: " ",
+    };
+
+    const error = checkExtraction(extraction, counterparts);
+
+    expect(error?.kind).toBe("empty-text");
+  });
 });

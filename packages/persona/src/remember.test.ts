@@ -599,6 +599,59 @@ describe("remember", () => {
       );
       expect(store.writeCalls).toHaveLength(0);
     });
+
+    test("returns undecided with an empty-text error and does not write when the summary is blank", async () => {
+      const extractor = extractorReturning({
+        summary: " ",
+        items: [{ counterpart: "alice", text: "has a dog" }],
+      });
+      const estimator = createFakeEstimator(estimateBySubjectKind(0.9));
+      const store = createFakeStore(() => Promise.resolve({}));
+      const remember = createRemember(
+        createOptions({ store, estimator, extractor }),
+      );
+      const request: RememberRequest<RecallRead> = {
+        read: baseRead,
+        entry,
+      };
+
+      const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
+
+      expect((undecided.error as ExtractorContractError).kind).toBe(
+        "empty-text",
+      );
+      expect(undecided.request).toBe(request);
+      expect(estimator.estimateCalls).toHaveLength(0);
+      expect(store.writeCalls).toHaveLength(0);
+    });
+
+    test("returns undecided with an empty-text error and does not write when the returned persona text is blank", async () => {
+      const extractor = extractorReturning({
+        summary: "we met; alice got a dog",
+        items: [{ counterpart: "alice", text: "has a dog" }],
+        persona: " ",
+      });
+      const estimator = createFakeEstimator(estimateBySubjectKind(0.9));
+      const store = createFakeStore(() => Promise.resolve({}));
+      const remember = createRemember(
+        createOptions({ store, estimator, extractor }),
+      );
+      const request: RememberRequest<RecallRead> = {
+        read: baseRead,
+        entry,
+      };
+
+      const outcome = await remember(request);
+      const undecided = asUndecided(outcome);
+
+      expect((undecided.error as ExtractorContractError).kind).toBe(
+        "empty-text",
+      );
+      expect(undecided.request).toBe(request);
+      expect(estimator.estimateCalls).toHaveLength(0);
+      expect(store.writeCalls).toHaveLength(0);
+    });
   });
 
   describe("undecided results from a thrown value", () => {

@@ -1,5 +1,9 @@
 import type { Message } from "@mg/core";
-import type { ConversationStore, ReadRange } from "@mg/conversation";
+import type {
+  ConversationEntry,
+  ConversationStore,
+  ReadRange,
+} from "@mg/conversation";
 import type { HarnessResult } from "@mg/harness";
 import { addedMessages } from "./added-messages.js";
 import type { RunConfig } from "./config.js";
@@ -17,7 +21,12 @@ export type NotSavedReason =
   { kind: "diverged" } | { kind: "append-failed"; error: unknown };
 
 export type ContinueOutcome =
-  | { saved: true; sessionId: string; result: HarnessResult }
+  | {
+      saved: true;
+      sessionId: string;
+      result: HarnessResult;
+      entry: ConversationEntry;
+    }
   | {
       saved: false;
       sessionId: string;
@@ -65,16 +74,18 @@ export const createContinueConversation = (deps: {
       };
     }
 
+    const entry: ConversationEntry = {
+      messages: [
+        conversation.messages[0],
+        ...conversation.messages.slice(1),
+        ...added.messages,
+      ],
+    };
+
     try {
       await conversation.store.append(
         conversation.id,
-        {
-          messages: [
-            conversation.messages[0],
-            ...conversation.messages.slice(1),
-            ...added.messages,
-          ],
-        },
+        entry,
         slice.length,
       );
     } catch (error) {
@@ -86,7 +97,7 @@ export const createContinueConversation = (deps: {
       };
     }
 
-    return { saved: true, sessionId, result };
+    return { saved: true, sessionId, result, entry };
   };
 };
 

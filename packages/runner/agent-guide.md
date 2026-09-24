@@ -653,13 +653,15 @@ decision, run }` when the session id `start` returned matches the one the entran
   `fired`. `sessionId` is the judgement session throughout. Only in the fired branch does the
   judgement's `mg.input` span carry `mg.run.session`, set to the session id the entrance
   decided and passed to `start`.
-- `continueConversation` returns `{ saved: true, sessionId, result }` when the append landed.
-  When the run's returned conversation doesn't start with what was sent, it returns
-  `{ saved: false, sessionId, result, reason: { kind: "diverged" } }` without appending. When
-  the append itself fails (e.g. another append landed first), it returns `{ saved: false,
-sessionId, result, reason: { kind: "append-failed", error } }` — it never throws for either
-  case. `sessionId` and `result` come straight from the run; reading `reason` requires
-  narrowing on `saved: false` first, at the type level.
+- `continueConversation` returns `{ saved: true, sessionId, result, entry }` when the append
+  landed, where `entry` is the `ConversationEntry` that was appended (the same value passed to
+  the store's `append`, not read back). When the run's returned conversation doesn't start with
+  what was sent, it returns `{ saved: false, sessionId, result, reason: { kind: "diverged" } }`
+  without appending. When the append itself fails (e.g. another append landed first), it
+  returns `{ saved: false, sessionId, result, reason: { kind: "append-failed", error } }` — it
+  never throws for either case, and neither carries `entry`. `sessionId` and `result` come
+  straight from the run; reading `reason` or `entry` requires narrowing on `saved` first, at the
+  type level.
 - Trace spans go wherever `trace` in the config points: the JSONL file, the SQLite database,
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a

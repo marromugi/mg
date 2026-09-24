@@ -1,6 +1,7 @@
 export * from "./contract.js";
 export * from "./errors.js";
 export * from "./instruction.js";
+export * from "./persona.js";
 export * from "./read.js";
 export * from "./recall.js";
 export * from "./remember.js";

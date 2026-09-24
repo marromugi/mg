@@ -124,11 +124,11 @@ test("posts a failure status with the given reason", async () => {
 });
 
 test("posts an error status with the given reason when unverifiable", async () => {
-  const { calls } = await run(["12", "unverifiable", "--reason", "OPENROUTER_API_KEYがありません"]);
+  const { calls } = await run(["12", "unverifiable", "--reason", "OPENROUTER_API_KEY がありません"]);
 
   const { fields } = readApiCall(calls.filter((a) => a[0] === "api")[0]);
   assert.equal(fields.state, "error");
-  assert.equal(fields.description, "確認できない: OPENROUTER_API_KEYがありません");
+  assert.equal(fields.description, "確認できない: OPENROUTER_API_KEY がありません");
 });
 
 test("truncates a long description to 140 characters ending in an ellipsis", async () => {

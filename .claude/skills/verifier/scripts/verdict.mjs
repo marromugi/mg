@@ -35,22 +35,25 @@ function truncate(description) {
 
 function usage() {
   console.error(
-    "Usage: node verdict.mjs <PR> <pass|fail|not-needed|unverifiable> [--reason <text>]",
+    "Usage: node verdict.mjs <PR> <pass|fail|not-needed|unverifiable> [--reason <text>] [--sha <commit>]",
   );
 }
 
 function parseArgs(argv) {
   const positional = [];
   let reason;
+  let sha;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--reason") {
       reason = argv[++i];
+    } else if (argv[i] === "--sha") {
+      sha = argv[++i];
     } else {
       positional.push(argv[i]);
     }
   }
   const [pr, result] = positional;
-  return { pr, result, reason };
+  return { pr, result, reason, sha };
 }
 
 function runGh(args) {
@@ -65,7 +68,7 @@ function runGh(args) {
 }
 
 function main() {
-  const { pr, result, reason } = parseArgs(process.argv.slice(2));
+  const { pr, result, reason, sha } = parseArgs(process.argv.slice(2));
 
   if (!pr || !(result in STATE_BY_RESULT)) {
     usage();
@@ -79,16 +82,19 @@ function main() {
   const state = STATE_BY_RESULT[result];
   const description = truncate(describe(result, reason));
 
-  const view = runGh(["pr", "view", pr, "--json", "headRefOid"]);
-  if (!view.ok) {
-    console.error(view.output);
-    process.exit(1);
+  let commit = sha;
+  if (!commit) {
+    const view = runGh(["pr", "view", pr, "--json", "headRefOid"]);
+    if (!view.ok) {
+      console.error(view.output);
+      process.exit(1);
+    }
+    commit = JSON.parse(view.output).headRefOid;
   }
-  const { headRefOid } = JSON.parse(view.output);
 
   const post = runGh([
     "api",
-    `repos/{owner}/{repo}/statuses/${headRefOid}`,
+    `repos/{owner}/{repo}/statuses/${commit}`,
     "-f",
     `state=${state}`,
     "-f",

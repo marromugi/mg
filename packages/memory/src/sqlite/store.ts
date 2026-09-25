@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,6 +24,7 @@ import type {
   MissCounts,
   NewMemoryItem,
 } from "../types.js";
+import { runQueued } from "./queue.js";
 import { items, personas, summaries } from "./schema.js";
 
 const migrationsFolder = fileURLToPath(
@@ -254,20 +256,34 @@ const isPrimaryKeyViolation = (error: unknown): boolean =>
   error.cause instanceof LibsqlError &&
   error.cause.extendedCode === "SQLITE_CONSTRAINT_PRIMARYKEY";
 
+// 同じファイルを指す別名（シンボリックリンクなど）も同じ鍵になるよう、
+// パスではなくデバイスと inode で見分けます。
+const fileQueueKey = async (path: string): Promise<string> => {
+  await fs.mkdir(dirname(path), { recursive: true });
+  const handle = await fs.open(path, "a");
+  await handle.close();
+  const stat = await fs.stat(path);
+  return `${stat.dev}:${stat.ino}`;
+};
+
 export const openSqliteMemoryStore = async (
   path: string,
 ): Promise<MemoryStore> => {
+  const queueKey =
+    path === ":memory:"
+      ? `memory:${randomUUID()}`
+      : await fileQueueKey(path);
+  const run = <T>(operation: () => Promise<T>): Promise<T> =>
+    runQueued(queueKey, operation);
+
   const url =
     path === ":memory:"
       ? "file::memory:"
       : pathToFileURL(resolve(path)).href;
-  if (path !== ":memory:") {
-    await fs.mkdir(dirname(path), { recursive: true });
-  }
   const client = createClient({ url, timeout: 5000 });
   const db = drizzle(client);
   try {
-    await migrate(db, { migrationsFolder });
+    await run(() => migrate(db, { migrationsFolder }));
   } catch (error) {
     client.close();
     throw error;
@@ -298,32 +314,33 @@ export const openSqliteMemoryStore = async (
   const create = async (
     personaId: string,
     personaText: string,
-  ): Promise<void> => {
-    if (isEmpty(personaId)) {
-      throw new MemoryArgumentError(
-        "empty-id",
-        "The persona id must not be empty.",
-      );
-    }
-    if (isEmpty(personaText)) {
-      throw new MemoryArgumentError(
-        "empty-text",
-        "The persona's text must not be empty.",
-      );
-    }
-    try {
-      await db
-        .insert(personas)
-        .values({ id: personaId, personaText, personaVersion: 1 });
-    } catch (error) {
-      if (isPrimaryKeyViolation(error)) {
-        throw new PersonaExistsError(personaId);
+  ): Promise<void> =>
+    run(async () => {
+      if (isEmpty(personaId)) {
+        throw new MemoryArgumentError(
+          "empty-id",
+          "The persona id must not be empty.",
+        );
       }
-      throw error;
-    }
-  };
+      if (isEmpty(personaText)) {
+        throw new MemoryArgumentError(
+          "empty-text",
+          "The persona's text must not be empty.",
+        );
+      }
+      try {
+        await db
+          .insert(personas)
+          .values({ id: personaId, personaText, personaVersion: 1 });
+      } catch (error) {
+        if (isPrimaryKeyViolation(error)) {
+          throw new PersonaExistsError(personaId);
+        }
+        throw error;
+      }
+    });
 
-  const read = async (
+  const readInStore = async (
     personaId: string,
     selection: MemorySelection,
   ): Promise<MemoryView> => {
@@ -376,7 +393,13 @@ export const openSqliteMemoryStore = async (
     };
   };
 
-  const write = async (
+  const read = (
+    personaId: string,
+    selection: MemorySelection,
+  ): Promise<MemoryView> =>
+    run(() => readInStore(personaId, selection));
+
+  const writeInStore = async (
     personaId: string,
     change: MemoryChange,
   ): Promise<MissCounts> => {
@@ -556,7 +579,12 @@ export const openSqliteMemoryStore = async (
     });
   };
 
-  const deleteItems = async (
+  const write = (
+    personaId: string,
+    change: MemoryChange,
+  ): Promise<MissCounts> => run(() => writeInStore(personaId, change));
+
+  const deleteInStore = async (
     personaId: string,
     itemIds: readonly string[],
   ): Promise<void> => {
@@ -589,6 +617,11 @@ export const openSqliteMemoryStore = async (
         );
     });
   };
+
+  const deleteItems = (
+    personaId: string,
+    itemIds: readonly string[],
+  ): Promise<void> => run(() => deleteInStore(personaId, itemIds));
 
   return { create, read, write, delete: deleteItems };
 };

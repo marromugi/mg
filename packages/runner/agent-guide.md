@@ -752,6 +752,46 @@ carries `remember`'s return value, or `{ updated: false, reason: "rejected", err
 here is this entrance's own recording, separate from `config.trace`; see "Where results go"
 below for the full outcome shape.
 
+Running one input at a time from a queue, with `createRunQueue`:
+
+```ts
+import { createMemoryConversationStore } from "@mg/conversation";
+import { continueConversation, createRunQueue } from "@mg/runner";
+import config from "./loop-bash.config.ts";
+
+const store = createMemoryConversationStore();
+await store.create("jev");
+
+const queue = createRunQueue((input: string, options) =>
+  continueConversation(
+    config,
+    {
+      store,
+      id: "jev",
+      history: { kind: "all" },
+      messages: [{ role: "user", content: input }],
+    },
+    options,
+  ),
+);
+
+const { id, ending } = queue.enqueue("hello");
+console.log(id, await ending);
+
+await queue.close();
+```
+
+`createRunQueue` takes the run function you want serialized — here, `continueConversation`
+wrapped so it only needs the new input — and returns a queue that runs one enqueued item at a
+time, starting the next only after the previous one's returned promise settles. `options` in
+the wrapper is `QueueRunOptions`: `sessionId` (the id `enqueue` already returned), `wrapUp` (a
+fresh `AbortSignal` per item), and `onEvent` (forwarded to the queue's own `onEvent`, if you
+passed one to `createRunQueue`). `enqueue` returns `{ id, ending }` right away; `ending` never
+rejects — it resolves to `{ kind: "finished", outcome }`, `{ kind: "failed", error }`, or
+`{ kind: "dropped", reason: "closed" }`. `queue.wrapUp()` sends the signal to the item that is
+currently running only, and `queue.close()` drops whatever is still waiting and resolves once
+the running item, if any, ends.
+
 ## 6. Where results go
 
 - `run` returns `{ sessionId, result }`; `runMany` returns one outcome per case, each carrying

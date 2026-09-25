@@ -1,5 +1,6 @@
 export * from "./added-messages.js";
 export * from "./config.js";
+export * from "./continue-as-persona.js";
 export * from "./continue-conversation.js";
 export * from "./harness.js";
 export * from "./errors.js";

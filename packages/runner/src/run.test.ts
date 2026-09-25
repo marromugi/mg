@@ -10,6 +10,7 @@ import type {
   ToolSchema,
 } from "@mg/core";
 import { defineTool } from "@mg/core";
+import type { Gate, Verdict } from "@mg/gate";
 import type { HarnessEvent } from "@mg/harness";
 import { TraceShutdownError } from "@mg/trace/otel";
 import type { Connector, Workspace } from "@mg/workspace";
@@ -127,6 +128,49 @@ const trackingProvider = (
   };
   return { provider, requests };
 };
+
+const waitForHalt = (halt: AbortSignal | undefined): Promise<void> =>
+  new Promise((resolve) => {
+    if (halt?.aborted) {
+      resolve();
+      return;
+    }
+    if (!halt) return;
+    halt.addEventListener("abort", () => resolve(), { once: true });
+  });
+
+// A provider that streams the scripted events for each turn, then waits
+// for the request's halt signal before ending the turn with reason
+// "halted". A scripted turn that already ends with a finish event ends
+// without waiting.
+const haltingStreamProvider = (
+  turns: readonly (readonly StreamEvent[])[],
+): Provider => {
+  let index = 0;
+  return {
+    generate: async () => {
+      throw new Error(
+        "haltingStreamProvider: generate is not scripted",
+      );
+    },
+    stream: (request: GenerateRequest): AsyncIterable<StreamEvent> => {
+      const events = turns[index] ?? [];
+      index++;
+      return (async function* () {
+        let finished = false;
+        for (const event of events) {
+          yield event;
+          if (event.type === "finish") finished = true;
+        }
+        if (finished) return;
+        await waitForHalt(request.halt);
+        yield { type: "finish", finishReason: "halted" };
+      })();
+    },
+  };
+};
+
+const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
 
 const stubSchema = (): ToolSchema => ({
   "~standard": {
@@ -799,5 +843,195 @@ describe("run with a workspace", () => {
 
     expect(outcome.result.reason).toBe("stop");
     expect(requests[0]?.tools).toEqual([configTool]);
+  });
+});
+
+describe("run with a wrap-up signal", () => {
+  test("stops the harness on wrap-up and returns the partial reply with reason wrapped-up, without throwing", async () => {
+    const controller = new AbortController();
+    const provider = haltingStreamProvider([
+      [{ type: "text-delta", delta: "Hel" }],
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: true },
+      trace: { exporters: [] },
+    };
+
+    const outcome = await run(
+      config,
+      [{ role: "user", content: "hi" }],
+      {
+        wrapUp: controller.signal,
+        onEvent: (event) => {
+          if (event.type === "text-delta") controller.abort();
+        },
+      },
+    );
+
+    expect(outcome.result).toEqual({
+      reason: "wrapped-up",
+      messages: [
+        { role: "user", content: "hi" },
+        {
+          role: "assistant",
+          parts: [{ type: "text", text: "Hel" }],
+        },
+      ],
+      usage: { inputTokens: 0, outputTokens: 0 },
+    });
+  });
+});
+
+describe("run with call-only tools", () => {
+  test("appends the call's tools after the config's and the workspace's, in the request the LLM sees, and executes a call to one of them", async () => {
+    const configTool = stubTool("a");
+    const workspaceTool = stubTool("b");
+    const askExecute = vi.fn(async () => "queued: w1");
+    const askTool = defineTool({
+      name: "ask",
+      input: stubSchema(),
+      execute: askExecute,
+    });
+    const { provider, requests } = trackingProvider([
+      {
+        parts: [
+          { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+        ],
+        finishReason: "tool_calls",
+      },
+      { parts: [{ type: "text", text: "done" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
+      tools: [configTool],
+      workspace: fakeWorkspace([workspaceTool]),
+    };
+
+    const outcome = await run(config, [], { tools: [askTool] });
+
+    expect(requests[0]?.tools?.map((tool) => tool.name)).toEqual([
+      "a",
+      "b",
+      "ask",
+    ]);
+    expect(askExecute).toHaveBeenCalledTimes(1);
+    expect(outcome.result.messages).toContainEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content: "queued: w1",
+    });
+  });
+
+  test("a call-only tool name shared by a config tool closes the workspace before rejecting with DuplicateToolNameError, and never calls the provider", async () => {
+    const configTool = stubTool("a");
+    const duplicateTool = stubTool("a");
+    const generate = vi.fn(async (): Promise<GenerateResponse> => {
+      throw new Error("should not be called");
+    });
+    const provider: Provider = {
+      generate,
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    };
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      tools: [configTool],
+    };
+
+    let error: unknown;
+    try {
+      await run(config, [], { tools: [duplicateTool] });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(DuplicateToolNameError);
+    expect((error as DuplicateToolNameError).toolName).toBe("a");
+    expect((error as DuplicateToolNameError).kinds).toEqual([
+      "config",
+      "options",
+    ]);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  test("a call-only tool name shared by a workspace tool closes the workspace before rejecting with DuplicateToolNameError", async () => {
+    const workspaceTool = stubTool("b");
+    const duplicateTool = stubTool("b");
+    let closed = false;
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      workspace: fakeWorkspace(
+        [workspaceTool],
+        {
+          onClose: () => {
+            closed = true;
+          },
+        },
+        "ws",
+      ),
+    };
+
+    let error: unknown;
+    try {
+      await run(config, [], { tools: [duplicateTool] });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(DuplicateToolNameError);
+    expect((error as DuplicateToolNameError).kinds).toEqual([
+      "ws",
+      "options",
+    ]);
+    expect(closed).toBe(true);
+  });
+
+  test("the config's gate judges a call to a call-only tool and blocks it when it denies", async () => {
+    const askExecute = vi.fn(async () => "should not run");
+    const askTool = defineTool({
+      name: "ask",
+      input: stubSchema(),
+      execute: askExecute,
+    });
+    const provider = stubProvider([
+      {
+        parts: [
+          { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+        ],
+        finishReason: "tool_calls",
+      },
+    ]);
+    const gate = stubGate(async (): Promise<Verdict> => ({
+      allowed: false,
+      reason: "no",
+    }));
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      gate,
+    };
+
+    const outcome = await run(config, [], { tools: [askTool] });
+
+    expect(askExecute).not.toHaveBeenCalled();
+    expect(outcome.result.messages).toContainEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content:
+        "[denied] Not executed. The policy gate rejected this action: no",
+    });
   });
 });

@@ -1,4 +1,4 @@
-import type { Message } from "@mg/core";
+import type { Message, Tool } from "@mg/core";
 import type { HarnessEvent, HarnessResult } from "@mg/harness";
 import { collect } from "@mg/harness";
 import { ATTR, SPAN, startRootSpan } from "@mg/trace";
@@ -8,13 +8,12 @@ import type { RunConfig } from "./config.js";
 import { createExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
 import { createSubagent } from "./subagent.js";
-import {
-  mergeWorkspaceTools,
-  withWorkspace,
-} from "./workspace-scope.js";
+import { mergeCallTools, withWorkspace } from "./workspace-scope.js";
 
 export type RunOptions = {
   signal?: AbortSignal;
+  wrapUp?: AbortSignal;
+  tools?: readonly Tool[];
   sessionId?: string;
   caseId?: string;
   onEvent?: (event: HarnessEvent) => void;
@@ -55,7 +54,11 @@ export const run = async (
       config.workspace,
       { trace: root, signal: options?.signal },
       async (opened) => {
-        const tools = mergeWorkspaceTools(config.tools ?? [], opened);
+        const tools = mergeCallTools(
+          config.tools ?? [],
+          opened,
+          options?.tools ?? [],
+        );
         const exclusiveNames = createExclusiveNames();
         const parentExclusiveNames = config.workspace
           ? exclusiveNamesOf(config.workspace)
@@ -76,7 +79,12 @@ export const run = async (
           subagents,
         );
         const events = tee(
-          harness({ messages, signal: options?.signal, trace: root }),
+          harness({
+            messages,
+            signal: options?.signal,
+            wrapUp: options?.wrapUp,
+            trace: root,
+          }),
           options?.onEvent,
         );
         return collect(events);

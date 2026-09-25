@@ -500,6 +500,64 @@ describe("createContinueConversation", () => {
     expect(optionsSeen[0]).toBe(options);
   });
 
+  test("forwards the wrap-up signal and the added tools to the run function, and appends the wrapped-up result", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const controller = new AbortController();
+    const askTool: Tool = defineTool({
+      name: "ask",
+      input: z.object({}),
+      execute: async () => "queued: w1",
+    });
+    const optionsSeen: (RunOptions | undefined)[] = [];
+    const fakeRun = async (
+      _config: RunConfig,
+      _messages: Message[],
+      options?: RunOptions,
+    ): Promise<RunOutcome> => {
+      optionsSeen.push(options);
+      return {
+        sessionId: "s1",
+        result: {
+          reason: "wrapped-up",
+          messages: [
+            { role: "user", content: "hi" },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "Hel" }],
+            },
+          ],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      };
+    };
+    const entrance = createContinueConversation({ run: fakeRun });
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { wrapUp: controller.signal, tools: [askTool] },
+    );
+
+    expect(optionsSeen[0]?.wrapUp).toBe(controller.signal);
+    expect(optionsSeen[0]?.tools).toEqual([askTool]);
+    expect(outcome.saved).toBe(true);
+    if (!outcome.saved) throw new Error("unreachable");
+    expect(outcome.entry).toEqual({
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "assistant", parts: [{ type: "text", text: "Hel" }] },
+      ],
+    });
+    const slice = await store.read("t1", { kind: "all" });
+    expect(slice.entries).toEqual([outcome.entry]);
+  });
+
   test("does not append and returns a diverged reason when the run function's returned conversation does not start with what was sent", async () => {
     const store = createMemoryConversationStore();
     await store.create("jev");

@@ -18,6 +18,8 @@ import type {
   TraceSpan,
 } from "@mg/harness";
 import { traceProvider, traceRunToolCall } from "@mg/trace";
+import { ATTR } from "@mg/trace";
+import { noopSpan } from "@mg/harness";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { StreamIncompleteError } from "./errors.js";
 import { createLoopHarness } from "./loop.js";
@@ -1751,5 +1753,285 @@ describe("createLoopHarness wrapping up", () => {
     expect(root.children).toHaveLength(1);
     expect(root.children[0]?.name).toBe("mg.harness");
     expect(root.children[0]?.endCalls).toEqual([undefined]);
+  });
+});
+
+describe("createLoopHarness stop reason attribute", () => {
+  class AttributeRecordingSpan implements TraceSpan {
+    readonly name: string;
+    readonly children: AttributeRecordingSpan[] = [];
+    readonly setAttributesCalls: TraceAttributes[] = [];
+    readonly endCalls: unknown[] = [];
+
+    constructor(name: string) {
+      this.name = name;
+    }
+
+    startSpan(name: string): TraceSpan {
+      const child = new AttributeRecordingSpan(name);
+      this.children.push(child);
+      return child;
+    }
+
+    startRoot(name: string): TraceSpan {
+      return this.startSpan(name);
+    }
+
+    setAttributes(attributes: TraceAttributes): void {
+      this.setAttributesCalls.push(attributes);
+    }
+
+    addEvent(): void {}
+
+    end(error?: unknown): void {
+      this.endCalls.push(error);
+    }
+  }
+
+  const stopReasonOf = (
+    span: AttributeRecordingSpan,
+  ): TraceAttributes[string] | undefined =>
+    Object.assign({}, ...span.setAttributesCalls)[
+      ATTR.harnessStopReason
+    ];
+
+  test("writes the stop reason stop on the mg.harness span when the turn ends without tool calls", async () => {
+    const provider = stubProvider([
+      {
+        parts: [{ type: "text", text: "hi" }],
+        finishReason: "stop",
+        usage: { inputTokens: 3, outputTokens: 1 },
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const root = new AttributeRecordingSpan("root");
+
+    await collect(
+      harness({
+        messages: [{ role: "user", content: "q" }],
+        trace: root,
+      }),
+    );
+
+    expect(stopReasonOf(root.children[0]!)).toBe("stop");
+  });
+
+  test("writes the stop reason max-turns when the loop reaches its turn limit", async () => {
+    const toolCall: ToolCall = {
+      id: "call-1",
+      name: "a",
+      arguments: {},
+    };
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      execute: async () => "a-result",
+    });
+    const provider = stubProvider([
+      {
+        parts: [{ type: "tool-call", ...toolCall }],
+        finishReason: "tool_calls",
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [tool],
+      maxTurns: 1,
+      stream: false,
+    });
+    const root = new AttributeRecordingSpan("root");
+
+    const result = await collect(
+      harness({
+        messages: [{ role: "user", content: "q" }],
+        trace: root,
+      }),
+    );
+
+    expect(result.reason).toBe("max-turns");
+    expect(stopReasonOf(root.children[0]!)).toBe("max-turns");
+  });
+
+  test("writes the stop reason length when the provider finishes with reason length", async () => {
+    const provider = stubProvider([
+      {
+        parts: [{ type: "text", text: "hi" }],
+        finishReason: "length",
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const root = new AttributeRecordingSpan("root");
+
+    await collect(
+      harness({
+        messages: [{ role: "user", content: "q" }],
+        trace: root,
+      }),
+    );
+
+    expect(stopReasonOf(root.children[0]!)).toBe("length");
+  });
+
+  test("writes the stop reason wrapped-up when the wrap-up signal has already arrived", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const provider = stubProvider([]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const root = new AttributeRecordingSpan("root");
+
+    await collect(
+      harness({
+        messages: [{ role: "user", content: "q" }],
+        wrapUp: controller.signal,
+        trace: root,
+      }),
+    );
+
+    expect(stopReasonOf(root.children[0]!)).toBe("wrapped-up");
+  });
+
+  test("does not write the stop reason when the provider throws, and the span still ends with that error", async () => {
+    const boom = new Error("boom");
+    const provider: Provider = {
+      generate: vi.fn(async (): Promise<GenerateResponse> => {
+        throw boom;
+      }),
+      stream: vi.fn((): AsyncIterable<StreamEvent> => {
+        throw new Error("stubProvider: stream is not scripted");
+      }),
+    };
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const root = new AttributeRecordingSpan("root");
+
+    const error = await collect(
+      harness({
+        messages: [{ role: "user", content: "q" }],
+        trace: root,
+      }),
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBe(boom);
+    const harnessSpan = root.children[0]!;
+    expect(harnessSpan.endCalls).toEqual([boom]);
+    expect(stopReasonOf(harnessSpan)).toBeUndefined();
+  });
+
+  test("keeps the run from failing when the mg.harness span's setAttributes always throws", async () => {
+    class ThrowingAttributesSpan implements TraceSpan {
+      readonly setAttributesCalls: TraceAttributes[] = [];
+
+      startSpan(): TraceSpan {
+        return noopSpan;
+      }
+
+      startRoot(): TraceSpan {
+        return noopSpan;
+      }
+
+      setAttributes(attributes: TraceAttributes): void {
+        this.setAttributesCalls.push(attributes);
+        throw new Error("span");
+      }
+
+      addEvent(): void {}
+
+      end(): void {}
+    }
+
+    class ParentOfThrowingSpan implements TraceSpan {
+      readonly child = new ThrowingAttributesSpan();
+
+      startSpan(): TraceSpan {
+        return this.child;
+      }
+
+      startRoot(): TraceSpan {
+        return this.child;
+      }
+
+      setAttributes(): void {}
+
+      addEvent(): void {}
+
+      end(): void {}
+    }
+
+    const root = new ParentOfThrowingSpan();
+    const provider = stubProvider([
+      {
+        parts: [{ type: "text", text: "hi" }],
+        finishReason: "stop",
+        usage: { inputTokens: 3, outputTokens: 1 },
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const result = await collect(
+      harness({
+        messages: [{ role: "user", content: "q" }],
+        trace: root,
+      }),
+    );
+
+    expect(result.reason).toBe("stop");
+    expect(root.child.setAttributesCalls.length).toBeGreaterThan(0);
+  });
+
+  test("leaves the result unchanged when no trace is passed", async () => {
+    const provider = stubProvider([
+      {
+        parts: [{ type: "text", text: "hi" }],
+        finishReason: "stop",
+        usage: { inputTokens: 3, outputTokens: 1 },
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const result = await collect(
+      harness({ messages: [{ role: "user", content: "q" }] }),
+    );
+
+    expect(result).toEqual({
+      reason: "stop",
+      messages: [
+        { role: "user", content: "q" },
+        {
+          role: "assistant",
+          parts: [{ type: "text", text: "hi" }],
+        },
+      ],
+      usage: { inputTokens: 3, outputTokens: 1 },
+    });
   });
 });

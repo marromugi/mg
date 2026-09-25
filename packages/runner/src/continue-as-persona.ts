@@ -15,12 +15,12 @@ import { createTraceSdk, type TraceSdk } from "@mg/trace/otel";
 import { nanoid } from "nanoid";
 import type { RunConfig } from "./config.js";
 import type {
+  ContinueOptions,
   ContinueOutcome,
   ConversationTarget,
 } from "./continue-conversation.js";
 import { continueConversation } from "./continue-conversation.js";
 import type { RecordTraceOptions } from "./record-trace.js";
-import type { RunOptions } from "./run.js";
 
 export type PersonaTarget<TInput, TRead> = {
   persona: Persona<TInput, TRead>;
@@ -60,7 +60,7 @@ export const createContinueAsPersona = (deps: {
     config: RunConfig,
     conversation: ConversationTarget,
     persona: PersonaTarget<TInput, TRead>,
-    options?: RunOptions,
+    options?: ContinueOptions,
   ): Promise<PersonaOutcome<TRead>> => {
     options?.signal?.throwIfAborted();
 

@@ -7,6 +7,7 @@ import type {
 import type { HarnessResult } from "@mg/harness";
 import { addedMessages } from "./added-messages.js";
 import type { RunConfig } from "./config.js";
+import { keptMessages } from "./kept-messages.js";
 import { run } from "./run.js";
 import type { RunOptions, RunOutcome } from "./run.js";
 
@@ -17,8 +18,17 @@ export type ConversationTarget = {
   messages: [Message, ...Message[]];
 };
 
+export type KeepMessages = (
+  added: readonly Message[],
+) => Message[] | Promise<Message[]>;
+
+export type ContinueOptions = RunOptions & { keep?: KeepMessages };
+
 export type NotSavedReason =
-  { kind: "diverged" } | { kind: "append-failed"; error: unknown };
+  | { kind: "diverged" }
+  | { kind: "not-in-result" }
+  | { kind: "keep-failed"; error: unknown }
+  | { kind: "append-failed"; error: unknown };
 
 export type ContinueOutcome =
   | {
@@ -44,7 +54,7 @@ export const createContinueConversation = (deps: {
   return async (
     config: RunConfig,
     conversation: ConversationTarget,
-    options?: RunOptions,
+    options?: ContinueOptions,
   ): Promise<ContinueOutcome> => {
     options?.signal?.throwIfAborted();
 
@@ -58,10 +68,15 @@ export const createContinueConversation = (deps: {
       ...conversation.messages,
     ];
 
+    const runOptions: RunOptions | undefined =
+      options && "keep" in options
+        ? (({ keep: _keep, ...rest }) => rest)(options)
+        : options;
+
     const { sessionId, result } = await deps.run(
       config,
       built,
-      options,
+      runOptions,
     );
 
     const added = addedMessages(built, result.messages);
@@ -74,11 +89,37 @@ export const createContinueConversation = (deps: {
       };
     }
 
+    let kept: Message[];
+    if (options?.keep) {
+      let answer: Message[];
+      try {
+        answer = await options.keep(structuredClone(added.messages));
+      } catch (error) {
+        return {
+          saved: false,
+          sessionId,
+          result,
+          reason: { kind: "keep-failed", error },
+        };
+      }
+      if (!keptMessages(added.messages, answer)) {
+        return {
+          saved: false,
+          sessionId,
+          result,
+          reason: { kind: "not-in-result" },
+        };
+      }
+      kept = answer;
+    } else {
+      kept = added.messages;
+    }
+
     const entry: ConversationEntry = {
       messages: [
         conversation.messages[0],
         ...conversation.messages.slice(1),
-        ...added.messages,
+        ...kept,
       ],
     };
 

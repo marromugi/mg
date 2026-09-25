@@ -20,10 +20,12 @@ import type { HarnessEvent } from "@mg/harness";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import type { RunConfig } from "./config.js";
+import type { ContinueOptions } from "./continue-conversation.js";
 import {
   continueConversation,
   createContinueConversation,
 } from "./continue-conversation.js";
+import { keepDelivered } from "./keep-delivered.js";
 import type { RunOptions, RunOutcome } from "./run.js";
 
 const ENTRY_A: ConversationEntry = {
@@ -589,6 +591,519 @@ describe("createContinueConversation", () => {
     expect(await store.read("jev", { kind: "all" })).toEqual({
       entries: [],
       length: 0,
+    });
+  });
+});
+
+describe("continueConversation with a keep function", () => {
+  const A1: Message = {
+    role: "assistant",
+    parts: [
+      { type: "text", text: "Hello there." },
+      { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+    ],
+  };
+  const T1: Message = {
+    role: "tool",
+    toolCallId: "c1",
+    content: "queued: w1",
+  };
+  const A2: Message = {
+    role: "assistant",
+    parts: [{ type: "text", text: "It is queued. I will tell you." }],
+  };
+
+  const fakeRunAppending = (
+    ...extra: Message[]
+  ): ((
+    config: RunConfig,
+    messages: Message[],
+  ) => Promise<RunOutcome>) => {
+    return async (_config, messages) => ({
+      sessionId: "s1",
+      result: {
+        reason: "stop",
+        messages: [...messages, ...extra],
+        usage: { inputTokens: 0, outputTokens: 0 },
+      },
+    });
+  };
+
+  const entranceWith = (
+    keep: ContinueOptions["keep"],
+    ...extra: Message[]
+  ) => {
+    const store = createMemoryConversationStore();
+    const entrance = createContinueConversation({
+      run: fakeRunAppending(...extra),
+    });
+    return { store, entrance, keep };
+  };
+
+  test("calls the keep function once with the run's added messages in order, and appends its answer after the new messages", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const calls: (readonly Message[])[] = [];
+    const answer: Message[] = [
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Hello" },
+          { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+        ],
+      },
+      T1,
+    ];
+    const entrance = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      {
+        keep: (added) => {
+          calls.push(added);
+          return answer;
+        },
+      },
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual([A1, T1, A2]);
+    expect(outcome.saved).toBe(true);
+    if (!outcome.saved) throw new Error("unreachable");
+    expect(outcome.entry).toEqual({
+      messages: [{ role: "user", content: "hi" }, ...answer],
+    });
+    const slice = await store.read("t1", { kind: "all" });
+    expect(slice.entries).toEqual([outcome.entry]);
+  });
+
+  test("does not append until the keep function's promise resolves, even though the run already finished", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    let resolveKeep!: (messages: Message[]) => void;
+    const pending = new Promise<Message[]>((resolve) => {
+      resolveKeep = resolve;
+    });
+    const entrance = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const promise = entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep: () => pending },
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(
+      (await store.read("t1", { kind: "all" })).entries,
+    ).toHaveLength(0);
+
+    resolveKeep([A1, T1, A2]);
+    const outcome = await promise;
+
+    expect(outcome.saved).toBe(true);
+    expect(
+      (await store.read("t1", { kind: "all" })).entries,
+    ).toHaveLength(1);
+  });
+
+  test("does not append and reports not-in-result when the answer is not a shorter reply followed by the same text cut off", async () => {
+    const { store, entrance, keep } = entranceWith(
+      () => [
+        { role: "assistant", parts: [{ type: "text", text: "Hi" }] },
+      ],
+      A1,
+      T1,
+      A2,
+    );
+    await store.create("t1");
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep },
+    );
+
+    expect(outcome.saved).toBe(false);
+    if (outcome.saved) throw new Error("unreachable");
+    expect(outcome.reason).toEqual({ kind: "not-in-result" });
+    expect(
+      (await store.read("t1", { kind: "all" })).entries,
+    ).toHaveLength(0);
+  });
+
+  test("does not append and reports not-in-result when the answer reorders the added messages", async () => {
+    const { store, entrance, keep } = entranceWith(
+      () => [T1, A1],
+      A1,
+      T1,
+      A2,
+    );
+    await store.create("t1");
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep },
+    );
+
+    if (outcome.saved) throw new Error("unreachable");
+    expect(outcome.reason).toEqual({ kind: "not-in-result" });
+  });
+
+  test("does not append and reports not-in-result when the answer truncates a tool result", async () => {
+    const { store, entrance, keep } = entranceWith(
+      () => [A1, { role: "tool", toolCallId: "c1", content: "queued" }],
+      A1,
+      T1,
+      A2,
+    );
+    await store.create("t1");
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep },
+    );
+
+    if (outcome.saved) throw new Error("unreachable");
+    expect(outcome.reason).toEqual({ kind: "not-in-result" });
+  });
+
+  test("does not append and reports not-in-result when the answer changes a tool call's arguments", async () => {
+    const changedA1: Message = {
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Hello there." },
+        {
+          type: "tool-call",
+          id: "c1",
+          name: "ask",
+          arguments: { x: 1 },
+        },
+      ],
+    };
+    const { store, entrance, keep } = entranceWith(
+      () => [changedA1, T1, A2],
+      A1,
+      T1,
+      A2,
+    );
+    await store.create("t1");
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep },
+    );
+
+    if (outcome.saved) throw new Error("unreachable");
+    expect(outcome.reason).toEqual({ kind: "not-in-result" });
+  });
+
+  test("does not append and reports not-in-result when the answer drops earlier text or drops a tool call", async () => {
+    const droppedText: Message[] = [
+      {
+        role: "assistant",
+        parts: [
+          { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+        ],
+      },
+      T1,
+      { role: "assistant", parts: [{ type: "text", text: "It is" }] },
+    ];
+    const droppedToolCall: Message[] = [
+      {
+        role: "assistant",
+        parts: [{ type: "text", text: "Hello there." }],
+      },
+      T1,
+      A2,
+    ];
+
+    for (const answer of [droppedText, droppedToolCall]) {
+      const { store, entrance, keep } = entranceWith(
+        () => answer,
+        A1,
+        T1,
+        A2,
+      );
+      await store.create("t1");
+
+      const outcome = await entrance(
+        runConfig(fakeProvider().provider),
+        {
+          store,
+          id: "t1",
+          history: { kind: "all" },
+          messages: [{ role: "user", content: "hi" }],
+        },
+        { keep },
+      );
+
+      if (outcome.saved) throw new Error("unreachable");
+      expect(outcome.reason).toEqual({ kind: "not-in-result" });
+      expect(
+        (await store.read("t1", { kind: "all" })).entries,
+      ).toHaveLength(0);
+    }
+  });
+
+  test("does not append and reports keep-failed carrying the thrown error when the keep function rejects", async () => {
+    const error = new Error("gone");
+    const { store, entrance, keep } = entranceWith(
+      () => {
+        throw error;
+      },
+      A1,
+      T1,
+      A2,
+    );
+    await store.create("t1");
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep },
+    );
+
+    expect(outcome.saved).toBe(false);
+    if (outcome.saved) throw new Error("unreachable");
+    expect(outcome.reason).toEqual({ kind: "keep-failed", error });
+    expect(
+      (await store.read("t1", { kind: "all" })).entries,
+    ).toHaveLength(0);
+  });
+
+  test("never calls the keep function and reports diverged when the run's result does not start with what was sent", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const calls: (readonly Message[])[] = [];
+    const entrance = createContinueConversation({
+      run: async () => ({
+        sessionId: "s1",
+        result: {
+          reason: "stop",
+          messages: [{ role: "user", content: "HI" }, A1, T1, A2],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      }),
+    });
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      {
+        keep: (added) => {
+          calls.push(added);
+          return [];
+        },
+      },
+    );
+
+    expect(calls).toHaveLength(0);
+    if (outcome.saved) throw new Error("unreachable");
+    expect(outcome.reason).toEqual({ kind: "diverged" });
+  });
+
+  test("checks an empty answer by the same rule: rejected against three added messages, accepted and appending nothing extra when the run added only one", async () => {
+    const store1 = createMemoryConversationStore();
+    await store1.create("t1");
+    const entrance1 = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const outcome1 = await entrance1(
+      runConfig(fakeProvider().provider),
+      {
+        store: store1,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep: () => [] },
+    );
+
+    if (outcome1.saved) throw new Error("unreachable");
+    expect(outcome1.reason).toEqual({ kind: "not-in-result" });
+    expect(
+      (await store1.read("t1", { kind: "all" })).entries,
+    ).toHaveLength(0);
+
+    const store2 = createMemoryConversationStore();
+    await store2.create("t1");
+    const entrance2 = createContinueConversation({
+      run: fakeRunAppending(A2),
+    });
+
+    const outcome2 = await entrance2(
+      runConfig(fakeProvider().provider),
+      {
+        store: store2,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep: () => [] },
+    );
+
+    expect(outcome2.saved).toBe(true);
+    if (!outcome2.saved) throw new Error("unreachable");
+    expect(outcome2.entry).toEqual({
+      messages: [{ role: "user", content: "hi" }],
+    });
+  });
+
+  test("appends everything the run added when no keep function is given", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const entrance = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const outcome = await entrance(runConfig(fakeProvider().provider), {
+      store,
+      id: "t1",
+      history: { kind: "all" },
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    expect(outcome.saved).toBe(true);
+    if (!outcome.saved) throw new Error("unreachable");
+    expect(outcome.entry).toEqual({
+      messages: [{ role: "user", content: "hi" }, A1, T1, A2],
+    });
+  });
+
+  test("accepts an answer produced by cutting the added messages at a delivered position, appending exactly that cut result", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const entrance = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      {
+        keep: (added) =>
+          keepDelivered(added, { kind: "until", turn: 1, end: 5 }),
+      },
+    );
+
+    expect(outcome.saved).toBe(true);
+    if (!outcome.saved) throw new Error("unreachable");
+    expect(outcome.entry).toEqual({
+      messages: [
+        { role: "user", content: "hi" },
+        A1,
+        T1,
+        { role: "assistant", parts: [{ type: "text", text: "It is" }] },
+      ],
+    });
+  });
+
+  test("accepts an answer that is written out to equal a cut result or the full added messages, without calling the cutting helper", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const entrance = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const cutAnswer: Message[] = [
+      A1,
+      T1,
+      { role: "assistant", parts: [{ type: "text", text: "It is" }] },
+    ];
+
+    const outcome = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep: () => cutAnswer },
+    );
+
+    expect(outcome.saved).toBe(true);
+    if (!outcome.saved) throw new Error("unreachable");
+    expect(outcome.entry).toEqual({
+      messages: [{ role: "user", content: "hi" }, ...cutAnswer],
+    });
+
+    const store2 = createMemoryConversationStore();
+    await store2.create("t1");
+    const entrance2 = createContinueConversation({
+      run: fakeRunAppending(A1, T1, A2),
+    });
+
+    const outcome2 = await entrance2(
+      runConfig(fakeProvider().provider),
+      {
+        store: store2,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { keep: () => [A1, T1, A2] },
+    );
+
+    expect(outcome2.saved).toBe(true);
+    if (!outcome2.saved) throw new Error("unreachable");
+    expect(outcome2.entry).toEqual({
+      messages: [{ role: "user", content: "hi" }, A1, T1, A2],
     });
   });
 });

@@ -1,6 +1,14 @@
-import type { PersonaOutcome } from "./continue-as-persona.js";
+import type {
+  continueAsPersona,
+  PersonaOutcome,
+} from "./continue-as-persona.js";
+import type { KeepMessages } from "./continue-conversation.js";
 
 declare const outcome: PersonaOutcome<{ token: number }>;
+
+declare const keep: KeepMessages;
+type PersonaOptions = Parameters<typeof continueAsPersona>[3];
+export const optionsWithKeep: PersonaOptions = { keep };
 
 if (outcome.referenced) {
   // @ts-expect-error `expectedRunSessionId` only exists once `referenced` narrows to false

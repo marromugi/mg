@@ -4,6 +4,8 @@ export * from "./continue-as-persona.js";
 export * from "./continue-conversation.js";
 export * from "./harness.js";
 export * from "./errors.js";
+export * from "./keep-delivered.js";
+export * from "./kept-messages.js";
 export * from "./load.js";
 export * from "./record-trace.js";
 export * from "./run.js";

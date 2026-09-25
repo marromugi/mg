@@ -121,6 +121,7 @@ LLM の呼び出しの記録は、プロバイダーのラッパーが書きま�
 | ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `ATTR.op`                       | `mg.op`                         | スパンの種類（harness / llm / tool / run / gate / workspace / subagent / thread / input / trigger / persona / recall / reflection） |
 | `ATTR.harnessName`              | `mg.harness.name`               | ハーネスの名前                                                                                                                      |
+| `ATTR.harnessStopReason`        | `mg.harness.stop_reason`        | 処理系が止まった理由（stop / max-turns / length / wrapped-up）                                                                      |
 | `ATTR.runName`                  | `mg.run.name`                   | 設定の名前                                                                                                                          |
 | `ATTR.runCase`                  | `mg.run.case`                   | 件の ID                                                                                                                             |
 | `ATTR.runSession`               | `mg.run.session`                | 始めた走行に渡したセッションの ID（入力のスパンに書く）                                                                             |

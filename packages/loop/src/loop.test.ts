@@ -18,8 +18,6 @@ import type {
   TraceSpan,
 } from "@mg/harness";
 import { traceProvider, traceRunToolCall } from "@mg/trace";
-import { ATTR } from "@mg/trace";
-import { noopSpan } from "@mg/harness";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { StreamIncompleteError } from "./errors.js";
 import { createLoopHarness } from "./loop.js";
@@ -1792,7 +1790,7 @@ describe("createLoopHarness stop reason attribute", () => {
     span: AttributeRecordingSpan,
   ): TraceAttributes[string] | undefined =>
     Object.assign({}, ...span.setAttributesCalls)[
-      ATTR.harnessStopReason
+      "mg.harness.stop_reason"
     ];
 
   test("writes the stop reason stop on the mg.harness span when the turn ends without tool calls", async () => {
@@ -1818,7 +1816,7 @@ describe("createLoopHarness stop reason attribute", () => {
       }),
     );
 
-    expect(stopReasonOf(root.children[0]!)).toBe("stop");
+    expect(stopReasonOf(root.children[0])).toBe("stop");
   });
 
   test("writes the stop reason max-turns when the loop reaches its turn limit", async () => {
@@ -1855,7 +1853,7 @@ describe("createLoopHarness stop reason attribute", () => {
     );
 
     expect(result.reason).toBe("max-turns");
-    expect(stopReasonOf(root.children[0]!)).toBe("max-turns");
+    expect(stopReasonOf(root.children[0])).toBe("max-turns");
   });
 
   test("writes the stop reason length when the provider finishes with reason length", async () => {
@@ -1880,7 +1878,7 @@ describe("createLoopHarness stop reason attribute", () => {
       }),
     );
 
-    expect(stopReasonOf(root.children[0]!)).toBe("length");
+    expect(stopReasonOf(root.children[0])).toBe("length");
   });
 
   test("writes the stop reason wrapped-up when the wrap-up signal has already arrived", async () => {
@@ -1903,7 +1901,7 @@ describe("createLoopHarness stop reason attribute", () => {
       }),
     );
 
-    expect(stopReasonOf(root.children[0]!)).toBe("wrapped-up");
+    expect(stopReasonOf(root.children[0])).toBe("wrapped-up");
   });
 
   test("does not write the stop reason when the provider throws, and the span still ends with that error", async () => {
@@ -1932,21 +1930,39 @@ describe("createLoopHarness stop reason attribute", () => {
     ).catch((thrown: unknown) => thrown);
 
     expect(error).toBe(boom);
-    const harnessSpan = root.children[0]!;
+    const harnessSpan = root.children[0];
     expect(harnessSpan.endCalls).toEqual([boom]);
     expect(stopReasonOf(harnessSpan)).toBeUndefined();
   });
 
   test("keeps the run from failing when the mg.harness span's setAttributes always throws", async () => {
+    class PassthroughSpan implements TraceSpan {
+      startSpan(): TraceSpan {
+        return this;
+      }
+
+      startRoot(): TraceSpan {
+        return this;
+      }
+
+      setAttributes(): void {}
+
+      addEvent(): void {}
+
+      end(): void {}
+    }
+
+    const passthrough = new PassthroughSpan();
+
     class ThrowingAttributesSpan implements TraceSpan {
       readonly setAttributesCalls: TraceAttributes[] = [];
 
       startSpan(): TraceSpan {
-        return noopSpan;
+        return passthrough;
       }
 
       startRoot(): TraceSpan {
-        return noopSpan;
+        return passthrough;
       }
 
       setAttributes(attributes: TraceAttributes): void {

@@ -17,6 +17,7 @@ export const SPAN = {
 export const ATTR = {
   op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection"
   harnessName: "mg.harness.name",
+  harnessStopReason: "mg.harness.stop_reason", // HarnessStopReason
   runName: "mg.run.name", // RunConfig.name
   runCase: "mg.run.case", // case id when run through runMany
   runSession: "mg.run.session", // session id of the started run, written on the input span

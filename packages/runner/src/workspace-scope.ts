@@ -90,3 +90,27 @@ export const mergeWorkspaceTools = (
 
   return [...configTools, ...opened.tools];
 };
+
+export const mergeCallTools = (
+  configTools: readonly Tool[],
+  opened: OpenWorkspace | undefined,
+  addedTools: readonly Tool[],
+): readonly Tool[] => {
+  const merged = mergeWorkspaceTools(configTools, opened);
+  if (addedTools.length === 0) {
+    return merged;
+  }
+
+  const configToolNames = new Set(configTools.map((tool) => tool.name));
+  const duplicate = addedTools.find((tool) =>
+    merged.some((existing) => existing.name === tool.name),
+  );
+  if (duplicate) {
+    const kind = configToolNames.has(duplicate.name)
+      ? "config"
+      : (opened?.name ?? "config");
+    throw new DuplicateToolNameError(duplicate.name, [kind, "options"]);
+  }
+
+  return [...merged, ...addedTools];
+};

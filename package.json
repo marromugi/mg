@@ -6,7 +6,7 @@
     "prepare": "git config core.hooksPath .githooks",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r run test && node --test .claude/skills/implementer/scripts/*.test.mjs && node --test .claude/skills/retrospective/scripts/*.test.mts && node --test .claude/scripts/*.test.mjs",
+    "test": "pnpm -r run test && node --test .claude/skills/implementer/scripts/*.test.mjs && node --test .claude/skills/retrospective/scripts/*.test.mts && node --test .claude/scripts/*.test.mjs && node --test .claude/skills/verifier/scripts/*.test.mjs && node --test .claude/skills/architect/scripts/*.test.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "prettier --write .",

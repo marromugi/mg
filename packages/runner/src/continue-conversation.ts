@@ -93,7 +93,7 @@ export const createContinueConversation = (deps: {
     if (options?.keep) {
       let answer: Message[];
       try {
-        answer = await options.keep(added.messages);
+        answer = await options.keep(structuredClone(added.messages));
       } catch (error) {
         return {
           saved: false,

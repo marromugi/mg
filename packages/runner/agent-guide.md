@@ -613,8 +613,8 @@ given and is written back to the entry at that same position. `options` is `Cont
 
 By default `continueConversation` appends everything the run added. Pass `options.keep` to
 decide, after the run finishes and before the append, which of those added messages actually
-land in the conversation — useful for dropping the tail of a reply the counterpart never heard,
-e.g. one cut off mid-sentence by an interruption.
+land in the conversation — useful for dropping the tail of a reply the counterpart never
+received, e.g. one cut off mid-sentence by an interruption.
 
 ```ts
 import type { Message } from "@mg/core";

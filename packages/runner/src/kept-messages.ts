@@ -1,5 +1,5 @@
 import type { Message } from "@mg/core";
-import { deepEqual } from "./added-messages.js";
+import { deepEqual } from "./deep-equal.js";
 import type { DeliveredPosition } from "./keep-delivered.js";
 import { keepDelivered } from "./keep-delivered.js";
 

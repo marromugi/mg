@@ -1,4 +1,5 @@
-import type { Message, Provider, Tool } from "@mg/core";
+import type { Message, Provider } from "@mg/core";
+import type { Tool } from "@mg/core";
 import { defineTool } from "@mg/core";
 import { createMemoryConversationStore } from "@mg/conversation";
 import type { ConversationStore } from "@mg/conversation";
@@ -26,7 +27,8 @@ import type {
 import type { MemoryOutcome } from "./continue-as-persona.js";
 import { createContinueAsPersona } from "./continue-as-persona.js";
 import { createContinueConversation } from "./continue-conversation.js";
-import type { RunOptions, RunOutcome } from "./run.js";
+import type { RunOptions } from "./run.js";
+import type { RunOutcome } from "./run.js";
 
 type FakeRead = { token: number };
 

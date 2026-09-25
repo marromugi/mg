@@ -1,3 +1,4 @@
+// oxlint-disable-next-line import/no-duplicates
 import type { Message, Provider } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { defineTool } from "@mg/core";
@@ -27,6 +28,7 @@ import type {
 import type { MemoryOutcome } from "./continue-as-persona.js";
 import { createContinueAsPersona } from "./continue-as-persona.js";
 import { createContinueConversation } from "./continue-conversation.js";
+// oxlint-disable-next-line import/no-duplicates
 import type { RunOptions } from "./run.js";
 import type { RunOutcome } from "./run.js";
 

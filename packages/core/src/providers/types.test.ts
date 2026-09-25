@@ -2,6 +2,8 @@ import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import type {
   AssistantMessage,
+  FinishReason,
+  GenerateRequest,
   Message,
   ReasoningCarry,
   StreamEvent,
@@ -122,6 +124,27 @@ describe("Message", () => {
         content: "24",
       }),
     ).toBe("tool:call-1");
+  });
+});
+
+describe("GenerateRequest", () => {
+  test("accepts an abort signal as the halt field", () => {
+    const controller = new AbortController();
+    const request = {
+      model: "gpt",
+      messages: [],
+      halt: controller.signal,
+    } satisfies GenerateRequest;
+
+    expectTypeOf(request.halt).toEqualTypeOf<AbortSignal | undefined>();
+  });
+});
+
+describe("FinishReason", () => {
+  test("includes halted alongside the existing reasons", () => {
+    expectTypeOf<FinishReason>().toEqualTypeOf<
+      "stop" | "tool_calls" | "length" | "halted" | "other"
+    >();
   });
 });
 

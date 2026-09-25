@@ -1,5 +1,5 @@
 {
-  "command": "node --env-file=.env runs/example.ts \"<入力>\"",
+  "command": "node --env-file-if-exists=.env runs/example.ts \"<入力>\"",
   "needs": ["OPENROUTER_API_KEY"],
   "burdens": ["cost"]
 }

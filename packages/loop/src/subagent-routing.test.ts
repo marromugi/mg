@@ -585,3 +585,70 @@ describe("createLoopHarness with subagents", () => {
     ).toBe(true);
   });
 });
+
+describe("createLoopHarness routing a subagent call while wrapping up", () => {
+  test("passes the harness's wrap-up signal to the subagent and waits for the string it returns", async () => {
+    const controller = new AbortController();
+    const receivedWrapUp: { current?: AbortSignal } = {};
+    const start = vi.fn(
+      async (
+        _input: { prompt: string },
+        context: SubagentContext,
+      ): Promise<string> => {
+        receivedWrapUp.current = context.wrapUp;
+        await new Promise<void>((resolve) => {
+          if (context.wrapUp?.aborted) {
+            resolve();
+            return;
+          }
+          context.wrapUp?.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        });
+        return "partial answer";
+      },
+    );
+    const helper: Subagent = {
+      name: "helper",
+      input: promptSchema(),
+      start,
+    };
+    const provider = stubProvider([
+      {
+        parts: [
+          {
+            type: "tool-call",
+            id: "c1",
+            name: "helper",
+            arguments: { prompt: "go" },
+          },
+        ],
+        finishReason: "tool_calls",
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      subagents: [helper],
+      model: "m",
+      maxTurns: 2,
+      stream: false,
+    });
+
+    const resultPromise = collect(
+      harness({ messages: [], wrapUp: controller.signal }),
+    );
+    for (let i = 0; i < 20 && start.mock.calls.length === 0; i++) {
+      await Promise.resolve();
+    }
+    expect(start).toHaveBeenCalledTimes(1);
+    controller.abort();
+    const result = await resultPromise;
+
+    expect(toolMessageOf(result.messages)).toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content: "partial answer",
+    });
+    expect(receivedWrapUp.current).toBe(controller.signal);
+  });
+});

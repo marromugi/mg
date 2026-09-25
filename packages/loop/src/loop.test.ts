@@ -1,5 +1,6 @@
 import type {
   AssistantPart,
+  GenerateRequest,
   GenerateResponse,
   Provider,
   StreamEvent,
@@ -112,6 +113,60 @@ const deferred = <T>() => {
 };
 
 const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
+
+const flushMicrotasks = async (): Promise<void> => {
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
+};
+
+const waitForHalt = (halt: AbortSignal | undefined): Promise<void> =>
+  new Promise((resolve) => {
+    if (halt?.aborted) {
+      resolve();
+      return;
+    }
+    if (!halt) return;
+    halt.addEventListener("abort", () => resolve(), { once: true });
+  });
+
+/**
+ * A provider that streams (or, in batch mode, waits to return) the
+ * scripted events for each turn, then waits for the request's halt
+ * signal before ending the turn with reason "halted". A scripted turn
+ * that already ends with a finish event ends without waiting.
+ */
+const haltingProvider = (
+  turns: readonly (readonly StreamEvent[])[],
+): Provider => {
+  let index = 0;
+
+  const generate = vi.fn(
+    async (request: GenerateRequest): Promise<GenerateResponse> => {
+      await waitForHalt(request.halt);
+      return { parts: [], finishReason: "halted" };
+    },
+  );
+
+  const stream = vi.fn(
+    (request: GenerateRequest): AsyncIterable<StreamEvent> => {
+      const events = turns[index] ?? [];
+      index++;
+      return (async function* () {
+        let finished = false;
+        for (const event of events) {
+          yield event;
+          if (event.type === "finish") finished = true;
+        }
+        if (finished) return;
+        await waitForHalt(request.halt);
+        yield { type: "finish", finishReason: "halted" };
+      })();
+    },
+  );
+
+  return { generate, stream };
+};
 
 describe("createLoopHarness", () => {
   beforeEach(() => {
@@ -1290,5 +1345,411 @@ describe("createLoopHarness", () => {
       "mg.gate",
       "mg.llm",
     ]);
+  });
+});
+
+describe("createLoopHarness wrapping up", () => {
+  test("stops generation on a halted turn, keeping the partial text as the turn's assistant message", async () => {
+    const controller = new AbortController();
+    const provider = haltingProvider([
+      [{ type: "text-delta", delta: "Hel" }],
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({
+      messages: [{ role: "user", content: "hi" }],
+      wrapUp: controller.signal,
+    })) {
+      events.push(event);
+      if (event.type === "text-delta") controller.abort();
+    }
+
+    expect(events).toEqual([
+      { type: "text-delta", delta: "Hel" },
+      { type: "turn", finishReason: "halted" },
+      {
+        type: "done",
+        result: {
+          reason: "wrapped-up",
+          messages: [
+            { role: "user", content: "hi" },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "Hel" }],
+            },
+          ],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      },
+    ]);
+  });
+
+  test("does not run a tool call parsed from a halted turn's partial message", async () => {
+    const controller = new AbortController();
+    const provider = haltingProvider([
+      [
+        { type: "text-delta", delta: "a" },
+        {
+          type: "tool-call",
+          toolCall: { id: "c1", name: "ls", arguments: {} },
+        },
+      ],
+    ]);
+    const execute = vi.fn(async () => "ls-result");
+    const ls: Tool = defineTool({
+      name: "ls",
+      input: stubSchema(),
+      execute,
+    });
+    const harness = createLoopHarness({
+      provider,
+      tools: [ls],
+      model: "m",
+      maxTurns: 1,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({
+      messages: [{ role: "user", content: "hi" }],
+      wrapUp: controller.signal,
+    })) {
+      events.push(event);
+      if (event.type === "tool-call") controller.abort();
+    }
+
+    expect(execute).not.toHaveBeenCalled();
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages.at(-2)).toEqual(
+      assistantMessage([
+        { type: "text", text: "a" },
+        { type: "tool-call", id: "c1", name: "ls", arguments: {} },
+      ]),
+    );
+    expect(done.result.messages.at(-1)).toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content:
+        "[not-run] The call was not run because the run was wrapped up.",
+    });
+    expect(
+      events.some(
+        (event) =>
+          event.type === "tool-result" &&
+          event.message.toolCallId === "c1",
+      ),
+    ).toBe(true);
+  });
+
+  test("ends the batch turn wrapped up when the provider halts before returning", async () => {
+    const controller = new AbortController();
+    const provider = haltingProvider([[]]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const resultPromise = collect(
+      harness({
+        messages: [{ role: "user", content: "hi" }],
+        wrapUp: controller.signal,
+      }),
+    );
+    await flushMicrotasks();
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+    controller.abort();
+    const result = await resultPromise;
+
+    expect(result).toEqual({
+      reason: "wrapped-up",
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "assistant", parts: [] },
+      ],
+      usage: { inputTokens: 0, outputTokens: 0 },
+    });
+  });
+
+  test("does not run a tool call when wrap-up arrives before the tool starts", async () => {
+    const controller = new AbortController();
+    const execute = vi.fn(async () => "ls-result");
+    const ls: Tool = defineTool({
+      name: "ls",
+      input: stubSchema(),
+      execute,
+    });
+    const generate = vi.fn(async (): Promise<GenerateResponse> => {
+      controller.abort();
+      return {
+        parts: [
+          { type: "tool-call", id: "c1", name: "ls", arguments: {} },
+        ],
+        finishReason: "tool_calls",
+      };
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      throw new Error("not scripted");
+    });
+    const provider: Provider = { generate, stream };
+    const harness = createLoopHarness({
+      provider,
+      tools: [ls],
+      model: "m",
+      maxTurns: 2,
+      stream: false,
+    });
+
+    const result = await collect(
+      harness({
+        messages: [{ role: "user", content: "hi" }],
+        wrapUp: controller.signal,
+      }),
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.messages.at(-1)).toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content:
+        "[not-run] The call was not run because the run was wrapped up.",
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  test("stops a running tool with its context's abort signal when wrap-up arrives, keeping an already-finished call's real result", async () => {
+    const controller = new AbortController();
+    const slowContext: { signal?: AbortSignal } = {};
+    const fastDeferred = (() => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((res) => {
+        resolve = res;
+      });
+      return { promise, resolve };
+    })();
+    const slow: Tool = defineTool({
+      name: "slow",
+      input: stubSchema(),
+      execute: (_input, context) => {
+        slowContext.signal = context.signal;
+        return new Promise<string>(() => {});
+      },
+    });
+    const fast: Tool = defineTool({
+      name: "fast",
+      input: stubSchema(),
+      execute: async () => {
+        fastDeferred.resolve();
+        return "ok";
+      },
+    });
+    const provider = stubProvider([
+      {
+        parts: [
+          { type: "tool-call", id: "c1", name: "slow", arguments: {} },
+          { type: "tool-call", id: "c2", name: "fast", arguments: {} },
+        ],
+        finishReason: "tool_calls",
+      },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      tools: [slow, fast],
+      model: "m",
+      maxTurns: 2,
+      stream: false,
+    });
+
+    const resultPromise = collect(
+      harness({
+        messages: [{ role: "user", content: "hi" }],
+        wrapUp: controller.signal,
+      }),
+    );
+    await fastDeferred.promise;
+    await flushMicrotasks();
+    controller.abort();
+    const result = await resultPromise;
+
+    expect(result.reason).toBe("wrapped-up");
+    expect(result.messages.slice(-2)).toEqual([
+      {
+        role: "tool",
+        toolCallId: "c1",
+        content:
+          "[stopped] The call was stopped before it finished because the run was wrapped up. Whether it took effect is unknown.",
+      },
+      { role: "tool", toolCallId: "c2", content: "ok" },
+    ]);
+    expect(slowContext.signal?.aborted).toBe(true);
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not start another turn once wrap-up arrives after a tool call already finished", async () => {
+    const controller = new AbortController();
+    const execute = vi.fn(async () => "ok");
+    const ls: Tool = defineTool({
+      name: "ls",
+      input: stubSchema(),
+      execute,
+    });
+    const provider = stubProvider([
+      {
+        parts: [
+          { type: "tool-call", id: "c1", name: "ls", arguments: {} },
+        ],
+        finishReason: "tool_calls",
+      },
+      { parts: [{ type: "text", text: "done" }], finishReason: "stop" },
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      tools: [ls],
+      model: "m",
+      maxTurns: 2,
+      stream: false,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({
+      messages: [{ role: "user", content: "hi" }],
+      wrapUp: controller.signal,
+    })) {
+      events.push(event);
+      if (event.type === "tool-result") controller.abort();
+    }
+
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages.at(-1)).toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content: "ok",
+    });
+    expect(done.result.reason).toBe("wrapped-up");
+    expect(provider.generate).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not call the provider when wrap-up has already arrived", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const provider = stubProvider([]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({
+      messages: [{ role: "user", content: "hi" }],
+      wrapUp: controller.signal,
+    })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      {
+        type: "done",
+        result: {
+          reason: "wrapped-up",
+          messages: [{ role: "user", content: "hi" }],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      },
+    ]);
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(provider.stream).not.toHaveBeenCalled();
+  });
+
+  test("keeps the ordinary stop reason when the last turn ends without a tool call, even after wrap-up arrives", async () => {
+    const controller = new AbortController();
+    const generate = vi.fn(async (): Promise<GenerateResponse> => {
+      controller.abort();
+      return {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      };
+    });
+    const stream = vi.fn((): AsyncIterable<StreamEvent> => {
+      throw new Error("not scripted");
+    });
+    const provider: Provider = { generate, stream };
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const result = await collect(
+      harness({
+        messages: [{ role: "user", content: "hi" }],
+        wrapUp: controller.signal,
+      }),
+    );
+
+    expect(result.reason).toBe("stop");
+  });
+
+  test("rejects with the abort error when both the abort signal and wrap-up have already arrived", async () => {
+    const signalController = new AbortController();
+    signalController.abort();
+    const wrapUpController = new AbortController();
+    wrapUpController.abort();
+    const provider = stubProvider([]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+    });
+
+    const error = await collect(
+      harness({
+        messages: [{ role: "user", content: "hi" }],
+        signal: signalController.signal,
+        wrapUp: wrapUpController.signal,
+      }),
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toMatchObject({ name: "AbortError" });
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(provider.stream).not.toHaveBeenCalled();
+  });
+
+  test("ends the harness span without an error when wrapping up on a halted turn", async () => {
+    const controller = new AbortController();
+    const provider = haltingProvider([
+      [{ type: "text-delta", delta: "Hel" }],
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+    });
+    const root = new RecordingSpan("root");
+
+    for await (const event of harness({
+      messages: [{ role: "user", content: "hi" }],
+      wrapUp: controller.signal,
+      trace: root,
+    })) {
+      if (event.type === "text-delta") controller.abort();
+    }
+
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0]?.name).toBe("mg.harness");
+    expect(root.children[0]?.endCalls).toEqual([undefined]);
   });
 });

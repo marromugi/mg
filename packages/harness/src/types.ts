@@ -14,7 +14,8 @@ export type HarnessInput = {
   trace?: TraceSpan;
 };
 
-export type HarnessStopReason = "stop" | "max-turns" | "length";
+export type HarnessStopReason =
+  "stop" | "max-turns" | "length" | "wrapped-up";
 
 export type HarnessResult = {
   reason: HarnessStopReason;

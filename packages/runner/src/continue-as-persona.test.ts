@@ -1,4 +1,5 @@
-import type { Message, Provider } from "@mg/core";
+import type { Message, Provider, Tool } from "@mg/core";
+import { defineTool } from "@mg/core";
 import { createMemoryConversationStore } from "@mg/conversation";
 import type { ConversationStore } from "@mg/conversation";
 import type {
@@ -16,6 +17,7 @@ import type {
 } from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, test } from "vitest";
+import { z } from "zod";
 import type { RunConfig } from "./config.js";
 import type {
   ContinueOutcome,
@@ -23,7 +25,8 @@ import type {
 } from "./continue-conversation.js";
 import type { MemoryOutcome } from "./continue-as-persona.js";
 import { createContinueAsPersona } from "./continue-as-persona.js";
-import type { RunOptions } from "./run.js";
+import { createContinueConversation } from "./continue-conversation.js";
+import type { RunOptions, RunOutcome } from "./run.js";
 
 type FakeRead = { token: number };
 
@@ -241,6 +244,82 @@ describe("continueAsPersona", () => {
       },
     });
     expect(typeof outcome.personaSessionId).toBe("string");
+  });
+
+  test("forwards the wrap-up signal and the added tools through to the run function, saving the wrapped-up result and remembering it", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const controller = new AbortController();
+    const askTool: Tool = defineTool({
+      name: "ask",
+      input: z.object({}),
+      execute: async () => "queued: w1",
+    });
+    const optionsSeen: (RunOptions | undefined)[] = [];
+    const fakeRun = async (
+      _config: RunConfig,
+      messages: Message[],
+      options?: RunOptions,
+    ): Promise<RunOutcome> => {
+      optionsSeen.push(options);
+      return {
+        sessionId: options?.sessionId ?? "unexpected",
+        result: {
+          reason: "wrapped-up",
+          messages: [
+            ...messages,
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "Hel" }],
+            },
+          ],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      };
+    };
+    const { persona } = fakePersona({
+      remember: async () => ({
+        updated: true,
+        added: ["n1"],
+        personaChanged: false,
+        forgotten: [],
+      }),
+    });
+    const entrance = createContinueAsPersona({
+      continueConversation: createContinueConversation({
+        run: fakeRun,
+      }),
+    });
+
+    const outcome = await entrance(
+      runConfig(),
+      conversationTarget(store),
+      {
+        persona,
+        counterparts: [{ id: "alice", name: "Alice" }],
+        input: "hi",
+        trace: { exporters: [new InMemorySpanExporter()] },
+      },
+      { wrapUp: controller.signal, tools: [askTool] },
+    );
+
+    expect(optionsSeen[0]?.wrapUp).toBe(controller.signal);
+    expect(optionsSeen[0]?.tools).toEqual([askTool]);
+    expect(outcome.saved).toBe(true);
+    expect(outcome.referenced).toBe(true);
+    expect(outcome.result.reason).toBe("wrapped-up");
+    if (!outcome.saved) throw new Error("unreachable");
+    expect(outcome.entry.messages).toEqual([
+      { role: "system", content: "I am Jev." },
+      { role: "user", content: "hi" },
+      { role: "assistant", parts: [{ type: "text", text: "Hel" }] },
+    ]);
+    expect(outcome.memory).toEqual({
+      updated: true,
+      added: ["n1"],
+      personaChanged: false,
+      forgotten: [],
+    });
   });
 
   test("records a persona span carrying the id, conversation, counterparts, run session, and outcome flags", async () => {

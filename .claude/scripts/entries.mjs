@@ -106,13 +106,14 @@ function findDeclarationFiles(root) {
   const results = [];
   const skipDir = path.join(root, ".claude", "worktrees");
   const walk = (dir) => {
-    for (const name of fs.readdirSync(dir)) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const name = entry.name;
       if (name === "node_modules" || name === ".git") continue;
       const full = path.join(dir, name);
       if (full === skipDir) continue;
-      if (fs.statSync(full).isDirectory()) {
+      if (entry.isDirectory()) {
         walk(full);
-      } else if (name.endsWith(ENTRY_JSON_SUFFIX)) {
+      } else if (entry.isFile() && name.endsWith(ENTRY_JSON_SUFFIX)) {
         results.push(full);
       }
     }

@@ -8,7 +8,7 @@ const isPlainObject = (value: object): boolean => {
   return proto === Object.prototype || proto === null;
 };
 
-const deepEqual = (a: unknown, b: unknown): boolean => {
+export const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (
     typeof a !== "object" ||

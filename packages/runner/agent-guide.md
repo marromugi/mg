@@ -320,8 +320,7 @@ export default defineRun({
 
 ### `RunOptions` (`packages/runner/src/run.ts`)
 
-The third argument to `run`, `continueConversation`, and `continueAsPersona`. None of its fields
-are required.
+The third argument to `run`. None of its fields are required.
 
 | Field       | Type                            | Meaning                                                                                                                                                                                                                                                                                                                                                            |
 | ----------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -333,6 +332,16 @@ are required.
 | `onEvent`   | `(event: HarnessEvent) => void` | Called for every harness event as it streams.                                                                                                                                                                                                                                                                                                                      |
 
 `runMany` and `runOnTrigger` do not take `wrapUp` or `tools`; see their own option types.
+
+### `ContinueOptions` (`packages/runner/src/continue-conversation.ts`)
+
+The third argument to `continueConversation` and the fourth to `continueAsPersona`. It is
+`RunOptions` plus one more field, so everything in the table above applies here too — `keep` is
+stripped out before what's left is passed to `run`.
+
+| Field  | Type                                                             | Meaning                                                                                      |
+| ------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `keep` | `(added: readonly Message[]) => Message[] \| Promise<Message[]>` | Decides which of the run's added messages get appended. See "Deciding what gets kept" below. |
 
 ### `HarnessConfig`: kind `"loop"` (`LoopHarnessConfig`)
 
@@ -594,11 +603,56 @@ else console.log(outcome.reason);
 `conversation.history` has no default (`{ kind: "all" }` or `{ kind: "last", count }`), and
 `conversation.messages` needs at least one entry — both are checked at the type level. A
 `system` message can be one of `conversation.messages`; it reaches the model at the position
-given and is written back to the entry at that same position. `options` is the same
-`RunOptions` as `run`'s and is passed through unchanged, so `sessionId`, `signal`,
+given and is written back to the entry at that same position. `options` is `ContinueOptions`
+(`RunOptions` plus `keep`) and is passed through unchanged, so `sessionId`, `signal`,
 `onEvent`, `wrapUp`, and `tools` all work the same way as with `run`. A run stopped by
 `wrapUp` is appended the same as any other outcome. `continueAsPersona` forwards
 `options` the same way, straight through to `continueConversation`.
+
+### Deciding what gets kept
+
+By default `continueConversation` appends everything the run added. Pass `options.keep` to
+decide, after the run finishes and before the append, which of those added messages actually
+land in the conversation — useful for dropping the tail of a reply the counterpart never heard,
+e.g. one cut off mid-sentence by an interruption.
+
+```ts
+import type { Message } from "@mg/core";
+import { continueConversation, keepDelivered } from "@mg/runner";
+
+const outcome = await continueConversation(
+  config,
+  {
+    store,
+    id: "jev",
+    history: { kind: "all" },
+    messages: [{ role: "user", content: "hi" }],
+  },
+  {
+    keep: (added: readonly Message[]) =>
+      keepDelivered(added, { kind: "until", turn: 0, end: 5 }),
+  },
+);
+```
+
+`keep` receives the run's added messages, in order, exactly once, and its answer is awaited
+before anything is appended — even if the run itself already finished. The answer is accepted
+only when it equals `added` itself, or equals `keepDelivered(added, { kind: "until", turn, end })`
+for some assistant-message index `turn` and some text offset `end` within that turn's messages
+(see `packages/runner/README.md` for the accepted/rejected figure). Any other answer, or a
+`keep` that throws or rejects, means nothing is appended:
+
+- A rejected answer gives `{ saved: false, reason: { kind: "not-in-result" } }`.
+- A thrown or rejected `keep` gives `{ saved: false, reason: { kind: "keep-failed", error } }`,
+  where `error` is exactly what was thrown.
+
+`keepDelivered(added, position)` is the pure cutting helper `keep` is expected to build on. With
+`{ kind: "all" }` it returns a shallow copy of `added`. With `{ kind: "until", turn, end }`,
+assistant messages before `turn` are kept whole, that turn's text parts are sliced to total
+`end` JS-string units (dropping any part left empty), everything after `turn` keeps only its
+tool-call and reasoning parts, and tool/system/user messages are always kept whole. An
+assistant message left with no parts is dropped. `turn` or `end` outside the available range
+throws a `RangeError` naming the value and the count or length it exceeded.
 
 Wiring a trigger straight to a saved conversation, using `continueConversation` inside `start`:
 
@@ -713,13 +767,20 @@ decision, run }` when the session id `start` returned matches the one the entran
   decided and passed to `start`.
 - `continueConversation` returns `{ saved: true, sessionId, result, entry }` when the append
   landed, where `entry` is the `ConversationEntry` that was appended (the same value passed to
-  the store's `append`, not read back). When the run's returned conversation doesn't start with
-  what was sent, it returns `{ saved: false, sessionId, result, reason: { kind: "diverged" } }`
-  without appending. When the append itself fails (e.g. another append landed first), it
+  the store's `append`, not read back — when `options.keep` was given, this is the new
+  messages followed by `keep`'s accepted answer; otherwise it is the new messages followed by
+  everything the run added). When the run's returned conversation doesn't start with what was
+  sent, it returns `{ saved: false, sessionId, result, reason: { kind: "diverged" } }` without
+  calling `keep` or appending. When `options.keep` was given and its answer isn't `added` itself
+  or a `keepDelivered` cut of it, it returns
+  `{ saved: false, sessionId, result, reason: { kind: "not-in-result" } }`. When `keep` throws
+  or rejects, it returns
+  `{ saved: false, sessionId, result, reason: { kind: "keep-failed", error } }`, `error` being
+  exactly what was thrown. When the append itself fails (e.g. another append landed first), it
   returns `{ saved: false, sessionId, result, reason: { kind: "append-failed", error } }` — it
-  never throws for either case, and neither carries `entry`. `sessionId` and `result` come
-  straight from the run; reading `reason` or `entry` requires narrowing on `saved` first, at the
-  type level.
+  never throws for any of these cases, and none of them carries `entry`. `sessionId` and
+  `result` come straight from the run; reading `reason` or `entry` requires narrowing on `saved`
+  first, at the type level.
 - `continueAsPersona` returns whatever `continueConversation` returned, plus `personaSessionId`
   (this entrance's own trace session id), `referenced` (and `expectedRunSessionId` when it's
   `false`, same meaning as `runOnTrigger`'s), and `recorded` (`{ ok: true }` or

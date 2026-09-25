@@ -172,6 +172,10 @@ first if there is one, then fill the parent's 子 issue list with the real
 numbers. A defect set aside under principle 9 becomes a note issue: 背景 and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
 
+Then invoke `reconciler` with the numbers of the issues just created, so
+they are checked against every other open issue. It may stop to ask the
+developer and may redo issues through "Redoing a design".
+
 Report in one message, Japanese, following `.claude/rules/writing.md`:
 
 - The decision, in a few lines, with a link to the issue that holds the
@@ -183,6 +187,7 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
   anything added to `software-design-theory`, and say that the edit is
   uncommitted.
 - How the split was arrived at, in a few lines.
+- What `reconciler` found against the other open issues, as it returned it.
 - The issues in the order they should be done: number, title, one line each.
   The build order as a figure when issues depend on one another, and which
   could run in parallel.

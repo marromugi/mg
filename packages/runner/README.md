@@ -489,6 +489,68 @@ runner は `Persona` のインターフェースだけを見て、中身は知�
 そのままでは、待ちが終わらないからです。
 そのため、走行を始める時点で設定の誤りになります。
 
+### 走行を 1 つずつ進める列
+
+`createRunQueue` は、積んだ入力を 1 件ずつ走らせる列を作ります。
+
+呼び出し側と走らせる関数の間に、この列を置きます。
+
+```
+呼び出し側 ──積む──▶ 列 ──1 つずつ──▶ 走らせる関数
+     ▲                 │
+     └── 始まり / 出来事 / 終わり ──┘
+```
+
+`createRunQueue` は、走らせる関数を 1 つ受け取って列を作ります。
+走らせる関数は、既存の入口を包んで呼び出し側が用意します。
+`run` や `continueConversation` そのものは変わりません。
+
+```ts
+import { createRunQueue } from "@mg/runner";
+import { continueConversation } from "@mg/runner";
+import config from "./loop-bash.config.ts";
+import { toTarget } from "./to-target.ts";
+
+const queue = createRunQueue((input, options) =>
+  continueConversation(config, toTarget(input), options),
+);
+
+const { id, ending } = queue.enqueue("hello");
+console.log(id, await ending);
+```
+
+列を 1 つ作ると、その中で走行は 1 つずつになります。
+積んだ順に始め、前の走らせる関数が返り終えてから次を始めます。
+
+`enqueue` は、その場で id を返します。
+id は 21 文字の文字列で、走らせる関数に `sessionId` として渡ります。
+走る前から、走行のセッションの id が分かります。
+
+`enqueue` に `{ first: true }` を渡すと、先頭に積めます。
+待っている項目より前、走っている項目の後に入ります。
+
+積んだ項目ごとに、終わりを表す値が `ending` に届きます。
+例外にはなりません。
+
+| 終わり方 | 値                                      | 内容                                     |
+| -------- | --------------------------------------- | ---------------------------------------- |
+| 成功     | `{ kind: "finished", outcome }`         | 走らせる関数が返した値です。             |
+| 失敗     | `{ kind: "failed", error }`             | 走らせる関数が投げたか拒否した値です。   |
+| 取りやめ | `{ kind: "dropped", reason: "closed" }` | 列を閉じたために走らせなかった項目です。 |
+
+失敗した項目があっても列は止まらず、次の項目を始めます。
+
+走行のイベントと始まりは、`createRunQueue` の第 2 引数に渡した
+`onStart` と `onEvent` に届きます。どちらも項目の id を受け取ります。
+
+`queue.wrapUp()` は、いま走っている項目にだけ切り上げの合図を出します。
+出せたら `true` を、走っている項目がなければ何もせず `false` を返します。
+待っている項目の合図は出しません。
+
+`queue.close()` は、待っている項目を走らせずに取りやめて終えます。
+走っている項目はそのまま最後まで走り、`close()` はそれを待って解決します。
+閉じたあとに積んだ項目も、走らせずに取りやめて終わります。
+
 ## やらないこと
 
 次のことは runner の外に任せます。

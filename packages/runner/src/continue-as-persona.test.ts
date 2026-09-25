@@ -9,6 +9,7 @@ import type {
   RememberOutcome,
   RememberRequest,
 } from "@mg/persona";
+import { TraceShutdownError } from "@mg/trace/otel";
 import type {
   ReadableSpan,
   SpanExporter,
@@ -616,7 +617,11 @@ describe("continueAsPersona", () => {
     expect(outcome.saved).toBe(true);
     expect(outcome.recorded.ok).toBe(false);
     if (outcome.recorded.ok) throw new Error("unreachable");
-    expect(outcome.recorded.error).toEqual([diskError]);
+    expect(outcome.recorded.error).toBeInstanceOf(TraceShutdownError);
+    const shutdownError = outcome.recorded.error as TraceShutdownError;
+    expect(shutdownError.failures).toEqual([
+      { target: "exporters[0]", step: "flush", error: diskError },
+    ]);
   });
 
   test("rejects with recall's error, not the recording failure, when both the recall and the write-out fail", async () => {
@@ -640,5 +645,28 @@ describe("continueAsPersona", () => {
         trace: { exporters: [new FlushFailingExporter(diskError)] },
       }),
     ).rejects.toBe(recallError);
+  });
+
+  test("rejects with the conversation entrance's error, not the recording failure, when both the run and the write-out fail", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const runError = new Error("run failed");
+    const diskError = new Error("disk");
+    const { persona } = fakePersona();
+    const { continueConversation } = fakeContinueConversation(
+      async () => {
+        throw runError;
+      },
+    );
+    const entrance = createContinueAsPersona({ continueConversation });
+
+    await expect(
+      entrance(runConfig(), conversationTarget(store), {
+        persona,
+        counterparts: [{ id: "alice", name: "Alice" }],
+        input: "hi",
+        trace: { exporters: [new FlushFailingExporter(diskError)] },
+      }),
+    ).rejects.toBe(runError);
   });
 });

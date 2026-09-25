@@ -193,7 +193,7 @@ SDK から親スパンを作り、ハーネスに渡す例です。
 import { createTraceSdk } from "@mg/trace/otel";
 import { startRootSpan } from "@mg/trace";
 import { collect } from "@mg/harness";
-import { createLoopHarness } from "@mg/harness-loop";
+import { createLoopHarness } from "@mg/loop";
 
 const sdk = await createTraceSdk({ sqlitePath: "./trace.db" });
 const trace = startRootSpan(sdk.tracer, "run");

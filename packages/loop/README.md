@@ -1,10 +1,10 @@
-# @mg/harness-loop
+# @mg/loop
 
 ツールの呼び出しを繰り返す、ループ型のハーネスを作るパッケージです。
 
 ## 役割
 
-harness-loop の役割は 6 つです。
+loop の役割は 6 つです。
 
 - プロバイダーとツールから、@mg/harness の型に合うハーネスを作ります。
 - ツールの実行に失敗しても、その旨を LLM に返して続けます。
@@ -74,7 +74,7 @@ harness-loop の役割は 6 つです。
 
 ## やらないこと
 
-次のことは harness-loop の外に任せます。
+次のことは loop の外に任せます。
 
 - ハーネスの入力とイベントの型は持ちません。@mg/harness を使います。
 - ツールの実装は持ちません。@mg/tools などから渡します。
@@ -97,7 +97,7 @@ harness-loop の役割は 6 つです。
 | `gate`      | ツールの実行前に挟むゲート（省略できる）     |
 
 ```ts
-import { createLoopHarness } from "@mg/harness-loop";
+import { createLoopHarness } from "@mg/loop";
 import { collect } from "@mg/harness";
 
 const harness = createLoopHarness({

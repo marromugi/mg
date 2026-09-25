@@ -325,7 +325,7 @@ listed here, check `packages/runner/src/config.ts` and the matching harness pack
 
 | Field      | Type      | Required            | Meaning                                           |
 | ---------- | --------- | ------------------- | ------------------------------------------------- |
-| `kind`     | `"loop"`  | yes                 | Selects the loop harness (`@mg/harness-loop`).    |
+| `kind`     | `"loop"`  | yes                 | Selects the loop harness (`@mg/loop`).            |
 | `model`    | `string`  | yes                 | Model name passed to `provider`.                  |
 | `maxTurns` | `number`  | yes                 | Max tool-call turns before the harness stops.     |
 | `stream`   | `boolean` | no (default `true`) | Whether the provider is called in streaming mode. |
@@ -370,7 +370,7 @@ covers a name clash among `pick: "caller"` sources (including against the parent
 workspace name), and an own workspace whose exclusive names overlap ones the run's own
 workspace holds for the whole run (see `packages/workspace/README.md` on exclusive
 names). A name shared between a tool and a subagent throws `DuplicateCallableNameError`
-from `@mg/harness-loop` at the same point.
+from `@mg/loop` at the same point.
 
 ### `trace` (`TraceSdkOptions`, minus `sessionId`)
 

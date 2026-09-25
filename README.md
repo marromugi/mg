@@ -33,7 +33,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品と、Estimator の実装 |
 | [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース                     |
 | [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                                                 |
-| [`@mg/harness-loop`](packages/harness-loop/README.md) | ツールの呼び出しを繰り返すループ型のハーネス                                                 |
+| [`@mg/loop`](packages/loop/README.md)                 | ツールの呼び出しを繰り返すループ型のハーネス                                                 |
 | [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                                         |
 | [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装                      |
 | [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                                       |
@@ -56,8 +56,8 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 別のマシンへのコネクター                                  | workspace                        |
 | 実行の可否を判定するゲートの実装                          | gate                             |
 | 走行を始めるかを判定するトリガーの実装                    | trigger                          |
-| ツールの呼び出しの繰り返し                                | harness-loop                     |
-| 検証の失敗を LLM にどう返すか                             | harness-loop                     |
+| ツールの呼び出しの繰り返し                                | loop                             |
+| 検証の失敗を LLM にどう返すか                             | loop                             |
 | トレースの語彙とエクスポーター                            | trace                            |
 | 走行後の判定のインターフェースと、規則と Estimator の実装 | eval                             |
 | 端末に出す文字の色と印                                    | term                             |
@@ -88,7 +88,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
     <td align="center">↓</td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><code>@mg/harness-loop</code></td>
+    <td align="center" colspan="2"><code>@mg/loop</code></td>
   </tr>
   <tr>
     <td align="center">↓</td>
@@ -126,14 +126,14 @@ term は、runs が端末に書くときに使います。
 </table>
 
 gate は、実行の流れの中にいます。
-runner と harness-loop が、判定を挟むために使います。
+runner と loop が、判定を挟むために使います。
 
 <table>
   <tr>
     <td align="center"><code>@mg/runner</code> → <code>@mg/gate</code></td>
   </tr>
   <tr>
-    <td align="center"><code>@mg/harness-loop</code> → <code>@mg/gate</code></td>
+    <td align="center"><code>@mg/loop</code> → <code>@mg/gate</code></td>
   </tr>
   <tr>
     <td align="center">↓</td>
@@ -208,15 +208,15 @@ runner は、個体として会話の続きを走らせる入口のために per
 </table>
 
 - runs は、runner を使います。
-- 設定を書くには、core と tools も使います。harness-loop と trace と gate も使います。
+- 設定を書くには、core と tools も使います。loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
 - runs は、eval も使います。
-- runner は、core と harness を使います。harness-loop と trace と gate と trigger も使います。
+- runner は、core と harness を使います。loop と trace と gate と trigger も使います。
 - runner は、workspace と conversation と persona も使います。
 - runner は、tools を使いません。
 - runner は、eval を使いません。
 - runner は、memory を使いません。保存先は個体の中にあります。
-- harness-loop は、5 つを使います。core と tools と harness と trace と gate です。
+- loop は、5 つを使います。core と tools と harness と trace と gate です。
 - trace は、harness と core を使います。
 - eval は、core と trace を使います。
 - harness と tools は、それぞれ core を使います。

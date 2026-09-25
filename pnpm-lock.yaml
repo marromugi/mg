@@ -81,7 +81,7 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/harness-loop:
+  packages/loop:
     dependencies:
       '@mg/core':
         specifier: workspace:*
@@ -136,9 +136,9 @@ importers:
       '@mg/harness':
         specifier: workspace:*
         version: link:../harness
-      '@mg/harness-loop':
+      '@mg/loop':
         specifier: workspace:*
-        version: link:../harness-loop
+        version: link:../loop
       '@mg/persona':
         specifier: workspace:*
         version: link:../persona
@@ -251,9 +251,9 @@ importers:
       '@mg/harness':
         specifier: workspace:*
         version: link:../packages/harness
-      '@mg/harness-loop':
+      '@mg/loop':
         specifier: workspace:*
-        version: link:../packages/harness-loop
+        version: link:../packages/loop
       '@mg/runner':
         specifier: workspace:*
         version: link:../packages/runner

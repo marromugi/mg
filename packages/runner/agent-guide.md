@@ -318,6 +318,22 @@ export default defineRun({
 | `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`.                                   |
 | `subagents` | `readonly SubagentConfig[]`          | no       | Subagents the parent's LLM can call, alongside `tools`. `run` builds each one after opening `workspace`, passing it the opened workspace and the run's exclusive-name state. Omitting it changes nothing. |
 
+### `RunOptions` (`packages/runner/src/run.ts`)
+
+The third argument to `run`, `continueConversation`, and `continueAsPersona`. None of its fields
+are required.
+
+| Field       | Type                            | Meaning                                                                                                                                                                                                                                                                                                                                                            |
+| ----------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `signal`    | `AbortSignal`                   | Aborts the run; the harness rejects with the abort reason.                                                                                                                                                                                                                                                                                                         |
+| `wrapUp`    | `AbortSignal`                   | Passed straight to the harness. The harness stops after the current turn and returns with reason `"wrapped-up"` instead of throwing; see `packages/harness/README.md`.                                                                                                                                                                                             |
+| `tools`     | `readonly Tool[]`               | Tools for this call only. Appended after `RunConfig.tools` and the workspace's tools. A name shared with either throws `DuplicateToolNameError` (`packages/workspace/README.md`) before the provider is called, closing the workspace first; the added side's `kinds` entry is `"options"`. The config's `gate` judges calls to these tools the same as any other. |
+| `sessionId` | `string`                        | The run's session id, used for its trace.                                                                                                                                                                                                                                                                                                                          |
+| `caseId`    | `string`                        | Written as the `mg.run.case` trace attribute; set by `runMany`.                                                                                                                                                                                                                                                                                                    |
+| `onEvent`   | `(event: HarnessEvent) => void` | Called for every harness event as it streams.                                                                                                                                                                                                                                                                                                                      |
+
+`runMany` and `runOnTrigger` do not take `wrapUp` or `tools`; see their own option types.
+
 ### `HarnessConfig`: kind `"loop"` (`LoopHarnessConfig`)
 
 `HarnessConfig` is currently just `LoopHarnessConfig`. If a new harness kind exists and isn't
@@ -579,8 +595,10 @@ else console.log(outcome.reason);
 `conversation.messages` needs at least one entry — both are checked at the type level. A
 `system` message can be one of `conversation.messages`; it reaches the model at the position
 given and is written back to the entry at that same position. `options` is the same
-`RunOptions` as `run`'s and is passed through unchanged, so `sessionId`, `signal`, and
-`onEvent` all work the same way as with `run`.
+`RunOptions` as `run`'s and is passed through unchanged, so `sessionId`, `signal`,
+`onEvent`, `wrapUp`, and `tools` all work the same way as with `run`. A run stopped by
+`wrapUp` is appended the same as any other outcome. `continueAsPersona` forwards
+`options` the same way, straight through to `continueConversation`.
 
 Wiring a trigger straight to a saved conversation, using `continueConversation` inside `start`:
 

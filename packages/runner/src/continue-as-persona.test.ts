@@ -22,6 +22,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import type { RunConfig } from "./config.js";
 import type {
+  ContinueOptions,
   ContinueOutcome,
   ConversationTarget,
 } from "./continue-conversation.js";
@@ -751,5 +752,85 @@ describe("continueAsPersona", () => {
         trace: { exporters: [new FlushFailingExporter(diskError)] },
       }),
     ).rejects.toBe(runError);
+  });
+});
+
+describe("continueAsPersona with a keep function", () => {
+  test("forwards the keep function to the conversation entrance, and remembers the entry it kept", async () => {
+    const A1: Message = {
+      role: "assistant",
+      parts: [
+        { type: "text", text: "Hello there." },
+        { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+      ],
+    };
+    const T1: Message = {
+      role: "tool",
+      toolCallId: "c1",
+      content: "queued: w1",
+    };
+    const A2: Message = {
+      role: "assistant",
+      parts: [{ type: "text", text: "It is queued. I will tell you." }],
+    };
+    const answer: Message[] = [
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Hello" },
+          { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+        ],
+      },
+      T1,
+    ];
+
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const { persona, rememberCalls } = fakePersona({
+      remember: async () => ({
+        updated: true,
+        added: [],
+        personaChanged: false,
+        forgotten: [],
+      }),
+    });
+    const continueConversation = createContinueConversation({
+      run: async (_config: RunConfig, messages: Message[]) => ({
+        sessionId: "s1",
+        result: {
+          reason: "stop" as const,
+          messages: [...messages, A1, T1, A2],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      }),
+    });
+    const entrance = createContinueAsPersona({ continueConversation });
+    const keep: ContinueOptions["keep"] = () => answer;
+
+    await entrance(
+      runConfig(),
+      conversationTarget(store),
+      {
+        persona,
+        counterparts: [{ id: "alice", name: "Alice" }],
+        input: "hi",
+        trace: { exporters: [new InMemorySpanExporter()] },
+      },
+      { keep },
+    );
+
+    expect(rememberCalls).toHaveLength(1);
+    expect(rememberCalls[0]?.request.entry).toEqual([
+      { role: "system", content: "I am Jev." },
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Hello" },
+          { type: "tool-call", id: "c1", name: "ask", arguments: {} },
+        ],
+      },
+      T1,
+    ]);
   });
 });

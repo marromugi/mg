@@ -10,6 +10,7 @@ import type { TraceSpan } from "./trace.js";
 export type HarnessInput = {
   messages: Message[];
   signal?: AbortSignal;
+  wrapUp?: AbortSignal;
   trace?: TraceSpan;
 };
 

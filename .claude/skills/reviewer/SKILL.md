@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: "Review a pull request against the design agreed in its GitHub issue. Use after the implementer skill opens a PR, and whenever the developer asks to review a PR — \"PR #14 をレビューして\", \"review the PR\", a PR URL, \"check what the agent built\". Runs the code-review skill on an Opus agent for bugs, then checks the diff against the issue's design and constraints. Posts every finding as an inline comment on the PR. Fixes code-level findings on its own; brings design-level findings to the developer instead of deciding."
+description: "Review a pull request against the design agreed in its GitHub issue. Use after the implementer skill opens a PR, and whenever the developer asks to review a PR — \"PR #14 をレビューして\", \"review the PR\", a PR URL, \"check what the agent built\". Runs the code-review skill on an Opus agent for bugs, then checks the diff against the issue's design and constraints. Posts every finding as an inline comment on the PR. Fixes code-level findings on its own; returns design-level findings to the caller as redo requests for architect instead of deciding or asking the developer."
 ---
 
 # Reviewer
@@ -132,23 +132,23 @@ Two buckets. Getting this split right is the whole point of the skill.
 weaker than its case, a hollow or padding test, tests committed together with
 or after the implementation, an error path not handled as the issue
 specified, naming, dead code, an inefficiency that does not change the
-design, and comments that should not exist: ones that narrate what the code
-does, or refer to history ("was", "previously", "per the issue"). Remove
-them. The developer wants these handled, not reported.
+design, and comments, test names, or documents that break principle 8 (No
+history in the code). The developer wants these handled, not reported.
 
 A departure from the issue that the agent did not argue for is also
 code-level: a broken 構造 or 向き constraint, an out-of-scope change, a
 different shape than the decided one. The design was already judged; the fix
 is to bring the code back to it.
 
-**Design-level — do not fix, ask.** Anything that reopens the design: the
+**Design-level — do not fix, return.** Anything that reopens the design: the
 agent reports, in Deviations or in its final message, that the design as
 written cannot work; the code needs a decision the issue is silent on; a
 behaviour needs a case the issue does not have; an interface or a
 responsibility has to change. Even if the agent's choice looks better, it is
 not the reviewer's to accept. Check it against `software-design-theory`: if a
 principle settles it, say which and treat the finding as code-level. If none
-does, it goes to the developer.
+does, it goes back to the caller as a redo request for architect's "Redoing
+a design" — reviewer does not decide it and does not ask the developer.
 
 When unsure which bucket, it is design-level.
 
@@ -177,7 +177,7 @@ gh pr comment <PR> --body '[design] ...'
 
 Write the comment bodies in Japanese, following `.claude/rules/writing.md`.
 A design-level comment states what the issue said, what the code does, and
-that the developer decides.
+that the design is going back for a redo.
 
 ### 6. Apply code-level fixes
 
@@ -196,24 +196,23 @@ gh api repos/<owner>/<repo>/pulls/<PR>/comments --jq '.[] | {id, path, line, bod
 gh api repos/<owner>/<repo>/pulls/<PR>/comments/<id>/replies -f body='<sha> で修正しました。'
 ```
 
-Design-level threads stay open; they are the developer's to answer.
+Design-level threads stay open; the redo the caller starts is what answers
+them.
 
-### 7. Report to the developer
+### 7. Report
 
 Japanese, following `.claude/rules/writing.md`. Order:
 
 1. One line: the PR, what it implements, whether CI passed, and that the
    findings are on the PR as comments.
-2. Design-level findings, each with: what the issue said, what the code
-   does, and the two choices — accept the deviation (issue gets updated) or
-   revert to the design.
-3. Code-level findings that were fixed, briefly.
-4. Anything left open, including a scope-check failure from step 2 and the
+2. Code-level findings that were fixed, briefly.
+3. Anything left open, including a scope-check failure from step 2 and the
    modified files noticed in step 1 if there were any.
 
-After the report, put the choice for each design-level finding as a
-question, in the form `architect` step 4 gives: the AskUserQuestion tool, one
-entry per finding.
+Return the design-level findings as redo requests, one per finding: what the
+issue said, what the code does, and the question still open. The caller —
+`implementer`, or the developer when this skill was invoked directly — takes
+each one to architect's "Redoing a design"; reviewer does not decide it and
+does not ask the developer.
 
-Then stop. Merging is the developer's action. If they accept a deviation,
-offer to update the issue text so the record stays true.
+Then stop. Merging is the developer's action.

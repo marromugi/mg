@@ -640,6 +640,46 @@ takes, so what it converts, system included, can go straight into `conversation.
 `conversation.messages` needs, so it checks the length and rebuilds the tuple before calling
 `continueConversation`.
 
+Running as a persona, with `continueAsPersona` — `persona` here is a `Persona` built elsewhere
+(e.g. with `@mg/persona`'s `createPersona`):
+
+```ts
+import { createMemoryConversationStore } from "@mg/conversation";
+import { continueAsPersona } from "@mg/runner";
+import config from "./loop-bash.config.ts";
+import { persona } from "./jev.persona.ts";
+
+const store = createMemoryConversationStore();
+await store.create("t1");
+
+const outcome = await continueAsPersona(
+  config,
+  {
+    store,
+    id: "t1",
+    history: { kind: "all" },
+    messages: [{ role: "user", content: "hi" }],
+  },
+  {
+    persona,
+    counterparts: [{ id: "alice", name: "Alice" }],
+    input: "hi",
+    trace: { jsonlPath: "./persona.jsonl" },
+  },
+);
+
+if (outcome.saved) console.log(outcome.memory);
+else console.log(outcome.reason);
+```
+
+`continueAsPersona` calls `persona.recall` for an instruction, puts it as a `system` message
+ahead of `conversation.messages`, and runs the conversation through `continueConversation` with
+that. When the append lands, it calls `persona.remember` with what was saved; `outcome.memory`
+carries `remember`'s return value, or `{ updated: false, reason: "rejected", error }` if
+`remember` itself rejects — the entrance never throws once the conversation is saved. `trace`
+here is this entrance's own recording, separate from `config.trace`; see "Where results go"
+below for the full outcome shape.
+
 ## 6. Where results go
 
 - `run` returns `{ sessionId, result }`; `runMany` returns one outcome per case, each carrying
@@ -662,6 +702,16 @@ decision, run }` when the session id `start` returned matches the one the entran
   never throws for either case, and neither carries `entry`. `sessionId` and `result` come
   straight from the run; reading `reason` or `entry` requires narrowing on `saved` first, at the
   type level.
+- `continueAsPersona` returns whatever `continueConversation` returned, plus `personaSessionId`
+  (this entrance's own trace session id), `referenced` (and `expectedRunSessionId` when it's
+  `false`, same meaning as `runOnTrigger`'s), and `recorded` (`{ ok: true }` or
+  `{ ok: false, error }` for its own trace write-out). When `saved` is `true`, it also carries
+  `memory` — `remember`'s return value, or `{ updated: false, reason: "rejected", error }` when
+  `remember` itself threw. Reading `memory` requires narrowing on `saved` first, at the type
+  level. The entrance rejects only before the conversation is saved: when the signal was already
+  aborted, when `recall` threw, or when `continueConversation` threw. In the latter two cases, if
+  the entrance's own trace write-out also fails, it still rejects with `recall`'s or
+  `continueConversation`'s error, not the write-out failure.
 - Trace spans go wherever `trace` in the config points: the JSONL file, the SQLite database,
   and/or any extra `exporters` — see `packages/trace/README.md` for how to read them back.
 - Every span for one `run` call carries `mg.run.name` (the config's `name`). Spans from a

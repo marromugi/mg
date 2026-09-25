@@ -11,8 +11,13 @@ import type {
 } from "@mg/core";
 import { defineTool } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
+import { TraceShutdownError } from "@mg/trace/otel";
 import type { Connector, Workspace } from "@mg/workspace";
 import { defineWorkspace, DuplicateToolNameError } from "@mg/workspace";
+import type {
+  ReadableSpan,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace-base";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
   afterEach,
@@ -73,6 +78,27 @@ const throwingProvider = (error: Error): Provider => ({
     throw new Error("throwingProvider: stream is not scripted");
   },
 });
+
+type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
+
+class FlushFailingExporter implements SpanExporter {
+  constructor(private readonly error: Error) {}
+
+  export(
+    _spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
+    resultCallback({ code: 0 });
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  forceFlush(): Promise<void> {
+    return Promise.reject(this.error);
+  }
+}
 
 const nullRejectingProvider = (): Provider => ({
   generate: () => Promise.reject(null),
@@ -363,6 +389,31 @@ describe("run", () => {
     await expect(run(config, [], { onEvent })).rejects.toThrow();
 
     expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  test("a flush failure on an otherwise successful run rejects with a TraceShutdownError naming the failure", async () => {
+    const flushError = new Error("flush broke");
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+      trace: { exporters: [new FlushFailingExporter(flushError)] },
+    };
+
+    let caught: unknown;
+    try {
+      await run(config, []);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TraceShutdownError);
+    expect((caught as TraceShutdownError).failures[0]?.error).toBe(
+      flushError,
+    );
   });
 });
 

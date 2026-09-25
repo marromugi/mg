@@ -18,6 +18,9 @@ LLM can judge it.
 - What the principles settle is not put to the developer.
 - What the principles do not settle is put to the developer, as a question
   with options.
+- A question that running something can answer is not a preference call. It
+  is settled by running it, and only what the run cannot settle goes to the
+  developer.
 - This file is a general theory of software design. An answer enters it only
   when it states a rule that would hold in any codebase, and then as the
   wording of the principle it belongs to, so that question is not asked
@@ -93,8 +96,11 @@ LLM can judge it.
 ### 5. Defined failure, no guessing
 
 - What happens when a step fails is decided in the design.
-- On ambiguity the software stops and says so. It does not fill a value with a
-  guess, and it does not write something it does not know to be true.
+- On ambiguity the software stops and says so. Ambiguity is anything it would
+  have to guess to go on: a value it does not have, or input that can be read
+  more than one way, such as two items sharing what should tell them apart.
+  It does not pick a reading, fill a value with a guess, or write something
+  it does not know to be true.
 - What a piece cannot give back faithfully, it leaves out and says so. This
   holds even when a neighbouring piece shows the same thing in an approximate
   form; keeping the two alike does not outrank it.
@@ -102,6 +108,11 @@ LLM can judge it.
   is read again right before the software acts on it. A sign of change that
   the software cannot interpret, such as a new comment, stops the action. Its
   content is not interpreted.
+- A failure shows the way the caller reads failure, and what counts as one
+  follows from the piece's role. For a piece whose role is to judge — a
+  check, a verification — a failed judgment is its failure, so it shows as
+  one, such as a non-zero exit. A piece that only measures or computes has
+  succeeded once it has done so, whatever the numbers say.
 - When the software says that something failed or was left out, it says why,
   with enough detail for the reader to choose the next action. The reader is
   often an agent, and the reason is what it acts on.
@@ -210,6 +221,20 @@ different means. Write them apart.
 - The implementation of an interface is the one place that fakes what lies
   beyond it.
 
+### Confirmation on the running software
+
+- A child issue with behaviour constraints gets a confirmation on the running
+  software, by someone who did not write or review the code, before the work
+  lands.
+- What to run and what counts as a pass is decided with the design and
+  written in the issue. It is never worked out from the diff.
+- A child with no behaviour constraints gets no such confirmation; the
+  existing tests are the evidence (9).
+- A child whose behaviour no runnable entry reaches says why.
+- Each entry an implementation can be run from declares how it runs and what
+  it costs, next to itself (7).
+- A confirmation that could not be done is not a pass.
+
 ## Review lenses
 
 A review is split by lens, and each reviewer holds few lenses so that none is
@@ -221,14 +246,14 @@ After the design is made:
 |---|---|
 | Whole and position | The design starts from the picture of the whole and places the piece in it (1). Each interface takes and gives back what its role says, not what its first implementation needs (1). Dependencies point one way (3). |
 | Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named, and nothing of an outside specification — a default, a term — sits in shared code (7). |
-| Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided (5). No behaviour changes that the record does not name (9). |
+| Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided, shows as its role calls for, and no ambiguous input is given a reading (5). No behaviour changes that the record does not name (9). |
 | Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and assumes there is at least one. |
 
 After the cases are written:
 
 | Reviewer | Lenses |
 |---|---|
-| Coverage and intent | Every behaviour constraint is received. Each case follows the intent of the design it guards. |
+| Coverage and intent | Every behaviour constraint is received. Each case follows the intent of the design it guards. Every child with behaviour constraints either names what to run and what passes, or says why nothing reaches it. |
 | Hollow tests | No case is hollow, and none is there only to add to the count. |
 
 On the pull request, the reviewer skill repeats the two case lenses against the
@@ -241,3 +266,5 @@ implementation.
 - A product or preference call that no principle settles.
 - A collision between principles that this file does not settle.
 - Any action that cannot be undone.
+- Running the software under work, or an experiment, against a paid service
+  or an outside machine. Asked right before it runs.

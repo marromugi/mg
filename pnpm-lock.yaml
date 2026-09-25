@@ -126,6 +126,9 @@ importers:
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace
+      nanoid:
+        specifier: 5.1.16
+        version: 5.1.16
       zod:
         specifier: ^4.6.2
         version: 4.6.2
@@ -147,6 +150,9 @@ importers:
       '@mg/harness-loop':
         specifier: workspace:*
         version: link:../harness-loop
+      '@mg/persona':
+        specifier: workspace:*
+        version: link:../persona
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace

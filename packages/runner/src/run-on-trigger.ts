@@ -7,9 +7,9 @@ import {
   startRootSpan,
 } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
-import type { TraceSdkOptions } from "@mg/trace/otel";
 import type { Trigger, TriggerDecision } from "@mg/trigger";
 import { nanoid } from "nanoid";
+import type { RecordTraceOptions } from "./record-trace.js";
 import type { RunOutcome } from "./run.js";
 
 export type JsonValue =
@@ -19,15 +19,6 @@ export type JsonValue =
   | null
   | JsonValue[]
   | { [key: string]: JsonValue };
-
-type TraceExporter = NonNullable<TraceSdkOptions["exporters"]>[number];
-
-export type TriggerTraceOptions = Omit<TraceSdkOptions, "sessionId"> &
-  (
-    | { jsonlPath: string }
-    | { sqlitePath: string }
-    | { exporters: [TraceExporter, ...TraceExporter[]] }
-  );
 
 export type StartOptions = {
   sessionId: string;
@@ -46,7 +37,7 @@ export type RunOnTriggerConfig<
     messages: TMessage[],
     options: StartOptions,
   ) => Promise<TStarted>;
-  trace: TriggerTraceOptions;
+  trace: RecordTraceOptions;
 };
 
 export type RunOnTriggerOptions = {

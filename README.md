@@ -27,6 +27,8 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                                         |
 | [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                                     |
 | [`@mg/conversation`](packages/conversation/README.md) | 会話を保存して返すインターフェースと型とエラー                                               |
+| [`@mg/memory`](packages/memory/README.md)             | 個体の記憶（人格、相手ごとの項目、要約）を保存して返す                                       |
+| [`@mg/persona`](packages/persona/README.md)           | 個体の想起と振り返りのインターフェースと、LLM の決め手の実装                                 |
 | [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装                                  |
 | [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品と、Estimator の実装 |
 | [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース                     |
@@ -44,28 +46,30 @@ LLM で動くエージェントのハーネスを試すための土台です。
 
 足したいものごとに、置く場所を表にまとめます。
 
-| 足したいもの                                              | 置く場所                            |
-| --------------------------------------------------------- | ----------------------------------- |
-| 別のプロバイダーの実装                                    | core                                |
-| ツールの型や実行関数                                      | core                                |
-| ハーネスが共通で使うツール                                | tools                               |
-| 1 つのハーネスだけで使うツール                            | ハーネス（core の型で書く）         |
-| サブエージェントのインターフェース                        | harness                             |
-| 別のマシンへのコネクター                                  | workspace                           |
-| 実行の可否を判定するゲートの実装                          | gate                                |
-| 走行を始めるかを判定するトリガーの実装                    | trigger                             |
-| ツールの呼び出しの繰り返し                                | harness-loop                        |
-| 検証の失敗を LLM にどう返すか                             | harness-loop                        |
-| トレースの語彙とエクスポーター                            | trace                               |
-| 走行後の判定のインターフェースと、規則と Estimator の実装 | eval                                |
-| 端末に出す文字の色と印                                    | term                                |
-| 検証ごとの組み立ての設定                                  | runs                                |
-| 判定の規則や質問の中身、境目の値                          | runs                                |
-| 日常の利用だけが要る画面と保存と起動                      | dashboard                           |
-| 実行の方法そのもの（トレースの開閉、複数件、読み込み）    | runner                              |
-| 設定からのサブエージェントの組み立て                      | runner                              |
-| 会話の保存のインターフェースと実装                        | conversation                        |
-| 形の軸のハーネスの部品（記憶、想起、振り返り、出し方）    | harness-persona（これから作るもの） |
+| 足したいもの                                              | 置く場所                         |
+| --------------------------------------------------------- | -------------------------------- |
+| 別のプロバイダーの実装                                    | core                             |
+| ツールの型や実行関数                                      | core                             |
+| ハーネスが共通で使うツール                                | tools                            |
+| 1 つのハーネスだけで使うツール                            | ハーネス（core の型で書く）      |
+| サブエージェントのインターフェース                        | harness                          |
+| 別のマシンへのコネクター                                  | workspace                        |
+| 実行の可否を判定するゲートの実装                          | gate                             |
+| 走行を始めるかを判定するトリガーの実装                    | trigger                          |
+| ツールの呼び出しの繰り返し                                | harness-loop                     |
+| 検証の失敗を LLM にどう返すか                             | harness-loop                     |
+| トレースの語彙とエクスポーター                            | trace                            |
+| 走行後の判定のインターフェースと、規則と Estimator の実装 | eval                             |
+| 端末に出す文字の色と印                                    | term                             |
+| 検証ごとの組み立ての設定                                  | runs                             |
+| 判定の規則や質問の中身、境目の値                          | runs                             |
+| 日常の利用だけが要る画面と保存と起動                      | dashboard                        |
+| 実行の方法そのもの（トレースの開閉、複数件、読み込み）    | runner                           |
+| 設定からのサブエージェントの組み立て                      | runner                           |
+| 会話の保存のインターフェースと実装                        | conversation                     |
+| 個体の記憶（保存先）                                      | memory                           |
+| 個体の想起と振り返り                                      | persona                          |
+| 個体の返事の出し方                                        | 未定（出し方の設計の回で決める） |
 
 迷ったときは、環境に依存するかを見ます。
 子プロセスのように環境に依存するものは、core に置きません。
@@ -186,13 +190,32 @@ runner は、会話の続きを走らせる入口のために conversation を�
   </tr>
 </table>
 
+persona は、個体の想起と振り返りのために core と harness と trace と memory を使います。
+runner は、個体として会話の続きを走らせる入口のために persona を使います。
+
+<table>
+  <tr>
+    <td align="center" colspan="2"><code>@mg/runner</code> → <code>@mg/persona</code></td>
+  </tr>
+  <tr>
+    <td align="center">↓</td>
+    <td align="center">↓</td>
+  </tr>
+  <tr>
+    <td align="center"><code>@mg/memory</code></td>
+    <td align="center"><code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。harness-loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
 - runs は、eval も使います。
-- runner は、core と harness を使います。harness-loop と trace と gate と trigger と workspace と conversation も使います。
+- runner は、core と harness を使います。harness-loop と trace と gate と trigger も使います。
+- runner は、workspace と conversation と persona も使います。
 - runner は、tools を使いません。
 - runner は、eval を使いません。
+- runner は、memory を使いません。保存先は個体の中にあります。
 - harness-loop は、5 つを使います。core と tools と harness と trace と gate です。
 - trace は、harness と core を使います。
 - eval は、core と trace を使います。
@@ -201,6 +224,9 @@ runner は、会話の続きを走らせる入口のために conversation を�
 - trigger は、core と harness と trace を使います。
 - workspace は、core を使います。
 - conversation は、core を使います。
+- persona は、core と harness と trace と memory を使います。
+- memory と persona は、runner を知りません。
+- memory は、このリポジトリの他のパッケージに依存しません。
 - term は、このリポジトリの他のパッケージに依存しません。
 - core は、このリポジトリの他のパッケージに依存しません。
 - runs と dashboard は、使う側です。互いを使いません。

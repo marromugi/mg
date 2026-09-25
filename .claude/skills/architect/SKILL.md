@@ -52,6 +52,11 @@ Then follow principle 1 in order:
   sentence. Check whether they already exist.
 - Only then decide the concrete implementations.
 
+Before choosing, sort any fact the choice rests on: a question that running
+something would settle in one reading — behaviour, output, timing, whether
+an outside system accepts something — goes to `prototyper`, not to a guess.
+Write its answer into `確かめたこと` and let it settle the choice.
+
 Consider at least two whole shapes, not two variations of one. Choose by the
 principles, and keep the rejected shapes with the principle that rejected
 each.
@@ -73,8 +78,15 @@ and pointers to the code.
 - `ask` findings: hold each against the theory first. What a principle
   settles is not the developer's to answer, so where you can name the
   principle and the decision it makes, follow "When the maker disagrees" in
-  that skill. Take what is still `ask` to step 4 before revising anything.
-  The answers change the record, and a second round on a record that is about
+  that skill. Then sort what is left: a question that running something
+  would settle in one reading — behaviour, output, timing, whether an
+  outside system accepts something — goes to `prototyper`, not to step 4.
+  Write its answer into `確かめたこと` and let the decision rest on it, with
+  the principle that now settles it. Take what is still `ask` to step 4
+  before revising anything: questions the theory sends to the developer, and
+  questions whose observation came back open to more than one reading, or
+  that could not be made at all — with the observation attached. The
+  answers change the record, and a second round on a record that is about
   to change is wasted.
 - `fix` findings: revise the record. If you think a finding is mistaken,
   follow "When the maker disagrees" in that skill; do not drop it.
@@ -130,6 +142,13 @@ nothing is asked why it is there.
 Then write the cases for the behaviour constraints
 (`software-design-theory`, Cases).
 
+Then write `## 実物での確認` as `references/issue-format.md` describes. For
+every entry a V item names that already exists, run
+`node .claude/scripts/entries.mjs show <entry>` and put its declared command
+in the item, so the item names the command the entry actually declares, not
+one written from memory. When the issue itself adds the entry, its
+`To Implementer` says to add the declaration instead.
+
 Write each issue body to a scratchpad file and run the check until it prints
 no problems:
 
@@ -153,6 +172,10 @@ first if there is one, then fill the parent's 子 issue list with the real
 numbers. A defect set aside under principle 9 becomes a note issue: 背景 and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
 
+Then invoke `reconciler` with the numbers of the issues just created, so
+they are checked against every other open issue. It may stop to ask the
+developer and may redo issues through "Redoing a design".
+
 Report in one message, Japanese, following `.claude/rules/writing.md`:
 
 - The decision, in a few lines, with a link to the issue that holds the
@@ -164,6 +187,7 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
   anything added to `software-design-theory`, and say that the edit is
   uncommitted.
 - How the split was arrived at, in a few lines.
+- What `reconciler` found against the other open issues, as it returned it.
 - The issues in the order they should be done: number, title, one line each.
   The build order as a figure when issues depend on one another, and which
   could run in parallel.
@@ -171,6 +195,61 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
   for all of them.
 
 After the report, stop.
+
+## Redoing a design
+
+The one entry other skills use when work already under way finds the design
+does not hold. `implementer` calls it with an implementation agent's design
+question, or with `reviewer`'s design-level findings; `dispatcher` reads its
+result the same way `implementer` does. Principle 1 puts design decisions
+here, so no other skill repeats these steps or decides one on its own.
+
+Input: the issue number, the facts implementation or review found, and the
+question left open.
+
+Two results:
+
+- `redone`, with the list of edited and created issue numbers.
+- `stopped`, with the question, unresolved. Nothing is edited, so the issue
+  is left as it was and any PR stays open; the question is the report.
+
+1. Read the issue and its parent's decision record from GitHub fresh — the
+   snapshot the caller built from is exactly what surfaced the question, so
+   it cannot be trusted to still describe the design.
+2. Run step 2 (Design from the whole) over the existing record as if
+   drawing it from the start, keeping the original request and scope. The
+   facts passed in are read the same way a `prototyper` answer is: they
+   settle whatever they settle, and go into `確かめたこと`.
+3. Run step 3 (Design review) on the redrawn record, with the same Rounds.
+4. Run step 4 only for what the theory still sends to the developer, plus
+   one more case: when the shape the redraw settles on is one already
+   listed under `## 見送った形`, stop and ask instead of choosing it again —
+   it was rejected once already, so choosing it again is not this skill's
+   call. Ask with the AskUserQuestion tool the way step 4 does. When the
+   developer answers, revise the record for it and carry on to step 5. When
+   they decline to answer, or ask to stop here, return `stopped` with the
+   question as it stands. Skip this step, and carry on without asking, when
+   there is nothing left to ask.
+5. Run steps 5 and 6 (Constraints, cases, issues; Case review) again, but
+   only for the children whose record actually changed.
+6. If step 5 left every constraint, case, and child exactly as it already
+   was, the redraw changed nothing. Return `stopped` with
+   "設計を組み直しても変わりませんでした" and the original question — running
+   step 7 and restarting the caller would only repeat the failure that
+   asked for the redo, and no principle says which way to guess past that
+   (5).
+7. Edit the parent and every child not yet merged with
+   `gh issue edit <n> --body-file <file>`, each file passing
+   `check-issue.mjs` first. Where the new design contradicts work already
+   merged, leave that work alone and open a new issue instead — principle 9
+   settled that behaviour once, and a redo does not reopen it in place. Add
+   every shape the redraw did not choose to `## 見送った形`, including ones
+   already listed there.
+
+Return `redone` with the list of edited and created issue numbers. This is
+not a report to the developer: when the call came from another skill, that
+skill reports what happened as its own step says to; called directly,
+report the same list plainly.
 
 ## Things to keep in mind
 

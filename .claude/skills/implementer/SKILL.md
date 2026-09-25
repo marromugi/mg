@@ -105,8 +105,9 @@ Rules:
   find that the design as written cannot work, or you would need to make a
   design decision the issue does not cover, stop, do not choose, and report
   the question in your final message.
-- Read the Tests section of .claude/skills/software-design-theory/SKILL.md
-  before writing any test.
+- Read the Tests section and principle 8 (No history in the code) of
+  .claude/skills/software-design-theory/SKILL.md before writing any code.
+  Principle 8 governs comments, test names, and documents.
 - Tests come first. Turn every case under ケース into a test, run them, and
   confirm each fails because the behaviour is missing, not because of a typo
   or a missing import that the implementation would not fix. Commit the tests
@@ -115,16 +116,9 @@ Rules:
 - A test asserts what the case says is seen, with the literal values from the
   case. Do not add tests the cases do not call for. If you believe a case is
   missing, say so in Deviations; do not invent it.
-- Test names and descriptions say what is observed. No case ids, no issue
-  numbers.
+- Test names and descriptions say what is observed. No case ids.
 - Run every command under "Structural checks", and the project's test, type
   check, and lint commands. Do not open a PR with failures you know about.
-- Code comments: default to none. Write one only when the code itself cannot
-  tell the reader something they need right now — a non-obvious invariant, a
-  constraint from outside the code, a deliberate oddity. Never describe what
-  the code does, and never refer to history: no "previously", "changed from",
-  "as decided in the issue". History lives in git log and the issue; a comment
-  pointing at it is a debt that goes stale the moment the code moves.
 - Commit on a branch named issue-<N>-<short-slug>, push it, and open a PR
   with `gh pr create`. The PR body starts with `Closes #<N>`, then a short
   summary, then a section "Cases" with a table of case id, test file, and
@@ -139,10 +133,19 @@ waiting.
 
 ### 3. Handle the agent's report
 
-- If the agent stopped on a design question: quote it as-is, put it to the
-  developer in the form `architect` step 4 gives (the AskUserQuestion tool),
-  and stop. The answer may need an issue update; that is the
-  developer's call.
+- If the agent stopped on a design question: call architect's "Redoing a
+  design" with this issue's number, the facts the agent found, and the
+  question.
+  - `redone`: if a PR exists, close it with
+    `gh pr close <PR> --comment "設計をやり直しました。#<N> を見てください。"`,
+    naming the issue from the returned list the work continues under.
+    Remove the agent's worktree with `git worktree remove --force <path>`;
+    never delete the branch, since it may still hold work the developer
+    wants. Start again at step 1 with a fresh snapshot of that issue. Pass
+    the returned list on to whoever called this skill.
+  - `stopped`: leave the PR open if one exists, and leave the worktree as
+    it is — there is nothing new to build on yet. Do not restart. Report
+    the question to the developer, and stop.
 - If a PR was opened: note the PR number and the Deviations section. Any
   deviation goes into the reviewer's report later, so keep it.
 
@@ -152,7 +155,14 @@ waiting.
 gh pr checks <PR> --watch --fail-fast
 ```
 
-Run it with a generous timeout. Three outcomes:
+Run it with a generous timeout. `verifier` runs later, in step 6, so this
+wait must not treat its status as a CI result. Decide green or red from:
+
+```
+gh pr checks <PR> --json name,bucket --jq '[.[] | select(.name != "verifier")]'
+```
+
+leaving out any entry named `verifier`. Three outcomes:
 
 - **No checks configured**: continue to review, and say so in the handoff.
 - **Green**: continue to review.
@@ -173,4 +183,22 @@ On a non-zero exit, do not invoke `reviewer`. Leave the PR open and report
 the script's lines to the developer exactly as printed.
 
 On success, invoke the `reviewer` skill with the PR number. Pass along the
-Deviations section and whether CI ran.
+Deviations section and whether CI ran. When `reviewer` returns design-level
+findings, call architect's "Redoing a design" with this issue's number, the
+findings as facts, and the open question, and handle `redone` and `stopped`
+exactly as step 3 does.
+
+### 6. Verify
+
+Invoke the `verifier` skill with the PR number, the snapshot file at
+`<scratchpad>/issue-guard/issue-<N>.json`, and the path to the developer's
+main checkout.
+
+- **pass** or **not-needed**: done. Pass the result on to the developer.
+- **fail**: send verifier's PR comment to the same implementation agent with
+  SendMessage, and ask it to fix and push. Once. Then repeat step 4 (CI),
+  step 5 (issue-guard verify, then reviewer), and this step, from the start.
+  If the agent answers the fix request with a design question, handle it as
+  step 3 handles one.
+- Still **fail** after that one retry, or **unverifiable**: leave the PR
+  open and report the reason.

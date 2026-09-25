@@ -6,6 +6,7 @@ import type {
   UserMessage,
 } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
+import { TraceShutdownError } from "@mg/trace/otel";
 import type {
   Trigger,
   TriggerContext,
@@ -18,11 +19,11 @@ import type {
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import type { RunConfig } from "./config.js";
+import type { RecordTraceOptions } from "./record-trace.js";
 import type {
   RunOnTriggerConfig,
   RunOnTriggerOutcome,
   StartOptions,
-  TriggerTraceOptions,
 } from "./run-on-trigger.js";
 import { runOnTrigger } from "./run-on-trigger.js";
 import type { RunOutcome } from "./run.js";
@@ -396,7 +397,7 @@ describe("runOnTrigger", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("a judgement record flush failure rejects with the array the trace SDK throws, and never calls the provider", async () => {
+  test("a judgement record flush failure rejects with a TraceShutdownError naming the failure, and never calls the provider", async () => {
     const flushError = new Error("flush broke");
     const { trigger } = fakeTrigger(async () => ({
       fired: true,
@@ -419,9 +420,10 @@ describe("runOnTrigger", () => {
       caught = error;
     }
 
-    expect(Array.isArray(caught)).toBe(true);
-    expect(caught).toHaveLength(1);
-    expect((caught as unknown[])[0]).toBe(flushError);
+    expect(caught).toBeInstanceOf(TraceShutdownError);
+    expect((caught as TraceShutdownError).failures[0]?.error).toBe(
+      flushError,
+    );
     expect(calls).toHaveLength(0);
   });
 
@@ -758,7 +760,7 @@ describe("RunOnTriggerConfig", () => {
   });
 
   test("requires a start function, and rejects one that cannot receive what toMessages converts to", () => {
-    const trace: TriggerTraceOptions = {
+    const trace: RecordTraceOptions = {
       exporters: [new InMemorySpanExporter()],
     };
     const trigger = fakeTrigger(async () => ({

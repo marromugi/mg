@@ -17,6 +17,7 @@
     "@mg/harness": "workspace:*",
     "@mg/memory": "workspace:*",
     "@mg/trace": "workspace:*",
+    "nanoid": "5.1.16",
     "zod": "^4.6.2"
   }
 }

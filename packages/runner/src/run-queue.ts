@@ -37,15 +37,20 @@ type WaitingItem<TInput, TOutcome> = {
   settle: (ending: QueueEnding<TOutcome>) => void;
 };
 
+type Running = {
+  // Set only once the run function is about to be called, so wrapUp()
+  // reports nothing running while onStart is still in progress.
+  controller?: AbortController;
+  done: Promise<void>;
+};
+
 export const createRunQueue = <TInput, TOutcome>(
   run: QueueRun<TInput, TOutcome>,
   options?: QueueOptions,
 ): RunQueue<TInput, TOutcome> => {
   const waiting: WaitingItem<TInput, TOutcome>[] = [];
   let closed = false;
-  let scheduled = false;
-  let active: AbortController | undefined;
-  let idle: Promise<void> = Promise.resolve();
+  let current: Running | undefined;
 
   const dropWaiting = (): void => {
     while (waiting.length > 0) {
@@ -57,24 +62,26 @@ export const createRunQueue = <TInput, TOutcome>(
 
   const runOne = async (
     item: WaitingItem<TInput, TOutcome>,
+    running: Running,
   ): Promise<void> => {
-    const controller = new AbortController();
-    active = controller;
-
     try {
       options?.onStart?.(item.id);
     } catch (error) {
-      active = undefined;
       item.settle({ kind: "failed", error });
       return;
     }
 
+    const controller = new AbortController();
+    running.controller = controller;
+
+    let ended = false;
     let ending: QueueEnding<TOutcome>;
     try {
       const outcome = await run(item.input, {
         sessionId: item.id,
         wrapUp: controller.signal,
         onEvent: (event) => {
+          if (ended) return;
           options?.onEvent?.(item.id, event);
         },
       });
@@ -82,22 +89,26 @@ export const createRunQueue = <TInput, TOutcome>(
     } catch (error) {
       ending = { kind: "failed", error };
     }
+    ended = true;
 
-    active = undefined;
     item.settle(ending);
   };
 
   const pump = (): void => {
-    if (closed) {
-      dropWaiting();
-      return;
-    }
-    if (scheduled) return;
+    if (current !== undefined) return;
     const item = waiting.shift();
     if (item === undefined) return;
-    scheduled = true;
-    idle = runOne(item).finally(() => {
-      scheduled = false;
+
+    let resolveDone!: () => void;
+    const done = new Promise<void>((resolve) => {
+      resolveDone = resolve;
+    });
+    const running: Running = { done };
+    current = running;
+
+    void runOne(item, running).finally(() => {
+      current = undefined;
+      resolveDone();
       pump();
     });
   };
@@ -130,15 +141,15 @@ export const createRunQueue = <TInput, TOutcome>(
   };
 
   const wrapUp = (): boolean => {
-    if (active === undefined) return false;
-    active.abort();
+    if (current?.controller === undefined) return false;
+    current.controller.abort();
     return true;
   };
 
   const close = async (): Promise<void> => {
     closed = true;
     dropWaiting();
-    await idle;
+    await current?.done;
   };
 
   return { enqueue, wrapUp, close };

@@ -502,16 +502,15 @@ runner は `Persona` のインターフェースだけを見て、中身は知�
 ```
 
 `createRunQueue` は、走らせる関数を 1 つ受け取って列を作ります。
-走らせる関数は、既存の入口を包んで呼び出し側が用意します。
-`run` や `continueConversation` そのものは変わりません。
+走らせる関数は、既存の入口をラップして呼び出し側が用意します。
+列は、入口の中身を知りません。
 
 ```ts
-import { createRunQueue } from "@mg/runner";
-import { continueConversation } from "@mg/runner";
+import { continueConversation, createRunQueue } from "@mg/runner";
 import config from "./loop-bash.config.ts";
 import { toTarget } from "./to-target.ts";
 
-const queue = createRunQueue((input, options) =>
+const queue = createRunQueue((input: string, options) =>
   continueConversation(config, toTarget(input), options),
 );
 
@@ -526,7 +525,12 @@ console.log(id, await ending);
 id は 21 文字の文字列で、走らせる関数に `sessionId` として渡ります。
 走る前から、走行のセッションの id が分かります。
 
-`enqueue` に `{ first: true }` を渡すと、先頭に積めます。
+先頭に積むには、次のように渡します。
+
+```ts
+queue.enqueue(input, { first: true });
+```
+
 待っている項目より前、走っている項目の後に入ります。
 
 積んだ項目ごとに、終わりを表す値が `ending` に届きます。
@@ -540,8 +544,8 @@ id は 21 文字の文字列で、走らせる関数に `sessionId` として渡
 
 失敗した項目があっても列は止まらず、次の項目を始めます。
 
-走行のイベントと始まりは、`createRunQueue` の第 2 引数に渡した
-`onStart` と `onEvent` に届きます。どちらも項目の id を受け取ります。
+第 2 引数に `onStart` と `onEvent` を渡せます。
+走行の始まりと出来事が、項目の id 付きで届きます。
 
 `queue.wrapUp()` は、いま走っている項目にだけ切り上げの合図を出します。
 出せたら `true` を、走っている項目がなければ何もせず `false` を返します。

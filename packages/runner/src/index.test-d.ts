@@ -4,9 +4,9 @@ import { createSubagent } from "./index.js";
 import {
   createRunQueue,
   defineSubagent,
+  type QueueEnding,
   type SubagentConfig,
 } from "./index.js";
-import type { QueueEnding } from "./run-queue.js";
 
 export const indexExportsCreateSubagent = createSubagent;
 export const indexExportsDefineSubagent = defineSubagent;

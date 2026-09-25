@@ -11,7 +11,7 @@
     "@mg/eval": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
-    "@mg/harness-loop": "workspace:*",
+    "@mg/loop": "workspace:*",
     "@mg/runner": "workspace:*",
     "@mg/term": "workspace:*",
     "@mg/tools": "workspace:*",

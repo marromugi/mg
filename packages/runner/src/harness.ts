@@ -1,7 +1,7 @@
 import type { Provider, Tool } from "@mg/core";
 import type { Gate } from "@mg/gate";
 import type { Harness, Subagent } from "@mg/harness";
-import { createLoopHarness } from "@mg/harness-loop";
+import { createLoopHarness } from "@mg/loop";
 import type { HarnessConfig } from "./config.js";
 
 export const createHarness = (

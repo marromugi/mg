@@ -56,6 +56,14 @@ const lengthText = (text: string): string => {
     : `${prefix} follows:\n${text}`;
 };
 
+const wrappedUpText = (text: string): string => {
+  const prefix =
+    "[incomplete] The subagent was wrapped up by its caller before finishing. The text it had written by then";
+  return text === ""
+    ? `${prefix} was empty.`
+    : `${prefix} follows:\n${text}`;
+};
+
 const finalTextOf = (
   result: HarnessResult,
   maxTurns: number,
@@ -68,6 +76,8 @@ const finalTextOf = (
       return maxTurnsText(maxTurns, text);
     case "length":
       return lengthText(text);
+    case "wrapped-up":
+      return wrappedUpText(text);
   }
 };
 
@@ -255,7 +265,12 @@ export const createSubagent = (
           merged,
         );
         const result = await collect(
-          harness({ messages, signal: context.signal, trace }),
+          harness({
+            messages,
+            signal: context.signal,
+            wrapUp: context.wrapUp,
+            trace,
+          }),
         );
         return finalTextOf(result, config.harness.maxTurns);
       };

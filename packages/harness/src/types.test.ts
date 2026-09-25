@@ -7,6 +7,17 @@ import type {
   HarnessStopReason,
 } from "./types.js";
 
+describe("HarnessInput", () => {
+  test("wrapUp is an optional AbortSignal separate from signal", () => {
+    expectTypeOf<HarnessInput["wrapUp"]>().toEqualTypeOf<
+      AbortSignal | undefined
+    >();
+    expectTypeOf<HarnessInput["signal"]>().toEqualTypeOf<
+      AbortSignal | undefined
+    >();
+  });
+});
+
 describe("Harness", () => {
   test("accepts an async generator yielding HarnessEvent", () => {
     async function* run(

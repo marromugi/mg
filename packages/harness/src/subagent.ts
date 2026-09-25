@@ -14,6 +14,7 @@ import type { TraceSpan } from "./trace.js";
 
 export type SubagentContext = {
   signal?: AbortSignal;
+  wrapUp?: AbortSignal;
   trace?: TraceSpan;
 };
 

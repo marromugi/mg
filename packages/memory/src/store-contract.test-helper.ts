@@ -397,5 +397,45 @@ export const describeMemoryStoreContract = (
         summary: { text: "we met twice", version: 2 },
       });
     });
+
+    test("resolves calls made without awaiting each other as if they had been called one at a time, in the order they were called", async () => {
+      const store = await open();
+      await store.create("jev", "I am Jev.");
+
+      const results = await Promise.allSettled([
+        store.write("jev", {
+          persona: { text: "a", expectedVersion: 1 },
+        }),
+        store.write("jev", {
+          persona: { text: "b", expectedVersion: 1 },
+        }),
+        store.write("jev", { add: [itemA()] }),
+        store.write("jev", { add: [itemC()] }),
+        store.read("jev", { counterparts: ["alice", "bob"] }),
+      ]);
+
+      expect(results[0]).toEqual({ status: "fulfilled", value: {} });
+      expect(results[1]).toMatchObject({ status: "rejected" });
+      expect(
+        (results[1] as PromiseRejectedResult).reason,
+      ).toBeInstanceOf(MemoryConflictError);
+      expect(
+        (results[1] as PromiseRejectedResult).reason.mismatches,
+      ).toEqual([
+        { kind: "persona", expectedVersion: 1, actualVersion: 2 },
+      ]);
+      expect(results[2]).toEqual({ status: "fulfilled", value: {} });
+      expect(results[3]).toEqual({ status: "fulfilled", value: {} });
+      expect(results[4]).toMatchObject({
+        status: "fulfilled",
+        value: {
+          persona: { text: "a", version: 2 },
+          items: [
+            { ...itemA(), misses: 0 },
+            { ...itemC(), misses: 0 },
+          ],
+        },
+      });
+    });
   });
 };

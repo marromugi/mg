@@ -46,9 +46,11 @@ export type GenerateRequest = {
   toolChoice?: ToolChoice;
   temperature?: number;
   maxTokens?: number;
+  halt?: AbortSignal;
 };
 
-export type FinishReason = "stop" | "tool_calls" | "length" | "other";
+export type FinishReason =
+  "stop" | "tool_calls" | "length" | "halted" | "other";
 export type Usage = { inputTokens: number; outputTokens: number };
 
 export type GenerateResponse = {

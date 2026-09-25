@@ -53,6 +53,7 @@ const parseChunk = (payload: string): OpenRouterChunk => {
 
 export async function* toStreamEvents(
   payloads: AsyncIterable<string>,
+  halt?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
   const pending = new Map<number, PendingToolCall>();
   let reasoningDetails: unknown[] = [];
@@ -121,6 +122,11 @@ export async function* toStreamEvents(
     if (chunk.usage !== undefined && chunk.usage !== null) {
       usage = toUsage(chunk.usage);
     }
+  }
+
+  if (halt?.aborted === true) {
+    yield { type: "finish", finishReason: "halted" };
+    return;
   }
 
   yield* flushReasoningDetails();

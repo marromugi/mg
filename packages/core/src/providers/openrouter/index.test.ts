@@ -767,9 +767,11 @@ describe("createOpenRouterProvider halt", () => {
     });
     const controller = new AbortController();
 
-    const iterator = provider
-      .stream({ ...haltRequest, halt: controller.signal })
-      [Symbol.asyncIterator]();
+    const stream = provider.stream({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
     const first = await iterator.next();
     controller.abort();
     const rest = await collectStream({
@@ -810,9 +812,11 @@ describe("createOpenRouterProvider halt", () => {
     });
     const controller = new AbortController();
 
-    const iterator = provider
-      .stream({ ...haltRequest, halt: controller.signal })
-      [Symbol.asyncIterator]();
+    const stream = provider.stream({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
     const first = await iterator.next();
     controller.abort();
     const rest = await collectStream({

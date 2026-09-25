@@ -130,11 +130,11 @@ describe("Message", () => {
 describe("GenerateRequest", () => {
   test("accepts an abort signal as the halt field", () => {
     const controller = new AbortController();
-    const request = {
+    const request: GenerateRequest = {
       model: "gpt",
       messages: [],
       halt: controller.signal,
-    } satisfies GenerateRequest;
+    };
 
     expectTypeOf(request.halt).toEqualTypeOf<AbortSignal | undefined>();
   });

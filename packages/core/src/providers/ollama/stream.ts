@@ -57,11 +57,15 @@ const parseLine = (line: string): OllamaStreamChunk => {
 
 export async function* toStreamEvents(
   lines: AsyncIterable<string>,
+  halt?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
   let toolCallCount = 0;
   let sawToolCall = false;
 
   for await (const line of lines) {
+    if (halt?.aborted === true) {
+      break;
+    }
     const chunk = parseLine(line);
 
     const thinking = chunk.message?.thinking;
@@ -92,6 +96,11 @@ export async function* toStreamEvents(
       };
       return;
     }
+  }
+
+  if (halt?.aborted === true) {
+    yield { type: "finish", finishReason: "halted" };
+    return;
   }
 
   yield { type: "finish", finishReason: "other" };

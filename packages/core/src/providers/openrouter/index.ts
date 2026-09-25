@@ -28,6 +28,102 @@ const transportFailure = (cause: unknown, message: string): unknown =>
     ? cause
     : new ProviderTransportError(message, { cause });
 
+const HALTED = "halted" as const;
+
+// fetch が signal を見ない実装でも止まるよう、読み込みの reader を直接取り消します。
+const withHalt = (
+  body: ReadableStream<Uint8Array>,
+  halt: AbortSignal,
+): ReadableStream<Uint8Array> => {
+  const reader = body.getReader();
+  const onAbort = (): void => {
+    reader.cancel().catch(() => {});
+  };
+  if (halt.aborted) {
+    onAbort();
+  } else {
+    halt.addEventListener("abort", onAbort, { once: true });
+  }
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { value, done } = await reader.read();
+        if (done) {
+          halt.removeEventListener("abort", onAbort);
+          controller.close();
+          return;
+        }
+        controller.enqueue(value);
+      } catch (cause) {
+        halt.removeEventListener("abort", onAbort);
+        if (halt.aborted) {
+          controller.close();
+          return;
+        }
+        controller.error(cause);
+      }
+    },
+    cancel(reason) {
+      halt.removeEventListener("abort", onAbort);
+      return reader.cancel(reason);
+    },
+  });
+};
+
+type BodyReadOutcome = { text: string } | typeof HALTED;
+
+const readGenerateBody = async (
+  response: Response,
+  halt: AbortSignal | undefined,
+): Promise<BodyReadOutcome> => {
+  const body = response.body;
+  if (body === null || halt === undefined) {
+    try {
+      return { text: await response.text() };
+    } catch (cause) {
+      throw transportFailure(
+        cause,
+        "OpenRouter response failed to read",
+      );
+    }
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let halted = false;
+  const onAbort = (): void => {
+    halted = true;
+    reader.cancel().catch(() => {});
+  };
+  if (halt.aborted) {
+    onAbort();
+  } else {
+    halt.addEventListener("abort", onAbort, { once: true });
+  }
+
+  try {
+    let text = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    if (halted) {
+      return HALTED;
+    }
+    return { text: text + decoder.decode() };
+  } catch (cause) {
+    if (halted) {
+      return HALTED;
+    }
+    throw transportFailure(cause, "OpenRouter response failed to read");
+  } finally {
+    halt.removeEventListener("abort", onAbort);
+    reader.releaseLock();
+  }
+};
+
 export type OpenRouterOptions = {
   apiKey: string;
   baseUrl?: string;
@@ -51,7 +147,10 @@ export const createOpenRouterProvider = (
     return headers;
   };
 
-  const send = async (requestBody: string): Promise<Response> => {
+  const send = async (
+    requestBody: string,
+    halt?: AbortSignal,
+  ): Promise<Response | typeof HALTED> => {
     const doFetch = options.fetch ?? globalThis.fetch;
 
     let response: Response;
@@ -60,8 +159,12 @@ export const createOpenRouterProvider = (
         method: "POST",
         headers: buildHeaders(),
         body: requestBody,
+        ...(halt !== undefined && { signal: halt }),
       });
     } catch (cause) {
+      if (halt?.aborted === true && isAbortError(cause)) {
+        return HALTED;
+      }
       throw transportFailure(
         cause,
         "OpenRouter request failed to send",
@@ -91,19 +194,24 @@ export const createOpenRouterProvider = (
   const generate = async (
     request: GenerateRequest,
   ): Promise<GenerateResponse> => {
-    const response = await send(
-      JSON.stringify(toOpenRouterRequest(request, false)),
-    );
-
-    let text: string;
-    try {
-      text = await response.text();
-    } catch (cause) {
-      throw transportFailure(
-        cause,
-        "OpenRouter response failed to read",
-      );
+    if (request.halt?.aborted === true) {
+      return { parts: [], finishReason: "halted" };
     }
+
+    const sent = await send(
+      JSON.stringify(toOpenRouterRequest(request, false)),
+      request.halt,
+    );
+    if (sent === HALTED) {
+      return { parts: [], finishReason: "halted" };
+    }
+    const response = sent;
+
+    const outcome = await readGenerateBody(response, request.halt);
+    if (outcome === HALTED) {
+      return { parts: [], finishReason: "halted" };
+    }
+    const { text } = outcome;
 
     let body: unknown;
     try {
@@ -135,9 +243,20 @@ export const createOpenRouterProvider = (
   async function* runStream(
     request: GenerateRequest,
   ): AsyncGenerator<StreamEvent> {
-    const response = await send(
+    if (request.halt?.aborted === true) {
+      yield { type: "finish", finishReason: "halted" };
+      return;
+    }
+
+    const sent = await send(
       JSON.stringify(toOpenRouterRequest(request, true)),
+      request.halt,
     );
+    if (sent === HALTED) {
+      yield { type: "finish", finishReason: "halted" };
+      return;
+    }
+    const response = sent;
 
     const body = response.body;
     if (body === null) {
@@ -148,7 +267,10 @@ export const createOpenRouterProvider = (
       );
     }
 
-    yield* toStreamEvents(readPayloads(body));
+    const readableBody =
+      request.halt === undefined ? body : withHalt(body, request.halt);
+
+    yield* toStreamEvents(readPayloads(readableBody), request.halt);
   }
 
   const stream = (

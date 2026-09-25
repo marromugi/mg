@@ -475,3 +475,229 @@ describe("createOllamaProvider stream", () => {
     expect(httpError.body).toBe("<html>");
   });
 });
+
+describe("createOllamaProvider halt", () => {
+  const haltRequest: GenerateRequest = {
+    model: "m",
+    messages: [{ role: "user", content: "hi" }],
+  };
+
+  const stallingNdjsonBody = (chunks: unknown[]) => {
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(
+            encoder.encode(`${JSON.stringify(chunk)}\n`),
+          );
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return {
+      response: new Response(body, { status: 200 }),
+      wasCancelled: () => cancelled,
+    };
+  };
+
+  const neverClosingResponse = () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start() {},
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return {
+      response: new Response(body, { status: 200 }),
+      wasCancelled: () => cancelled,
+    };
+  };
+
+  const closingResponse = (payload: unknown) =>
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  const flushMicrotasks = () =>
+    new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  test("ends a streamed answer with a halted finish and cancels the body once the signal fires", async () => {
+    const { response, wasCancelled } = stallingNdjsonBody([
+      { message: { content: "Hel" }, done: false },
+    ]);
+    const { fetchStub } = stubFetch(() => response);
+    const provider = createOllamaProvider({ fetch: fetchStub });
+    const controller = new AbortController();
+
+    const stream = provider.stream({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    controller.abort();
+    const rest = await collectStream({
+      [Symbol.asyncIterator]: () => iterator,
+    });
+
+    expect([first.value, ...rest]).toEqual([
+      { type: "text-delta", delta: "Hel" },
+      { type: "finish", finishReason: "halted" },
+    ]);
+    expect(wasCancelled()).toBe(true);
+  });
+
+  test("keeps a tool call already yielded before the signal fires", async () => {
+    const { response } = stallingNdjsonBody([
+      { message: { content: "a" }, done: false },
+      {
+        message: {
+          content: "",
+          tool_calls: [{ function: { name: "ls", arguments: {} } }],
+        },
+        done: false,
+      },
+    ]);
+    const { fetchStub } = stubFetch(() => response);
+    const provider = createOllamaProvider({ fetch: fetchStub });
+    const controller = new AbortController();
+
+    const stream = provider.stream({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    const second = await iterator.next();
+    controller.abort();
+    const rest = await collectStream({
+      [Symbol.asyncIterator]: () => iterator,
+    });
+
+    expect([first.value, second.value, ...rest]).toEqual([
+      { type: "text-delta", delta: "a" },
+      {
+        type: "tool-call",
+        toolCall: { id: "call_0", name: "ls", arguments: {} },
+      },
+      { type: "finish", finishReason: "halted" },
+    ]);
+  });
+
+  test("returns an empty answer with a halted reason when the signal fires before the body closes", async () => {
+    const { response, wasCancelled } = neverClosingResponse();
+    const { fetchStub } = stubFetch(() => response);
+    const provider = createOllamaProvider({ fetch: fetchStub });
+    const controller = new AbortController();
+
+    const result = provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    await flushMicrotasks();
+    controller.abort();
+
+    await expect(result).resolves.toEqual({
+      parts: [],
+      finishReason: "halted",
+    });
+    expect(wasCancelled()).toBe(true);
+  });
+
+  test("keeps the answer received before the signal fires", async () => {
+    const { fetchStub } = stubFetch(() =>
+      closingResponse({
+        message: { role: "assistant", content: "ok" },
+        done: true,
+        done_reason: "stop",
+      }),
+    );
+    const provider = createOllamaProvider({ fetch: fetchStub });
+    const controller = new AbortController();
+
+    const result = await provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    controller.abort();
+
+    expect(result).toEqual({
+      parts: [{ type: "text", text: "ok" }],
+      finishReason: "stop",
+    });
+  });
+
+  test("sends nothing and answers halted when the signal already fired before the call", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { fetchStub, calls } = stubFetch(() =>
+      closingResponse({
+        message: { role: "assistant", content: "ok" },
+        done: true,
+        done_reason: "stop",
+      }),
+    );
+    const provider = createOllamaProvider({ fetch: fetchStub });
+
+    const streamEvents = await collectStream(
+      provider.stream({ ...haltRequest, halt: controller.signal }),
+    );
+    const generateResult = await provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+
+    expect(streamEvents).toEqual([
+      { type: "finish", finishReason: "halted" },
+    ]);
+    expect(generateResult).toEqual({
+      parts: [],
+      finishReason: "halted",
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  test("passes an unrelated abort through without wrapping it even when a halt signal is given", async () => {
+    const abort = new Error("The operation was aborted");
+    abort.name = "AbortError";
+    const { fetchStub } = stubFetch(() => {
+      throw abort;
+    });
+    const provider = createOllamaProvider({ fetch: fetchStub });
+    const controller = new AbortController();
+
+    const error = await provider
+      .generate({ ...haltRequest, halt: controller.signal })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBe(abort);
+  });
+
+  test("carries no halt key in the request body", async () => {
+    const { fetchStub, calls } = stubFetch(() =>
+      closingResponse({
+        message: { role: "assistant", content: "ok" },
+        done: true,
+        done_reason: "stop",
+      }),
+    );
+    const provider = createOllamaProvider({ fetch: fetchStub });
+    const controller = new AbortController();
+
+    await provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      model: "m",
+      messages: [{ role: "user", content: "hi" }],
+      stream: false,
+    });
+  });
+});

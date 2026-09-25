@@ -707,3 +707,252 @@ describe("createOpenRouterProvider stream", () => {
     expect(httpError.body).toBe("<html>");
   });
 });
+
+describe("createOpenRouterProvider halt", () => {
+  const haltRequest: GenerateRequest = {
+    model: "m",
+    messages: [{ role: "user", content: "hi" }],
+  };
+
+  const stallingSseBody = (payloads: string[]) => {
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const payload of payloads) {
+          controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return {
+      response: new Response(body, { status: 200 }),
+      wasCancelled: () => cancelled,
+    };
+  };
+
+  const neverClosingResponse = () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start() {},
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return {
+      response: new Response(body, { status: 200 }),
+      wasCancelled: () => cancelled,
+    };
+  };
+
+  const closingResponse = (payload: unknown) =>
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  const flushMicrotasks = () =>
+    new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  test("ends a streamed answer with a halted finish and cancels the body once the signal fires", async () => {
+    const { response, wasCancelled } = stallingSseBody([
+      JSON.stringify({ choices: [{ delta: { content: "Hel" } }] }),
+    ]);
+    const { fetchStub } = stubFetch(() => response);
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    const stream = provider.stream({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    controller.abort();
+    const rest = await collectStream({
+      [Symbol.asyncIterator]: () => iterator,
+    });
+
+    expect([first.value, ...rest]).toEqual([
+      { type: "text-delta", delta: "Hel" },
+      { type: "finish", finishReason: "halted" },
+    ]);
+    expect(wasCancelled()).toBe(true);
+  });
+
+  test("drops a tool call that is still being assembled when the signal fires", async () => {
+    const { response } = stallingSseBody([
+      JSON.stringify({ choices: [{ delta: { content: "a" } }] }),
+      JSON.stringify({
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call-1",
+                  type: "function",
+                  function: { name: "weather", arguments: '{"city"' },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    ]);
+    const { fetchStub } = stubFetch(() => response);
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    const stream = provider.stream({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    const iterator = stream[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    controller.abort();
+    const rest = await collectStream({
+      [Symbol.asyncIterator]: () => iterator,
+    });
+
+    expect([first.value, ...rest]).toEqual([
+      { type: "text-delta", delta: "a" },
+      { type: "finish", finishReason: "halted" },
+    ]);
+  });
+
+  test("returns an empty answer with a halted reason when the signal fires before the body closes", async () => {
+    const { response, wasCancelled } = neverClosingResponse();
+    const { fetchStub } = stubFetch(() => response);
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    const result = provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    await flushMicrotasks();
+    controller.abort();
+
+    await expect(result).resolves.toEqual({
+      parts: [],
+      finishReason: "halted",
+    });
+    expect(wasCancelled()).toBe(true);
+  });
+
+  test("keeps the answer received before the signal fires", async () => {
+    const { fetchStub } = stubFetch(() =>
+      closingResponse({
+        choices: [
+          { message: { content: "ok" }, finish_reason: "stop" },
+        ],
+      }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    const result = await provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+    controller.abort();
+
+    expect(result).toEqual({
+      parts: [{ type: "text", text: "ok" }],
+      finishReason: "stop",
+    });
+  });
+
+  test("sends nothing and answers halted when the signal already fired before the call", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { fetchStub, calls } = stubFetch(() =>
+      closingResponse({
+        choices: [
+          { message: { content: "ok" }, finish_reason: "stop" },
+        ],
+      }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const streamEvents = await collectStream(
+      provider.stream({ ...haltRequest, halt: controller.signal }),
+    );
+    const generateResult = await provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+
+    expect(streamEvents).toEqual([
+      { type: "finish", finishReason: "halted" },
+    ]);
+    expect(generateResult).toEqual({
+      parts: [],
+      finishReason: "halted",
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  test("passes an unrelated abort through without wrapping it even when a halt signal is given", async () => {
+    const abort = new Error("The operation was aborted");
+    abort.name = "AbortError";
+    const { fetchStub } = stubFetch(() => {
+      throw abort;
+    });
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    const error = await provider
+      .generate({ ...haltRequest, halt: controller.signal })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBe(abort);
+  });
+
+  test("carries no halt key in the request body", async () => {
+    const { fetchStub, calls } = stubFetch(() =>
+      closingResponse({
+        choices: [
+          { message: { content: "ok" }, finish_reason: "stop" },
+        ],
+      }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const controller = new AbortController();
+
+    await provider.generate({
+      ...haltRequest,
+      halt: controller.signal,
+    });
+
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      model: "m",
+      messages: [{ role: "user", content: "hi" }],
+      stream: false,
+    });
+  });
+});

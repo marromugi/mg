@@ -50,11 +50,17 @@ const withHalt = (
       try {
         const { value, done } = await reader.read();
         if (done) {
+          halt.removeEventListener("abort", onAbort);
           controller.close();
           return;
         }
         controller.enqueue(value);
       } catch (cause) {
+        halt.removeEventListener("abort", onAbort);
+        if (halt.aborted) {
+          controller.close();
+          return;
+        }
         controller.error(cause);
       }
     },

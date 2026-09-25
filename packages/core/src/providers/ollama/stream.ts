@@ -63,6 +63,9 @@ export async function* toStreamEvents(
   let sawToolCall = false;
 
   for await (const line of lines) {
+    if (halt?.aborted === true) {
+      break;
+    }
     const chunk = parseLine(line);
 
     const thinking = chunk.message?.thinking;

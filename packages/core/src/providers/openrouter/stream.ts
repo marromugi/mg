@@ -73,6 +73,9 @@ export async function* toStreamEvents(
   };
 
   for await (const payload of payloads) {
+    if (halt?.aborted === true) {
+      break;
+    }
     const chunk = parseChunk(payload);
     if (chunk.choices === undefined || chunk.choices === null) {
       throw new ProviderHttpError(

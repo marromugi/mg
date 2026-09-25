@@ -162,14 +162,22 @@ const toolSignalFor = (
   return signal ? AbortSignal.any([signal, wrapUp]) : wrapUp;
 };
 
-const waitForAbort = (signal: AbortSignal): Promise<void> =>
-  new Promise((resolve) => {
-    if (signal.aborted) {
-      resolve();
-      return;
-    }
-    signal.addEventListener("abort", () => resolve(), { once: true });
+type AbortWait = { promise: Promise<void>; cancel: () => void };
+
+const waitForAbort = (signal: AbortSignal): AbortWait => {
+  if (signal.aborted) {
+    return { promise: Promise.resolve(), cancel: () => {} };
+  }
+  let onAbort!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    onAbort = () => resolve();
+    signal.addEventListener("abort", onAbort, { once: true });
   });
+  return {
+    promise,
+    cancel: () => signal.removeEventListener("abort", onAbort),
+  };
+};
 
 const checkForDuplicateNames = (
   tools: readonly ToolDefinition[],
@@ -269,17 +277,18 @@ export const createLoopHarness = (
     };
 
     const wrapUp = input.wrapUp;
+    const toolSignal = toolSignalFor(input.signal, wrapUp);
 
-    const runOneCall = (call: ToolCall): Promise<ToolMessage> => {
-      const isSubagent = subagentNames.has(call.name);
+    const isSubagentCall = (call: ToolCall): boolean =>
+      subagentNames.has(call.name);
+
+    const runOneCall = (
+      call: ToolCall,
+      isSubagent: boolean,
+    ): Promise<ToolMessage> => {
       const callResult = isSubagent
-        ? runSubagent(subagents, call, {
-            signal: input.signal,
-            wrapUp,
-          })
-        : run(tools, call, {
-            signal: toolSignalFor(input.signal, wrapUp),
-          });
+        ? runSubagent(subagents, call, { signal: input.signal, wrapUp })
+        : run(tools, call, { signal: toolSignal });
       return callResult.catch((error: unknown) => {
         if (error instanceof Error && error.name === "AbortError")
           throw error;
@@ -291,53 +300,55 @@ export const createLoopHarness = (
       calls: readonly ToolCall[],
       signal: AbortSignal,
     ): Promise<ToolMessage[]> => {
-      const results: (ToolMessage | undefined)[] = Array.from({
-        length: calls.length,
-      });
       const wrapUpSignaled = waitForAbort(signal);
+      try {
+        return await Promise.all(
+          calls.map((call) => {
+            const isSubagent = isSubagentCall(call);
+            const settled = runOneCall(call, isSubagent);
 
-      await Promise.all(
-        calls.map((call, index) => {
-          const isSubagent = subagentNames.has(call.name);
-          const settled = runOneCall(call);
+            if (isSubagent) return settled;
 
-          if (isSubagent) {
-            return settled.then((result) => {
-              results[index] = result;
+            return Promise.race([
+              settled,
+              wrapUpSignaled.promise.then(() => stoppedMessage(call)),
+            ]).finally(() => {
+              settled.catch(() => {});
             });
-          }
-
-          return Promise.race([
-            settled.then((result) => {
-              results[index] = result;
-            }),
-            wrapUpSignaled.then(() => {
-              if (results[index] === undefined) {
-                results[index] = stoppedMessage(call);
-              }
-            }),
-          ]).then(() => {
-            settled.catch(() => {});
-          });
-        }),
-      );
-
-      return results as ToolMessage[];
+          }),
+        );
+      } finally {
+        wrapUpSignaled.cancel();
+      }
     };
 
     try {
       const messages: Message[] = [...input.messages];
       let usage: Usage = { inputTokens: 0, outputTokens: 0 };
 
+      function* notRunAll(
+        calls: readonly ToolCall[],
+      ): Generator<HarnessEvent, void, void> {
+        for (const call of calls) {
+          const result = notRunMessage(call);
+          messages.push(result);
+          yield { type: "tool-result", message: result };
+        }
+      }
+
+      function* wrappedUpDone(): Generator<HarnessEvent, void, void> {
+        endSpan();
+        yield {
+          type: "done",
+          result: { reason: "wrapped-up", messages, usage },
+        };
+      }
+
       for (let turn = 1; turn <= options.maxTurns; turn++) {
         input.signal?.throwIfAborted();
 
         if (wrapUp?.aborted) {
-          endSpan();
-          yield {
-            type: "done",
-            result: { reason: "wrapped-up", messages, usage },
-          };
+          yield* wrappedUpDone();
           return;
         }
 
@@ -368,16 +379,9 @@ export const createLoopHarness = (
         };
 
         if (turnResult.finishReason === "halted") {
-          for (const call of turnResult.toolCalls) {
-            const result = notRunMessage(call);
-            messages.push(result);
-            yield { type: "tool-result", message: result };
-          }
-          endSpan();
-          yield {
-            type: "done",
-            result: { reason: "wrapped-up", messages, usage },
-          };
+          input.signal?.throwIfAborted();
+          yield* notRunAll(turnResult.toolCalls);
+          yield* wrappedUpDone();
           return;
         }
 
@@ -400,22 +404,18 @@ export const createLoopHarness = (
         input.signal?.throwIfAborted();
 
         if (wrapUp?.aborted) {
-          for (const call of turnResult.toolCalls) {
-            const result = notRunMessage(call);
-            messages.push(result);
-            yield { type: "tool-result", message: result };
-          }
-          endSpan();
-          yield {
-            type: "done",
-            result: { reason: "wrapped-up", messages, usage },
-          };
+          yield* notRunAll(turnResult.toolCalls);
+          yield* wrappedUpDone();
           return;
         }
 
         const results = wrapUp
           ? await runToolCallsRacingWrapUp(turnResult.toolCalls, wrapUp)
-          : await Promise.all(turnResult.toolCalls.map(runOneCall));
+          : await Promise.all(
+              turnResult.toolCalls.map((call) =>
+                runOneCall(call, isSubagentCall(call)),
+              ),
+            );
 
         for (const result of results) {
           messages.push(result);
@@ -423,11 +423,8 @@ export const createLoopHarness = (
         }
 
         if (wrapUp?.aborted) {
-          endSpan();
-          yield {
-            type: "done",
-            result: { reason: "wrapped-up", messages, usage },
-          };
+          input.signal?.throwIfAborted();
+          yield* wrappedUpDone();
           return;
         }
       }

@@ -63,6 +63,16 @@ describe("HarnessResult", () => {
 
     expect(result.reason).toBe("stop");
   });
+
+  test("accepts wrapped-up as a stop reason", () => {
+    const result: HarnessResult = {
+      reason: "wrapped-up",
+      messages: [],
+      usage: { inputTokens: 0, outputTokens: 0 },
+    };
+
+    expect(result.reason).toBe("wrapped-up");
+  });
 });
 
 describe("HarnessEvent", () => {

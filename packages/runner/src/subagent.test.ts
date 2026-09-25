@@ -113,6 +113,37 @@ const trackingProvider = (
   return { provider, requests };
 };
 
+/**
+ * A provider that streams one text fragment, then wraps up the caller
+ * through the given controller, then waits for the request's halt
+ * signal before ending the turn with reason "halted".
+ */
+const wrapUpOnDeltaProvider = (
+  delta: string,
+  controller: AbortController,
+): Provider => ({
+  generate: vi.fn(async () => {
+    throw new Error("wrapUpOnDeltaProvider: generate is not scripted");
+  }),
+  stream: vi.fn(
+    (request: GenerateRequest): AsyncIterable<StreamEvent> =>
+      (async function* () {
+        yield { type: "text-delta", delta };
+        controller.abort();
+        await new Promise<void>((resolve) => {
+          if (request.halt?.aborted) {
+            resolve();
+            return;
+          }
+          request.halt?.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        });
+        yield { type: "finish", finishReason: "halted" };
+      })(),
+  ),
+});
+
 const stubGate = (): Gate => ({
   judge: vi.fn(async (): Promise<Verdict> => ({
     allowed: true,
@@ -565,6 +596,65 @@ describe("createSubagent", () => {
       ),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  test("returns what the child had written when its caller wraps it up while it is generating", async () => {
+    const controller = new AbortController();
+    const provider = wrapUpOnDeltaProvider("Half", controller);
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: true,
+        },
+      },
+      environmentFor(),
+    );
+
+    const result = await subagent.start(
+      { prompt: "go" },
+      { wrapUp: controller.signal },
+    );
+
+    expect(result).toBe(
+      "[incomplete] The subagent was wrapped up by its caller before finishing. The text it had written by then follows:\nHalf",
+    );
+  });
+
+  test("returns the wrapped-up text as empty, and never calls the provider, when its caller wraps it up before it starts", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const provider = wrapUpOnDeltaProvider("Half", controller);
+    const subagent = createSubagent(
+      {
+        name: "researcher",
+        description: "Researches a topic",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: true,
+        },
+      },
+      environmentFor(),
+    );
+
+    const result = await subagent.start(
+      { prompt: "go" },
+      { wrapUp: controller.signal },
+    );
+
+    expect(result).toBe(
+      "[incomplete] The subagent was wrapped up by its caller before finishing. The text it had written by then was empty.",
+    );
+    expect(provider.stream).not.toHaveBeenCalled();
+    expect(provider.generate).not.toHaveBeenCalled();
   });
 
   test("throws RangeError at assembly when the turn limit is below one", () => {

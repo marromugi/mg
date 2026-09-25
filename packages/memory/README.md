@@ -135,7 +135,8 @@ const view = await store.read("jev", { counterparts: ["alice"] });
 
 ## SQLite の保存
 
-`openSqliteMemoryStore` は、`MemoryStore` を SQLite で実装したものです。
+SQLite で `MemoryStore` を実装したものです。
+名前は `openSqliteMemoryStore` です。
 `@mg/memory` の主の入口とは別の入口から出します。
 
 ```ts

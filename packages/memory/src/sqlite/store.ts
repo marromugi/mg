@@ -256,6 +256,14 @@ const isPrimaryKeyViolation = (error: unknown): boolean =>
   error.cause instanceof LibsqlError &&
   error.cause.extendedCode === "SQLITE_CONSTRAINT_PRIMARYKEY";
 
+// drizzle は、クエリの失敗を自分の Error で包み、元の libsql のエラーを
+// cause に持たせます。busy のような、対応の決まっていないエラーは、
+// 包みを外して libsql のエラーのまま呼び出し元に届けます。
+const unwrapLibsqlError = (error: unknown): unknown =>
+  error instanceof Error && error.cause instanceof LibsqlError
+    ? error.cause
+    : error;
+
 // 同じファイルを指す別名（シンボリックリンクなど）も同じ鍵になるよう、
 // パスではなくデバイスと inode で見分けます。
 const fileQueueKey = async (path: string): Promise<string> => {
@@ -274,7 +282,13 @@ export const openSqliteMemoryStore = async (
       ? `memory:${randomUUID()}`
       : await fileQueueKey(path);
   const run = <T>(operation: () => Promise<T>): Promise<T> =>
-    runQueued(queueKey, operation);
+    runQueued(queueKey, async () => {
+      try {
+        return await operation();
+      } catch (error) {
+        throw unwrapLibsqlError(error);
+      }
+    });
 
   const url =
     path === ":memory:"
@@ -403,6 +417,9 @@ export const openSqliteMemoryStore = async (
     personaId: string,
     change: MemoryChange,
   ): Promise<MissCounts> => {
+    await requirePersona(personaId);
+    validateChange(change);
+
     return db.transaction(async (tx) => {
       const [personaRow] = await tx
         .select()
@@ -411,7 +428,6 @@ export const openSqliteMemoryStore = async (
       if (personaRow === undefined) {
         throw new PersonaNotFoundError(personaId);
       }
-      validateChange(change);
 
       const mismatches: MemoryConflictMismatch[] = [];
       if (

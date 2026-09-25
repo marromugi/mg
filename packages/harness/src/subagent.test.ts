@@ -1,6 +1,10 @@
 import type { ToolCall, ToolSchema } from "@mg/core";
-import { describe, expect, test, vi } from "vitest";
-import { runSubagentCall, type Subagent } from "./subagent.js";
+import { describe, expect, expectTypeOf, test, vi } from "vitest";
+import {
+  runSubagentCall,
+  type Subagent,
+  type SubagentContext,
+} from "./subagent.js";
 import {
   SubagentInputError,
   SubagentNotFoundError,
@@ -47,6 +51,17 @@ const stubResearcher = (
   name: "researcher",
   input: promptSchema,
   start: vi.fn(start),
+});
+
+describe("SubagentContext", () => {
+  test("wrapUp is an optional AbortSignal separate from signal", () => {
+    expectTypeOf<SubagentContext["wrapUp"]>().toEqualTypeOf<
+      AbortSignal | undefined
+    >();
+    expectTypeOf<SubagentContext["signal"]>().toEqualTypeOf<
+      AbortSignal | undefined
+    >();
+  });
 });
 
 describe("runSubagentCall", () => {

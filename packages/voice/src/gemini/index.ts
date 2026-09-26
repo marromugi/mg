@@ -106,12 +106,13 @@ const parseGeminiSpeechEvent = (payload: string): GeminiSpeechEvent => {
   const parts = candidate?.content?.parts;
   const part = Array.isArray(parts)
     ? parts.find(
-        (candidate): candidate is { inlineData: unknown } =>
-          typeof candidate === "object" &&
-          candidate !== null &&
-          typeof (candidate as { inlineData?: unknown }).inlineData ===
-            "object" &&
-          (candidate as { inlineData: unknown }).inlineData !== null,
+        (candidatePart): candidatePart is { inlineData: unknown } =>
+          typeof candidatePart === "object" &&
+          candidatePart !== null &&
+          typeof (candidatePart as { inlineData?: unknown })
+            .inlineData === "object" &&
+          (candidatePart as { inlineData: unknown }).inlineData !==
+            null,
       )
     : undefined;
 

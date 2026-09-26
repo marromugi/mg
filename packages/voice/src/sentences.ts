@@ -80,7 +80,10 @@ export const splitSentences = (
       break;
     }
 
-    sentences.push({ text: text.slice(start, j).trim(), end: j });
+    let end = j;
+    while (end > start && WHITESPACE.test(text[end - 1])) end--;
+
+    sentences.push({ text: text.slice(start, j).trim(), end });
     pos = j;
   }
 

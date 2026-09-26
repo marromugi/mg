@@ -22,11 +22,11 @@ describe("splitSentences", () => {
     });
   });
 
-  test("ends a sentence at a line break, mid-turn", () => {
+  test("ends a sentence at a line break, mid-turn, without counting the line break into its end position", () => {
     expect(splitSentences("一行目\n二行目\n三", 0, false)).toEqual({
       sentences: [
-        { text: "一行目", end: 4 },
-        { text: "二行目", end: 8 },
+        { text: "一行目", end: 3 },
+        { text: "二行目", end: 7 },
       ],
       next: 8,
     });
@@ -72,7 +72,7 @@ describe("splitSentences", () => {
   test("skips blank-only stretches between sentences without turning them into empty sentences", () => {
     expect(splitSentences(" はい。\n\n いいえ。x", 0, false)).toEqual({
       sentences: [
-        { text: "はい。", end: 6 },
+        { text: "はい。", end: 4 },
         { text: "いいえ。", end: 11 },
       ],
       next: 11,

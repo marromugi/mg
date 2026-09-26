@@ -286,6 +286,9 @@ importers:
       '@mg/trigger':
         specifier: workspace:*
         version: link:../packages/trigger
+      '@mg/voice':
+        specifier: workspace:*
+        version: link:../packages/voice
       '@mg/workspace':
         specifier: workspace:*
         version: link:../packages/workspace

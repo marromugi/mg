@@ -4,3 +4,4 @@ export * from "./transcriber.js";
 export * from "./listener.js";
 export * from "./player.js";
 export * from "./sentences.js";
+export * from "./gemini/index.js";

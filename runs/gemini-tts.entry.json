@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/gemini-tts.ts \"<文章>\"",
+  "needs": ["GEMINI_API_KEY"],
+  "burdens": ["cost"]
+}

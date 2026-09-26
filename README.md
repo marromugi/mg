@@ -219,10 +219,19 @@ voice は、音声の入出力だけを持つ、独立したパッケージで�
   </tr>
 </table>
 
+runs は、音声合成を試すために voice を使います。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/runs</code> → <code>@mg/voice</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
 - runs は、eval も使います。
+- runs は、音声合成を試すために voice も使います。
 - runner は、core と harness を使います。loop と trace と gate と trigger も使います。
 - runner は、workspace と conversation と persona も使います。
 - runner は、tools を使いません。
@@ -245,7 +254,6 @@ voice は、音声の入出力だけを持つ、独立したパッケージで�
 - dashboard は、いまは何も使いません。
 - packages のどのパッケージも、dashboard を使いません。
 - voice は、このリポジトリの他のパッケージに依存しません。
-- いまは、どのパッケージも voice を使いません。
 
 ## 開発
 

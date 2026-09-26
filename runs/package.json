@@ -17,6 +17,7 @@
     "@mg/tools": "workspace:*",
     "@mg/trace": "workspace:*",
     "@mg/trigger": "workspace:*",
+    "@mg/voice": "workspace:*",
     "@mg/workspace": "workspace:*"
   },
   "devDependencies": {

@@ -244,35 +244,41 @@ const root = startRootSpan(sdk.tracer, "judges-jev");
 
 let failed = false;
 
-for (const line of lines) {
-  try {
-    const result = await line.run({ trace: root });
-    console.log(
-      term.paint(
-        "success",
-        `${line.judge}: ${line.summary} -> ${result}`,
-      ),
-    );
-  } catch (error) {
-    failed = true;
-    if (error instanceof JudgeError) {
-      const cause =
-        error.cause instanceof Error
-          ? error.cause.message
-          : String(error.cause);
-      console.error(
+try {
+  for (const line of lines) {
+    try {
+      const result = await line.run({ trace: root });
+      console.log(
         term.paint(
-          "error",
-          `${line.judge}: ${error.message} (cause: ${cause})`,
+          "success",
+          `${line.judge}: ${line.summary} -> ${result}`,
         ),
       );
-    } else {
-      throw error;
+    } catch (error) {
+      failed = true;
+      if (error instanceof JudgeError) {
+        const causeSuffix =
+          error.cause === undefined
+            ? ""
+            : ` (cause: ${
+                error.cause instanceof Error
+                  ? error.cause.message
+                  : String(error.cause)
+              })`;
+        console.error(
+          term.paint(
+            "error",
+            `${line.judge}: ${error.message}${causeSuffix}`,
+          ),
+        );
+      } else {
+        throw error;
+      }
     }
   }
+} finally {
+  root.end();
+  await sdk.shutdown();
 }
-
-root.end();
-await sdk.shutdown();
 
 if (failed) process.exitCode = 1;

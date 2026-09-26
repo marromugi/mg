@@ -7,11 +7,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mg/conversation": "workspace:*",
     "@mg/core": "workspace:*",
     "@mg/eval": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
     "@mg/loop": "workspace:*",
+    "@mg/memory": "workspace:*",
+    "@mg/persona": "workspace:*",
     "@mg/runner": "workspace:*",
     "@mg/term": "workspace:*",
     "@mg/tools": "workspace:*",

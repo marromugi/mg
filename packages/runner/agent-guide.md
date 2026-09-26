@@ -713,7 +713,9 @@ takes, so what it converts, system included, can go straight into `conversation.
 `continueConversation`.
 
 Running as a persona, with `continueAsPersona` — `persona` here is a `Persona` built elsewhere
-(e.g. with `@mg/persona`'s `createPersona`):
+(e.g. with `@mg/persona`'s `createPersona`; see `runs/persona-jev.persona.ts` and
+`runs/persona-jev.ts` for a full example wired to a trigger, with a SQLite memory store and a
+SQLite conversation store):
 
 ```ts
 import { createMemoryConversationStore } from "@mg/conversation";

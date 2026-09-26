@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/persona-jev.measure.ts",
+  "needs": ["TYPESAFE_API_KEY"],
+  "burdens": ["cost"]
+}

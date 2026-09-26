@@ -12,10 +12,11 @@ export const SPAN = {
   persona: "mg.persona",
   recall: "mg.recall",
   reflection: "mg.reflection",
+  turn: "mg.turn",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection" | "turn"
   harnessName: "mg.harness.name",
   harnessStopReason: "mg.harness.stop_reason", // HarnessStopReason
   runName: "mg.run.name", // RunConfig.name
@@ -68,4 +69,8 @@ export const ATTR = {
   reflectionKept: "mg.reflection.kept", // number
   reflectionPersonaChanged: "mg.reflection.persona_changed", // boolean
   reflectionForgotten: "mg.reflection.forgotten", // jsonAttribute(string[])
+  turnJudge: "mg.turn.judge", // JudgeName
+  turnModel: "mg.turn.model",
+  turnLabel: "mg.turn.label",
+  turnProbabilities: "mg.turn.probabilities", // jsonAttribute(Record<string, number>)
 } as const;

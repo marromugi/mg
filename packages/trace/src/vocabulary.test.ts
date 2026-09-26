@@ -8,7 +8,7 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input, trigger, persona, recall and reflection spans", () => {
+  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input, trigger, persona, recall, reflection and turn spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
@@ -23,6 +23,7 @@ describe("SPAN", () => {
       persona: "mg.persona",
       recall: "mg.recall",
       reflection: "mg.reflection",
+      turn: "mg.turn",
     });
   });
 });
@@ -114,5 +115,12 @@ describe("ATTR", () => {
       "mg.reflection.persona_changed",
     );
     expect(ATTR.reflectionForgotten).toBe("mg.reflection.forgotten");
+  });
+
+  it("has the turn attributes", () => {
+    expect(ATTR.turnJudge).toBe("mg.turn.judge");
+    expect(ATTR.turnModel).toBe("mg.turn.model");
+    expect(ATTR.turnLabel).toBe("mg.turn.label");
+    expect(ATTR.turnProbabilities).toBe("mg.turn.probabilities");
   });
 });

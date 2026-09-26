@@ -29,7 +29,11 @@ const throwingFetch = (error: unknown) => {
 
 const encoder = new TextEncoder();
 
-const audioEvent = (bytesBase64: string, rate: number) => ({
+const audioEvent = (
+  bytesBase64: string,
+  rate: number,
+  finishReason?: string,
+) => ({
   candidates: [
     {
       content: {
@@ -42,8 +46,22 @@ const audioEvent = (bytesBase64: string, rate: number) => ({
           },
         ],
       },
+      ...(finishReason !== undefined && { finishReason }),
     },
   ],
+});
+
+const textFinishEvent = (text: string, finishReason: string) => ({
+  candidates: [
+    {
+      content: { parts: [{ text }] },
+      finishReason,
+    },
+  ],
+});
+
+const finishOnlyEvent = (finishReason: string) => ({
+  candidates: [{ finishReason }],
 });
 
 // テストからイベントを送るタイミングを自分で決められる SSE の本文です。
@@ -426,5 +444,160 @@ describe("createGeminiSynthesizer", () => {
       ),
     );
     expect(calls).toHaveLength(0);
+  });
+
+  test("carries the declared rate and channel count when the mime type uses lowercase and spaces", async () => {
+    const { fetchStub } = stubFetch(
+      () =>
+        new Response(
+          `data: ${JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      inlineData: {
+                        mimeType: "audio/l16; rate=24000; channels=1",
+                        data: "AQ==",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          })}\n\n`,
+          { status: 200 },
+        ),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      fetch: fetchStub,
+    });
+
+    const [chunk] = await collect(synthesizer.synthesize("text"));
+
+    expect(chunk.format).toEqual({
+      encoding: "pcm-s16le",
+      sampleRate: 24000,
+      channels: 1,
+    });
+  });
+
+  test("stops after a STOP event without yielding its non-audio parts or reading further", async () => {
+    const { stream, send, close } = controlledSseBody();
+    const { fetchStub } = stubFetch(
+      () => new Response(stream, { status: 200 }),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      fetch: fetchStub,
+    });
+
+    send(audioEvent("AQ==", 24000));
+    send(audioEvent("Ag==", 24000));
+    send(textFinishEvent("こんにちは。", "STOP"));
+    send(audioEvent("Aw==", 24000));
+    close();
+
+    const chunks = await collect(synthesizer.synthesize("text"));
+
+    expect(chunks).toHaveLength(2);
+    expect(Array.from(chunks[0].data)).toEqual([1]);
+    expect(Array.from(chunks[1].data)).toEqual([2]);
+  });
+
+  test("becomes a response-shape error naming the finish reason after yielding that event's audio", async () => {
+    const { stream, send, close } = controlledSseBody();
+    const { fetchStub } = stubFetch(
+      () => new Response(stream, { status: 200 }),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      fetch: fetchStub,
+    });
+
+    send(audioEvent("AQ==", 24000));
+    send(finishOnlyEvent("SAFETY"));
+    close();
+
+    const chunks: Uint8Array[] = [];
+    const error = await (async () => {
+      try {
+        for await (const chunk of synthesizer.synthesize("text")) {
+          chunks.push(chunk.data);
+        }
+        return undefined;
+      } catch (caught) {
+        return caught;
+      }
+    })();
+
+    expect(chunks).toHaveLength(1);
+    expect(error).toBeInstanceOf(GeminiSpeechResponseError);
+    expect((error as Error).message).toBe(
+      "Gemini speech response stopped: SAFETY",
+    );
+  });
+
+  test("becomes a response-shape error ending without audio when the only event is a STOP with no audio", async () => {
+    const { fetchStub } = stubFetch(
+      () =>
+        new Response(
+          `data: ${JSON.stringify(finishOnlyEvent("STOP"))}\n\n`,
+          { status: 200 },
+        ),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      fetch: fetchStub,
+    });
+
+    const error = await collect(synthesizer.synthesize("text")).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(GeminiSpeechResponseError);
+    expect((error as Error).message).toBe(
+      "Gemini speech response ended without audio",
+    );
+  });
+
+  test("becomes a response-shape error naming the finish reason after yielding the audio in the same event", async () => {
+    const { fetchStub } = stubFetch(
+      () =>
+        new Response(
+          `data: ${JSON.stringify(
+            audioEvent("AQ==", 24000, "MAX_TOKENS"),
+          )}\n\n`,
+          { status: 200 },
+        ),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      fetch: fetchStub,
+    });
+
+    const chunks: Uint8Array[] = [];
+    const error = await (async () => {
+      try {
+        for await (const chunk of synthesizer.synthesize("text")) {
+          chunks.push(chunk.data);
+        }
+        return undefined;
+      } catch (caught) {
+        return caught;
+      }
+    })();
+
+    expect(chunks).toHaveLength(1);
+    expect(error).toBeInstanceOf(GeminiSpeechResponseError);
+    expect((error as Error).message).toBe(
+      "Gemini speech response stopped: MAX_TOKENS",
+    );
   });
 });

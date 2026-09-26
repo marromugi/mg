@@ -38,6 +38,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装                        |
 | [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                                         |
 | [`@mg/voice`](packages/voice/README.md)               | 音声の入出力（断片・音声合成・書き起こし・聞き手・再生）の型と、文の切り分けと、音声合成の実装 |
+| [`@mg/turn`](packages/turn/README.md)                 | 音声の会話で聞く判断 ①〜⑥ の型とエラーと、Estimator の実装                                     |
 | [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                                           |
 | [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                                                               |
 
@@ -73,6 +74,7 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 音声の入出力の型                                          | voice                            |
 | 音声合成と書き起こしの実装                                | voice                            |
 | 話す文の切り分け                                          | voice                            |
+| 会話の判断（相づち、停止など）の型と実装                  | turn                             |
 | 個体の返事の出し方                                        | 未定（出し方の設計の回で決める） |
 
 迷ったときは、環境に依存するかを見ます。
@@ -227,6 +229,15 @@ runs は、音声合成を試すために voice を使います。
   </tr>
 </table>
 
+turn は、会話の中でいつ何をするかを判断します。
+trigger と同じく、trace と harness と core を使います。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/turn</code> → <code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
@@ -254,6 +265,7 @@ runs は、音声合成を試すために voice を使います。
 - dashboard は、いまは何も使いません。
 - packages のどのパッケージも、dashboard を使いません。
 - voice は、このリポジトリの他のパッケージに依存しません。
+- turn は、core と harness と trace を使います。voice を知りません。
 
 ## 開発
 

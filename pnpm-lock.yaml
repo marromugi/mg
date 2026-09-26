@@ -298,6 +298,9 @@ importers:
       '@mg/trigger':
         specifier: workspace:*
         version: link:../packages/trigger
+      '@mg/turn':
+        specifier: workspace:*
+        version: link:../packages/turn
       '@mg/voice':
         specifier: workspace:*
         version: link:../packages/voice

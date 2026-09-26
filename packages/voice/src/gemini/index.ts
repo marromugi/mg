@@ -95,11 +95,7 @@ const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
 
   const part = Array.isArray(parts)
     ? parts.find(
-        (
-          candidate,
-        ): candidate is {
-          inlineData: { mimeType: string; data: string };
-        } =>
+        (candidate): candidate is { inlineData: unknown } =>
           typeof candidate === "object" &&
           candidate !== null &&
           typeof (candidate as { inlineData?: unknown }).inlineData ===
@@ -114,7 +110,22 @@ const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
     );
   }
 
-  const { mimeType, data } = part.inlineData;
+  const inlineData = part.inlineData as {
+    mimeType?: unknown;
+    data?: unknown;
+  };
+  if (typeof inlineData.mimeType !== "string") {
+    throw new GeminiSpeechResponseError(
+      "Gemini speech response has an audio part with no mime type",
+    );
+  }
+  if (typeof inlineData.data !== "string") {
+    throw new GeminiSpeechResponseError(
+      "Gemini speech response has an audio part with no data",
+    );
+  }
+  const { mimeType, data } = inlineData;
+
   const mainType = mimeType.split(";")[0]?.trim().toLowerCase();
   if (mainType !== "audio/l16") {
     throw new GeminiSpeechResponseError(
@@ -128,12 +139,13 @@ const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
       `Gemini speech response has an unreadable rate: ${mimeType}`,
     );
   }
+  const channelsMatch = /channels=(\d+)/.exec(mimeType);
 
   return {
     format: {
       encoding: "pcm-s16le",
       sampleRate: Number(rateMatch[1]),
-      channels: 1,
+      channels: channelsMatch !== null ? Number(channelsMatch[1]) : 1,
     },
     data: decodeBase64(data),
   };

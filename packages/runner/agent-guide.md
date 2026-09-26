@@ -466,7 +466,7 @@ written — check the README of `@mg/core` (providers, tools) and `@mg/tools`, a
 - Load it when running a config:
 
 ```
-node --env-file=.env ./runs/example.ts
+node --env-file-if-exists=.env ./runs/example.ts
 ```
 
 ## 5. Running

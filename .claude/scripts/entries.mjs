@@ -2,23 +2,43 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { parseEnv } from "node:util";
 
 const KNOWN_BURDENS = ["cost", "outside", "time", "hands"];
 const CANDIDATE_ENTRY_EXTENSIONS = [".ts", ".mjs", ".js", ".cjs"];
 const ENTRY_JSON_SUFFIX = ".entry.json";
+const ALWAYS_LOADS_ENV_FILE = /--env-file(=|\s)/;
+
+const COMMAND_OPTIONS = {
+  show: ["env", "root"],
+  check: ["root"],
+};
+
+const USAGE = {
+  show: "Usage: node entries.mjs show <entry> [--env <path>] [--root <dir>]",
+  check: "Usage: node entries.mjs check [--root <dir>]",
+};
 
 function usageError(message) {
   console.error(message);
   process.exit(2);
 }
 
-function parseArgs(argv) {
+function parseArgs(command, argv) {
+  const allowed = COMMAND_OPTIONS[command];
   const positional = [];
   const options = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--env" || arg === "--root") {
-      options[arg.slice(2)] = argv[++i];
+    if (arg.startsWith("--")) {
+      const name = arg.slice(2);
+      if (!allowed.includes(name)) usageError(USAGE[command]);
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) {
+        usageError(USAGE[command]);
+      }
+      options[name] = value;
+      i++;
     } else {
       positional.push(arg);
     }
@@ -35,18 +55,27 @@ function toPosix(relativePath) {
   return relativePath.split(path.sep).join("/");
 }
 
-function parseEnvFile(content) {
-  const present = new Set();
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (line === "" || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    const value = line.slice(eq + 1).trim();
-    if (value !== "") present.add(key);
+function readEnvFileKeys(envFile) {
+  if (envFile === undefined) return {};
+  let content;
+  try {
+    content = fs.readFileSync(envFile, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    console.log(`cannot read env file ${envFile}`);
+    process.exit(1);
   }
-  return present;
+  return parseEnv(content);
+}
+
+function isNeedPresent(need, fileKeys) {
+  if (Object.hasOwn(process.env, need)) {
+    return process.env[need] !== "";
+  }
+  if (Object.hasOwn(fileKeys, need)) {
+    return fileKeys[need] !== "";
+  }
+  return false;
 }
 
 function show({ root, entry, envFile }) {
@@ -57,20 +86,9 @@ function show({ root, entry, envFile }) {
   }
   const declaration = JSON.parse(fs.readFileSync(declarationPath, "utf8"));
 
-  let present = null;
-  if (envFile !== undefined) {
-    let content;
-    try {
-      content = fs.readFileSync(envFile, "utf8");
-    } catch {
-      console.log(`cannot read env file ${envFile}`);
-      process.exit(1);
-    }
-    present = parseEnvFile(content);
-  }
-
+  const fileKeys = readEnvFileKeys(envFile);
   const missing = declaration.needs.filter(
-    (need) => present === null || !present.has(need),
+    (need) => !isNeedPresent(need, fileKeys),
   );
 
   console.log(
@@ -88,13 +106,14 @@ function findDeclarationFiles(root) {
   const results = [];
   const skipDir = path.join(root, ".claude", "worktrees");
   const walk = (dir) => {
-    for (const name of fs.readdirSync(dir)) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const name = entry.name;
       if (name === "node_modules" || name === ".git") continue;
       const full = path.join(dir, name);
       if (full === skipDir) continue;
-      if (fs.statSync(full).isDirectory()) {
+      if (entry.isDirectory()) {
         walk(full);
-      } else if (name.endsWith(ENTRY_JSON_SUFFIX)) {
+      } else if (entry.isFile() && name.endsWith(ENTRY_JSON_SUFFIX)) {
         results.push(full);
       }
     }
@@ -109,6 +128,10 @@ function validateDeclaration(declaration, label, base, root, problems) {
     declaration.command === ""
   ) {
     problems.push(`${label}: command must be a non-empty string`);
+  } else if (ALWAYS_LOADS_ENV_FILE.test(declaration.command)) {
+    problems.push(
+      `${label}: command must load env files with --env-file-if-exists`,
+    );
   }
 
   if (
@@ -181,17 +204,19 @@ function check({ root }) {
 
 function main() {
   const [command, ...rest] = process.argv.slice(2);
-  const { positional, options } = parseArgs(rest);
-  const root = path.resolve(options.root ?? process.cwd());
 
   if (command === "show") {
+    const { positional, options } = parseArgs("show", rest);
     const [entry] = positional;
-    if (entry === undefined) usageError("Usage: node entries.mjs show <entry> [--env <path>] [--root <dir>]");
+    if (entry === undefined) usageError(USAGE.show);
+    const root = path.resolve(options.root ?? process.cwd());
     show({ root, entry, envFile: options.env });
     return;
   }
 
   if (command === "check") {
+    const { options } = parseArgs("check", rest);
+    const root = path.resolve(options.root ?? process.cwd());
     check({ root });
     return;
   }

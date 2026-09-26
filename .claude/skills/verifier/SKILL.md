@@ -54,7 +54,8 @@ run's `git worktree add`.
 - The PR number.
 - The issue snapshot file the `implementer` skill already produced, at
   `<scratchpad>/issue-guard/issue-<N>.json`.
-- The path to the developer's main checkout, for its `.env`.
+- The path to the developer's main checkout, where an optional `.env` may
+  be.
 
 ## Output
 
@@ -101,6 +102,9 @@ never copy the key values themselves:
 ln -s <main checkout>/.env <scratchpad>/verify-<PR>/.env
 ```
 
+Link it even when the main checkout has no `.env`: a dangling link is read
+as no file, the same as no link at all.
+
 If either command fails, note the result as unverifiable, with the failure
 as the reason, and go to step 5 — the worktree already exists, so step 6
 still removes it.
@@ -111,11 +115,12 @@ For each V item, read its declaration:
 node .claude/scripts/entries.mjs show <entry> --root <scratchpad>/verify-<PR> --env <main checkout>/.env
 ```
 
-No declaration for the entry, a non-empty `missing` (a key the checkout's
-`.env` does not have), or a burden of `hands` (a person has to look and
-judge): note that item as unverifiable, with that fact as its reason, and do
-not run it. Keep reading the remaining V items' declarations regardless —
-one item's outcome does not stop the others from being checked.
+No declaration for the entry, a non-empty `missing` (a key neither this
+session's environment nor the checkout's `.env` has), or a burden of `hands`
+(a person has to look and judge): note that item as unverifiable, with that
+fact as its reason, and do not run it. Keep reading the remaining V items'
+declarations regardless — one item's outcome does not stop the others from
+being checked.
 
 ### 3. Ask before anything that costs money or reaches outside
 
@@ -132,12 +137,13 @@ Not approved: note that item as unverifiable, with the reason
 
 One fresh agent per PR — Agent tool, `subagent_type`: `general-purpose`,
 `model`: `sonnet`. Give it the V items that are still to run, each one's
-declared command, the worktree path, and the fact that its `.env` is already
-in place. It runs each command from the worktree root, captures what it
-prints, and returns, per V item: the command, an excerpt of what it
-observed, and its judgement against that item's pass condition, with the
-observed values quoted. It never edits a file — it only runs the declared
-commands and reads their output.
+declared command, the worktree path, and the fact that its `.env` link is
+already in place and may point at no file. Tell it keys may instead come
+from this session's own environment. It runs each command from the worktree
+root, captures what it prints, and returns, per V item: the command, an
+excerpt of what it observed, and its judgement against that item's pass
+condition, with the observed values quoted. It never edits a file — it only
+runs the declared commands and reads their output.
 
 If the agent's own run fails to start, or it reports that it could not judge
 an item, note that item as unverifiable with the agent's own words as the

@@ -1,0 +1,5 @@
+{
+  "command": "node .claude/scripts/entries.mjs show <entry> --env <path>",
+  "needs": [],
+  "burdens": []
+}

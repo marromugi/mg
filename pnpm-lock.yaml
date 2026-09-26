@@ -230,6 +230,12 @@ importers:
         specifier: workspace:*
         version: link:../trace
 
+  packages/voice:
+    devDependencies:
+      '@types/node':
+        specifier: 25.9.6
+        version: 25.9.6
+
   packages/workspace:
     dependencies:
       '@mg/core':

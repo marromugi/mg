@@ -21,24 +21,25 @@ LLM で動くエージェントのハーネスを試すための土台です。
 
 いまあるパッケージと、その役割を表にまとめます。
 
-| パッケージ                                            | 役割                                                                                         |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                                                     |
-| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                                         |
-| [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                                     |
-| [`@mg/conversation`](packages/conversation/README.md) | 会話を保存して返すインターフェースと型とエラー                                               |
-| [`@mg/memory`](packages/memory/README.md)             | 個体の記憶（人格、相手ごとの項目、要約）を保存して返す                                       |
-| [`@mg/persona`](packages/persona/README.md)           | 個体の想起と振り返りのインターフェースと、LLM の決め手の実装                                 |
-| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装                                  |
-| [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品と、Estimator の実装 |
-| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース                     |
-| [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                                                 |
-| [`@mg/loop`](packages/loop/README.md)                 | ツールの呼び出しを繰り返すループ型のハーネス                                                 |
-| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                                         |
-| [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装                      |
-| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                                       |
-| [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                                         |
-| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                                                             |
+| パッケージ                                            | 役割                                                                                           |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                                                       |
+| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                                           |
+| [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                                       |
+| [`@mg/conversation`](packages/conversation/README.md) | 会話を保存して返すインターフェースと型とエラー                                                 |
+| [`@mg/memory`](packages/memory/README.md)             | 個体の記憶（人格、相手ごとの項目、要約）を保存して返す                                         |
+| [`@mg/persona`](packages/persona/README.md)           | 個体の想起と振り返りのインターフェースと、LLM の決め手の実装                                   |
+| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装                                    |
+| [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品と、Estimator の実装   |
+| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース                       |
+| [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                                                   |
+| [`@mg/loop`](packages/loop/README.md)                 | ツールの呼び出しを繰り返すループ型のハーネス                                                   |
+| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                                           |
+| [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装                        |
+| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                                         |
+| [`@mg/voice`](packages/voice/README.md)               | 音声の入出力（断片・音声合成・書き起こし・聞き手・再生）の型と、文の切り分けと、音声合成の実装 |
+| [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                                           |
+| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                                                               |
 
 名前を選ぶと、詳しい説明を読めます。
 
@@ -69,6 +70,9 @@ LLM で動くエージェントのハーネスを試すための土台です。
 | 会話の保存のインターフェースと実装                        | conversation                     |
 | 個体の記憶（保存先）                                      | memory                           |
 | 個体の想起と振り返り                                      | persona                          |
+| 音声の入出力の型                                          | voice                            |
+| 音声合成と書き起こしの実装                                | voice                            |
+| 話す文の切り分け                                          | voice                            |
 | 個体の返事の出し方                                        | 未定（出し方の設計の回で決める） |
 
 迷ったときは、環境に依存するかを見ます。
@@ -207,6 +211,14 @@ runner は、個体として会話の続きを走らせる入口のために per
   </tr>
 </table>
 
+voice は、音声の入出力だけを持つ、独立したパッケージです。
+
+<table>
+  <tr>
+    <td align="center"><code>@mg/voice</code></td>
+  </tr>
+</table>
+
 - runs は、runner を使います。
 - 設定を書くには、core と tools も使います。loop と trace と gate も使います。
 - runs は、端末に書くために term も使います。
@@ -232,6 +244,8 @@ runner は、個体として会話の続きを走らせる入口のために per
 - runs と dashboard は、使う側です。互いを使いません。
 - dashboard は、いまは何も使いません。
 - packages のどのパッケージも、dashboard を使いません。
+- voice は、このリポジトリの他のパッケージに依存しません。
+- いまは、どのパッケージも voice を使いません。
 
 ## 開発
 

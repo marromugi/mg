@@ -1,5 +1,4 @@
 import type {
-  ClassifyRequest,
   Classification,
   Estimate,
   EstimateRequest,

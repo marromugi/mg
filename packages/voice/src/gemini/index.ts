@@ -76,7 +76,9 @@ const withAbort = (
 const decodeBase64 = (data: string): Uint8Array =>
   Uint8Array.from(Buffer.from(data, "base64"));
 
-const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
+type GeminiSpeechEvent = { chunk?: AudioChunk; finishReason?: string };
+
+const parseGeminiSpeechEvent = (payload: string): GeminiSpeechEvent => {
   let body: unknown;
   try {
     body = JSON.parse(payload);
@@ -87,12 +89,21 @@ const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
     );
   }
 
-  const parts = (
+  const candidate = (
     body as {
-      candidates?: { content?: { parts?: unknown[] } }[];
+      candidates?: {
+        content?: { parts?: unknown[] };
+        finishReason?: unknown;
+      }[];
     }
-  )?.candidates?.[0]?.content?.parts;
+  )?.candidates?.[0];
 
+  const finishReason =
+    typeof candidate?.finishReason === "string"
+      ? candidate.finishReason
+      : undefined;
+
+  const parts = candidate?.content?.parts;
   const part = Array.isArray(parts)
     ? parts.find(
         (candidate): candidate is { inlineData: unknown } =>
@@ -105,9 +116,12 @@ const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
     : undefined;
 
   if (part === undefined) {
-    throw new GeminiSpeechResponseError(
-      "Gemini speech response has no audio in an event",
-    );
+    if (finishReason === undefined) {
+      throw new GeminiSpeechResponseError(
+        "Gemini speech response has no audio in an event",
+      );
+    }
+    return { finishReason };
   }
 
   const inlineData = part.inlineData as {
@@ -142,12 +156,15 @@ const parseGeminiSpeechEvent = (payload: string): AudioChunk => {
   const channelsMatch = /channels=(\d+)/.exec(mimeType);
 
   return {
-    format: {
-      encoding: "pcm-s16le",
-      sampleRate: Number(rateMatch[1]),
-      channels: channelsMatch !== null ? Number(channelsMatch[1]) : 1,
+    chunk: {
+      format: {
+        encoding: "pcm-s16le",
+        sampleRate: Number(rateMatch[1]),
+        channels: channelsMatch !== null ? Number(channelsMatch[1]) : 1,
+      },
+      data: decodeBase64(data),
     },
-    data: decodeBase64(data),
+    finishReason,
   };
 };
 
@@ -260,8 +277,24 @@ export const createGeminiSynthesizer = (
     let count = 0;
     try {
       for await (const payload of readGeminiSseData(readableBody)) {
-        yield parseGeminiSpeechEvent(payload);
-        count++;
+        const event = parseGeminiSpeechEvent(payload);
+        if (event.chunk !== undefined) {
+          yield event.chunk;
+          count++;
+        }
+        if (event.finishReason === "STOP") {
+          if (count === 0) {
+            throw new GeminiSpeechResponseError(
+              "Gemini speech response ended without audio",
+            );
+          }
+          return;
+        }
+        if (event.finishReason !== undefined) {
+          throw new GeminiSpeechResponseError(
+            `Gemini speech response stopped: ${event.finishReason}`,
+          );
+        }
       }
     } catch (cause) {
       if (isAbortError(cause)) throw cause;

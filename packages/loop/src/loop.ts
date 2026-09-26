@@ -23,6 +23,7 @@ import { noopSpan, runSubagentCall } from "@mg/harness";
 import type {
   Harness,
   HarnessEvent,
+  HarnessResult,
   RunSubagentCall,
   Subagent,
   TraceSpan,
@@ -31,6 +32,7 @@ import type { RunToolCall } from "@mg/trace";
 import {
   ATTR,
   SPAN,
+  setSpanAttributes,
   traceProvider,
   traceRunSubagentCall,
   traceRunToolCall,
@@ -276,6 +278,10 @@ export const createLoopHarness = (
       } catch {}
     };
 
+    const setStopReason = (reason: HarnessResult["reason"]): void => {
+      setSpanAttributes(span, { [ATTR.harnessStopReason]: reason });
+    };
+
     const wrapUp = input.wrapUp;
     const toolSignal = toolSignalFor(input.signal, wrapUp);
 
@@ -337,6 +343,7 @@ export const createLoopHarness = (
       }
 
       function* wrappedUpDone(): Generator<HarnessEvent, void, void> {
+        setStopReason("wrapped-up");
         endSpan();
         yield {
           type: "done",
@@ -386,14 +393,14 @@ export const createLoopHarness = (
         }
 
         if (turnResult.toolCalls.length === 0) {
+          const reason =
+            turnResult.finishReason === "length" ? "length" : "stop";
+          setStopReason(reason);
           endSpan();
           yield {
             type: "done",
             result: {
-              reason:
-                turnResult.finishReason === "length"
-                  ? "length"
-                  : "stop",
+              reason,
               messages,
               usage,
             },
@@ -429,6 +436,7 @@ export const createLoopHarness = (
         }
       }
 
+      setStopReason("max-turns");
       endSpan();
       yield {
         type: "done",

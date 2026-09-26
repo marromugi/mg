@@ -45,6 +45,10 @@ describe("ATTR", () => {
     expect(ATTR.llmOutputMessages).toBe("mg.llm.messages.output");
   });
 
+  it("has the harness stop reason attribute", () => {
+    expect(ATTR.harnessStopReason).toBe("mg.harness.stop_reason");
+  });
+
   it("has the run attributes", () => {
     expect(ATTR.runName).toBe("mg.run.name");
     expect(ATTR.runCase).toBe("mg.run.case");

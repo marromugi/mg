@@ -69,6 +69,16 @@ const validate = (path: string, value: unknown): RunConfig => {
     );
   }
 
+  if (
+    (value.tools !== undefined || value.workspace !== undefined) &&
+    value.gate === undefined
+  ) {
+    throw new InvalidRunConfigError(
+      path,
+      "gate is required when tools or workspace is set",
+    );
+  }
+
   if (value.trace !== undefined && !isObject(value.trace)) {
     throw new InvalidRunConfigError(path, "trace must be an object");
   }

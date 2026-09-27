@@ -7,6 +7,7 @@ import type {
 import type { HarnessResult } from "@mg/harness";
 import { addedMessages } from "./added-messages.js";
 import type { GatedRunConfig, RunConfig } from "./config.js";
+import { GateRequiredError } from "./errors.js";
 import { keptMessages } from "./kept-messages.js";
 import { run } from "./run.js";
 import type { RunEntry, RunOptions } from "./run.js";
@@ -65,6 +66,18 @@ export const createContinueConversation = (deps: { run: RunEntry }) => {
     options?: ContinueOptions,
   ): Promise<ContinueOutcome> {
     options?.signal?.throwIfAborted();
+
+    if (config.gate === undefined) {
+      if (
+        config.tools !== undefined ||
+        config.workspace !== undefined
+      ) {
+        throw new GateRequiredError("means");
+      }
+      if (options?.tools !== undefined) {
+        throw new GateRequiredError("added-tools");
+      }
+    }
 
     const slice = await conversation.store.read(
       conversation.id,

@@ -22,6 +22,7 @@ import type {
   UngatedContinueOptions,
 } from "./continue-conversation.js";
 import { continueConversation } from "./continue-conversation.js";
+import { GateRequiredError } from "./errors.js";
 import type { RecordTraceOptions } from "./record-trace.js";
 
 export type PersonaTarget<TInput, TRead> = {
@@ -77,6 +78,18 @@ export const createContinueAsPersona = (deps: {
     options?: ContinueOptions,
   ): Promise<PersonaOutcome<TRead>> {
     options?.signal?.throwIfAborted();
+
+    if (config.gate === undefined) {
+      if (
+        config.tools !== undefined ||
+        config.workspace !== undefined
+      ) {
+        throw new GateRequiredError("means");
+      }
+      if (options?.tools !== undefined) {
+        throw new GateRequiredError("added-tools");
+      }
+    }
 
     const sdk = await createTraceSdk(persona.trace);
     const root = startRootSpan(sdk.tracer, SPAN.persona, {

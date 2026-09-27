@@ -5,6 +5,7 @@ import { ATTR, SPAN, startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
 import { exclusiveNamesOf } from "@mg/workspace";
 import type { GatedRunConfig, RunConfig } from "./config.js";
+import { GateRequiredError } from "./errors.js";
 import { createExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
 import { createSubagent } from "./subagent.js";
@@ -50,6 +51,15 @@ export async function run(
   messages: Message[],
   options?: RunOptions,
 ): Promise<RunOutcome> {
+  if (config.gate === undefined) {
+    if (config.tools !== undefined || config.workspace !== undefined) {
+      throw new GateRequiredError("means");
+    }
+    if (options?.tools !== undefined) {
+      throw new GateRequiredError("added-tools");
+    }
+  }
+
   const sdk = await createTraceSdk({
     ...config.trace,
     sessionId: options?.sessionId,

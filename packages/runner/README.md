@@ -38,6 +38,21 @@ runner は判定の実装を知りません。
 `tools` か `workspace` を書いた設定は、`gate` が必須です。
 書かないと、型の検査に落ちます。空のツールの並びでも必須です。
 
+型の検査を通らない値も、実行時に同じ条件で拒否します。
+`loadRun` は、`tools` か `workspace` があって `gate` がない設定を
+`InvalidRunConfigError` で拒否します。
+文は `gate is required when tools or workspace is set` です。
+
+`run`、`continueConversation`、`continueAsPersona` も、
+何かを始める前に同じ条件を確かめます。
+設定に `tools` か `workspace` があって `gate` がなければ、
+`GateRequiredError` を投げます。文は上と同じです。
+
+呼び出しに足すツールを渡すこともあります。
+設定に `gate` がなければ、そのときも `GateRequiredError` を投げます。
+文は `gate is required when tools are added to the call` です。
+両方に当たるときは、前者の文です。
+
 書き方は `agent-guide.md` にまとめています。
 
 ### 作業場

@@ -357,9 +357,9 @@ export default defineRun({
 | `subagents` | `readonly SubagentConfig[]`          | no                                 | Subagents the parent's LLM can call, alongside `tools`. `run` builds each one after opening `workspace`, passing it the opened workspace and the run's exclusive-name state. Omitting it changes nothing.   |
 
 `RunConfig` is `GatedRunConfig | UngatedRunConfig` (`packages/runner/src/config.ts`).
-A config with `tools` or `workspace` is a `GatedRunConfig`, so `gate` is
-required by the type; a config with neither is an `UngatedRunConfig`,
-where `gate`, `tools`, and `workspace` must all be omitted.
+A config that sets `gate` is a `GatedRunConfig`, where `tools` and
+`workspace` are optional; a config without `gate` is an
+`UngatedRunConfig`, where `tools` and `workspace` must also be omitted.
 
 ### `RunOptions` (`packages/runner/src/run.ts`)
 

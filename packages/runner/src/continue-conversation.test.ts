@@ -563,7 +563,7 @@ describe("createContinueConversation", () => {
         history: { kind: "all" },
         messages: [{ role: "user", content: "hi" }],
       },
-      { sessionId: "s1", keep: (added) => [...added] },
+      { sessionId: "s1", keep: (added) => added as Message[] },
     );
 
     expect(optionsSeen[0]).toEqual({ sessionId: "s1" });

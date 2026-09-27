@@ -52,7 +52,7 @@ describe("outputPath", () => {
   });
 });
 
-describe("the seven loop configs' trace destination", () => {
+describe("the six loop configs' trace destination", () => {
   beforeAll(() => {
     const dir = mkdtempSync(join(tmpdir(), "mg-outputs-test-"));
     const sshKeyPath = join(dir, "id_ed25519");

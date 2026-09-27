@@ -382,6 +382,16 @@ shapes: a `GatedRunConfig` with `RunOptions` (which may set `tools`), or a
 { tools?: undefined }`, so `tools` must be omitted). Passing `tools`
 alongside a config that might be ungated is a type error.
 
+The same three entries also check this at runtime, for a call built from
+untyped values that skips the type check. Before doing anything else —
+before opening a workspace, reading a conversation, or calling the
+provider — each one throws `GateRequiredError` when the config has
+`tools` or `workspace` without a `gate` (message
+`gate is required when tools or workspace is set`), or when the call
+passes `tools` to an ungated config (message
+`gate is required when tools are added to the call`). Both conditions
+hitting at once gives the first message.
+
 ### `ContinueOptions` (`packages/runner/src/continue-conversation.ts`)
 
 The third argument to `continueConversation` and the fourth to `continueAsPersona`. It is
@@ -568,7 +578,10 @@ be 1 (or left unset); passing 2 or more throws a `RangeError` before any case ru
 the workspace and the exclusive names, e.g. `workspace "build-machine" holds
 "cdp:localhost:9222" exclusively; concurrency must be 1, got 2`.
 
-Picking a config by path instead of a static import, with `loadRun`:
+Picking a config by path instead of a static import, with `loadRun`. Because the loaded
+value skips the type check, `loadRun` rejects with `InvalidRunConfigError` when the
+config has `tools` or `workspace` (even an empty `tools` array) without a `gate`; the
+message is `<path>: gate is required when tools or workspace is set`:
 
 ```ts
 import { loadRun, run } from "@mg/runner";

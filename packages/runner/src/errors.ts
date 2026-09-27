@@ -5,6 +5,17 @@ export class InvalidRunConfigError extends Error {
   }
 }
 
+export class GateRequiredError extends Error {
+  constructor(reason: "means" | "added-tools") {
+    super(
+      reason === "means"
+        ? "gate is required when tools or workspace is set"
+        : "gate is required when tools are added to the call",
+    );
+    this.name = "GateRequiredError";
+  }
+}
+
 export class SubagentCloseError extends Error {
   readonly workspaceName: string;
   readonly answer: string;

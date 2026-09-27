@@ -18,14 +18,20 @@ import {
 } from "@mg/conversation";
 import type { Gate } from "@mg/gate";
 import type { HarnessEvent } from "@mg/harness";
+import type { Connector, Workspace } from "@mg/workspace";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import type { GatedRunConfig, RunConfig } from "./config.js";
-import type { ContinueOptions } from "./continue-conversation.js";
+import type {
+  ContinueOptions,
+  ContinueOutcome,
+  ConversationTarget,
+} from "./continue-conversation.js";
 import {
   continueConversation,
   createContinueConversation,
 } from "./continue-conversation.js";
+import { GateRequiredError } from "./errors.js";
 import { keepDelivered } from "./keep-delivered.js";
 import type { RunOptions, RunOutcome } from "./run.js";
 
@@ -135,6 +141,50 @@ const echoTool: Tool = defineTool({
   input: z.object({ text: z.string() }),
   execute: async () => "pong",
 });
+
+const stubTool = (name: string): Tool =>
+  defineTool({
+    name,
+    input: z.object({}),
+    execute: async () => `${name}-result`,
+  });
+
+const countingOpenWorkspace = (): {
+  workspace: Workspace;
+  opens: () => number;
+} => {
+  let opens = 0;
+  const connector: Connector = {
+    kind: "fake",
+    exclusive: [],
+    open: async () => {
+      opens += 1;
+      return { tools: [], close: async () => {} };
+    },
+  };
+  return {
+    workspace: { name: "fake-workspace", connectors: [connector] },
+    opens: () => opens,
+  };
+};
+
+const countingRun = (): {
+  run: (
+    config: RunConfig,
+    messages: Message[],
+    options?: RunOptions,
+  ) => Promise<RunOutcome>;
+  calls: () => number;
+} => {
+  let calls = 0;
+  return {
+    run: async () => {
+      calls += 1;
+      throw new Error("countingRun: should not be called");
+    },
+    calls: () => calls,
+  };
+};
 
 describe("continueConversation", () => {
   test("sends the read entries followed by the new messages in order, including a system message among the new ones in its given place, and appends what the run added at that same place", async () => {
@@ -1172,5 +1222,76 @@ describe("continueConversation with a keep function", () => {
     expect(outcome2.entry).toEqual({
       messages: [{ role: "user", content: "hi" }, A1, T1, A2],
     });
+  });
+});
+
+describe("continueConversation with an ungated config that reached it untyped", () => {
+  test("rejects with GateRequiredError, naming the reason, without reading the conversation, calling the run function, or opening a workspace", async () => {
+    const inner = createMemoryConversationStore();
+    await inner.create("jev");
+    const { store, readCalls } = countingReadStore(inner);
+    const askTool = stubTool("ask");
+    const workspace = countingOpenWorkspace();
+
+    const cases: {
+      config: RunConfig;
+      options?: ContinueOptions;
+      message: string;
+    }[] = [
+      {
+        config: runConfig(fakeProvider().provider),
+        options: { tools: [askTool] },
+        message: "gate is required when tools are added to the call",
+      },
+      {
+        config: {
+          ...runConfig(fakeProvider().provider),
+          tools: [stubTool("a")],
+        } as unknown as RunConfig,
+        message: "gate is required when tools or workspace is set",
+      },
+      {
+        config: {
+          ...runConfig(fakeProvider().provider),
+          workspace: workspace.workspace,
+        } as unknown as RunConfig,
+        message: "gate is required when tools or workspace is set",
+      },
+      {
+        config: {
+          ...runConfig(fakeProvider().provider),
+          tools: [stubTool("a")],
+        } as unknown as RunConfig,
+        options: { tools: [askTool] },
+        message: "gate is required when tools or workspace is set",
+      },
+    ];
+
+    for (const { config, options, message } of cases) {
+      const { run, calls } = countingRun();
+      const entrance = createContinueConversation({ run }) as (
+        config: RunConfig,
+        conversation: ConversationTarget,
+        options?: ContinueOptions,
+      ) => Promise<ContinueOutcome>;
+
+      const error = await entrance(
+        config,
+        {
+          store,
+          id: "jev",
+          history: { kind: "all" },
+          messages: [{ role: "user", content: "hi" }],
+        },
+        options,
+      ).catch((caught) => caught);
+
+      expect(error).toBeInstanceOf(GateRequiredError);
+      expect((error as GateRequiredError).message).toBe(message);
+      expect(calls()).toBe(0);
+      expect(readCalls()).toBe(0);
+    }
+
+    expect(workspace.opens()).toBe(0);
   });
 });

@@ -57,6 +57,47 @@ describe("loadRun", () => {
     );
   });
 
+  test("rejects with InvalidRunConfigError naming the gate requirement when tools are set without a gate", async () => {
+    const error = await loadRun(
+      "src/__fixtures__/tools-without-gate.ts",
+    ).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(InvalidRunConfigError);
+    expect((error as InvalidRunConfigError).message).toBe(
+      "src/__fixtures__/tools-without-gate.ts: gate is required when tools or workspace is set",
+    );
+  });
+
+  test("rejects with the same gate requirement message for an empty tools array and for a workspace, both without a gate", async () => {
+    const emptyToolsError = await loadRun(
+      "src/__fixtures__/empty-tools-without-gate.ts",
+    ).catch((caught) => caught);
+    const workspaceError = await loadRun(
+      "src/__fixtures__/workspace-without-gate.ts",
+    ).catch((caught) => caught);
+
+    expect(emptyToolsError).toBeInstanceOf(InvalidRunConfigError);
+    expect((emptyToolsError as InvalidRunConfigError).message).toBe(
+      "src/__fixtures__/empty-tools-without-gate.ts: gate is required when tools or workspace is set",
+    );
+    expect(workspaceError).toBeInstanceOf(InvalidRunConfigError);
+    expect((workspaceError as InvalidRunConfigError).message).toBe(
+      "src/__fixtures__/workspace-without-gate.ts: gate is required when tools or workspace is set",
+    );
+  });
+
+  test("rejects with tools must be an array before checking whether a gate is required", async () => {
+    await expect(
+      loadRun("src/__fixtures__/tools-not-array.ts"),
+    ).rejects.toThrow(/tools must be an array$/);
+  });
+
+  test("rejects with the gate-shape message, not the gate requirement, when tools are set and the gate is malformed", async () => {
+    await expect(
+      loadRun("src/__fixtures__/invalid-gate-with-tools.ts"),
+    ).rejects.toThrow(/gate must be an object with a judge function$/);
+  });
+
   test("propagates import failures for a missing file", async () => {
     await expect(
       loadRun("src/__fixtures__/does-not-exist.ts"),

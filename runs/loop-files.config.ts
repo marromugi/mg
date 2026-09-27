@@ -17,7 +17,7 @@ if (apiKey === undefined)
 const root = process.cwd();
 
 export default defineRun({
-  name: "loop-files",
+  name: "loop-files-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",

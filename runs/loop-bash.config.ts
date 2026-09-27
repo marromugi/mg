@@ -8,7 +8,7 @@ if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
 export default defineRun({
-  name: "loop-bash",
+  name: "loop-bash-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",

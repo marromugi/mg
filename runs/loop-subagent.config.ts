@@ -50,7 +50,7 @@ const cleanBrowser = defineWorkspace({
 });
 
 export default defineRun({
-  name: "loop-subagent",
+  name: "loop-subagent-deepseek",
   provider,
   harness: {
     kind: "loop",

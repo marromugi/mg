@@ -11,7 +11,7 @@ if (apiKey === undefined)
 const provider = createOpenRouterProvider({ apiKey });
 
 export default defineRun({
-  name: "loop-bash-gate",
+  name: "loop-bash-gate-deepseek",
   provider,
   harness: {
     kind: "loop",

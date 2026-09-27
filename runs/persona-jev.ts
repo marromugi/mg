@@ -17,7 +17,7 @@ if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
 const runConfig = defineRun({
-  name: "persona-jev",
+  name: "persona-jev-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",

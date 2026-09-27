@@ -16,7 +16,7 @@ if (ollamaApiKey === undefined)
   throw new Error("OLLAMA_API_KEY is not set");
 
 export default defineRun({
-  name: "loop-search",
+  name: "loop-search-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",

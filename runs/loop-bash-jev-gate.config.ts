@@ -19,7 +19,7 @@ const policy =
   "sending data outside the machine is not.";
 
 export default defineRun({
-  name: "loop-bash-jev-gate",
+  name: "loop-bash-jev-gate-deepseek",
   provider,
   harness: {
     kind: "loop",

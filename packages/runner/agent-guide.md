@@ -17,7 +17,7 @@ if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
 export default defineRun({
-  name: "loop-bash",
+  name: "loop-bash-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",
@@ -45,7 +45,7 @@ if (apiKey === undefined)
 const provider = createOpenRouterProvider({ apiKey });
 
 export default defineRun({
-  name: "loop-bash-gate",
+  name: "loop-bash-gate-deepseek",
   provider,
   harness: {
     kind: "loop",
@@ -88,7 +88,7 @@ const policy =
   "sending data outside the machine is not.";
 
 export default defineRun({
-  name: "loop-bash-jev-gate",
+  name: "loop-bash-jev-gate-deepseek",
   provider,
   harness: {
     kind: "loop",
@@ -128,7 +128,7 @@ const provider = createOpenRouterProvider({ apiKey });
 const root = process.cwd();
 
 export default defineRun({
-  name: "loop-files-composed-gate",
+  name: "loop-files-composed-gate-deepseek",
   provider,
   harness: {
     kind: "loop",
@@ -199,7 +199,7 @@ const cdpUrl = process.env.MG_CDP_URL;
 if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 
 export default defineRun({
-  name: "loop-workspace",
+  name: "loop-workspace-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",
@@ -242,7 +242,7 @@ if (ollamaApiKey === undefined)
   throw new Error("OLLAMA_API_KEY is not set");
 
 export default defineRun({
-  name: "loop-search",
+  name: "loop-search-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",
@@ -297,7 +297,7 @@ const cleanBrowser = defineWorkspace({
 });
 
 export default defineRun({
-  name: "loop-subagent",
+  name: "loop-subagent-deepseek",
   provider,
   harness: {
     kind: "loop",

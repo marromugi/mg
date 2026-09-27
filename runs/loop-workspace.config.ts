@@ -26,7 +26,7 @@ const cdpUrl = process.env.MG_CDP_URL;
 if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 
 export default defineRun({
-  name: "loop-workspace",
+  name: "loop-workspace-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
   harness: {
     kind: "loop",

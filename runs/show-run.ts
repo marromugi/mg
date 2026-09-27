@@ -19,7 +19,7 @@ function toolResultLines(content: string): string[] {
   return trimmed.split("\n");
 }
 
-export function showRun(
+export async function showRun(
   start: RunStart,
   options?: ShowRunOptions,
 ): Promise<0 | 1> {
@@ -50,31 +50,46 @@ export function showRun(
     }
   };
 
-  return start(onEvent).then(
-    ({ sessionId }) => {
-      if (!atLineStart) stdout("\n");
-      const line = `${term.mark.success} sessionId: ${sessionId}`;
-      stdout(`${term.paint("success", line)}\n`);
-      return 0;
-    },
-    (error: unknown) => {
-      if (!atLineStart) stdout("\n");
-      const line = `${term.mark.error} ${describeError(error)}`;
-      stderr(`${term.paint("error", line)}\n`);
-      return 1;
-    },
-  );
+  try {
+    const { sessionId } = await start(onEvent);
+    if (!atLineStart) stdout("\n");
+    const line = `${term.mark.success} sessionId: ${sessionId}`;
+    stdout(`${term.paint("success", line)}\n`);
+    return 0;
+  } catch (error) {
+    if (!atLineStart) stdout("\n");
+    const line = `${term.mark.error} ${describeError(error)}`;
+    stderr(`${term.paint("error", line)}\n`);
+    return 1;
+  }
+}
+
+function safeRead<T>(read: () => T, fallback: T): T {
+  try {
+    return read();
+  } catch {
+    return fallback;
+  }
 }
 
 function describeValue(value: unknown, seen: Set<Error>): string {
   if (value instanceof Error) {
     if (seen.has(value)) return "(循環)";
     seen.add(value);
-    const kind = (value as { kind?: unknown }).kind;
-    const name =
-      typeof kind === "string" ? `${value.name}(${kind})` : value.name;
-    const head = `${name}: ${value.message}`;
-    const cause = (value as { cause?: unknown }).cause;
+
+    const name = safeRead(() => value.name, "Error");
+    const message = safeRead(() => value.message, "?");
+    const kind = safeRead(
+      () => (value as { kind?: unknown }).kind,
+      undefined,
+    );
+    const label = typeof kind === "string" ? `${name}(${kind})` : name;
+    const head = `${label}: ${message}`;
+
+    const cause = safeRead(
+      () => (value as { cause?: unknown }).cause,
+      undefined,
+    );
     if (cause === undefined) return head;
     return `${head} ← ${describeValue(cause, seen)}`;
   }

@@ -27,9 +27,14 @@ import type {
   ContinueOutcome,
   ConversationTarget,
 } from "./continue-conversation.js";
-import type { MemoryOutcome } from "./continue-as-persona.js";
+import type {
+  MemoryOutcome,
+  PersonaOutcome,
+  PersonaTarget,
+} from "./continue-as-persona.js";
 import { createContinueAsPersona } from "./continue-as-persona.js";
 import { createContinueConversation } from "./continue-conversation.js";
+import { GateRequiredError } from "./errors.js";
 // oxlint-disable-next-line import/no-duplicates
 import type { RunOptions } from "./run.js";
 import type { RunOutcome } from "./run.js";
@@ -156,6 +161,33 @@ const fakeContinueConversation = (
       };
     },
     calls,
+  };
+};
+
+const stubTool = (name: string): Tool =>
+  defineTool({
+    name,
+    input: z.object({}),
+    execute: async () => `${name}-result`,
+  });
+
+const countingContinueConversation = (): {
+  continueConversation: (
+    config: RunConfig,
+    conversation: ConversationTarget,
+    options?: RunOptions,
+  ) => Promise<ContinueOutcome>;
+  calls: () => number;
+} => {
+  let calls = 0;
+  return {
+    continueConversation: async () => {
+      calls += 1;
+      throw new Error(
+        "countingContinueConversation: should not be called",
+      );
+    },
+    calls: () => calls,
   };
 };
 
@@ -847,5 +879,80 @@ describe("continueAsPersona with a keep function", () => {
       },
       T1,
     ]);
+  });
+});
+
+describe("continueAsPersona with an ungated config that reached it untyped", () => {
+  test("rejects with GateRequiredError, naming the reason, without calling the conversation entrance, recalling the persona, or exporting any span", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const askTool = stubTool("ask");
+
+    const cases: { config: RunConfig; options?: RunOptions }[] = [
+      {
+        config: runConfig(),
+        options: { tools: [askTool] },
+      },
+      {
+        config: {
+          ...runConfig(),
+          tools: [stubTool("a")],
+        } as unknown as RunConfig,
+      },
+      {
+        config: {
+          ...runConfig(),
+          workspace: { name: "ws", connectors: [] },
+        } as unknown as RunConfig,
+      },
+      {
+        config: {
+          ...runConfig(),
+          tools: [stubTool("a")],
+        } as unknown as RunConfig,
+        options: { tools: [askTool] },
+      },
+    ];
+    const expectedMessages = [
+      "gate is required when tools are added to the call",
+      "gate is required when tools or workspace is set",
+      "gate is required when tools or workspace is set",
+      "gate is required when tools or workspace is set",
+    ];
+
+    for (const [index, { config, options }] of cases.entries()) {
+      const { persona, recallCalls } = fakePersona();
+      const { continueConversation, calls } =
+        countingContinueConversation();
+      const entrance = createContinueAsPersona({
+        continueConversation,
+      }) as (
+        config: RunConfig,
+        conversation: ConversationTarget,
+        persona: PersonaTarget<string, FakeRead>,
+        options?: RunOptions,
+      ) => Promise<PersonaOutcome<FakeRead>>;
+      const exporter = new InMemorySpanExporter();
+
+      const error = await entrance(
+        config,
+        conversationTarget(store),
+        {
+          persona,
+          counterparts: [{ id: "alice", name: "Alice" }],
+          input: "hi",
+          trace: { exporters: [exporter] },
+        },
+        options,
+      ).catch((caught) => caught);
+
+      expect(error).toBeInstanceOf(GateRequiredError);
+      expect((error as GateRequiredError).message).toBe(
+        expectedMessages[index],
+      );
+      expect(calls()).toBe(0);
+      expect(recallCalls).toHaveLength(0);
+      expect(exporter.getFinishedSpans()).toHaveLength(0);
+    }
   });
 });

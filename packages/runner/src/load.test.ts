@@ -57,6 +57,39 @@ describe("loadRun", () => {
     );
   });
 
+  test("rejects with InvalidRunConfigError naming the gate requirement when tools are set without a gate", async () => {
+    await expect(
+      loadRun("src/__fixtures__/tools-without-gate.ts"),
+    ).rejects.toThrow(
+      "src/__fixtures__/tools-without-gate.ts: gate is required when tools or workspace is set",
+    );
+  });
+
+  test("rejects with the same gate requirement message for an empty tools array and for a workspace, both without a gate", async () => {
+    await expect(
+      loadRun("src/__fixtures__/empty-tools-without-gate.ts"),
+    ).rejects.toThrow(
+      /: gate is required when tools or workspace is set$/,
+    );
+    await expect(
+      loadRun("src/__fixtures__/workspace-without-gate.ts"),
+    ).rejects.toThrow(
+      /: gate is required when tools or workspace is set$/,
+    );
+  });
+
+  test("rejects with tools must be an array before checking whether a gate is required", async () => {
+    await expect(
+      loadRun("src/__fixtures__/tools-not-array.ts"),
+    ).rejects.toThrow(/tools must be an array$/);
+  });
+
+  test("rejects with the gate-shape message, not the gate requirement, when tools are set and the gate is malformed", async () => {
+    await expect(
+      loadRun("src/__fixtures__/invalid-gate-with-tools.ts"),
+    ).rejects.toThrow(/gate must be an object with a judge function$/);
+  });
+
   test("propagates import failures for a missing file", async () => {
     await expect(
       loadRun("src/__fixtures__/does-not-exist.ts"),

@@ -29,6 +29,8 @@ import {
   vi,
 } from "vitest";
 import type { RunConfig } from "./config.js";
+import { GateRequiredError } from "./errors.js";
+import type { UngatedRunOptions } from "./run.js";
 import { run } from "./run.js";
 
 const stubProvider = (
@@ -1052,5 +1054,136 @@ describe("run with call-only tools", () => {
       content:
         "[denied] Not executed. The policy gate rejected this action: no",
     });
+  });
+});
+
+describe("run with an ungated config that reached it untyped", () => {
+  test("rejects with GateRequiredError naming tools or workspace, calling the provider zero times and exporting no spans, whether tools is one tool or an empty array", async () => {
+    for (const tools of [["a"], []] as const) {
+      const generate = vi.fn(async (): Promise<GenerateResponse> => {
+        throw new Error("should not be called");
+      });
+      const provider: Provider = {
+        generate,
+        stream: () => {
+          throw new Error("stream is not scripted");
+        },
+      };
+      const exporter = new InMemorySpanExporter();
+      const config = {
+        name: "example",
+        provider,
+        harness: {
+          kind: "loop" as const,
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        tools: tools.map((name) => stubTool(name)),
+        trace: { exporters: [exporter] },
+      } as unknown as RunConfig;
+
+      const error = await run(config, []).catch((caught) => caught);
+
+      expect(error).toBeInstanceOf(GateRequiredError);
+      expect((error as GateRequiredError).message).toBe(
+        "gate is required when tools or workspace is set",
+      );
+      expect(generate).not.toHaveBeenCalled();
+      expect(exporter.getFinishedSpans()).toHaveLength(0);
+    }
+  });
+
+  test("rejects with GateRequiredError naming tools or workspace, and never opens the workspace, when the config carries a workspace instead of tools", async () => {
+    let opens = 0;
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config = {
+      name: "example",
+      provider,
+      harness: {
+        kind: "loop" as const,
+        model: "m",
+        maxTurns: 1,
+        stream: false,
+      },
+      workspace: fakeWorkspace([], {
+        onOpen: () => {
+          opens += 1;
+        },
+      }),
+    } as unknown as RunConfig;
+
+    const error = await run(config, []).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(GateRequiredError);
+    expect((error as GateRequiredError).message).toBe(
+      "gate is required when tools or workspace is set",
+    );
+    expect(opens).toBe(0);
+  });
+
+  test("rejects with GateRequiredError naming added tools, calling the provider zero times and exporting no spans, whether the call's tools is one tool or an empty array", async () => {
+    for (const callTools of [[stubTool("ask")], []] as const) {
+      const generate = vi.fn(async (): Promise<GenerateResponse> => {
+        throw new Error("should not be called");
+      });
+      const provider: Provider = {
+        generate,
+        stream: () => {
+          throw new Error("stream is not scripted");
+        },
+      };
+      const exporter = new InMemorySpanExporter();
+      const config: RunConfig = {
+        name: "example",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+        trace: { exporters: [exporter] },
+      };
+
+      const error = await run(config, [], {
+        tools: callTools,
+      } as unknown as UngatedRunOptions).catch((caught) => caught);
+
+      expect(error).toBeInstanceOf(GateRequiredError);
+      expect((error as GateRequiredError).message).toBe(
+        "gate is required when tools are added to the call",
+      );
+      expect(generate).not.toHaveBeenCalled();
+      expect(exporter.getFinishedSpans()).toHaveLength(0);
+    }
+  });
+
+  test("rejects with the tools-or-workspace message, not the added-tools message, when both the config's tools and the call's added tools are set", async () => {
+    const provider = stubProvider([
+      { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
+    ]);
+    const config = {
+      name: "example",
+      provider,
+      harness: {
+        kind: "loop" as const,
+        model: "m",
+        maxTurns: 1,
+        stream: false,
+      },
+      tools: [stubTool("a")],
+    } as unknown as RunConfig;
+
+    const error = await run(config, [], {
+      tools: [stubTool("ask")],
+    } as unknown as UngatedRunOptions).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(GateRequiredError);
+    expect((error as GateRequiredError).message).toBe(
+      "gate is required when tools or workspace is set",
+    );
   });
 });

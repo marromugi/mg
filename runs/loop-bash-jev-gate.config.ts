@@ -3,6 +3,7 @@ import { defineRun } from "@mg/runner";
 import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createEstimatorGate } from "@mg/gate";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -31,5 +32,5 @@ export default defineRun({
     estimator: createJevEstimator({ apiKey: jevApiKey }),
     policy,
   }),
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });

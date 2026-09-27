@@ -13,6 +13,7 @@ import {
   JudgeError,
 } from "@mg/turn";
 import { term } from "@mg/term";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.TYPESAFE_API_KEY;
 if (apiKey === undefined)
@@ -239,7 +240,9 @@ const lines: Line[] = [
   },
 ];
 
-const sdk = await createTraceSdk({ jsonlPath: "./turn-trace.jsonl" });
+const sdk = await createTraceSdk({
+  jsonlPath: outputPath("turn-trace.jsonl"),
+});
 const root = startRootSpan(sdk.tracer, "judges-jev");
 
 let failed = false;

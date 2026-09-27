@@ -2,6 +2,7 @@
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -16,5 +17,5 @@ export default defineRun({
     maxTurns: 10,
   },
   tools: [createBashTool({ cwd: process.cwd() })],
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });

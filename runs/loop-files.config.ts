@@ -9,6 +9,7 @@ import {
   createEditFileTool,
 } from "@mg/tools";
 import { createRulesGate } from "@mg/gate";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -43,5 +44,5 @@ export default defineRun({
       },
     ],
   }),
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });

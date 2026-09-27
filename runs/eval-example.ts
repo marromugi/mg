@@ -4,8 +4,8 @@ import { createEstimatorChecker, evaluate, rule } from "@mg/eval";
 import type { RunCase } from "@mg/runner";
 import { runMany } from "@mg/runner";
 import { term } from "@mg/term";
-import { JsonlTraceReader } from "@mg/trace/store";
 import config from "./loop-bash-jev-gate.config.ts";
+import { traceReaderFor } from "./outputs.ts";
 
 type EvalCase = RunCase & { checks: Check[] };
 
@@ -57,7 +57,7 @@ const cases: EvalCase[] = [
 ];
 
 const outcomes = await runMany(config, cases, { concurrency: 1 });
-const reader = new JsonlTraceReader("./trace.jsonl");
+const reader = traceReaderFor(config);
 
 let anyFailed = false;
 

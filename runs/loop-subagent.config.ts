@@ -8,6 +8,7 @@ import {
   createSshConnector,
   defineWorkspace,
 } from "@mg/workspace";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -90,5 +91,5 @@ export default defineRun({
       },
     },
   ],
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });

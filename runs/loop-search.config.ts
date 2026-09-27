@@ -6,6 +6,7 @@ import {
   createWebSearchTool,
   createOllamaWebSearchBackend,
 } from "@mg/tools";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -29,5 +30,5 @@ export default defineRun({
       backend: createOllamaWebSearchBackend({ apiKey: ollamaApiKey }),
     }),
   ],
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });

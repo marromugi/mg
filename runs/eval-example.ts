@@ -5,7 +5,7 @@ import type { RunCase } from "@mg/runner";
 import { runMany } from "@mg/runner";
 import { term } from "@mg/term";
 import { JsonlTraceReader } from "@mg/trace/store";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-jev-gate.config.ts";
 
 type EvalCase = RunCase & { checks: Check[] };
 

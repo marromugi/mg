@@ -11,13 +11,17 @@ if (apiKey === undefined)
 const provider = createOpenRouterProvider({ apiKey });
 
 export default defineRun({
-  name: "loop-bash-gate",
+  name: "loop-bash-gate-deepseek",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createLlmGate({
     provider,
-    model: "openai/gpt-4o-mini",
+    model: "deepseek/deepseek-v4-flash",
     policy:
       "Read-only commands are allowed. Deleting files or " +
       "sending data outside the machine is not.",

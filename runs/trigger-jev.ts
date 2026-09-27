@@ -11,9 +11,13 @@ if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
 const runConfig = defineRun({
-  name: "trigger-jev",
+  name: "trigger-jev-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   trace: { jsonlPath: "./trace.jsonl" },
 });
 

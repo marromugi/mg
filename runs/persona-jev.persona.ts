@@ -51,7 +51,7 @@ export const createJevPersona = (options: {
     },
     extractor: createLlmExtractor({
       provider: createOpenRouterProvider({ apiKey: openRouterApiKey }),
-      model: "openai/gpt-4o-mini",
+      model: "deepseek/deepseek-v4-flash",
       instruction: extractionInstruction,
     }),
     keep: { question: keepQuestion, threshold: keepThreshold },

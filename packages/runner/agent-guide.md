@@ -17,9 +17,13 @@ if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
 export default defineRun({
-  name: "loop-bash",
+  name: "loop-bash-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   trace: { jsonlPath: "./trace.jsonl" },
 });
@@ -41,13 +45,17 @@ if (apiKey === undefined)
 const provider = createOpenRouterProvider({ apiKey });
 
 export default defineRun({
-  name: "loop-bash-gate",
+  name: "loop-bash-gate-deepseek",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createLlmGate({
     provider,
-    model: "openai/gpt-4o-mini",
+    model: "deepseek/deepseek-v4-flash",
     policy:
       "Read-only commands are allowed. Deleting files or " +
       "sending data outside the machine is not.",
@@ -80,9 +88,13 @@ const policy =
   "sending data outside the machine is not.";
 
 export default defineRun({
-  name: "loop-bash-jev-gate",
+  name: "loop-bash-jev-gate-deepseek",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createEstimatorGate({
     estimator: createJevEstimator({ apiKey: jevApiKey }),
@@ -116,9 +128,13 @@ const provider = createOpenRouterProvider({ apiKey });
 const root = process.cwd();
 
 export default defineRun({
-  name: "loop-files-composed-gate",
+  name: "loop-files-composed-gate-deepseek",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [
     createBashTool({ cwd: root }),
     createReadFileTool({ root }),
@@ -141,7 +157,7 @@ export default defineRun({
     }),
     createLlmGate({
       provider,
-      model: "openai/gpt-4o-mini",
+      model: "deepseek/deepseek-v4-flash",
       policy:
         "Read-only commands are allowed. Deleting files or " +
         "sending data outside the machine is not.",
@@ -183,9 +199,13 @@ const cdpUrl = process.env.MG_CDP_URL;
 if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 
 export default defineRun({
-  name: "loop-workspace",
+  name: "loop-workspace-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   workspace: defineWorkspace({
     name: "build-machine",
     connectors: [
@@ -222,9 +242,13 @@ if (ollamaApiKey === undefined)
   throw new Error("OLLAMA_API_KEY is not set");
 
 export default defineRun({
-  name: "loop-search",
+  name: "loop-search-deepseek",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [
     createBashTool({ cwd: process.cwd() }),
     createWebSearchTool({
@@ -273,9 +297,13 @@ const cleanBrowser = defineWorkspace({
 });
 
 export default defineRun({
-  name: "loop-subagent",
+  name: "loop-subagent-deepseek",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   workspace: buildMachine,
   subagents: [
     {
@@ -285,7 +313,7 @@ export default defineRun({
       provider,
       harness: {
         kind: "loop",
-        model: "openai/gpt-4o-mini",
+        model: "deepseek/deepseek-v4-flash",
         maxTurns: 10,
       },
       gate: createRulesGate({ root: process.cwd(), rules: [] }),

@@ -16,10 +16,11 @@ import {
   ConversationNotFoundError,
   createMemoryConversationStore,
 } from "@mg/conversation";
+import type { Gate } from "@mg/gate";
 import type { HarnessEvent } from "@mg/harness";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
-import type { RunConfig } from "./config.js";
+import type { GatedRunConfig, RunConfig } from "./config.js";
 import type { ContinueOptions } from "./continue-conversation.js";
 import {
   continueConversation,
@@ -55,12 +56,37 @@ const REPLY: Message = {
   parts: [{ type: "text", text: "ok" }],
 };
 
-const runConfig = (provider: Provider, tools?: Tool[]): RunConfig => ({
-  name: "example",
-  provider,
-  harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
-  ...(tools !== undefined ? { tools } : {}),
+const allowGate = (): Gate => ({
+  judge: async () => ({ allowed: true, reason: "ok" }),
 });
+
+function runConfig(
+  provider: Provider,
+  extra: { tools?: Tool[]; gate: Gate },
+): GatedRunConfig;
+function runConfig(provider: Provider, extra?: undefined): RunConfig;
+function runConfig(
+  provider: Provider,
+  extra?: { tools?: Tool[]; gate?: Gate },
+): RunConfig {
+  const { tools, gate } = extra ?? {};
+  const harness = {
+    kind: "loop" as const,
+    model: "m",
+    maxTurns: 1,
+    stream: false,
+  };
+  if (gate !== undefined) {
+    return {
+      name: "example",
+      provider,
+      harness,
+      gate,
+      ...(tools !== undefined ? { tools } : {}),
+    };
+  }
+  return { name: "example", provider, harness };
+}
 
 const fakeProvider = (options?: {
   parts?: AssistantPart[];
@@ -382,7 +408,7 @@ describe("continueConversation", () => {
     });
 
     const outcome = await continueConversation(
-      runConfig(provider, [echoTool]),
+      runConfig(provider, { tools: [echoTool], gate: allowGate() }),
       {
         store,
         id: "jev",
@@ -461,7 +487,7 @@ describe("continueConversation", () => {
 });
 
 describe("createContinueConversation", () => {
-  test("passes the given options object straight through to the run function, unchanged", async () => {
+  test("passes the given options fields straight through to the run function, unchanged", async () => {
     const store = createMemoryConversationStore();
     await store.create("jev");
     const optionsSeen: (RunOptions | undefined)[] = [];
@@ -481,7 +507,7 @@ describe("createContinueConversation", () => {
       };
     };
     const entrance = createContinueConversation({ run: fakeRun });
-    const options: RunOptions = {
+    const options = {
       signal: new AbortController().signal,
       caseId: "k",
       sessionId: "fixed-session",
@@ -499,7 +525,48 @@ describe("createContinueConversation", () => {
       options,
     );
 
-    expect(optionsSeen[0]).toBe(options);
+    expect(optionsSeen[0]).toEqual(options);
+  });
+
+  test("drops keep from the options forwarded to the run function, for a config with no gate", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const optionsSeen: (RunOptions | undefined)[] = [];
+    const fakeRun = async (
+      _config: RunConfig,
+      messages: Message[],
+      options?: RunOptions,
+    ): Promise<RunOutcome> => {
+      optionsSeen.push(options);
+      return {
+        sessionId: "s1",
+        result: {
+          reason: "stop",
+          messages: [
+            { role: "user", content: "hi" },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "ok" }],
+            },
+          ],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      };
+    };
+    const entrance = createContinueConversation({ run: fakeRun });
+
+    await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { sessionId: "s1", keep: (added) => added as Message[] },
+    );
+
+    expect(optionsSeen[0]).toEqual({ sessionId: "s1" });
   });
 
   test("forwards the wrap-up signal and the added tools to the run function, and appends the wrapped-up result", async () => {
@@ -536,7 +603,7 @@ describe("createContinueConversation", () => {
     const entrance = createContinueConversation({ run: fakeRun });
 
     const outcome = await entrance(
-      runConfig(fakeProvider().provider),
+      runConfig(fakeProvider().provider, { gate: allowGate() }),
       {
         store,
         id: "t1",

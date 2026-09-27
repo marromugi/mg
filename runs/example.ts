@@ -1,7 +1,7 @@
 import type { Message } from "@mg/core";
 import { run } from "@mg/runner";
 import { term } from "@mg/term";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 const messages: Message[] = [
   { role: "user", content: process.argv[2] ?? "ls の結果を教えて" },

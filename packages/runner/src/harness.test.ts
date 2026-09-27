@@ -79,6 +79,7 @@ describe("createHarness", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       tools: [tool],
+      gate: { judge: async () => ({ allowed: true, reason: "ok" }) },
     };
 
     await collect(

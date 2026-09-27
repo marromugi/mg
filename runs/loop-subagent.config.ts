@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
-import { createRulesGate } from "@mg/gate";
+import { createLlmGate, createRulesGate } from "@mg/gate";
 import {
   createCdpConnector,
   createSshConnector,
@@ -59,6 +59,14 @@ export default defineRun({
     maxTurns: 10,
   },
   workspace: buildMachine,
+  gate: createLlmGate({
+    provider,
+    model: "deepseek/deepseek-v4-flash",
+    policy:
+      "Calling the researcher subagent is allowed. Reading files " +
+      "and browsing pages are allowed. Changing files, installing " +
+      "software, or typing into forms is not.",
+  }),
   subagents: [
     {
       name: "researcher",

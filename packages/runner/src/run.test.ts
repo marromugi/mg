@@ -172,6 +172,9 @@ const haltingStreamProvider = (
 
 const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
 
+const allowGate = (): Gate =>
+  stubGate(async () => ({ allowed: true, reason: "ok" }));
+
 const stubSchema = (): ToolSchema => ({
   "~standard": {
     version: 1,
@@ -474,6 +477,7 @@ describe("run with a workspace", () => {
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       tools: [configTool],
       workspace: fakeWorkspace([workspaceTool]),
+      gate: allowGate(),
     };
 
     await run(config, []);
@@ -499,6 +503,7 @@ describe("run with a workspace", () => {
           closed = true;
         },
       }),
+      gate: allowGate(),
     };
 
     await expect(run(config, [])).rejects.toThrow(
@@ -527,6 +532,7 @@ describe("run with a workspace", () => {
         },
         closeError: new Error("close failed"),
       }),
+      gate: allowGate(),
     };
 
     await expect(run(config, [])).rejects.toThrow(
@@ -554,6 +560,7 @@ describe("run with a workspace", () => {
         { closeDelayMs: 50 },
         "ws",
       ),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
     const expectedMessage =
@@ -586,6 +593,7 @@ describe("run with a workspace", () => {
           closed = true;
         },
       }),
+      gate: allowGate(),
     };
 
     await run(config, []);
@@ -606,6 +614,7 @@ describe("run with a workspace", () => {
           closed = true;
         },
       }),
+      gate: allowGate(),
     };
 
     await expect(run(config, [])).rejects.toThrow(error);
@@ -623,6 +632,7 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       workspace: fakeWorkspace([], { closeDelayMs: 50 }),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
 
@@ -647,6 +657,7 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       workspace: fakeWorkspace([], { closeError }),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
     const expectedMessage = "Failed to close 1 connection(s)";
@@ -680,6 +691,7 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       workspace: fakeWorkspace([], { closeError, closeDelayMs: 50 }),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
 
@@ -713,6 +725,7 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       workspace: fakeWorkspace([]),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
 
@@ -765,6 +778,7 @@ describe("run with a workspace", () => {
         name: "ws",
         connectors: [connectorA, connectorB],
       }),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
 
@@ -804,6 +818,7 @@ describe("run with a workspace", () => {
           },
         ],
       }),
+      gate: allowGate(),
       trace: { exporters: [exporter] },
     };
     const expectedMessage =
@@ -837,6 +852,7 @@ describe("run with a workspace", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       tools: [configTool],
+      gate: allowGate(),
     };
 
     const outcome = await run(config, []);
@@ -909,6 +925,7 @@ describe("run with call-only tools", () => {
       harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
       tools: [configTool],
       workspace: fakeWorkspace([workspaceTool]),
+      gate: allowGate(),
     };
 
     const outcome = await run(config, [], { tools: [askTool] });
@@ -943,6 +960,7 @@ describe("run with call-only tools", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       tools: [configTool],
+      gate: allowGate(),
     };
 
     let error: unknown;
@@ -981,6 +999,7 @@ describe("run with call-only tools", () => {
         },
         "ws",
       ),
+      gate: allowGate(),
     };
 
     let error: unknown;

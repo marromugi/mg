@@ -1,4 +1,5 @@
 import type { GenerateResponse, Message, Provider } from "@mg/core";
+import type { Gate } from "@mg/gate";
 import type { Connector, Workspace } from "@mg/workspace";
 import { defineWorkspace } from "@mg/workspace";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
@@ -57,6 +58,10 @@ const baseConfig = (
   provider,
   harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
   ...(exporter ? { trace: { exporters: [exporter] } } : {}),
+});
+
+const allowGate = (): Gate => ({
+  judge: async () => ({ allowed: true, reason: "ok" }),
 });
 
 const fakeConnector = (
@@ -237,6 +242,7 @@ describe("runMany", () => {
     const config: RunConfig = {
       ...baseConfig(provider),
       workspace: fakeWorkspace(opened),
+      gate: allowGate(),
     };
     const cases = ["a", "b"].map(makeCase);
 
@@ -270,6 +276,7 @@ describe("runMany", () => {
         name: "build-machine",
         exclusive: ["cdp:localhost:9222"],
       }),
+      gate: allowGate(),
     };
 
     const outcome = runMany(config, [makeCase("a")], {
@@ -298,6 +305,7 @@ describe("runMany", () => {
         name: "build-machine",
         exclusive: ["cdp:localhost:9222"],
       }),
+      gate: allowGate(),
     };
     const cases = ["a", "b"].map(makeCase);
 
@@ -318,6 +326,7 @@ describe("runMany", () => {
     const config: RunConfig = {
       ...baseConfig(provider),
       workspace: fakeWorkspace(opened),
+      gate: allowGate(),
     };
 
     const outcomes = await runMany(config, [makeCase("a")]);
@@ -335,6 +344,7 @@ describe("runMany", () => {
     const config: RunConfig = {
       ...baseConfig(provider),
       workspace: fakeWorkspace(opened),
+      gate: allowGate(),
     };
 
     const outcomes = await runMany(config, [makeCase("a")], {

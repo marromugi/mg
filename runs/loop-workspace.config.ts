@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
+import { createLlmGate } from "@mg/gate";
 import {
   createCdpConnector,
   createSshConnector,
@@ -26,9 +27,11 @@ if (sshKeyPath === undefined)
 const cdpUrl = process.env.MG_CDP_URL;
 if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 
+const provider = createOpenRouterProvider({ apiKey });
+
 export default defineRun({
   name: "loop-workspace-deepseek",
-  provider: createOpenRouterProvider({ apiKey }),
+  provider,
   harness: {
     kind: "loop",
     model: "deepseek/deepseek-v4-flash",
@@ -44,6 +47,13 @@ export default defineRun({
       }),
       createCdpConnector({ url: cdpUrl }),
     ],
+  }),
+  gate: createLlmGate({
+    provider,
+    model: "deepseek/deepseek-v4-flash",
+    policy:
+      "Reading files and browsing pages are allowed. Changing " +
+      "files, installing software, or typing into forms is not.",
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

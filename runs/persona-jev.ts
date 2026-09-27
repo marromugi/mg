@@ -9,6 +9,7 @@ import type { StartOptions } from "@mg/runner";
 import { continueAsPersona, defineRun, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
+import { outputPath } from "./outputs.ts";
 import { createJevPersona } from "./persona-jev.persona.ts";
 import { trigger } from "./trigger-jev.trigger.ts";
 
@@ -24,7 +25,7 @@ const runConfig = defineRun({
     model: "deepseek/deepseek-v4-flash",
     maxTurns: 10,
   },
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 
 const PERSONA_ID = "jev";
@@ -32,7 +33,7 @@ const CONVERSATION_ID = "jev";
 const COUNTERPARTS = [{ id: "user", name: "User" }];
 
 const memoryStore = await openSqliteMemoryStore(
-  "./persona-memory.sqlite",
+  outputPath("persona-memory.sqlite"),
 );
 try {
   await memoryStore.create(PERSONA_ID, "I am Jev.");
@@ -41,7 +42,7 @@ try {
 }
 
 const conversationStore = await openSqliteConversationStore(
-  "./persona-conversation.sqlite",
+  outputPath("persona-conversation.sqlite"),
 );
 try {
   await conversationStore.create(CONVERSATION_ID);
@@ -77,7 +78,7 @@ const startFor =
         persona,
         counterparts: COUNTERPARTS,
         input: input.text,
-        trace: { jsonlPath: "./persona-trace.jsonl" },
+        trace: { jsonlPath: outputPath("persona-trace.jsonl") },
       },
       options,
     );
@@ -95,7 +96,7 @@ for (const input of inputs) {
       trigger,
       toMessages,
       start: startFor(input),
-      trace: { jsonlPath: "./trigger-trace.jsonl" },
+      trace: { jsonlPath: outputPath("trigger-trace.jsonl") },
     },
     input,
   );

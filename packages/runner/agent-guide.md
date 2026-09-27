@@ -11,6 +11,7 @@ Example config (see `runs/loop-bash.config.ts` for the file in the repo):
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -25,7 +26,7 @@ export default defineRun({
     maxTurns: 10,
   },
   tools: [createBashTool({ cwd: process.cwd() })],
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -37,6 +38,7 @@ import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createLlmGate } from "@mg/gate";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -60,7 +62,7 @@ export default defineRun({
       "Read-only commands are allowed. Deleting files or " +
       "sending data outside the machine is not.",
   }),
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -72,6 +74,7 @@ import { defineRun } from "@mg/runner";
 import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createEstimatorGate } from "@mg/gate";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -100,7 +103,7 @@ export default defineRun({
     estimator: createJevEstimator({ apiKey: jevApiKey }),
     policy,
   }),
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -119,6 +122,7 @@ import {
   createEditFileTool,
 } from "@mg/tools";
 import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -163,7 +167,7 @@ export default defineRun({
         "sending data outside the machine is not.",
     }),
   ]),
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -180,6 +184,7 @@ import {
   createSshConnector,
   defineWorkspace,
 } from "@mg/workspace";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -217,7 +222,7 @@ export default defineRun({
       createCdpConnector({ url: cdpUrl }),
     ],
   }),
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -232,6 +237,7 @@ import {
   createWebSearchTool,
   createOllamaWebSearchBackend,
 } from "@mg/tools";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -255,7 +261,7 @@ export default defineRun({
       backend: createOllamaWebSearchBackend({ apiKey: ollamaApiKey }),
     }),
   ],
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -272,6 +278,7 @@ import {
   createSshConnector,
   defineWorkspace,
 } from "@mg/workspace";
+import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
@@ -327,7 +334,7 @@ export default defineRun({
       },
     },
   ],
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
 
@@ -872,6 +879,6 @@ decision, run }` when the session id `start` returned matches the one the entran
 
 - One config per experiment. Don't reuse a single `runs/*.config.ts` for unrelated setups —
   add a new file instead.
-- Change `name` whenever a config's contents change (model, tools, harness settings, trace
-  target, …). `mg.run.name` is only useful for filtering if it stays tied to one setup.
+- Change `name` whenever a config's contents change (model, tools, harness settings, …).
+  `mg.run.name` is only useful for filtering if it stays tied to one setup.
 - Don't put prompts in the config. Pass them as `messages` to `run` / `runMany` at call time.

@@ -4,6 +4,7 @@ import { createOpenRouterProvider } from "@mg/core";
 import { defineRun, run, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
+import { outputPath } from "./outputs.ts";
 import { trigger } from "./trigger-jev.trigger.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -18,7 +19,7 @@ const runConfig = defineRun({
     model: "deepseek/deepseek-v4-flash",
     maxTurns: 10,
   },
-  trace: { jsonlPath: "./trace.jsonl" },
+  trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 
 const toMessages = (input: TextTriggerInput): Message[] => [
@@ -40,7 +41,7 @@ for (const input of inputs) {
       trigger,
       toMessages,
       start: (messages, options) => run(runConfig, messages, options),
-      trace: { jsonlPath: "./trigger-trace.jsonl" },
+      trace: { jsonlPath: outputPath("trigger-trace.jsonl") },
     },
     input,
   );

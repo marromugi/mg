@@ -4,6 +4,7 @@ import type { Tool } from "@mg/core";
 import { defineTool } from "@mg/core";
 import { createMemoryConversationStore } from "@mg/conversation";
 import type { ConversationStore } from "@mg/conversation";
+import type { Gate } from "@mg/gate";
 import type {
   Persona,
   PersonaContext,
@@ -20,7 +21,7 @@ import type {
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
-import type { RunConfig } from "./config.js";
+import type { GatedRunConfig, RunConfig } from "./config.js";
 import type {
   ContinueOptions,
   ContinueOutcome,
@@ -40,11 +41,25 @@ const REPLY: Message = {
   parts: [{ type: "text", text: "hi Alice" }],
 };
 
-const runConfig = (): RunConfig => ({
-  name: "example",
-  provider: {} as Provider,
-  harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+const allowGate = (): Gate => ({
+  judge: async () => ({ allowed: true, reason: "ok" }),
 });
+
+function runConfig(extra: { gate: Gate }): GatedRunConfig;
+function runConfig(extra?: undefined): RunConfig;
+function runConfig(extra?: { gate?: Gate }): RunConfig {
+  const { gate } = extra ?? {};
+  const harness = {
+    kind: "loop" as const,
+    model: "m",
+    maxTurns: 1,
+    stream: false,
+  };
+  if (gate !== undefined) {
+    return { name: "example", provider: {} as Provider, harness, gate };
+  }
+  return { name: "example", provider: {} as Provider, harness };
+}
 
 const conversationTarget = (
   store: ConversationStore,
@@ -297,7 +312,7 @@ describe("continueAsPersona", () => {
     });
 
     const outcome = await entrance(
-      runConfig(),
+      runConfig({ gate: allowGate() }),
       conversationTarget(store),
       {
         persona,

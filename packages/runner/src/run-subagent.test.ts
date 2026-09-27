@@ -258,6 +258,7 @@ describe("run with subagents in the config", () => {
       provider: parentProvider,
       harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
       workspace: fakeWorkspace([stubTool("shared")]),
+      gate: stubGate(),
       subagents: [
         {
           name: "researcher",
@@ -351,6 +352,7 @@ describe("run with subagents in the config", () => {
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
       tools: [stubTool("researcher")],
       workspace,
+      gate: stubGate(),
       subagents: [
         {
           name: "researcher",
@@ -404,6 +406,7 @@ describe("run with subagents in the config", () => {
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
       tools: [echoTool],
+      gate: stubGate(),
       trace: { exporters: [exporter] },
     };
 

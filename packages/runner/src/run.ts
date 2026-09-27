@@ -4,7 +4,7 @@ import { collect } from "@mg/harness";
 import { ATTR, SPAN, startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
 import { exclusiveNamesOf } from "@mg/workspace";
-import type { RunConfig } from "./config.js";
+import type { GatedRunConfig, RunConfig } from "./config.js";
 import { createExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
 import { createSubagent } from "./subagent.js";
@@ -19,6 +19,10 @@ export type RunOptions = {
   onEvent?: (event: HarnessEvent) => void;
 };
 
+export type UngatedRunOptions = Omit<RunOptions, "tools"> & {
+  tools?: undefined;
+};
+
 export type RunOutcome = { sessionId: string; result: HarnessResult };
 
 async function* tee(
@@ -31,11 +35,21 @@ async function* tee(
   }
 }
 
-export const run = async (
+export function run(
+  config: GatedRunConfig,
+  messages: Message[],
+  options?: RunOptions,
+): Promise<RunOutcome>;
+export function run(
+  config: RunConfig,
+  messages: Message[],
+  options?: UngatedRunOptions,
+): Promise<RunOutcome>;
+export async function run(
   config: RunConfig,
   messages: Message[],
   options?: RunOptions,
-): Promise<RunOutcome> => {
+): Promise<RunOutcome> {
   const sdk = await createTraceSdk({
     ...config.trace,
     sessionId: options?.sessionId,
@@ -103,4 +117,6 @@ export const run = async (
   root.end();
   await sdk.shutdown();
   return { sessionId: sdk.sessionId, result };
-};
+}
+
+export type RunEntry = typeof run;

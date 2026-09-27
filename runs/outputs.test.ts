@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Provider } from "@mg/core";
-import type { RunConfig } from "@mg/runner";
+import type { HarnessConfig, RunConfig } from "@mg/runner";
 import { startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
 import { beforeAll, describe, expect, test } from "vitest";
@@ -27,7 +27,7 @@ const fakeProvider: Provider = {
   },
 };
 
-const baseConfig: Omit<RunConfig, "name" | "trace"> = {
+const baseConfig: { provider: Provider; harness: HarnessConfig } = {
   provider: fakeProvider,
   harness: { kind: "loop", model: "m", maxTurns: 1 },
 };
@@ -69,7 +69,6 @@ describe("the seven loop configs' trace destination", () => {
   });
 
   const configNames = [
-    "loop-bash",
     "loop-bash-gate",
     "loop-bash-jev-gate",
     "loop-files",

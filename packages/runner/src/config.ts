@@ -12,15 +12,30 @@ export type LoopHarnessConfig = {
 };
 export type HarnessConfig = LoopHarnessConfig;
 
-export type RunConfig = {
+type RunBase = {
   name: string;
   provider: Provider;
   harness: HarnessConfig;
-  tools?: readonly Tool[];
-  gate?: Gate;
   trace?: Omit<TraceSdkOptions, "sessionId">;
-  workspace?: Workspace;
   subagents?: readonly SubagentConfig[];
 };
 
-export const defineRun = (config: RunConfig): RunConfig => config;
+export type GatedRunConfig = RunBase & {
+  gate: Gate;
+  tools?: readonly Tool[];
+  workspace?: Workspace;
+};
+
+export type UngatedRunConfig = RunBase & {
+  gate?: undefined;
+  tools?: undefined;
+  workspace?: undefined;
+};
+
+export type RunConfig = GatedRunConfig | UngatedRunConfig;
+
+export function defineRun(config: GatedRunConfig): GatedRunConfig;
+export function defineRun(config: UngatedRunConfig): UngatedRunConfig;
+export function defineRun(config: RunConfig): RunConfig {
+  return config;
+}

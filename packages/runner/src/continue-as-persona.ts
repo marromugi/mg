@@ -13,11 +13,13 @@ import {
 } from "@mg/trace";
 import { createTraceSdk, type TraceSdk } from "@mg/trace/otel";
 import { nanoid } from "nanoid";
-import type { RunConfig } from "./config.js";
+import type { GatedRunConfig, RunConfig } from "./config.js";
 import type {
+  ContinueEntry,
   ContinueOptions,
   ContinueOutcome,
   ConversationTarget,
+  UngatedContinueOptions,
 } from "./continue-conversation.js";
 import { continueConversation } from "./continue-conversation.js";
 import type { RecordTraceOptions } from "./record-trace.js";
@@ -54,14 +56,26 @@ const shutdown = async (sdk: TraceSdk): Promise<Recorded> => {
 };
 
 export const createContinueAsPersona = (deps: {
-  continueConversation: typeof continueConversation;
+  continueConversation: ContinueEntry;
 }) => {
-  return async <TInput, TRead>(
+  function continueAsPersona<TInput, TRead>(
+    config: GatedRunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: ContinueOptions,
+  ): Promise<PersonaOutcome<TRead>>;
+  function continueAsPersona<TInput, TRead>(
+    config: RunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: UngatedContinueOptions,
+  ): Promise<PersonaOutcome<TRead>>;
+  async function continueAsPersona<TInput, TRead>(
     config: RunConfig,
     conversation: ConversationTarget,
     persona: PersonaTarget<TInput, TRead>,
     options?: ContinueOptions,
-  ): Promise<PersonaOutcome<TRead>> => {
+  ): Promise<PersonaOutcome<TRead>> {
     options?.signal?.throwIfAborted();
 
     const sdk = await createTraceSdk(persona.trace);
@@ -102,16 +116,31 @@ export const createContinueAsPersona = (deps: {
       content: recall.instruction,
     };
 
+    const withInstruction: ConversationTarget = {
+      ...conversation,
+      messages: [instructionMessage, ...conversation.messages],
+    };
+    const withSession: ContinueOptions = {
+      ...options,
+      sessionId: runSessionId,
+    };
+
     let outcome: ContinueOutcome;
     try {
-      outcome = await deps.continueConversation(
-        config,
-        {
-          ...conversation,
-          messages: [instructionMessage, ...conversation.messages],
-        },
-        { ...options, sessionId: runSessionId },
-      );
+      outcome = await (config.gate !== undefined
+        ? deps.continueConversation(
+            config,
+            withInstruction,
+            withSession,
+          )
+        : (() => {
+            const { tools: _tools, ...ungated } = withSession;
+            return deps.continueConversation(
+              config,
+              withInstruction,
+              ungated,
+            );
+          })());
     } catch (error) {
       root.end(error);
       try {
@@ -168,7 +197,9 @@ export const createContinueAsPersona = (deps: {
       recorded,
       memory,
     };
-  };
+  }
+
+  return continueAsPersona;
 };
 
 export const continueAsPersona = createContinueAsPersona({

@@ -6,10 +6,10 @@ import type {
 } from "@mg/conversation";
 import type { HarnessResult } from "@mg/harness";
 import { addedMessages } from "./added-messages.js";
-import type { RunConfig } from "./config.js";
+import type { GatedRunConfig, RunConfig } from "./config.js";
 import { keptMessages } from "./kept-messages.js";
 import { run } from "./run.js";
-import type { RunOptions, RunOutcome } from "./run.js";
+import type { RunEntry, RunOptions } from "./run.js";
 
 export type ConversationTarget = {
   store: ConversationStore;
@@ -23,6 +23,10 @@ export type KeepMessages = (
 ) => Message[] | Promise<Message[]>;
 
 export type ContinueOptions = RunOptions & { keep?: KeepMessages };
+
+export type UngatedContinueOptions = Omit<ContinueOptions, "tools"> & {
+  tools?: undefined;
+};
 
 export type NotSavedReason =
   | { kind: "diverged" }
@@ -44,18 +48,22 @@ export type ContinueOutcome =
       reason: NotSavedReason;
     };
 
-export const createContinueConversation = (deps: {
-  run: (
+export const createContinueConversation = (deps: { run: RunEntry }) => {
+  function continueConversation(
+    config: GatedRunConfig,
+    conversation: ConversationTarget,
+    options?: ContinueOptions,
+  ): Promise<ContinueOutcome>;
+  function continueConversation(
     config: RunConfig,
-    messages: Message[],
-    options?: RunOptions,
-  ) => Promise<RunOutcome>;
-}) => {
-  return async (
+    conversation: ConversationTarget,
+    options?: UngatedContinueOptions,
+  ): Promise<ContinueOutcome>;
+  async function continueConversation(
     config: RunConfig,
     conversation: ConversationTarget,
     options?: ContinueOptions,
-  ): Promise<ContinueOutcome> => {
+  ): Promise<ContinueOutcome> {
     options?.signal?.throwIfAborted();
 
     const slice = await conversation.store.read(
@@ -68,16 +76,14 @@ export const createContinueConversation = (deps: {
       ...conversation.messages,
     ];
 
-    const runOptions: RunOptions | undefined =
-      options && "keep" in options
-        ? (({ keep: _keep, ...rest }) => rest)(options)
-        : options;
-
-    const { sessionId, result } = await deps.run(
-      config,
-      built,
-      runOptions,
-    );
+    const opts: ContinueOptions = options ?? {};
+    const { keep: _keep, ...rest } = opts;
+    const { sessionId, result } = await (config.gate !== undefined
+      ? deps.run(config, built, rest)
+      : (() => {
+          const { tools: _tools, ...ungated } = rest;
+          return deps.run(config, built, ungated);
+        })());
 
     const added = addedMessages(built, result.messages);
     if (added.kind === "diverged") {
@@ -139,7 +145,13 @@ export const createContinueConversation = (deps: {
     }
 
     return { saved: true, sessionId, result, entry };
-  };
+  }
+
+  return continueConversation;
 };
+
+export type ContinueEntry = ReturnType<
+  typeof createContinueConversation
+>;
 
 export const continueConversation = createContinueConversation({ run });

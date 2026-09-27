@@ -35,6 +35,9 @@ runner の役割は 6 つです。
 runner は判定の実装を知りません。
 @mg/gate で作ったゲートを、そのまま設定に渡します。
 
+`tools` か `workspace` を書いた設定は、`gate` が必須です。
+書かないと、型の検査に落ちます。空のツールの並びでも必須です。
+
 書き方は `agent-guide.md` にまとめています。
 
 ### 作業場
@@ -507,7 +510,7 @@ runner は `Persona` のインターフェースだけを見て、中身は知�
 
 ```ts
 import { continueConversation, createRunQueue } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 import { toTarget } from "./to-target.ts";
 
 const queue = createRunQueue((input: string, options) =>
@@ -574,7 +577,7 @@ queue.enqueue(input, { first: true });
 
 ```ts
 import { run } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 const { sessionId } = await run(config, [
   { role: "user", content: "..." },

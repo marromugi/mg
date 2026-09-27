@@ -5,33 +5,8 @@ This file is the copy-pasteable reference for writing that config.
 
 ## 1. Complete example
 
-Example config (see `runs/loop-bash.config.ts` for the file in the repo):
-
-```ts
-import { defineRun } from "@mg/runner";
-import { createOpenRouterProvider } from "@mg/core";
-import { createBashTool } from "@mg/tools";
-import { outputPath } from "./outputs.ts";
-
-const apiKey = process.env.OPENROUTER_API_KEY;
-if (apiKey === undefined)
-  throw new Error("OPENROUTER_API_KEY is not set");
-
-export default defineRun({
-  name: "loop-bash-deepseek",
-  provider: createOpenRouterProvider({ apiKey }),
-  harness: {
-    kind: "loop",
-    model: "deepseek/deepseek-v4-flash",
-    maxTurns: 10,
-  },
-  tools: [createBashTool({ cwd: process.cwd() })],
-  trace: { jsonlPath: outputPath("trace.jsonl") },
-});
-```
-
-Adding a gate that checks each tool call before it runs (see
-`runs/loop-bash-gate.config.ts` for the file in the repo):
+Example config, with a gate that checks each tool call before it runs
+(see `runs/loop-bash-gate.config.ts` for the file in the repo):
 
 ```ts
 import { defineRun } from "@mg/runner";
@@ -179,6 +154,7 @@ repo):
 import { readFileSync } from "node:fs";
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
+import { createLlmGate } from "@mg/gate";
 import {
   createCdpConnector,
   createSshConnector,
@@ -203,9 +179,11 @@ if (sshKeyPath === undefined)
 const cdpUrl = process.env.MG_CDP_URL;
 if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 
+const provider = createOpenRouterProvider({ apiKey });
+
 export default defineRun({
   name: "loop-workspace-deepseek",
-  provider: createOpenRouterProvider({ apiKey }),
+  provider,
   harness: {
     kind: "loop",
     model: "deepseek/deepseek-v4-flash",
@@ -222,6 +200,13 @@ export default defineRun({
       createCdpConnector({ url: cdpUrl }),
     ],
   }),
+  gate: createLlmGate({
+    provider,
+    model: "deepseek/deepseek-v4-flash",
+    policy:
+      "Reading files and browsing pages are allowed. Changing " +
+      "files, installing software, or typing into forms is not.",
+  }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
@@ -232,6 +217,7 @@ the repo):
 ```ts
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
+import { createLlmGate } from "@mg/gate";
 import {
   createBashTool,
   createWebSearchTool,
@@ -247,9 +233,11 @@ const ollamaApiKey = process.env.OLLAMA_API_KEY;
 if (ollamaApiKey === undefined)
   throw new Error("OLLAMA_API_KEY is not set");
 
+const provider = createOpenRouterProvider({ apiKey });
+
 export default defineRun({
   name: "loop-search-deepseek",
-  provider: createOpenRouterProvider({ apiKey }),
+  provider,
   harness: {
     kind: "loop",
     model: "deepseek/deepseek-v4-flash",
@@ -261,6 +249,13 @@ export default defineRun({
       backend: createOllamaWebSearchBackend({ apiKey: ollamaApiKey }),
     }),
   ],
+  gate: createLlmGate({
+    provider,
+    model: "deepseek/deepseek-v4-flash",
+    policy:
+      "Read-only commands and web searches are allowed. Deleting " +
+      "files or sending data outside the machine is not.",
+  }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 ```
@@ -272,7 +267,7 @@ repo):
 ```ts
 import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
-import { createRulesGate } from "@mg/gate";
+import { createLlmGate, createRulesGate } from "@mg/gate";
 import {
   createCdpConnector,
   createSshConnector,
@@ -312,6 +307,14 @@ export default defineRun({
     maxTurns: 10,
   },
   workspace: buildMachine,
+  gate: createLlmGate({
+    provider,
+    model: "deepseek/deepseek-v4-flash",
+    policy:
+      "Calling the researcher subagent is allowed. Reading files " +
+      "and browsing pages are allowed. Changing files, installing " +
+      "software, or typing into forms is not.",
+  }),
   subagents: [
     {
       name: "researcher",
@@ -342,31 +345,42 @@ export default defineRun({
 
 ### `RunConfig` (`packages/runner/src/config.ts`)
 
-| Field       | Type                                 | Required | Meaning                                                                                                                                                                                                   |
-| ----------- | ------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`      | `string`                             | yes      | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).                                                                                      |
-| `provider`  | `Provider` (from `@mg/core`)         | yes      | LLM connection the harness calls.                                                                                                                                                                         |
-| `harness`   | `HarnessConfig`                      | yes      | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                                                         |
-| `tools`     | `readonly Tool[]`                    | no       | Tools the harness may call.                                                                                                                                                                               |
-| `gate`      | `Gate` (from `@mg/gate`)             | no       | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createEstimatorGate`); the runner only passes it through.                                                         |
-| `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no       | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                                                   |
-| `workspace` | `Workspace` (from `@mg/workspace`)   | no       | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`.                                   |
-| `subagents` | `readonly SubagentConfig[]`          | no       | Subagents the parent's LLM can call, alongside `tools`. `run` builds each one after opening `workspace`, passing it the opened workspace and the run's exclusive-name state. Omitting it changes nothing. |
+| Field       | Type                                 | Required                           | Meaning                                                                                                                                                                                                     |
+| ----------- | ------------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | `string`                             | yes                                | Run name. Written as the `mg.run.name` trace attribute. Change it whenever the config's contents change (see Rules).                                                                                        |
+| `provider`  | `Provider` (from `@mg/core`)         | yes                                | LLM connection the harness calls.                                                                                                                                                                           |
+| `harness`   | `HarnessConfig`                      | yes                                | Harness settings, picked by `kind`. See the per-kind table below.                                                                                                                                           |
+| `tools`     | `readonly Tool[]`                    | no                                 | Tools the harness may call. Setting this (even to an empty array) makes `gate` required.                                                                                                                    |
+| `gate`      | `Gate` (from `@mg/gate`)             | required if `tools` or `workspace` | Judges each tool call before it runs. Build one with `@mg/gate` (e.g. `createLlmGate`, `createEstimatorGate`); the runner only passes it through.                                                           |
+| `trace`     | `Omit<TraceSdkOptions, "sessionId">` | no                                 | Where trace spans get written. See the trace table below; full semantics in `packages/trace/README.md`.                                                                                                     |
+| `workspace` | `Workspace` (from `@mg/workspace`)   | no                                 | A remote machine to open before the run and close after it. Its tools are appended after `tools`. Build one with `defineWorkspace`; see `packages/workspace/README.md`. Setting this makes `gate` required. |
+| `subagents` | `readonly SubagentConfig[]`          | no                                 | Subagents the parent's LLM can call, alongside `tools`. `run` builds each one after opening `workspace`, passing it the opened workspace and the run's exclusive-name state. Omitting it changes nothing.   |
+
+`RunConfig` is `GatedRunConfig | UngatedRunConfig` (`packages/runner/src/config.ts`).
+A config with `tools` or `workspace` is a `GatedRunConfig`, so `gate` is
+required by the type; a config with neither is an `UngatedRunConfig`,
+where `gate`, `tools`, and `workspace` must all be omitted.
 
 ### `RunOptions` (`packages/runner/src/run.ts`)
 
 The third argument to `run`. None of its fields are required.
 
-| Field       | Type                            | Meaning                                                                                                                                                                                                                                                                                                                                                            |
-| ----------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `signal`    | `AbortSignal`                   | Aborts the run; the harness rejects with the abort reason.                                                                                                                                                                                                                                                                                                         |
-| `wrapUp`    | `AbortSignal`                   | Passed straight to the harness. When it fires, the harness stops early and returns with reason `"wrapped-up"` instead of throwing; see `packages/loop/README.md`.                                                                                                                                                                                                  |
-| `tools`     | `readonly Tool[]`               | Tools for this call only. Appended after `RunConfig.tools` and the workspace's tools. A name shared with either throws `DuplicateToolNameError` (`packages/workspace/README.md`) before the provider is called, closing the workspace first; the added side's `kinds` entry is `"options"`. The config's `gate` judges calls to these tools the same as any other. |
-| `sessionId` | `string`                        | The run's session id, used for its trace.                                                                                                                                                                                                                                                                                                                          |
-| `caseId`    | `string`                        | Written as the `mg.run.case` trace attribute; set by `runMany`.                                                                                                                                                                                                                                                                                                    |
-| `onEvent`   | `(event: HarnessEvent) => void` | Called for every harness event as it streams.                                                                                                                                                                                                                                                                                                                      |
+| Field       | Type                            | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `signal`    | `AbortSignal`                   | Aborts the run; the harness rejects with the abort reason.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `wrapUp`    | `AbortSignal`                   | Passed straight to the harness. When it fires, the harness stops early and returns with reason `"wrapped-up"` instead of throwing; see `packages/loop/README.md`.                                                                                                                                                                                                                                                                                                          |
+| `tools`     | `readonly Tool[]`               | Tools for this call only. Appended after `RunConfig.tools` and the workspace's tools. A name shared with either throws `DuplicateToolNameError` (`packages/workspace/README.md`) before the provider is called, closing the workspace first; the added side's `kinds` entry is `"options"`. The config's `gate` judges calls to these tools the same as any other. Passing `tools` here needs a `GatedRunConfig`; the type check rejects it against an `UngatedRunConfig`. |
+| `sessionId` | `string`                        | The run's session id, used for its trace.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `caseId`    | `string`                        | Written as the `mg.run.case` trace attribute; set by `runMany`.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `onEvent`   | `(event: HarnessEvent) => void` | Called for every harness event as it streams.                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 `runMany` and `runOnTrigger` do not take `wrapUp` or `tools`; see their own option types.
+
+`run`, `continueConversation`, and `continueAsPersona` each take two call
+shapes: a `GatedRunConfig` with `RunOptions` (which may set `tools`), or a
+`RunConfig` with `UngatedRunOptions` (`Omit<RunOptions, "tools"> &
+{ tools?: undefined }`, so `tools` must be omitted). Passing `tools`
+alongside a config that might be ungated is a type error.
 
 ### `ContinueOptions` (`packages/runner/src/continue-conversation.ts`)
 
@@ -518,7 +532,7 @@ One case, with `run`:
 ```ts
 import type { Message } from "@mg/core";
 import { run } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 const messages: Message[] = [
   { role: "user", content: "ls の結果を教えて" },
@@ -532,7 +546,7 @@ Several cases, with `runMany` and a `RunCase[]`:
 ```ts
 import type { RunCase } from "@mg/runner";
 import { runMany } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 const cases: RunCase[] = [
   { id: "case-1", messages: [{ role: "user", content: "1 + 1 は？" }] },
@@ -559,7 +573,7 @@ Picking a config by path instead of a static import, with `loadRun`:
 ```ts
 import { loadRun, run } from "@mg/runner";
 
-const config = await loadRun("./loop-bash.config.ts");
+const config = await loadRun("./loop-bash-gate.config.ts");
 const { sessionId } = await run(config, [
   { role: "user", content: "hello" },
 ]);
@@ -572,7 +586,7 @@ Starting a run only when a trigger fires, with `runOnTrigger`:
 import type { Message } from "@mg/core";
 import { run, runOnTrigger } from "@mg/runner";
 import type { Trigger } from "@mg/trigger";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 type TweetInput = { kind: "tweet"; text: string };
 
@@ -615,7 +629,7 @@ Continuing a saved conversation, with `continueConversation`:
 ```ts
 import { createMemoryConversationStore } from "@mg/conversation";
 import { continueConversation } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 const store = createMemoryConversationStore();
 await store.create("jev");
@@ -696,7 +710,7 @@ import type { Message } from "@mg/core";
 import { createMemoryConversationStore } from "@mg/conversation";
 import { continueConversation, runOnTrigger } from "@mg/runner";
 import type { Trigger } from "@mg/trigger";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 type TweetInput = { kind: "tweet"; text: string };
 
@@ -755,7 +769,7 @@ SQLite conversation store):
 ```ts
 import { createMemoryConversationStore } from "@mg/conversation";
 import { continueAsPersona } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 import { persona } from "./jev.persona.ts";
 
 const store = createMemoryConversationStore();
@@ -794,7 +808,7 @@ Running one input at a time from a queue, with `createRunQueue`:
 ```ts
 import { createMemoryConversationStore } from "@mg/conversation";
 import { continueConversation, createRunQueue } from "@mg/runner";
-import config from "./loop-bash.config.ts";
+import config from "./loop-bash-gate.config.ts";
 
 const store = createMemoryConversationStore();
 await store.create("jev");

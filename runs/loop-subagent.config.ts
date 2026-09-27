@@ -52,7 +52,11 @@ const cleanBrowser = defineWorkspace({
 export default defineRun({
   name: "loop-subagent",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   workspace: buildMachine,
   subagents: [
     {
@@ -62,7 +66,7 @@ export default defineRun({
       provider,
       harness: {
         kind: "loop",
-        model: "openai/gpt-4o-mini",
+        model: "deepseek/deepseek-v4-flash",
         maxTurns: 10,
       },
       gate: createRulesGate({

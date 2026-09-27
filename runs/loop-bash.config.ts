@@ -10,7 +10,11 @@ if (apiKey === undefined)
 export default defineRun({
   name: "loop-bash",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   trace: { jsonlPath: "./trace.jsonl" },
 });

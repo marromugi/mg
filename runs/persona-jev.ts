@@ -19,7 +19,11 @@ if (apiKey === undefined)
 const runConfig = defineRun({
   name: "persona-jev",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   trace: { jsonlPath: "./trace.jsonl" },
 });
 

@@ -19,7 +19,11 @@ if (apiKey === undefined)
 export default defineRun({
   name: "loop-bash",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   trace: { jsonlPath: "./trace.jsonl" },
 });
@@ -43,11 +47,15 @@ const provider = createOpenRouterProvider({ apiKey });
 export default defineRun({
   name: "loop-bash-gate",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createLlmGate({
     provider,
-    model: "openai/gpt-4o-mini",
+    model: "deepseek/deepseek-v4-flash",
     policy:
       "Read-only commands are allowed. Deleting files or " +
       "sending data outside the machine is not.",
@@ -82,7 +90,11 @@ const policy =
 export default defineRun({
   name: "loop-bash-jev-gate",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createEstimatorGate({
     estimator: createJevEstimator({ apiKey: jevApiKey }),
@@ -118,7 +130,11 @@ const root = process.cwd();
 export default defineRun({
   name: "loop-files-composed-gate",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [
     createBashTool({ cwd: root }),
     createReadFileTool({ root }),
@@ -141,7 +157,7 @@ export default defineRun({
     }),
     createLlmGate({
       provider,
-      model: "openai/gpt-4o-mini",
+      model: "deepseek/deepseek-v4-flash",
       policy:
         "Read-only commands are allowed. Deleting files or " +
         "sending data outside the machine is not.",
@@ -185,7 +201,11 @@ if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 export default defineRun({
   name: "loop-workspace",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   workspace: defineWorkspace({
     name: "build-machine",
     connectors: [
@@ -224,7 +244,11 @@ if (ollamaApiKey === undefined)
 export default defineRun({
   name: "loop-search",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   tools: [
     createBashTool({ cwd: process.cwd() }),
     createWebSearchTool({
@@ -275,7 +299,11 @@ const cleanBrowser = defineWorkspace({
 export default defineRun({
   name: "loop-subagent",
   provider,
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   workspace: buildMachine,
   subagents: [
     {
@@ -285,7 +313,7 @@ export default defineRun({
       provider,
       harness: {
         kind: "loop",
-        model: "openai/gpt-4o-mini",
+        model: "deepseek/deepseek-v4-flash",
         maxTurns: 10,
       },
       gate: createRulesGate({ root: process.cwd(), rules: [] }),

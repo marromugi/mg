@@ -28,7 +28,11 @@ if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
 export default defineRun({
   name: "loop-workspace",
   provider: createOpenRouterProvider({ apiKey }),
-  harness: { kind: "loop", model: "openai/gpt-4o-mini", maxTurns: 10 },
+  harness: {
+    kind: "loop",
+    model: "deepseek/deepseek-v4-flash",
+    maxTurns: 10,
+  },
   workspace: defineWorkspace({
     name: "build-machine",
     connectors: [

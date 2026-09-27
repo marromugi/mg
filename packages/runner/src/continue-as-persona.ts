@@ -147,7 +147,10 @@ export const createContinueAsPersona = (deps: {
             withSession,
           )
         : (() => {
-            const { tools: _tools, ...ungated } = withSession;
+            const { tools, ...ungated } = withSession;
+            if (tools !== undefined) {
+              throw new GateRequiredError("added-tools");
+            }
             return deps.continueConversation(
               config,
               withInstruction,

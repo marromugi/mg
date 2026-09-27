@@ -41,12 +41,13 @@ runner は判定の実装を知りません。
 型の検査を通らない値も、実行時に同じ条件で拒否します。
 `loadRun` は、`tools` か `workspace` があって `gate` がない設定を
 `InvalidRunConfigError` で拒否します。
-文は `gate is required when tools or workspace is set` です。
+文は `<path>: gate is required when tools or workspace is set` です。
 
 `run`、`continueConversation`、`continueAsPersona` も、
 何かを始める前に同じ条件を確かめます。
 設定に `tools` か `workspace` があって `gate` がなければ、
-`GateRequiredError` を投げます。文は上と同じです。
+`GateRequiredError` を投げます。
+文は `gate is required when tools or workspace is set` です。
 
 呼び出しに足すツールを渡すこともあります。
 設定に `gate` がなければ、そのときも `GateRequiredError` を投げます。

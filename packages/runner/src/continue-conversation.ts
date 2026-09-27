@@ -94,7 +94,10 @@ export const createContinueConversation = (deps: { run: RunEntry }) => {
     const { sessionId, result } = await (config.gate !== undefined
       ? deps.run(config, built, rest)
       : (() => {
-          const { tools: _tools, ...ungated } = rest;
+          const { tools, ...ungated } = rest;
+          if (tools !== undefined) {
+            throw new GateRequiredError("added-tools");
+          }
           return deps.run(config, built, ungated);
         })());
 

@@ -58,23 +58,31 @@ describe("loadRun", () => {
   });
 
   test("rejects with InvalidRunConfigError naming the gate requirement when tools are set without a gate", async () => {
-    await expect(
-      loadRun("src/__fixtures__/tools-without-gate.ts"),
-    ).rejects.toThrow(
+    const error = await loadRun(
+      "src/__fixtures__/tools-without-gate.ts",
+    ).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(InvalidRunConfigError);
+    expect((error as InvalidRunConfigError).message).toBe(
       "src/__fixtures__/tools-without-gate.ts: gate is required when tools or workspace is set",
     );
   });
 
   test("rejects with the same gate requirement message for an empty tools array and for a workspace, both without a gate", async () => {
-    await expect(
-      loadRun("src/__fixtures__/empty-tools-without-gate.ts"),
-    ).rejects.toThrow(
-      /: gate is required when tools or workspace is set$/,
+    const emptyToolsError = await loadRun(
+      "src/__fixtures__/empty-tools-without-gate.ts",
+    ).catch((caught) => caught);
+    const workspaceError = await loadRun(
+      "src/__fixtures__/workspace-without-gate.ts",
+    ).catch((caught) => caught);
+
+    expect(emptyToolsError).toBeInstanceOf(InvalidRunConfigError);
+    expect((emptyToolsError as InvalidRunConfigError).message).toBe(
+      "src/__fixtures__/empty-tools-without-gate.ts: gate is required when tools or workspace is set",
     );
-    await expect(
-      loadRun("src/__fixtures__/workspace-without-gate.ts"),
-    ).rejects.toThrow(
-      /: gate is required when tools or workspace is set$/,
+    expect(workspaceError).toBeInstanceOf(InvalidRunConfigError);
+    expect((workspaceError as InvalidRunConfigError).message).toBe(
+      "src/__fixtures__/workspace-without-gate.ts: gate is required when tools or workspace is set",
     );
   });
 

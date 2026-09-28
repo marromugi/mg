@@ -152,6 +152,84 @@ describe("transcribe", () => {
     );
   });
 
+  it("puts a user message's author in the bracket as a JSON string, ahead of the body on the same line", () => {
+    const authoredStep: LlmStep = {
+      ...llmStep1,
+      input: [{ role: "user", author: "alice", content: "hi" }],
+    };
+    const authoredView: RunView = {
+      ...view,
+      steps: [],
+      llmSteps: [authoredStep],
+      toolSteps: [],
+      gateSteps: [],
+    };
+
+    expect(transcribe(authoredView)).toBe('[user "alice"] hi');
+  });
+
+  it("escapes a quote in the author", () => {
+    const authoredStep: LlmStep = {
+      ...llmStep1,
+      input: [{ role: "user", author: 'al"ice', content: "hi" }],
+    };
+    const authoredView: RunView = {
+      ...view,
+      steps: [],
+      llmSteps: [authoredStep],
+      toolSteps: [],
+      gateSteps: [],
+    };
+
+    expect(transcribe(authoredView)).toBe('[user "al\\"ice"] hi');
+  });
+
+  it("leaves a user message with no author as the plain [user] line", () => {
+    const unauthoredStep: LlmStep = {
+      ...llmStep1,
+      input: [{ role: "user", content: "hi" }],
+    };
+    const unauthoredView: RunView = {
+      ...view,
+      steps: [],
+      llmSteps: [unauthoredStep],
+      toolSteps: [],
+      gateSteps: [],
+    };
+
+    expect(transcribe(unauthoredView)).toBe("[user] hi");
+  });
+
+  it("throws a RangeError for a blank author", () => {
+    const blankAuthorStep = (author: string): LlmStep => ({
+      ...llmStep1,
+      input: [{ role: "user", author, content: "hi" }],
+    });
+    const emptyView: RunView = {
+      ...view,
+      steps: [],
+      llmSteps: [blankAuthorStep("")],
+      toolSteps: [],
+      gateSteps: [],
+    };
+    const whitespaceView: RunView = {
+      ...view,
+      steps: [],
+      llmSteps: [blankAuthorStep("  ")],
+      toolSteps: [],
+      gateSteps: [],
+    };
+
+    expect(() => transcribe(emptyView)).toThrow(RangeError);
+    expect(() => transcribe(emptyView)).toThrow(
+      "user message author must not be blank",
+    );
+    expect(() => transcribe(whitespaceView)).toThrow(RangeError);
+    expect(() => transcribe(whitespaceView)).toThrow(
+      "user message author must not be blank",
+    );
+  });
+
   it("skips an input message with an unrecognized role instead of throwing", () => {
     const unknownRoleMessage = {
       role: "other",

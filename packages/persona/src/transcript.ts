@@ -1,11 +1,20 @@
-import type { Message } from "@mg/core";
+import type { Message, UserMessage } from "@mg/core";
+
+const userTag = (message: UserMessage): string => {
+  const { author } = message;
+  if (author === undefined) return "[user]";
+  if (author.trim() === "") {
+    throw new RangeError("user message author must not be blank");
+  }
+  return `[user ${JSON.stringify(author)}]`;
+};
 
 const formatMessage = (message: Message): string[] => {
   switch (message.role) {
     case "system":
       return [`[system]\n${message.content}`];
     case "user":
-      return [`[user]\n${message.content}`];
+      return [`${userTag(message)}\n${message.content}`];
     case "tool":
       return [
         `[tool-result ${message.toolCallId}]\n${message.content}`,

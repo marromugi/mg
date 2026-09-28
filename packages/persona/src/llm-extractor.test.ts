@@ -120,6 +120,47 @@ describe("createLlmExtractor", () => {
     });
   });
 
+  test("passes the conversation's authored user message through to the extraction request", async () => {
+    let seen: GenerateRequest | undefined;
+    const provider = stubProvider((request) => {
+      seen = request;
+      return {
+        parts: [
+          {
+            type: "tool-call",
+            id: "r1",
+            name: "remember",
+            arguments: { summary: "s", items: [] },
+          },
+        ],
+        finishReason: "tool_calls",
+      };
+    });
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+    const authoredInput: ExtractorInput = {
+      counterparts: [{ id: "alice", name: "Alice" }],
+      entry: [{ role: "user", author: "alice", content: "hi" }],
+      memory: { persona: "I am Jev.", items: [] },
+    };
+
+    await extractor.extract(authoredInput);
+
+    if (seen === undefined) throw new Error("request not captured");
+    const userMessage = seen.messages[1];
+    if (userMessage?.role !== "user") {
+      throw new Error("expected a user message");
+    }
+    expect(
+      userMessage.content.endsWith(
+        '## Conversation\n[user "alice"]\nhi',
+      ),
+    ).toBe(true);
+  });
+
   test("returns the tool arguments as the candidate, without a persona property when none was given", async () => {
     const provider = stubProvider(() => correctResponse);
     const extractor = createLlmExtractor({

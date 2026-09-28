@@ -10,6 +10,7 @@ import { continueAsPersona, defineRun, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
 import { outputPath } from "./outputs.ts";
+import { toMessages } from "./persona-jev.messages.ts";
 import { createJevPersona } from "./persona-jev.persona.ts";
 import { trigger } from "./trigger-jev.trigger.ts";
 
@@ -51,13 +52,6 @@ try {
 }
 
 const persona = createJevPersona({ store: memoryStore });
-
-const toMessages = (input: TextTriggerInput): Message[] => [
-  {
-    role: "user",
-    content: `The user just muttered to themselves: "${input.text}"`,
-  },
-];
 
 const startFor =
   (input: TextTriggerInput) =>

@@ -701,3 +701,77 @@ describe("createOllamaProvider halt", () => {
     });
   });
 });
+
+describe("createOllamaProvider with an authored user message", () => {
+  const authoredOkBody = {
+    message: { role: "assistant", content: "ok" },
+    done: true,
+    done_reason: "stop",
+  };
+
+  test("sends the same batch request body whether or not the user message carries an author", async () => {
+    const { fetchStub: authoredFetch, calls: authoredCalls } =
+      stubFetch(() => jsonResponse(authoredOkBody));
+    const authoredProvider = createOllamaProvider({
+      fetch: authoredFetch,
+    });
+    await authoredProvider.generate({
+      model: "m",
+      messages: [{ role: "user", author: "alice", content: "hi" }],
+    });
+
+    const { fetchStub: plainFetch, calls: plainCalls } = stubFetch(() =>
+      jsonResponse(authoredOkBody),
+    );
+    const plainProvider = createOllamaProvider({ fetch: plainFetch });
+    await plainProvider.generate({
+      model: "m",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    const authoredBody = JSON.parse(
+      String(authoredCalls[0].init?.body),
+    );
+    expect(authoredBody.messages).toEqual([
+      { role: "user", content: "hi" },
+    ]);
+    expect(authoredBody).toEqual(
+      JSON.parse(String(plainCalls[0].init?.body)),
+    );
+  });
+
+  test("sends the same streamed request body whether or not the user message carries an author", async () => {
+    const { fetchStub: authoredFetch, calls: authoredCalls } =
+      stubFetch(() => ndjsonResponse([authoredOkBody]));
+    const authoredProvider = createOllamaProvider({
+      fetch: authoredFetch,
+    });
+    await collectStream(
+      authoredProvider.stream({
+        model: "m",
+        messages: [{ role: "user", author: "alice", content: "hi" }],
+      }),
+    );
+
+    const { fetchStub: plainFetch, calls: plainCalls } = stubFetch(() =>
+      ndjsonResponse([authoredOkBody]),
+    );
+    const plainProvider = createOllamaProvider({ fetch: plainFetch });
+    await collectStream(
+      plainProvider.stream({
+        model: "m",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    );
+
+    const authoredBody = JSON.parse(
+      String(authoredCalls[0].init?.body),
+    );
+    expect(authoredBody.messages).toEqual([
+      { role: "user", content: "hi" },
+    ]);
+    expect(authoredBody).toEqual(
+      JSON.parse(String(plainCalls[0].init?.body)),
+    );
+  });
+});

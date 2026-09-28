@@ -1,5 +1,4 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
-import { createJevEstimator } from "@mg/core";
 import { startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
 import type { JudgeContext, JudgeName } from "@mg/turn";
@@ -13,13 +12,14 @@ import {
   JudgeError,
 } from "@mg/turn";
 import { term } from "@mg/term";
+import { createSampleJevEstimator } from "./jev-estimator.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.TYPESAFE_API_KEY;
 if (apiKey === undefined)
   throw new Error("TYPESAFE_API_KEY is not set");
 
-const estimator = createJevEstimator({ apiKey });
+const estimator = createSampleJevEstimator({ apiKey });
 
 const backchannelJudge = createEstimatorBackchannelJudge({
   estimator,

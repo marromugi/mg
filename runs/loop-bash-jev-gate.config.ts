@@ -1,8 +1,9 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
 import { defineRun } from "@mg/runner";
-import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
+import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createEstimatorGate } from "@mg/gate";
+import { createSampleJevEstimator } from "./jev-estimator.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -29,7 +30,7 @@ export default defineRun({
   },
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createEstimatorGate({
-    estimator: createJevEstimator({ apiKey: jevApiKey }),
+    estimator: createSampleJevEstimator({ apiKey: jevApiKey }),
     policy,
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },

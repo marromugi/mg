@@ -1,5 +1,5 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
-import { createJevEstimator } from "@mg/core";
+import { createSampleJevEstimator } from "./jev-estimator.ts";
 import type {
   KeepCandidate,
   PersonaScene,
@@ -18,7 +18,7 @@ const apiKey = process.env.TYPESAFE_API_KEY;
 if (apiKey === undefined)
   throw new Error("TYPESAFE_API_KEY is not set");
 
-const estimator = createJevEstimator({ apiKey });
+const estimator = createSampleJevEstimator({ apiKey });
 
 const recallQuestion =
   "Which of these memories about the counterparts matters for " +

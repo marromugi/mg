@@ -38,6 +38,35 @@ class FakeExporterWithForceFlush extends FakeExporter {
   }
 }
 
+class CapturingExporter implements SpanExporter {
+  calls = 0;
+  exportedSpans: ReadableSpan[] = [];
+
+  export(
+    spans: ReadableSpan[],
+    resultCallback: Parameters<SpanExporter["export"]>[1],
+  ): void {
+    this.calls += 1;
+    this.exportedSpans.push(...spans);
+    resultCallback({ code: 0 });
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const buildLlmSpan = (inputMessages: unknown): ReadableSpan =>
+  ({
+    attributes: {
+      [ATTR.op]: "llm",
+      [ATTR.llmInputMessages]: jsonAttribute(inputMessages),
+    },
+  }) as unknown as ReadableSpan;
+
+const readInputMessages = (span: ReadableSpan): unknown =>
+  JSON.parse(span.attributes["gen_ai.input.messages"] as string);
+
 describe("GenAiMappingExporter", () => {
   const setup = () => {
     const inner = new InMemorySpanExporter();
@@ -119,5 +148,86 @@ describe("GenAiMappingExporter", () => {
     const exporter = new GenAiMappingExporter(inner);
 
     await expect(exporter.forceFlush()).resolves.toBeUndefined();
+  });
+
+  it("puts a user message's author into gen_ai's name field", () => {
+    const inner = new CapturingExporter();
+    const exporter = new GenAiMappingExporter(inner);
+    const span = buildLlmSpan([
+      { role: "user", author: "alice", content: "hi" },
+    ]);
+
+    exporter.export([span], () => {});
+
+    expect(readInputMessages(inner.exportedSpans[0])).toEqual([
+      {
+        role: "user",
+        name: "alice",
+        parts: [{ type: "text", content: "hi" }],
+      },
+    ]);
+  });
+
+  it("puts only the authored user message's name, leaving the system message without one", () => {
+    const inner = new CapturingExporter();
+    const exporter = new GenAiMappingExporter(inner);
+    const span = buildLlmSpan([
+      { role: "system", content: "s" },
+      { role: "user", author: "bob", content: "yo" },
+    ]);
+
+    exporter.export([span], () => {});
+
+    expect(readInputMessages(inner.exportedSpans[0])).toEqual([
+      { role: "system", parts: [{ type: "text", content: "s" }] },
+      {
+        role: "user",
+        name: "bob",
+        parts: [{ type: "text", content: "yo" }],
+      },
+    ]);
+  });
+
+  it("leaves a user message without an author with no name field", () => {
+    const inner = new CapturingExporter();
+    const exporter = new GenAiMappingExporter(inner);
+    const span = buildLlmSpan([{ role: "user", content: "hi" }]);
+
+    exporter.export([span], () => {});
+
+    const [message] = readInputMessages(inner.exportedSpans[0]) as [
+      Record<string, unknown>,
+    ];
+    expect(message).toEqual({
+      role: "user",
+      parts: [{ type: "text", content: "hi" }],
+    });
+    expect(message).not.toHaveProperty("name");
+  });
+
+  it("throws RangeError for a blank author and never calls the inner exporter", () => {
+    const inner = new CapturingExporter();
+    const exporter = new GenAiMappingExporter(inner);
+    const span = buildLlmSpan([
+      { role: "user", author: "", content: "hi" },
+    ]);
+
+    expect(() => exporter.export([span], () => {})).toThrow(
+      new RangeError("user message author must not be blank"),
+    );
+    expect(inner.calls).toBe(0);
+  });
+
+  it("throws RangeError for a whitespace-only author and never calls the inner exporter", () => {
+    const inner = new CapturingExporter();
+    const exporter = new GenAiMappingExporter(inner);
+    const span = buildLlmSpan([
+      { role: "user", author: "  ", content: "hi" },
+    ]);
+
+    expect(() => exporter.export([span], () => {})).toThrow(
+      new RangeError("user message author must not be blank"),
+    );
+    expect(inner.calls).toBe(0);
   });
 });

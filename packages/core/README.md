@@ -72,6 +72,20 @@ ollama は API キーを確かめないため、API キーは受け取りませ�
 中断されたときは、中断のエラーをそのまま投げます。
 それ以外の失敗は、専用の 3 種類のエラーで返ります。
 
+`createRetryingEstimator` は、Estimator を受け取って Estimator を返す、
+やり直しの実装です。渡した Estimator に呼び出しを任せ、やり直せる失敗
+だけを待ってからもう一度呼びます。
+
+次のものを、使う側が引数で渡します。既定の値は持ちません。
+
+- 呼び出しの回数の上限です。
+- やり直しごとの待ち方です。エラーに待つ時間がなければ、この順で待ちます。
+- 待つ時間の上限です。エラーの待つ時間がこれを超えるときは、待たずに
+  やり直しを使い切ったことにします。
+- 待つ関数です。省くと、実際の時間を待ちます。
+
+引数が正しくなければ、作る時点で `RangeError` を投げて拒否します。
+
 #### 分類
 
 分類の操作は、判定の対象と質問と、ラベルごとの説明を受け取ります。
@@ -148,15 +162,16 @@ src/
 
 ```
 estimators/
-  Estimator              確率と分類と段階で答えるモデルサービスの共通の型
-  ClassifyRequest        分類の要求の型
-  Classification         分類の判定の型
-  ScoreRequest           段階の要求の型
-  Score                  段階の判定の型
-  EstimatorLimits        ラベルと段階の数の上限の型
-  assertClassifyRequest  分類の要求が上限に収まっているかを確かめる
-  assertScoreRequest     段階の要求が上限に収まっているかを確かめる
-  createJevEstimator     Jev と話す Estimator を作る
+  Estimator                確率と分類と段階で答えるモデルサービスの共通の型
+  ClassifyRequest          分類の要求の型
+  Classification           分類の判定の型
+  ScoreRequest             段階の要求の型
+  Score                    段階の判定の型
+  EstimatorLimits          ラベルと段階の数の上限の型
+  assertClassifyRequest    分類の要求が上限に収まっているかを確かめる
+  assertScoreRequest       段階の要求が上限に収まっているかを確かめる
+  createJevEstimator       Jev と話す Estimator を作る
+  createRetryingEstimator  やり直す Estimator を作る
 
 providers/
   Provider                  プロバイダーの共通の型

@@ -1,7 +1,12 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 
 export type SystemMessage = { role: "system"; content: string };
-export type UserMessage = { role: "user"; content: string };
+export type UserMessage = {
+  role: "user";
+  content: string;
+  // The id of the participant who wrote this message. Absent: unknown.
+  author?: string;
+};
 
 export type ToolCall = { id: string; name: string; arguments: unknown };
 

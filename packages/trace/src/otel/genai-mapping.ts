@@ -35,6 +35,7 @@ type GenAiPart =
 
 type GenAiMessage = {
   role: string;
+  name?: string;
   parts: GenAiPart[];
 };
 
@@ -117,10 +118,24 @@ const toParts = (message: MessageLike): GenAiPart[] => {
   }
 };
 
-const toGenAiMessage = (message: MessageLike): GenAiMessage => ({
-  role: message.role,
-  parts: toParts(message),
-});
+const userAuthor = (message: MessageLike): string | undefined => {
+  if (message.role !== "user") return undefined;
+  const author = message.author;
+  if (typeof author !== "string") return undefined;
+  if (author.trim() === "") {
+    throw new RangeError("user message author must not be blank");
+  }
+  return author;
+};
+
+const toGenAiMessage = (message: MessageLike): GenAiMessage => {
+  const author = userAuthor(message);
+  return {
+    role: message.role,
+    ...(author !== undefined ? { name: author } : {}),
+    parts: toParts(message),
+  };
+};
 
 const parseMessages = (json: unknown): MessageLike[] | undefined => {
   if (typeof json !== "string") return undefined;

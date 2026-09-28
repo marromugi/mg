@@ -231,6 +231,13 @@ transcribe(view, { maxToolResultLength: 500 });
 [subagent <名前> error] <誤りの文>
 ```
 
+user のメッセージに書き手があれば、id を JSON の文字列で
+`[user "alice"] <本文>` のように書きます。書き手がなければ、
+今までどおり `[user] <本文>` のままです。
+
+書き手が空か空白だけのときは、`transcribe` が `RangeError` を投げます。
+書き起こしの文章は返しません。
+
 書き起こしを差し替えたいときは、`createEstimatorChecker` に渡します。
 
 ```ts

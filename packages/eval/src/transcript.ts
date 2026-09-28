@@ -1,7 +1,16 @@
-import type { AssistantPart, Message } from "@mg/core";
+import type { AssistantPart, Message, UserMessage } from "@mg/core";
 import type { GateStep, RunView } from "./view.js";
 
 export type TranscribeOptions = { maxToolResultLength?: number };
+
+const userTag = (message: UserMessage): string => {
+  const { author } = message;
+  if (author === undefined) return "[user]";
+  if (author.trim() === "") {
+    throw new RangeError("user message author must not be blank");
+  }
+  return `[user ${JSON.stringify(author)}]`;
+};
 
 const truncate = (
   text: string,
@@ -33,7 +42,7 @@ const transcribeMessage = (message: Message): string[] => {
     case "system":
       return [`[system] ${message.content}`];
     case "user":
-      return [`[user] ${message.content}`];
+      return [`${userTag(message)} ${message.content}`];
     case "tool":
       return [`[tool ${message.toolCallId}] ${message.content}`];
     case "assistant":

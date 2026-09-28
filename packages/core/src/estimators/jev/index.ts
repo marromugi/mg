@@ -38,6 +38,20 @@ const isAbortError = (error: unknown): boolean =>
   error !== null &&
   (error as { name?: unknown }).name === "AbortError";
 
+const HTTP_DATE_PATTERN =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
+const readRetryAfterMs = (value: string | null): number | undefined => {
+  if (value === null) return undefined;
+  if (/^\d+$/.test(value)) return Number(value) * 1000;
+  if (HTTP_DATE_PATTERN.test(value)) {
+    const parsed = Date.parse(value);
+    if (Number.isNaN(parsed)) return undefined;
+    return Math.max(0, parsed - Date.now());
+  }
+  return undefined;
+};
+
 const isValidProbability = (value: unknown): value is number =>
   typeof value === "number" &&
   Number.isFinite(value) &&
@@ -158,6 +172,7 @@ export const createJevEstimator = (
       if (isAbortError(error)) throw error;
       throw new EstimatorTransportError("Jev request failed", {
         cause: error,
+        retryable: true,
       });
     }
 
@@ -170,12 +185,24 @@ export const createJevEstimator = (
         // ignore: fall back to the status alone
       }
       const snippet = text.slice(0, MAX_ERROR_BODY_LENGTH);
+      const message = `Jev request failed: ${response.status}${
+        snippet === "" ? "" : ` ${snippet}`
+      }`;
+      const isRetryable =
+        response.status === 429 ||
+        (response.status >= 500 && response.status <= 599);
       throw new EstimatorHttpError(
-        `Jev request failed: ${response.status}${
-          snippet === "" ? "" : ` ${snippet}`
-        }`,
+        message,
         response.status,
         text,
+        isRetryable
+          ? {
+              retryable: true,
+              retryAfterMs: readRetryAfterMs(
+                response.headers.get("Retry-After"),
+              ),
+            }
+          : undefined,
       );
     }
 

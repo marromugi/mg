@@ -1,11 +1,25 @@
+export type EstimatorRetryMark =
+  | { retryable?: false; retryAfterMs?: never }
+  | { retryable: true; retryAfterMs?: number };
+
+export type EstimatorErrorOptions = {
+  cause?: unknown;
+} & EstimatorRetryMark;
+
 export abstract class EstimatorBaseError extends Error {
   abstract override readonly name: EstimatorErrorName;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | undefined;
 
   protected constructor(
     message: string,
-    options?: { cause?: unknown },
+    options?: EstimatorErrorOptions,
   ) {
     super(message, options);
+    this.retryable = options?.retryable === true;
+    this.retryAfterMs = this.retryable
+      ? options?.retryAfterMs
+      : undefined;
   }
 }
 
@@ -18,7 +32,7 @@ export class EstimatorHttpError extends EstimatorBaseError {
     message: string,
     status: number,
     body: string,
-    options?: { cause?: unknown },
+    options?: EstimatorErrorOptions,
   ) {
     super(message, options);
     this.status = status;
@@ -31,7 +45,10 @@ export class EstimatorTransportError extends EstimatorBaseError {
 
   // cause を必須にするために残しています。
   // oxlint-disable-next-line no-useless-constructor
-  constructor(message: string, options: { cause: unknown }) {
+  constructor(
+    message: string,
+    options: EstimatorErrorOptions & { cause: unknown },
+  ) {
     super(message, options);
   }
 }
@@ -41,13 +58,28 @@ export class EstimatorResponseError extends EstimatorBaseError {
 
   // protected な基底のコンストラクタを public にするために残しています。
   // oxlint-disable-next-line no-useless-constructor
-  constructor(message: string, options?: { cause?: unknown }) {
+  constructor(message: string, options?: EstimatorErrorOptions) {
     super(message, options);
   }
 }
 
+export class EstimatorRetryExhaustedError extends EstimatorBaseError {
+  override readonly name = "EstimatorRetryExhaustedError";
+  readonly attempts: number;
+
+  constructor(attempts: number, options: { cause: unknown }) {
+    super(`Estimator retries exhausted (attempts: ${attempts})`, {
+      cause: options.cause,
+    });
+    this.attempts = attempts;
+  }
+}
+
 export type EstimatorError =
-  EstimatorHttpError | EstimatorTransportError | EstimatorResponseError;
+  | EstimatorHttpError
+  | EstimatorTransportError
+  | EstimatorResponseError
+  | EstimatorRetryExhaustedError;
 
 export type EstimatorErrorName = EstimatorError["name"];
 

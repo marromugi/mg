@@ -656,6 +656,7 @@ describe("retryable failures and retryAfterMs", () => {
         .estimate(request)
         .catch((thrown: unknown) => thrown);
 
+      expect(error).toBeInstanceOf(EstimatorHttpError);
       expect((error as EstimatorHttpError).retryable).toBe(false);
     }
 
@@ -674,6 +675,8 @@ describe("retryable failures and retryAfterMs", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
+    expect(error).toBeInstanceOf(EstimatorHttpError);
+    expect((error as EstimatorHttpError).retryable).toBe(false);
     expect((error as EstimatorHttpError).retryAfterMs).toBeUndefined();
   });
 
@@ -1041,6 +1044,7 @@ describe("createJevEstimator classify", () => {
       .classify(classifyRequest)
       .catch((thrown: unknown) => thrown);
 
+    expect(error).toBeInstanceOf(EstimatorResponseError);
     expect((error as EstimatorResponseError).retryable).toBe(false);
   });
 
@@ -1748,6 +1752,7 @@ describe("createJevEstimator score", () => {
       .score(scoreRequest)
       .catch((thrown: unknown) => thrown);
 
+    expect(error).toBeInstanceOf(EstimatorResponseError);
     expect((error as EstimatorResponseError).retryable).toBe(false);
   });
 

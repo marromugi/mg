@@ -1,4 +1,4 @@
-export type EstimatorRetryMark =
+type EstimatorRetryMark =
   | { retryable?: false; retryAfterMs?: never }
   | { retryable: true; retryAfterMs?: number };
 

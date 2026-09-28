@@ -20,12 +20,12 @@ import type {
 type Step<T> = { value: T } | { error: unknown };
 type Call = { signal: AbortSignal | undefined };
 
-const scriptedOperation = <Request, T>(
+const scriptedOperation = <T>(
   steps: Step<T>[] | undefined,
   calls: Call[],
 ) => {
   return async (
-    _request: Request,
+    _request: unknown,
     options?: EstimateOptions,
   ): Promise<T> => {
     calls.push({ signal: options?.signal });
@@ -60,18 +60,15 @@ const createScriptedEstimator = (config: {
   return {
     model: config.model ?? "fake-model",
     limits: config.limits ?? { maxLabels: 7, maxLevels: 4 },
-    estimate: scriptedOperation<EstimateRequest, Estimate>(
+    estimate: scriptedOperation<Estimate>(
       config.estimate,
       estimateCalls,
     ),
-    classify: scriptedOperation<ClassifyRequest, Classification>(
+    classify: scriptedOperation<Classification>(
       config.classify,
       classifyCalls,
     ),
-    score: scriptedOperation<ScoreRequest, Score>(
-      config.score,
-      scoreCalls,
-    ),
+    score: scriptedOperation<Score>(config.score, scoreCalls),
     estimateCalls,
     classifyCalls,
     scoreCalls,
@@ -407,17 +404,23 @@ describe("createRetryingEstimator", () => {
     const inner = createScriptedEstimator({
       estimate: [{ error: retryableTransportError() }],
     });
+    let waiting: () => void = () => {};
+    const startedWaiting = new Promise<void>((resolve) => {
+      waiting = resolve;
+    });
     const sleep = (_ms: number, signal?: AbortSignal): Promise<void> =>
       new Promise((_resolve, reject) => {
         signal?.addEventListener("abort", () => {
           reject(signal.reason);
         });
+        waiting();
       });
     const estimator = wrap(inner, { sleep });
 
     const resultPromise = estimator.estimate(estimateRequest, {
       signal: controller.signal,
     });
+    await startedWaiting;
     controller.abort(reason);
     const thrown = await resultPromise.catch(
       (caught: unknown) => caught,

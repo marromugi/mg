@@ -1,6 +1,6 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
-import { createJevEstimator } from "@mg/core";
 import { createEstimatorTrigger } from "@mg/trigger";
+import { createSampleJevEstimator } from "./jev-estimator.ts";
 
 const apiKey = process.env.TYPESAFE_API_KEY;
 if (apiKey === undefined)
@@ -11,7 +11,7 @@ const question =
   "something they need to do?";
 
 export const trigger = createEstimatorTrigger({
-  estimator: createJevEstimator({ apiKey }),
+  estimator: createSampleJevEstimator({ apiKey }),
   question,
   threshold: 0.7,
 });

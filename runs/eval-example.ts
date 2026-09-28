@@ -1,9 +1,9 @@
-import { createJevEstimator } from "@mg/core";
 import type { Check } from "@mg/eval";
 import { createEstimatorChecker, evaluate, rule } from "@mg/eval";
 import type { RunCase } from "@mg/runner";
 import { runMany } from "@mg/runner";
 import { term } from "@mg/term";
+import { createSampleJevEstimator } from "./jev-estimator.ts";
 import config from "./loop-bash-jev-gate.config.ts";
 import { traceReaderFor } from "./outputs.ts";
 
@@ -14,7 +14,7 @@ if (jevApiKey === undefined)
   throw new Error("TYPESAFE_API_KEY is not set");
 
 const estimatorCheck = createEstimatorChecker({
-  estimator: createJevEstimator({ apiKey: jevApiKey }),
+  estimator: createSampleJevEstimator({ apiKey: jevApiKey }),
 });
 
 const cases: EvalCase[] = [

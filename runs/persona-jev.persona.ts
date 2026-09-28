@@ -1,9 +1,10 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
-import { createJevEstimator, createOpenRouterProvider } from "@mg/core";
+import { createOpenRouterProvider } from "@mg/core";
 import type { EstimatorSubject } from "@mg/core";
 import type { MemoryStore } from "@mg/memory";
 import type { Persona, RecallRead } from "@mg/persona";
 import { createLlmExtractor, createPersona } from "@mg/persona";
+import { createSampleJevEstimator } from "./jev-estimator.ts";
 
 const typesafeApiKey = process.env.TYPESAFE_API_KEY;
 if (typesafeApiKey === undefined)
@@ -42,7 +43,7 @@ export const createJevPersona = (options: {
   createPersona({
     id: "jev",
     store: options.store,
-    estimator: createJevEstimator({ apiKey: typesafeApiKey }),
+    estimator: createSampleJevEstimator({ apiKey: typesafeApiKey }),
     recall: {
       question: recallQuestion,
       noneDescription,

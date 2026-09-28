@@ -192,13 +192,14 @@ tools/
   isProviderError         型ガード
 
 Estimator のエラー
-  EstimatorBaseError       親（直接は作れない）
-  EstimatorHttpError       失敗の応答が返った
-  EstimatorTransportError  通信そのものが失敗した
-  EstimatorResponseError   応答が JSON でない、形が合わない、選ばれた
-                           ラベルが渡したラベルにない、確率が範囲の外
-  EstimatorError           3 つのユニオン型
-  isEstimatorError         型ガード
+  EstimatorBaseError            親（直接は作れない）
+  EstimatorHttpError            失敗の応答が返った
+  EstimatorTransportError       通信そのものが失敗した
+  EstimatorResponseError        応答が JSON でない、形が合わない、選ばれた
+                                ラベルが渡したラベルにない、確率が範囲の外
+  EstimatorRetryExhaustedError  やり直しを使い切った
+  EstimatorError                4 つのユニオン型
+  isEstimatorError              型ガード
 
 ツールの実行のエラー
   ToolRunBaseError        親（直接は作れない）
@@ -213,3 +214,14 @@ Estimator のエラー
 - プロバイダーと Estimator のエラーは、元の例外を中に残します。
 - 中断による停止は、ラップせずにそのまま通します。
 - ツールの実行関数が投げた例外も、そのまま通します。
+
+Estimator の `EstimatorHttpError`、`EstimatorTransportError`、
+`EstimatorResponseError` は、やり直せるかを示す `retryable` と、
+待つべき時間をミリ秒で示す `retryAfterMs` を持ちます。`retryAfterMs`
+は省ける値です。
+
+- Jev の実装は、通信の失敗と、429 と 5xx の応答を、やり直せる失敗にします。
+- 応答の Retry-After が秒数か HTTP の日時として読めれば、`retryAfterMs`
+  に書きます。読めなければ書きません。
+- `EstimatorRetryExhaustedError` は、やり直しを使い切ったことを示します。
+  試した回数と、最後のエラーを原因として持ちます。やり直せない失敗です。

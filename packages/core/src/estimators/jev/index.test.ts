@@ -478,6 +478,241 @@ describe("createJevEstimator", () => {
   });
 });
 
+describe("retryable failures and retryAfterMs", () => {
+  test("marks a transport failure as retryable, without a retryAfterMs, and keeps the original error as cause", async () => {
+    const original = new TypeError("fetch failed");
+    const fetchStub = stubFetch(async () => {
+      throw original;
+    });
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorTransportError);
+    expect((error as EstimatorTransportError).retryable).toBe(true);
+    expect(
+      (error as EstimatorTransportError).retryAfterMs,
+    ).toBeUndefined();
+    expect((error as EstimatorTransportError).cause).toBe(original);
+  });
+
+  test("marks 429 and 5xx responses as retryable, without a retryAfterMs when Retry-After is absent", async () => {
+    const fetchStub = stubFetch(
+      async () => new Response("slow down", { status: 429 }),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorHttpError);
+    expect((error as EstimatorHttpError).status).toBe(429);
+    expect((error as EstimatorHttpError).message).toBe(
+      "Jev request failed: 429 slow down",
+    );
+    expect((error as EstimatorHttpError).retryable).toBe(true);
+    expect((error as EstimatorHttpError).retryAfterMs).toBeUndefined();
+
+    for (const status of [500, 503, 599]) {
+      const statusEstimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(async () => new Response("busy", { status })),
+      });
+
+      const statusError = await statusEstimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown);
+
+      expect((statusError as EstimatorHttpError).retryable).toBe(true);
+    }
+  });
+
+  test("reads a Retry-After given in seconds as milliseconds, with 0 seconds giving 0", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () =>
+          new Response("busy", {
+            status: 503,
+            headers: { "Retry-After": "2" },
+          }),
+      ),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorHttpError).retryAfterMs).toBe(2000);
+
+    const zeroEstimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () =>
+          new Response("busy", {
+            status: 503,
+            headers: { "Retry-After": "0" },
+          }),
+      ),
+    });
+
+    const zeroError = await zeroEstimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((zeroError as EstimatorHttpError).retryAfterMs).toBe(0);
+  });
+
+  test("reads a Retry-After given as an HTTP date as the time until that date, clamped to 0 in the past", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+    try {
+      const futureEstimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(
+          async () =>
+            new Response("busy", {
+              status: 503,
+              headers: {
+                "Retry-After": "Thu, 01 Jan 2026 00:00:05 GMT",
+              },
+            }),
+        ),
+      });
+
+      const futureError = await futureEstimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown);
+
+      expect((futureError as EstimatorHttpError).retryAfterMs).toBe(
+        5000,
+      );
+
+      const pastEstimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(
+          async () =>
+            new Response("busy", {
+              status: 503,
+              headers: {
+                "Retry-After": "Wed, 31 Dec 2025 23:59:00 GMT",
+              },
+            }),
+        ),
+      });
+
+      const pastError = await pastEstimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown);
+
+      expect((pastError as EstimatorHttpError).retryAfterMs).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("marks the failure as retryable without a retryAfterMs when Retry-After cannot be read as seconds or an HTTP date", async () => {
+    for (const retryAfter of ["soon", "-1", "1.5"]) {
+      const estimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(
+          async () =>
+            new Response("busy", {
+              status: 503,
+              headers: { "Retry-After": retryAfter },
+            }),
+        ),
+      });
+
+      const error = await estimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown);
+
+      expect((error as EstimatorHttpError).retryable).toBe(true);
+      expect(
+        (error as EstimatorHttpError).retryAfterMs,
+      ).toBeUndefined();
+    }
+  });
+
+  test("leaves non-429/5xx failure responses not retryable, without a retryAfterMs even when Retry-After is present", async () => {
+    for (const status of [400, 401, 404, 499]) {
+      const estimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(async () => new Response("nope", { status })),
+      });
+
+      const error = await estimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown);
+
+      expect(error).toBeInstanceOf(EstimatorHttpError);
+      expect((error as EstimatorHttpError).retryable).toBe(false);
+    }
+
+    const withRetryAfter = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () =>
+          new Response("nope", {
+            status: 400,
+            headers: { "Retry-After": "2" },
+          }),
+      ),
+    });
+
+    const error = await withRetryAfter
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorHttpError);
+    expect((error as EstimatorHttpError).retryable).toBe(false);
+    expect((error as EstimatorHttpError).retryAfterMs).toBeUndefined();
+  });
+
+  test("leaves a response failure not retryable when the body is not JSON or the probability is out of range", async () => {
+    const notJsonEstimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () => new Response("not json", { status: 200 }),
+      ),
+    });
+
+    const notJsonError = await notJsonEstimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(notJsonError).toBeInstanceOf(EstimatorResponseError);
+    expect((notJsonError as EstimatorResponseError).retryable).toBe(
+      false,
+    );
+
+    const outOfRangeEstimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => jsonResponse(answer(1.5))),
+    });
+
+    const outOfRangeError = await outOfRangeEstimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(outOfRangeError).toBeInstanceOf(EstimatorResponseError);
+    expect((outOfRangeError as EstimatorResponseError).retryable).toBe(
+      false,
+    );
+  });
+});
+
 describe("createJevEstimator classify", () => {
   test("declares a limit of 255 labels and 10 levels", () => {
     const estimator = createJevEstimator({ apiKey: "key" });
@@ -794,6 +1029,23 @@ describe("createJevEstimator classify", () => {
     expect((error as EstimatorResponseError).message).toBe(
       'Jev response failed validation: chosen label "c" is not among the labels',
     );
+  });
+
+  test("leaves the failure not retryable when the chosen label is not among the labels", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(choiceAnswer("c", { a: 0.5, b: 0.5 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .classify(classifyRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).retryable).toBe(false);
   });
 
   test("throws EstimatorResponseError when the probabilities are missing a label", async () => {
@@ -1485,6 +1737,23 @@ describe("createJevEstimator score", () => {
     expect((error as EstimatorResponseError).message).toBe(
       "Jev response failed validation: score 2.5 is outside the levels",
     );
+  });
+
+  test("leaves the failure not retryable when the score is outside the levels", async () => {
+    const fetchStub = stubFetch(async () =>
+      jsonResponse(scoreAnswer(2.5, { "0": 0, "1": 0, "2": 1 })),
+    );
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: fetchStub,
+    });
+
+    const error = await estimator
+      .score(scoreRequest)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect((error as EstimatorResponseError).retryable).toBe(false);
   });
 
   test("throws EstimatorResponseError when the score is below 0", async () => {

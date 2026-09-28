@@ -3,6 +3,7 @@ import { ProviderHttpError } from "../providers/errors.js";
 import {
   EstimatorHttpError,
   EstimatorResponseError,
+  EstimatorRetryExhaustedError,
   EstimatorTransportError,
   isEstimatorError,
 } from "./errors.js";
@@ -47,6 +48,70 @@ describe("EstimatorResponseError", () => {
     const error = new EstimatorResponseError("x", { cause });
 
     expect(error.cause).toBe(cause);
+  });
+});
+
+describe("retryable mark and retryAfterMs", () => {
+  test("is not retryable and has no retryAfterMs when created without a mark", () => {
+    const cause = new Error("boom");
+
+    const httpError = new EstimatorHttpError("x", 503, "busy");
+    const transportError = new EstimatorTransportError("x", { cause });
+    const responseError = new EstimatorResponseError("x");
+
+    expect(httpError.retryable).toBe(false);
+    expect(httpError.retryAfterMs).toBeUndefined();
+    expect(transportError.retryable).toBe(false);
+    expect(transportError.retryAfterMs).toBeUndefined();
+    expect(responseError.retryable).toBe(false);
+    expect(responseError.retryAfterMs).toBeUndefined();
+  });
+
+  test("carries the retryable mark and retryAfterMs it was created with", () => {
+    const httpError = new EstimatorHttpError("x", 503, "busy", {
+      retryable: true,
+      retryAfterMs: 2000,
+    });
+
+    expect(httpError.retryable).toBe(true);
+    expect(httpError.retryAfterMs).toBe(2000);
+
+    const cause = new Error("boom");
+    const transportError = new EstimatorTransportError("x", {
+      cause,
+      retryable: true,
+    });
+
+    expect(transportError.retryable).toBe(true);
+    expect(transportError.retryAfterMs).toBeUndefined();
+  });
+});
+
+describe("EstimatorRetryExhaustedError", () => {
+  test("carries the attempt count and the cause", () => {
+    const cause = new EstimatorTransportError("x", {
+      cause: new Error("boom"),
+    });
+
+    const error = new EstimatorRetryExhaustedError(3, { cause });
+
+    expect(error.attempts).toBe(3);
+    expect(error.cause).toBe(cause);
+    expect(error.retryable).toBe(false);
+    expect(error.retryAfterMs).toBeUndefined();
+  });
+
+  test("is recognized as an Estimator error, with a fixed name and message", () => {
+    const cause = new EstimatorTransportError("x", {
+      cause: new Error("boom"),
+    });
+    const error = new EstimatorRetryExhaustedError(3, { cause });
+
+    expect(isEstimatorError(error)).toBe(true);
+    expect(error.name).toBe("EstimatorRetryExhaustedError");
+    expect(error.message).toBe(
+      "Estimator retries exhausted (attempts: 3)",
+    );
   });
 });
 

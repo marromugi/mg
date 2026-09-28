@@ -3,6 +3,7 @@ import type {
   GenerateResponse,
   Provider,
   StreamEvent,
+  ToolDefinition,
 } from "@mg/core";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, test, vi } from "vitest";
@@ -10,6 +11,26 @@ import { ExtractorContractError, ExtractorError } from "./errors.js";
 import { createLlmExtractor } from "./llm-extractor.js";
 import { RecordingSpan } from "./recording-span.test-helper.js";
 import type { ExtractorInput, PersonaContext } from "./types.js";
+
+type JsonSchema = Record<string, unknown>;
+
+const rememberSchemaOf = (
+  tools: ToolDefinition[] | undefined,
+): JsonSchema => {
+  const tool = tools?.find(
+    (candidate) => candidate.name === "remember",
+  );
+  if (tool === undefined) throw new Error("remember tool not sent");
+  return tool.input["~standard"].jsonSchema.input({
+    target: "draft-07",
+  });
+};
+
+const itemsSchemaOf = (
+  tools: ToolDefinition[] | undefined,
+): JsonSchema =>
+  (rememberSchemaOf(tools).properties as JsonSchema)
+    .items as JsonSchema;
 
 const stubProvider = (
   respond: (request: GenerateRequest) => GenerateResponse,
@@ -364,40 +385,6 @@ describe("createLlmExtractor", () => {
     });
   });
 
-  test("rejects with ExtractorError whose cause is an unknown-counterpart ExtractorContractError when an item names a counterpart not in the list", async () => {
-    const provider = stubProvider(() => ({
-      parts: [
-        {
-          type: "tool-call",
-          id: "r1",
-          name: "remember",
-          arguments: {
-            summary: "alice got a dog",
-            items: [{ counterpart: "carol", text: "x" }],
-          },
-        },
-      ],
-      finishReason: "tool_calls",
-    }));
-    const extractor = createLlmExtractor({
-      provider,
-      model: "m",
-      instruction: "Remember facts about counterparts.",
-    });
-
-    const error = await extractor
-      .extract(input)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(ExtractorError);
-    expect((error as ExtractorError).cause).toBeInstanceOf(
-      ExtractorContractError,
-    );
-    expect(
-      ((error as ExtractorError).cause as ExtractorContractError).kind,
-    ).toBe("unknown-counterpart");
-  });
-
   test("rejects with ExtractorError whose cause is an empty-text ExtractorContractError when an item's text is blank", async () => {
     const provider = stubProvider(() => ({
       parts: [
@@ -499,5 +486,221 @@ describe("createLlmExtractor", () => {
     const llmSpan = p.children[0];
     expect(llmSpan.name).toBe(SPAN.llm);
     expect(llmSpan.attributes[ATTR.llmModel]).toBe("m");
+  });
+
+  test("sends the call's counterpart ids as the counterpart enum, and returns an item matching it", async () => {
+    let seen: GenerateRequest | undefined;
+    const provider = stubProvider((request) => {
+      seen = request;
+      return {
+        parts: [
+          {
+            type: "tool-call",
+            id: "r1",
+            name: "remember",
+            arguments: {
+              summary: "s",
+              items: [{ counterpart: "bob", text: "plays go" }],
+            },
+          },
+        ],
+        finishReason: "tool_calls",
+      };
+    });
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+    const twoCounterpartsInput: ExtractorInput = {
+      counterparts: [
+        { id: "alice", name: "Alice" },
+        { id: "bob", name: "Bob" },
+      ],
+      entry: [],
+      memory: { persona: "p", items: [] },
+    };
+
+    const extraction = await extractor.extract(twoCounterpartsInput);
+
+    if (seen === undefined) throw new Error("request not captured");
+    const itemSchema = itemsSchemaOf(seen.tools).items as JsonSchema;
+    const properties = itemSchema.properties as JsonSchema;
+    expect(properties.counterpart).toEqual({
+      type: "string",
+      enum: ["alice", "bob"],
+    });
+    expect(extraction).toEqual({
+      summary: "s",
+      items: [{ counterpart: "bob", text: "plays go" }],
+    });
+  });
+
+  test("builds the counterpart enum fresh for each call, from that call's counterparts", async () => {
+    let firstSeen: GenerateRequest | undefined;
+    let secondSeen: GenerateRequest | undefined;
+    let calls = 0;
+    const provider = stubProvider((request) => {
+      calls += 1;
+      if (calls === 1) firstSeen = request;
+      else secondSeen = request;
+      return {
+        parts: [
+          {
+            type: "tool-call",
+            id: "r1",
+            name: "remember",
+            arguments: { summary: "s", items: [] },
+          },
+        ],
+        finishReason: "tool_calls",
+      };
+    });
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+
+    await extractor.extract({
+      counterparts: [{ id: "alice", name: "Alice" }],
+      entry: [],
+      memory: { persona: "p", items: [] },
+    });
+    await extractor.extract({
+      counterparts: [{ id: "bob", name: "Bob" }],
+      entry: [],
+      memory: { persona: "p", items: [] },
+    });
+
+    if (firstSeen === undefined || secondSeen === undefined) {
+      throw new Error("request not captured");
+    }
+    const firstProperties = (
+      itemsSchemaOf(firstSeen.tools).items as JsonSchema
+    ).properties as JsonSchema;
+    const secondProperties = (
+      itemsSchemaOf(secondSeen.tools).items as JsonSchema
+    ).properties as JsonSchema;
+    expect((firstProperties.counterpart as JsonSchema).enum).toEqual([
+      "alice",
+    ]);
+    expect((secondProperties.counterpart as JsonSchema).enum).toEqual([
+      "bob",
+    ]);
+  });
+
+  test("caps items at zero and returns an empty result when there are no counterparts", async () => {
+    let seen: GenerateRequest | undefined;
+    const provider = stubProvider((request) => {
+      seen = request;
+      return {
+        parts: [
+          {
+            type: "tool-call",
+            id: "r1",
+            name: "remember",
+            arguments: { summary: "s", items: [] },
+          },
+        ],
+        finishReason: "tool_calls",
+      };
+    });
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+    const noCounterpartsInput: ExtractorInput = {
+      counterparts: [],
+      entry: [],
+      memory: { persona: "p", items: [] },
+    };
+
+    const extraction = await extractor.extract(noCounterpartsInput);
+
+    if (seen === undefined) throw new Error("request not captured");
+    expect(itemsSchemaOf(seen.tools).maxItems).toBe(0);
+    expect(extraction).toEqual({ summary: "s", items: [] });
+  });
+
+  test("rejects with a failed validation cause when an item is returned but no counterparts were sent", async () => {
+    const provider = stubProvider(() => ({
+      parts: [
+        {
+          type: "tool-call",
+          id: "r1",
+          name: "remember",
+          arguments: {
+            summary: "s",
+            items: [{ counterpart: "alice", text: "likes cats" }],
+          },
+        },
+      ],
+      finishReason: "tool_calls",
+    }));
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+    const noCounterpartsInput: ExtractorInput = {
+      counterparts: [],
+      entry: [],
+      memory: { persona: "p", items: [] },
+    };
+
+    const error = await extractor
+      .extract(noCounterpartsInput)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(ExtractorError);
+    expect((error as ExtractorError).cause).toMatchObject({
+      success: false,
+    });
+  });
+
+  test("rejects a counterpart outside the enum as a failed validation, not a contract-error, with the issue pointing at the item", async () => {
+    const provider = stubProvider(() => ({
+      parts: [
+        {
+          type: "tool-call",
+          id: "r1",
+          name: "remember",
+          arguments: {
+            summary: "s",
+            items: [{ counterpart: "user (User)", text: "likes rain" }],
+          },
+        },
+      ],
+      finishReason: "tool_calls",
+    }));
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+    const oneCounterpartInput: ExtractorInput = {
+      counterparts: [{ id: "user", name: "User" }],
+      entry: [],
+      memory: { persona: "p", items: [] },
+    };
+
+    const error = await extractor
+      .extract(oneCounterpartInput)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(ExtractorError);
+    const cause = (error as ExtractorError).cause as {
+      success: false;
+      error: { issues: { path: unknown[] }[] };
+    };
+    expect(cause.success).toBe(false);
+    expect(cause.error.issues[0]?.path).toEqual([
+      "items",
+      0,
+      "counterpart",
+    ]);
+    expect(cause).not.toBeInstanceOf(ExtractorContractError);
   });
 });

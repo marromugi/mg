@@ -203,16 +203,6 @@ describe("createRetryingEstimator", () => {
         { error: retryableTransportError() },
         { value: { probability: 0.6 } },
       ],
-      classify: [
-        { error: retryableTransportError() },
-        { error: retryableTransportError() },
-        { value: { label: "yes", probabilities: { yes: 1, no: 0 } } },
-      ],
-      score: [
-        { error: retryableTransportError() },
-        { error: retryableTransportError() },
-        { value: { score: 1, probabilities: [0, 1] } },
-      ],
     });
     const estimator = wrap(inner, { sleep: recordingSleep(delays) });
 
@@ -223,18 +213,18 @@ describe("createRetryingEstimator", () => {
     expect(delays).toEqual([1000, 2000]);
 
     delays.length = 0;
-    const classifyEstimator = wrap(
-      createScriptedEstimator({
-        classify: [
-          { error: retryableTransportError() },
-          { error: retryableTransportError() },
-          {
-            value: { label: "yes", probabilities: { yes: 1, no: 0 } },
-          },
-        ],
-      }),
-      { sleep: recordingSleep(delays) },
-    );
+    const classifyInner = createScriptedEstimator({
+      classify: [
+        { error: retryableTransportError() },
+        { error: retryableTransportError() },
+        {
+          value: { label: "yes", probabilities: { yes: 1, no: 0 } },
+        },
+      ],
+    });
+    const classifyEstimator = wrap(classifyInner, {
+      sleep: recordingSleep(delays),
+    });
 
     await expect(
       classifyEstimator.classify(classifyRequest),
@@ -242,24 +232,26 @@ describe("createRetryingEstimator", () => {
       label: "yes",
       probabilities: { yes: 1, no: 0 },
     });
+    expect(classifyInner.classifyCalls).toHaveLength(3);
     expect(delays).toEqual([1000, 2000]);
 
     delays.length = 0;
-    const scoreEstimator = wrap(
-      createScriptedEstimator({
-        score: [
-          { error: retryableTransportError() },
-          { error: retryableTransportError() },
-          { value: { score: 1, probabilities: [0, 1] } },
-        ],
-      }),
-      { sleep: recordingSleep(delays) },
-    );
+    const scoreInner = createScriptedEstimator({
+      score: [
+        { error: retryableTransportError() },
+        { error: retryableTransportError() },
+        { value: { score: 1, probabilities: [0, 1] } },
+      ],
+    });
+    const scoreEstimator = wrap(scoreInner, {
+      sleep: recordingSleep(delays),
+    });
 
     await expect(scoreEstimator.score(scoreRequest)).resolves.toEqual({
       score: 1,
       probabilities: [0, 1],
     });
+    expect(scoreInner.scoreCalls).toHaveLength(3);
     expect(delays).toEqual([1000, 2000]);
   });
 
@@ -434,10 +426,20 @@ describe("createRetryingEstimator", () => {
   test("waits for real when no sleep function is given, and stops at once on abort", async () => {
     const controller = new AbortController();
     const reason = new Error("stop");
-    const inner = createScriptedEstimator({
-      estimate: [{ error: retryableTransportError() }],
-    });
-    setTimeout(() => controller.abort(reason), 10);
+    const inner: Estimator = {
+      model: "fake-model",
+      limits: { maxLabels: 7, maxLevels: 4 },
+      estimate: async () => {
+        setTimeout(() => controller.abort(reason), 10);
+        throw retryableTransportError();
+      },
+      classify: async () => {
+        throw new Error("not scripted for this test");
+      },
+      score: async () => {
+        throw new Error("not scripted for this test");
+      },
+    };
     const estimator = wrap(inner, {
       delaysMs: [60000, 60000],
       sleep: undefined,

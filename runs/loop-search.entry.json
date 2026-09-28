@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/loop-search.ts \"<入力>\"",
+  "needs": ["OPENROUTER_API_KEY", "OLLAMA_API_KEY"],
+  "burdens": ["cost", "outside"]
+}

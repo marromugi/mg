@@ -956,3 +956,114 @@ describe("createOpenRouterProvider halt", () => {
     });
   });
 });
+
+describe("createOpenRouterProvider with an authored user message", () => {
+  const authoredOkBody = {
+    choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+  };
+
+  test("sends the same batch request body whether or not the user message carries an author", async () => {
+    const { fetchStub: authoredFetch, calls: authoredCalls } =
+      stubFetch(() => jsonResponse(authoredOkBody));
+    const authoredProvider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: authoredFetch,
+    });
+    await authoredProvider.generate({
+      model: "m",
+      messages: [{ role: "user", author: "alice", content: "hi" }],
+    });
+
+    const { fetchStub: plainFetch, calls: plainCalls } = stubFetch(() =>
+      jsonResponse(authoredOkBody),
+    );
+    const plainProvider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: plainFetch,
+    });
+    await plainProvider.generate({
+      model: "m",
+      messages: [{ role: "user", content: "hi" }],
+    });
+
+    const authoredBody = JSON.parse(
+      String(authoredCalls[0].init?.body),
+    );
+    expect(authoredBody.messages).toEqual([
+      { role: "user", content: "hi" },
+    ]);
+    expect(authoredBody).toEqual(
+      JSON.parse(String(plainCalls[0].init?.body)),
+    );
+  });
+
+  test("sends the same streamed request body whether or not the user message carries an author", async () => {
+    const streamPayload = [
+      JSON.stringify({
+        choices: [{ delta: { content: "ok" }, finish_reason: "stop" }],
+      }),
+    ];
+
+    const { fetchStub: authoredFetch, calls: authoredCalls } =
+      stubFetch(() => sseResponse(streamPayload));
+    const authoredProvider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: authoredFetch,
+    });
+    await collectStream(
+      authoredProvider.stream({
+        model: "m",
+        messages: [{ role: "user", author: "alice", content: "hi" }],
+      }),
+    );
+
+    const { fetchStub: plainFetch, calls: plainCalls } = stubFetch(() =>
+      sseResponse(streamPayload),
+    );
+    const plainProvider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: plainFetch,
+    });
+    await collectStream(
+      plainProvider.stream({
+        model: "m",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    );
+
+    const authoredBody = JSON.parse(
+      String(authoredCalls[0].init?.body),
+    );
+    expect(authoredBody.messages).toEqual([
+      { role: "user", content: "hi" },
+    ]);
+    expect(authoredBody).toEqual(
+      JSON.parse(String(plainCalls[0].init?.body)),
+    );
+  });
+
+  test("keeps only role and content for a system message and two authored user messages", async () => {
+    const { fetchStub, calls } = stubFetch(() =>
+      jsonResponse(authoredOkBody),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    await provider.generate({
+      model: "m",
+      messages: [
+        { role: "system", content: "s" },
+        { role: "user", author: "alice", content: "hi" },
+        { role: "user", author: "bob", content: "yo" },
+      ],
+    });
+
+    expect(JSON.parse(String(calls[0].init?.body)).messages).toEqual([
+      { role: "system", content: "s" },
+      { role: "user", content: "hi" },
+      { role: "user", content: "yo" },
+    ]);
+  });
+});

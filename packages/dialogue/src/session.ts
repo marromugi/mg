@@ -16,6 +16,7 @@ import type {
   DialogueEvent,
   RunDialogue,
   WorkEnding,
+  WorkStatus,
 } from "./types.js";
 
 type Work = {
@@ -30,11 +31,28 @@ type ReplyResult =
   | { kind: "played" | "cut" | "unfinished"; heard: string }
   | { kind: "failed" };
 
+type ReplyRecord = {
+  kind: "reply" | "report";
+  cut: boolean;
+  // true from the start of the reply until its playback has ended
+  playing: boolean;
+  speaker?: ReplySpeaker;
+  wrapUp?: AbortController;
+};
+
 type FailureWhat = Extract<DialogueEvent, { type: "failure" }>["what"];
 
 const reasonOf = (error: unknown): string => {
   if (error instanceof TalkerError) return error.reason;
   return error instanceof Error ? error.message : String(error);
+};
+
+const attempt = <T>(call: () => Promise<T>): Promise<T> => {
+  try {
+    return call();
+  } catch (error) {
+    return Promise.reject(error);
+  }
 };
 
 const startSpan = (
@@ -71,11 +89,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
   };
 
   let over = false;
-  let active: {
-    speaker: ReplySpeaker;
-    wrapUp: AbortController;
-    cut: boolean;
-  } | null = null;
+  const replies = new Set<ReplyRecord>();
   let speaking: ReplySpeaker | null = null;
   let fatal!: (error: unknown) => void;
   const terminal = new Promise<never>((_, reject) => {
@@ -124,12 +138,24 @@ export const runDialogue: RunDialogue = async (options, context) => {
     background.add(tracked);
   };
 
-  const watch = (speaker: ReplySpeaker) =>
+  // A run of the worker is not waited for when the session ends.
+  const detach = (promise: Promise<unknown>) => {
+    promise.then(
+      () => {},
+      (error: unknown) => fatal(error),
+    );
+  };
+
+  const watch = (
+    speaker: ReplySpeaker,
+    onSynthesizerFailure?: () => void,
+  ) =>
     speaker.done.then((outcome) => {
       if (outcome.failed === "device") {
         fatal(playerError?.error ?? new Error(outcome.reason));
       } else if (outcome.failed === "synthesizer") {
         failure("synthesizer", outcome.reason);
+        onSynthesizerFailure?.();
       }
       return outcome;
     });
@@ -156,7 +182,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
   let work: Work | null = null;
   let latest: WorkEnding | null = null;
   let inProgress = 0;
-  let reportPending = false;
+  let pendingReports: WorkStatus[] = [];
 
   const status = () => buildStatus(work, latest, options.requestLimit);
 
@@ -175,85 +201,111 @@ export const runDialogue: RunDialogue = async (options, context) => {
     }
   };
 
-  const cutActive = () => {
-    const reply = active;
-    if (reply === null) return;
-    reply.cut = true;
-    reply.speaker.stop();
-    reply.wrapUp.abort();
+  // A new utterance cuts every reply that has not finished playing,
+  // whether it is playing or still waiting for its turn.
+  const cutReplies = () => {
+    for (const record of replies) {
+      if (record.speaker !== undefined) {
+        if (!record.playing) continue;
+        record.cut = true;
+        record.speaker.stop();
+        record.wrapUp?.abort();
+      } else if (record.kind === "reply") {
+        record.cut = true;
+      }
+    }
   };
 
   const speakReply = (
+    kind: ReplyRecord["kind"],
     buildMessage: () => string,
     span: TraceSpan,
-  ): Promise<ReplyResult | undefined> =>
-    speech(async (): Promise<ReplyResult | undefined> => {
-      const message = buildMessage();
-      const speaker = createReplySpeaker({ synthesizer, player });
-      const wrapUp = new AbortController();
-      const reply = { speaker, wrapUp, cut: false };
-      active = reply;
-      speaking = speaker;
-      const outcomeDone = watch(speaker);
-      const heard = outcomeDone.then((outcome) => outcome.heard);
-      const run = startRun(span, "talker");
-      let text = "";
-      let talkerFailure: { error: unknown } | undefined;
+  ): Promise<ReplyResult | undefined> => {
+    const record: ReplyRecord = { kind, cut: false, playing: false };
+    replies.add(record);
+    return speech(async (): Promise<ReplyResult | undefined> => {
       try {
-        const result = await talker.reply(message, {
-          signal,
-          wrapUp: wrapUp.signal,
-          heard,
-          onText: (delta) => {
-            text += delta;
-            emit({ type: "reply-text", delta });
-            speaker.push(delta);
+        if (record.cut) {
+          emit({ type: "reply-cut", heard: 0 });
+          return { kind: "cut", heard: "" };
+        }
+        const message = buildMessage();
+        const speaker = createReplySpeaker({ synthesizer, player });
+        const wrapUp = new AbortController();
+        record.speaker = speaker;
+        record.wrapUp = wrapUp;
+        record.playing = true;
+        speaking = speaker;
+        const outcomeDone = watch(speaker, () => wrapUp.abort()).then(
+          (outcome) => {
+            record.playing = false;
+            return outcome;
           },
-          onTextEnd: () => speaker.end(),
-        });
-        setSpanAttributes(run, { [ATTR.runSession]: result.sessionId });
-        endSpan(run);
-      } catch (error) {
-        talkerFailure = { error };
-        endSpan(run, error);
-      }
-      if (over) return undefined;
+        );
+        const heard = outcomeDone.then((outcome) => outcome.heard);
+        const run = startRun(span, "talker");
+        let text = "";
+        let talkerFailure: { error: unknown } | undefined;
+        try {
+          const result = await talker.reply(message, {
+            signal,
+            wrapUp: wrapUp.signal,
+            heard,
+            onText: (delta) => {
+              text += delta;
+              emit({ type: "reply-text", delta });
+              speaker.push(delta);
+            },
+            onTextEnd: () => speaker.end(),
+          });
+          setSpanAttributes(run, {
+            [ATTR.runSession]: result.sessionId,
+          });
+          endSpan(run);
+        } catch (error) {
+          talkerFailure = { error };
+          endSpan(run, error);
+        }
+        if (over) return undefined;
 
-      if (talkerFailure !== undefined) {
-        speaker.stop();
-        await outcomeDone;
-        active = null;
-        failure("talker", talkerFailure.error);
-        await playNotice(wording.notices.talker);
-        return { kind: "failed" };
-      }
+        if (talkerFailure !== undefined) {
+          speaker.stop();
+          await outcomeDone;
+          failure("talker", talkerFailure.error);
+          await playNotice(wording.notices.talker);
+          return { kind: "failed" };
+        }
 
-      const outcome = await outcomeDone;
-      active = null;
-      speaking = null;
-      if (over) return undefined;
-      const heardText = text.slice(0, outcome.heard);
-      emit({ type: "reply", text: heardText });
-      if (reply.cut) {
-        emit({ type: "reply-cut", heard: outcome.heard });
-        return { kind: "cut", heard: heardText };
+        const outcome = await outcomeDone;
+        speaking = null;
+        if (over) return undefined;
+        const heardText = text.slice(0, outcome.heard);
+        emit({ type: "reply", text: heardText });
+        if (record.cut) {
+          emit({ type: "reply-cut", heard: outcome.heard });
+          return { kind: "cut", heard: heardText };
+        }
+        if (outcome.failed !== undefined) {
+          return { kind: "unfinished", heard: heardText };
+        }
+        return { kind: "played", heard: heardText };
+      } finally {
+        replies.delete(record);
       }
-      if (outcome.failed !== undefined) {
-        return { kind: "unfinished", heard: heardText };
-      }
-      return { kind: "played", heard: heardText };
     });
-
-  const speakReport = async () => {
-    await speakReply(() => wording.report(status()), parent);
   };
 
-  const requestReport = () => {
+  const speakReport = async (reported: WorkStatus) => {
+    await speakReply("report", () => wording.report(reported), parent);
+  };
+
+  // The report is built from the status at the time the work ended.
+  const requestReport = (reported: WorkStatus) => {
     if (inProgress > 0) {
-      reportPending = true;
+      pendingReports.push(reported);
       return;
     }
-    track(speakReport());
+    track(speakReport(reported));
   };
 
   const handleEnding = async (
@@ -266,19 +318,16 @@ export const runDialogue: RunDialogue = async (options, context) => {
       return;
     }
     if (ending.kind === "failed") failure("worker", ending.reason);
-    if (work === current) {
-      releaseWork();
-      work = null;
-    } else {
-      worker.release();
-    }
+    releaseWork();
+    work = null;
     latest = ending;
     emit({ type: "work", action: "ended", ending });
     markEnded();
+    const reported = status();
     if (ending.kind === "ended" && ending.reason === "wrapped-up")
       return;
     if (ending.kind === "failed") {
-      requestReport();
+      requestReport(reported);
       return;
     }
     let answer;
@@ -297,7 +346,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
     }
     if (over) return;
     emit({ type: "judgment", judge: "report", answer: answer.action });
-    if (answer.action === "speak") requestReport();
+    if (answer.action === "speak") requestReport(reported);
   };
 
   const startWork = (text: string, span: TraceSpan) => {
@@ -312,19 +361,15 @@ export const runDialogue: RunDialogue = async (options, context) => {
     work = current;
     latest = null;
     emit({ type: "work", action: "requested" });
-    let request: Promise<WorkEnding>;
-    try {
-      request = worker.request(text, {
-        signal,
-        onStart: (sessionId) =>
-          setSpanAttributes(run, { [ATTR.runSession]: sessionId }),
-        onEvent: (event) => current.tools.add(event),
-      });
-    } catch (error) {
-      request = Promise.reject(error);
-    }
-    track(
-      request
+    detach(
+      attempt(() =>
+        worker.request(text, {
+          signal,
+          onStart: (sessionId) =>
+            setSpanAttributes(run, { [ATTR.runSession]: sessionId }),
+          onEvent: (event) => current.tools.add(event),
+        }),
+      )
         .then(
           (ending) => ending,
           (error: unknown): WorkEnding => ({
@@ -390,7 +435,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
     emit({
       type: "judgment",
       judge: "work-trigger",
-      answer: decision.fired ? "fired" : "not-fired",
+      answer: decision.fired ? "fired" : "not fired",
     });
     if (decision.fired && work === null) {
       startWork(wording.request(recent), span);
@@ -424,8 +469,8 @@ export const runDialogue: RunDialogue = async (options, context) => {
       asking = true;
       lastAsked = text;
       track(
-        judges.stop
-          .judge(
+        attempt(() =>
+          judges.stop.judge(
             {
               utterance: text,
               work: {
@@ -436,7 +481,8 @@ export const runDialogue: RunDialogue = async (options, context) => {
               },
             },
             { signal, trace: span },
-          )
+          ),
+        )
           .then(
             (answer) => {
               if (over) return;
@@ -472,7 +518,12 @@ export const runDialogue: RunDialogue = async (options, context) => {
           emit({ type: "transcript", text, final: false });
           if (!firstSeen && text !== "") {
             firstSeen = true;
-            holdWork();
+            try {
+              holdWork();
+            } catch (error) {
+              fatal(error);
+              return undefined;
+            }
           }
         } else {
           final = event.text;
@@ -503,10 +554,11 @@ export const runDialogue: RunDialogue = async (options, context) => {
     inProgress += 1;
     try {
       emit({ type: "utterance" });
-      cutActive();
+      cutReplies();
       const heardText = await listen(utterance, span);
       if (heardText === undefined) return;
       const result = await speakReply(
+        "reply",
         () => wording.message(status(), heardText),
         span,
       );
@@ -521,17 +573,23 @@ export const runDialogue: RunDialogue = async (options, context) => {
     } finally {
       inProgress -= 1;
       endSpan(span);
-      if (inProgress === 0 && reportPending) {
-        reportPending = false;
-        track(speakReport());
+      if (inProgress === 0 && pendingReports.length > 0) {
+        const reports = pendingReports;
+        pendingReports = [];
+        for (const reported of reports) track(speakReport(reported));
       }
     }
   };
 
   const main = async () => {
-    for await (const utterance of options.listener.listen(signal)) {
-      if (over) break;
-      track(cycle(utterance));
+    try {
+      for await (const utterance of options.listener.listen(signal)) {
+        if (over) break;
+        track(cycle(utterance));
+      }
+    } catch (error) {
+      fatal(error);
+      return;
     }
     while (background.size > 0) await Promise.all(background);
   };
@@ -542,6 +600,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
     await Promise.race([running, terminal]);
   } finally {
     over = true;
+    internal.abort();
     context.signal.removeEventListener("abort", onAbort);
   }
 };

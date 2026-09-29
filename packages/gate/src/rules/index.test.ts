@@ -136,7 +136,7 @@ describe("createRulesGate", () => {
     });
 
     const verdict = await gate.judge(
-      toolCallRequest(call("bash", { command: "env" }), {
+      toolCallRequest(call("researcher", { prompt: "env" }), {
         kind: "none",
       }),
     );

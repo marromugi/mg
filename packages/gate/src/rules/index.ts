@@ -5,7 +5,7 @@ import {
   relative as relativePath,
   sep,
 } from "node:path";
-import type { Reach, ReachPath } from "@mg/core";
+import type { Reach } from "@mg/core";
 import { GateError } from "../errors.js";
 import { TOOL_CALL_KIND, type ToolCallPayload } from "../tool-gate.js";
 import { withGateSpan } from "../trace.js";
@@ -43,23 +43,10 @@ const REACH_KINDS: readonly string[] = Object.keys(REACH_KIND_TABLE);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const isReachPath = (value: unknown): value is ReachPath =>
+const isReach = (value: unknown): value is Reach =>
   isRecord(value) &&
-  typeof value.path === "string" &&
-  isAbsolute(value.path) &&
-  (value.extent === "file" || value.extent === "tree");
-
-const isReach = (value: unknown): value is Reach => {
-  if (!isRecord(value)) return false;
-  if (
-    typeof value.kind !== "string" ||
-    !REACH_KINDS.includes(value.kind)
-  ) {
-    return false;
-  }
-  if (value.kind !== "paths") return true;
-  return Array.isArray(value.paths) && value.paths.every(isReachPath);
-};
+  typeof value.kind === "string" &&
+  REACH_KINDS.includes(value.kind);
 
 const asToolCallPayload = (payload: unknown): ToolCallPayload => {
   const record = isRecord(payload) ? payload : {};
@@ -128,7 +115,16 @@ const canMatchBelow = (
   relSegments: readonly string[],
   globSegments: readonly string[],
 ): boolean => {
+  const seen = new Map<number, boolean>();
   const walk = (i: number, j: number): boolean => {
+    const key = i * (globSegments.length + 1) + j;
+    const known = seen.get(key);
+    if (known !== undefined) return known;
+    const result = step(i, j);
+    seen.set(key, result);
+    return result;
+  };
+  const step = (i: number, j: number): boolean => {
     if (i === relSegments.length) return j < globSegments.length;
     if (j === globSegments.length) return false;
     const segment = globSegments[j];
@@ -138,9 +134,15 @@ const canMatchBelow = (
   return walk(0, 0);
 };
 
-const toRelative = (root: string, target: string): string => {
+const locate = (
+  root: string,
+  target: string,
+): { rel: string; outside: boolean } => {
   const relative = relativePath(root, target);
-  return (relative === "" ? "." : relative).split(sep).join("/");
+  return {
+    rel: (relative === "" ? "." : relative).split(sep).join("/"),
+    outside: isOutside(relative),
+  };
 };
 
 type Hit =
@@ -156,10 +158,10 @@ const findDenyHit = (
   if (reach.kind !== "paths") return undefined;
 
   for (const entry of reach.paths) {
-    if (isOutside(relativePath(root, entry.path))) {
+    const { rel, outside } = locate(root, entry.path);
+    if (outside) {
       return { kind: "path", label: entry.path, outside: true };
     }
-    const rel = toRelative(root, entry.path);
     const hit = globs.some(
       (glob) =>
         matchesGlob(rel, glob) ||
@@ -183,15 +185,15 @@ const findAllowHit = (
     return undefined;
   }
 
-  const labels: string[] = [];
+  let first: string | undefined;
   for (const entry of reach.paths) {
     if (entry.extent !== "file") return undefined;
-    if (isOutside(relativePath(root, entry.path))) return undefined;
-    const rel = toRelative(root, entry.path);
+    const { rel, outside } = locate(root, entry.path);
+    if (outside) return undefined;
     if (!globs.some((glob) => matchesGlob(rel, glob))) return undefined;
-    labels.push(rel);
+    first ??= rel;
   }
-  return { kind: "path", label: labels[0], outside: false };
+  return { kind: "path", label: first ?? ".", outside: false };
 };
 
 export const createRulesGate = (options: RulesGateOptions): Gate => {

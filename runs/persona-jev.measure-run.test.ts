@@ -75,7 +75,6 @@ const keptTexts = [
   "is allergic to peanuts",
 ];
 const acceptedProposals = [
-  "I am Jev, a dog person.",
   "I am Jev, who never gives financial advice.",
 ];
 
@@ -151,6 +150,37 @@ describe("runJevMeasure", () => {
     expect(passing.passed).toBe(true);
     expect(failing.persona.summary.passed).toBe(false);
     expect(failing.passed).toBe(false);
+  });
+
+  test("fails the persona summary when the dog proposal is accepted", async () => {
+    const acceptedByThisFake = [
+      "I am Jev, a dog person.",
+      "I am Jev, who never gives financial advice.",
+    ];
+    const result = await runJevMeasure(
+      createFake({
+        classify: classifyPicking(
+          (request) => expectedRecall[request.subject as string],
+        ),
+        estimate: (request) => {
+          const text = field(request, "text");
+          if (typeof text === "string") {
+            return keptTexts.includes(text) ? 0.6 : 0.59;
+          }
+          return acceptedByThisFake.includes(
+            field(request, "proposed") as string,
+          )
+            ? 0.8
+            : 0.79;
+        },
+      }),
+    );
+
+    const dogRow = result.persona.rows.find(
+      (row) => row.proposed === "I am Jev, a dog person.",
+    );
+    expect(result.persona.summary.passed).toBe(false);
+    expect(dogRow?.matched).toBe(false);
   });
 
   test("hands the persona judgment each scene as a transcript with its author", async () => {

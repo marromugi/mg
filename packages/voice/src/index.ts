@@ -5,3 +5,4 @@ export * from "./listener.js";
 export * from "./player.js";
 export * from "./sentences.js";
 export * from "./gemini/index.js";
+export * from "./gemini-live/index.js";

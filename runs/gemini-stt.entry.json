@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/gemini-stt.ts \"<wav>\" [language...]",
+  "needs": ["GEMINI_API_KEY"],
+  "burdens": ["cost"]
+}

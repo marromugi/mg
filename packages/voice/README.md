@@ -221,7 +221,8 @@ The one exception is an HTTP failure status received before the signal fired.
 If the signal fires while its body is being read, the call throws `GeminiSpeechHttpError` with that status and an empty body.
 The message is `Gemini speech request failed: <status> (body not read: the call was stopped)`.
 
-An `AbortError` thrown by the replacement request function while the signal has not fired is thrown as is.
+An `AbortError` met while the signal has not fired is thrown as is.
+This covers the replacement request function, the reading of a failure body, and the response stream.
 Other failures come back as 3 dedicated error types.
 
 ### Gemini transcription

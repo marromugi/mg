@@ -42,7 +42,9 @@ The trigger you pass decides whether it fires.
 The function you pass decides how the run is started.
 runner knows neither what is inside the trigger nor how the run is started.
 
-The table lists what the entry point receives.
+It takes three arguments: `config`, `input` and `options`.
+
+The table lists the fields of `config`.
 
 | Field        | Contents                                                                |
 | ------------ | ----------------------------------------------------------------------- |
@@ -50,10 +52,14 @@ The table lists what the entry point receives.
 | `toMessages` | A function that turns the input into a list of messages.                |
 | `start`      | A function that starts the run when it fires.                           |
 | `trace`      | Trace settings for the decision record. Needs at least one destination. |
-| `input`      | The input to check. Limited to values that can be turned into JSON.     |
 
 None of these has a default.
-You may also pass an abort signal and a function that receives the run's events.
+
+`input` is the input to check. It is limited to values that can be
+turned into JSON.
+
+`options` is optional. It may hold an abort signal (`signal`) and a
+function that receives the run's events (`onEvent`).
 Both are passed straight to `start`. The signal is also passed to the trigger.
 
 `start` receives the converted messages and options holding the following.

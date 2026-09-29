@@ -96,13 +96,12 @@ const checkFormat = (format: AudioFormat) => {
   }
 };
 
+const decoder = new TextDecoder();
+
 const decodeFrame = (data: unknown): string => {
   if (typeof data === "string") return data;
-  if (data instanceof ArrayBuffer) {
-    return new TextDecoder().decode(data);
-  }
-  if (ArrayBuffer.isView(data)) {
-    return new TextDecoder().decode(data);
+  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    return decoder.decode(data);
   }
   throw new GeminiTranscriptionResponseError(
     "Gemini sent a message that is neither text nor binary",
@@ -141,12 +140,12 @@ export const createGeminiTranscriber = (
     const mailbox = createMailbox();
     const iterator = audio[Symbol.asyncIterator]();
     let socket: WebSocket | undefined;
-    let stop!: () => void;
-    const stopped = new Promise<void>((resolve) => {
-      stop = resolve;
-    });
+    const stopped = deferred();
     const until = <T>(promise: Promise<T>): Promise<T | typeof STOP> =>
-      Promise.race([promise, stopped.then((): typeof STOP => STOP)]);
+      Promise.race([
+        promise,
+        stopped.promise.then((): typeof STOP => STOP),
+      ]);
 
     const onAbort = () => mailbox.fail(signal?.reason);
     signal?.addEventListener("abort", onAbort, { once: true });
@@ -165,9 +164,9 @@ export const createGeminiTranscriber = (
     const connect = () => {
       const opened = deferred();
       const ready = deferred();
-      const ws = new WebSocketConstructor(
-        `${baseUrl}?key=${encodeURIComponent(options.apiKey)}`,
-      );
+      const url = new URL(baseUrl);
+      url.searchParams.set("key", options.apiKey);
+      const ws = new WebSocketConstructor(url.href);
       ws.binaryType = "arraybuffer";
       socket = ws;
       let held: string | undefined;
@@ -261,7 +260,6 @@ export const createGeminiTranscriber = (
 
       let chunk: IteratorResult<AudioChunk> | typeof STOP = first;
       while (chunk !== STOP && chunk.done !== true) {
-        checkFormat(chunk.value.format);
         send({
           realtimeInput: {
             audio: {
@@ -271,6 +269,9 @@ export const createGeminiTranscriber = (
           },
         });
         chunk = await until(iterator.next());
+        if (chunk !== STOP && chunk.done !== true) {
+          checkFormat(chunk.value.format);
+        }
       }
       if (chunk === STOP) return;
       send({ realtimeInput: { activityEnd: {} } });
@@ -286,10 +287,16 @@ export const createGeminiTranscriber = (
         else return;
       }
     } finally {
-      stop();
+      stopped.resolve();
       signal?.removeEventListener("abort", onAbort);
       socket?.close();
-      iterator.return?.()?.catch(() => undefined);
+      try {
+        const returned: unknown = iterator.return?.();
+        if (returned instanceof Promise)
+          returned.catch(() => undefined);
+      } catch {
+        // The audio stream's own failure is not the call's to report.
+      }
     }
   }
 

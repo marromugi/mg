@@ -8,7 +8,9 @@ const CHUNK_MS = 100;
 
 const [wavPath, ...languages] = process.argv.slice(2);
 if (wavPath === undefined) {
-  console.error("usage: gemini-stt.ts <wav> [language...]");
+  console.error(
+    "usage: gemini-stt.ts <wav> [language...]\nthe WAV must be 16-bit PCM, 16 kHz, mono",
+  );
   process.exit(1);
 }
 

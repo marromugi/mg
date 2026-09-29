@@ -14,6 +14,9 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Defines the player interface `Player`.
 - Holds `createGeminiTranscriber`, a transcriber built on Gemini's Live API.
 - Holds `createFfmpegPlayer`, a player that plays through ffmpeg's AudioToolbox output.
+- Holds `createRecordedListener`, a listener that yields recorded utterances at given times.
+- Holds `createRecordingPlayer`, a player that writes each sentence to a WAV file.
+- Defines `Clock`, the time source both of them wait on.
 - Holds `splitSentences`, a function that cuts text into sentences to read aloud.
 
 ## Usage
@@ -328,6 +331,38 @@ It plays a one-second 440 Hz tone and prints `played: true`.
 ```
 node runs/ffmpeg-player.ts
 ```
+
+### Recorded listener and recording player
+
+Two implementations that let a dialogue run without a person.
+Both take a `Clock` from outside: `now()` and `sleep(ms, signal)`.
+`sleep` rejects when the signal aborts.
+
+`createRecordedListener({ utterances, clock })` is a `Listener`.
+Each utterance has a start time `at` in milliseconds and its audio as chunks.
+
+- It yields each utterance at `at`, measured from the start of listening, in the order given.
+- The audio of an utterance yields each chunk, waits the chunk's duration, then goes on.
+- The audio ends after the last chunk's duration.
+- Once the signal has fired, the stream and every audio end without error.
+
+`createRecordingPlayer({ write, clock })` is a `Player`.
+`write(name, bytes)` receives each sentence as a WAV file.
+The index rules are those of `Player`.
+
+- Sentence `n` of text `t` is written as `<t>-<n>.wav`, both counted from 0.
+  Each index 0 begins the next text number.
+- The file is a 16-bit PCM WAV in the format of the sentence's chunks.
+- `play` waits until each chunk's end, measured from the start of the audio, and resolves `{ played: true }` after the audio's duration.
+- `stop()` resolves the running and every waiting `play` as not played.
+  The stopped sentence's file holds the chunks whose full duration had passed before the stop.
+  A sentence that never started writes no file.
+- A chunk whose encoding, rate or channels differ from the first chunk's rejects the play, naming both formats.
+  The file holds the chunks whose full duration had passed before it.
+  If that write fails too, the rejection stays the format error and carries the write error as its cause.
+- A chunk that is not `pcm-s16le` rejects the play, naming the encoding.
+- A play rejected before it takes a chunk writes no file.
+- A failed `write` rejects the play with the writer's error.
 
 ## Non-goals
 

@@ -176,6 +176,7 @@ Create the issues with `gh issue create` from the checked bodies, parent
 first if there is one, then fill the parent's `Child issues` list with the real
 numbers. A defect set aside under principle 9 becomes a note issue: Background and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
+Its title ends in "(note)"; that is how `triager` finds it later.
 
 Then invoke `reconciler` with the numbers of the issues just created, so
 they are checked against every other open issue. It may stop to ask the

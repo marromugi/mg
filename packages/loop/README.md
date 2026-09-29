@@ -91,6 +91,24 @@ When the last turn ends without calling tools, the reason is `stop` or
 The abort signal takes precedence over wrap-up.
 The wrap-up signal is optional.
 
+### Hold
+
+When the input carries a hold signal, the harness waits while it is
+held. It waits at two points.
+
+- Before a turn's generation starts.
+- Once before the turn's tool calls start. The tool calls still start
+  together after that wait.
+
+A generation that is already streaming and tool calls that have
+already started run to their end.
+
+While waiting, wrap-up ends the run as described above, and the abort
+signal throws as it does anywhere else. Subagent calls receive the
+hold signal next to the wrap-up signal.
+
+The hold signal is optional. Without it, nothing changes.
+
 ### Tool failures
 
 When a tool fails, the harness turns the error into a tool result

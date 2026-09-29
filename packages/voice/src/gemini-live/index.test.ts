@@ -143,7 +143,7 @@ const mono16k = (bytes: number[] = [1, 2, 3, 4]): AudioChunk => ({
   data: new Uint8Array(bytes),
 });
 
-const run = (
+const start = (
   options: Partial<GeminiTranscriberOptions> & {
     WebSocket: typeof WebSocket;
   },
@@ -154,13 +154,23 @@ const run = (
     apiKey: "k",
     ...options,
   });
+  const stream = transcriber.transcribe(source.audio, callOptions);
+  return { source, stream, iterator: stream[Symbol.asyncIterator]() };
+};
+
+const run = (
+  options: Partial<GeminiTranscriberOptions> & {
+    WebSocket: typeof WebSocket;
+  },
+  callOptions?: TranscribeOptions,
+) => {
+  const { source, iterator } = start(options, callOptions);
   const events: TranscriptEvent[] = [];
   const outcome = (async () => {
     try {
-      for await (const event of transcriber.transcribe(
-        source.audio,
-        callOptions,
-      )) {
+      for await (const event of {
+        [Symbol.asyncIterator]: () => iterator,
+      }) {
         events.push(event);
       }
       return { error: undefined, failed: false };
@@ -423,24 +433,6 @@ describe("createGeminiTranscriber", () => {
   });
 
   describe("after the signal has fired", () => {
-    const start = (
-      Ctor: typeof WebSocket,
-      signal: AbortSignal,
-      languages?: string[],
-    ) => {
-      const source = audioSource();
-      const transcriber = createGeminiTranscriber({
-        apiKey: "k",
-        WebSocket: Ctor,
-      });
-      const stream = transcriber.transcribe(source.audio, {
-        signal,
-        languages,
-      });
-      const iterator = stream[Symbol.asyncIterator]();
-      return { source, iterator };
-    };
-
     const takePartial = async (
       sockets: FakeSocket[],
       call: ReturnType<typeof start>,
@@ -461,7 +453,10 @@ describe("createGeminiTranscriber", () => {
       const controller = new AbortController();
       const reason = { why: "user" };
       controller.abort(reason);
-      const call = start(Ctor, controller.signal, ["not a tag!!"]);
+      const call = start(
+        { WebSocket: Ctor },
+        { signal: controller.signal, languages: ["not a tag!!"] },
+      );
       await expect(call.iterator.next()).rejects.toBe(reason);
       expect(sockets.length).toBe(0);
     });
@@ -469,7 +464,10 @@ describe("createGeminiTranscriber", () => {
     test("drops a queued final and the end, throws the reason, and closes the session", async () => {
       const { sockets, Ctor } = fakeWebSocket();
       const controller = new AbortController();
-      const call = start(Ctor, controller.signal);
+      const call = start(
+        { WebSocket: Ctor },
+        { signal: controller.signal },
+      );
       await takePartial(sockets, call);
       sockets[0].serverSend(completed("明日の会議"));
       sockets[0].serverSend(generationComplete);
@@ -482,7 +480,10 @@ describe("createGeminiTranscriber", () => {
     test("drops a queued partial and throws the reason", async () => {
       const { sockets, Ctor } = fakeWebSocket();
       const controller = new AbortController();
-      const call = start(Ctor, controller.signal);
+      const call = start(
+        { WebSocket: Ctor },
+        { signal: controller.signal },
+      );
       await takePartial(sockets, call);
       sockets[0].serverSend(interim("明日の会議"));
       const reason = { why: "user" };
@@ -493,7 +494,10 @@ describe("createGeminiTranscriber", () => {
     test("throws the reason at once, yielding nothing, when stopped before any connection opened", async () => {
       const { sockets, Ctor } = fakeWebSocket();
       const controller = new AbortController();
-      const call = start(Ctor, controller.signal);
+      const call = start(
+        { WebSocket: Ctor },
+        { signal: controller.signal },
+      );
       const pending = call.iterator.next();
       await flush();
       const reason = { why: "user" };
@@ -505,7 +509,10 @@ describe("createGeminiTranscriber", () => {
     test("throws an error queued before the stop as that error", async () => {
       const { sockets, Ctor } = fakeWebSocket();
       const controller = new AbortController();
-      const call = start(Ctor, controller.signal);
+      const call = start(
+        { WebSocket: Ctor },
+        { signal: controller.signal },
+      );
       await takePartial(sockets, call);
       sockets[0].serverClose(1011, "internal");
       controller.abort({ why: "user" });

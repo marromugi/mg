@@ -102,8 +102,11 @@ never copy the key values themselves:
 ln -s <main checkout>/.env <scratchpad>/verify-<PR>/.env
 ```
 
-Link it even when the main checkout has no `.env`: a dangling link is read
-as no file, the same as no link at all.
+Link it only when the main checkout has a `.env`. A dangling link makes
+Node print a warning line on every run, and that extra line breaks any pass
+condition that compares output exactly. With no link, the declared
+command's `--env-file-if-exists` reads nothing, and keys come from this
+session's environment.
 
 If either command fails, note the result as unverifiable, with the failure
 as the reason, and go to step 5 — the worktree already exists, so step 6
@@ -133,17 +136,32 @@ it, or do not.
 Not approved: note that item as unverifiable, with the reason
 "承認されませんでした".
 
+When a V item needs something running on another machine — a browser, a
+server — that the issue says is started on that machine's side, check what
+already runs there and how much memory is free before starting anything.
+Start only what the item needs, keep the process ids, and stop them and
+remove their files in step 6. A small machine can stop answering when it
+runs more than it has room for, and then neither the check nor the clean-up
+can finish.
+
 ### 4. Spawn the judge
 
 One fresh agent per PR — Agent tool, `subagent_type`: `general-purpose`,
 `model`: `sonnet`. Give it the V items that are still to run, each one's
-declared command, the worktree path, and the fact that its `.env` link is
-already in place and may point at no file. Tell it keys may instead come
-from this session's own environment. It runs each command from the worktree
+declared command, the worktree path, and whether its `.env` link is in
+place. Tell it keys may instead come from this session's own environment. It runs each command from the worktree
 root, captures what it prints, and returns, per V item: the command, an
 excerpt of what it observed, and its judgement against that item's pass
 condition, with the observed values quoted. It never edits a file — it only
 runs the declared commands and reads their output.
+
+A spawned agent may run where the local network is out of reach, so a
+command with the `outside` burden can fail there before the software under
+test does anything. Run those commands in this session instead, from the
+worktree root, saving what each prints and its exit code to a file in the
+scratchpad. Give the judge those files in place of the commands, and tell it
+not to run anything. The judge still decides every item; this session only
+runs the commands.
 
 If the agent's own run fails to start, or it reports that it could not judge
 an item, note that item as unverifiable with the agent's own words as the
@@ -183,6 +201,9 @@ If step 2 created a worktree, remove it — this also removes the `.env` link:
 ```
 git worktree remove <scratchpad>/verify-<PR>
 ```
+
+Stop every process step 3 started on another machine, by the process ids it
+kept, and remove the files they wrote.
 
 ## On failure
 

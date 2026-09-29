@@ -60,7 +60,13 @@ const stubSchema = (): ToolSchema => ({
 const stubTool = (
   name: string,
   execute: Tool["execute"] = async () => `${name}-result`,
-): Tool => defineTool({ name, input: stubSchema(), execute });
+): Tool =>
+  defineTool({
+    reach: async () => ({ kind: "any-local" }),
+    name,
+    input: stubSchema(),
+    execute,
+  });
 
 const scriptedProvider = (
   responses: readonly GenerateResponse[],

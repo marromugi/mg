@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
+import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { resolveExistingPath } from "./root.js";
+import { resolveExistingPath, reachOfPath } from "./root.js";
 import { isBinary } from "./text.js";
 
 export type EditFileToolOptions = { root: string };
@@ -78,6 +79,11 @@ export const createEditFileTool = (
       "lines to disambiguate) unless replaceAll is true; fails " +
       "without changing the file otherwise.",
     input: editFileInput,
+    async reach(args) {
+      const parsed = await validateToolInput(this.input, args);
+      if (!parsed.ok) return { kind: "any-local" };
+      return reachOfPath(root, parsed.value.path);
+    },
     async execute(
       { path: inputPath, oldString, newString, replaceAll },
       context,

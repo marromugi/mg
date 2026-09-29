@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
+import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { resolveExistingPath } from "./root.js";
+import { resolveExistingPath, reachOfPath } from "./root.js";
 import { isBinary, sliceCodePoints, splitLines } from "./text.js";
 
 export type ReadFileToolOptions = {
@@ -43,6 +44,11 @@ export const createReadFileTool = (
       "points, start inclusive, end exclusive; a bare line means the " +
       "whole line). Positions are the ones grep reports.",
     input: readFileInput,
+    async reach(args) {
+      const parsed = await validateToolInput(this.input, args);
+      if (!parsed.ok) return { kind: "any-local" };
+      return reachOfPath(root, parsed.value.path);
+    },
     async execute({ path: inputPath, range }, context) {
       context.signal?.throwIfAborted();
 

@@ -37,6 +37,9 @@ export const createShellTool = (
       "Runs a shell command on the remote machine over SSH. " +
       "Returns stdout, stderr and the exit code as one text.",
     input: shellInput,
+    async reach() {
+      return { kind: "outside" };
+    },
     async execute({ command }, context) {
       const fullCommand =
         cwd === undefined

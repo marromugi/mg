@@ -13,8 +13,20 @@ export type ToolInputIssue = StandardSchemaV1.Issue;
 
 export type ToolContext = { signal?: AbortSignal };
 
-export type Tool<TInput extends ToolSchema = ToolSchema> =
+export type Reach =
+  | { kind: "paths"; paths: readonly string[] }
+  | { kind: "any-local" }
+  | { kind: "outside" }
+  | { kind: "none" };
+
+export type Callee<TInput extends ToolSchema = ToolSchema> =
   ToolDefinition<TInput> & {
+    // method syntax on purpose, same reason as execute
+    reach(args: unknown): Promise<Reach>;
+  };
+
+export type Tool<TInput extends ToolSchema = ToolSchema> =
+  Callee<TInput> & {
     // method syntax on purpose: keeps Tool<Specific> assignable to Tool
     execute(
       input: ToolInput<TInput>,

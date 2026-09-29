@@ -63,6 +63,7 @@ const jsonOnlySchema = {
 } as const satisfies StandardJSONSchemaV1;
 
 const weather = defineTool({
+  reach: async () => ({ kind: "any-local" }),
   name: "weather",
   description: "Looks up the weather",
   input: weatherSchema,

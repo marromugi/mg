@@ -19,6 +19,10 @@ type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
 
 const noop = () => {};
 
+type Exit = { code: number } | { error: unknown };
+
+const never = new Promise<never>(noop);
+
 const deferred = <T>(): Deferred<T> => {
   const holder: Deferred<T> = {
     promise: undefined as never,
@@ -58,6 +62,14 @@ const commandFor = (format: AudioFormat): string[] => [
   "-",
 ];
 
+const kill = (process: SpawnedProcess | undefined) => {
+  try {
+    process?.kill();
+  } catch {
+    // The process is already gone.
+  }
+};
+
 const newRound = (): Round => {
   const { promise, resolve } = deferred<typeof STOPPED>();
   return {
@@ -96,8 +108,8 @@ export const createFfmpegPlayer = ({
     }
     r.current = process;
     const exited = process.exit.then(
-      (code) => ({ code }) as const,
-      (error: unknown) => ({ error }) as const,
+      (code): Exit => ({ code }),
+      (error: unknown): Exit => ({ error }),
     );
     return { process, exited };
   };
@@ -108,13 +120,29 @@ export const createFfmpegPlayer = ({
   ): Promise<PlaybackEnd> => {
     const iterator = audio[Symbol.asyncIterator]();
     let started: ReturnType<typeof start> | undefined;
+    const finish = (outcome: Exit): PlaybackEnd => {
+      if ("error" in outcome) {
+        throw new Error(
+          `ffmpeg could not start: ${messageOf(outcome.error)}`,
+        );
+      }
+      if (outcome.code !== 0) {
+        throw new Error(`ffmpeg failed with exit code ${outcome.code}`);
+      }
+      return { played: true };
+    };
     try {
       for (;;) {
         const step = await Promise.race([
           iterator.next(),
           r.stopSignal,
+          started?.exited ?? never,
         ]);
-        if (step === STOPPED) return { played: false };
+        if (r.stopped || step === STOPPED) {
+          kill(started?.process);
+          return { played: false };
+        }
+        if ("code" in step || "error" in step) return finish(step);
         if (step.done) break;
         started ??= start(r, step.value.format);
         started.process.stdin.write(step.value.data);
@@ -125,22 +153,13 @@ export const createFfmpegPlayer = ({
         started.exited,
         r.stopSignal,
       ]);
-      if (outcome === STOPPED) return { played: false };
-      if ("error" in outcome) {
-        throw new Error(
-          `ffmpeg could not start: ${messageOf(outcome.error)}`,
-        );
+      if (outcome === STOPPED) {
+        kill(started.process);
+        return { played: false };
       }
-      if (outcome.code !== 0) {
-        throw new Error(`ffmpeg failed with exit code ${outcome.code}`);
-      }
-      return { played: true };
+      return finish(outcome);
     } catch (error) {
-      try {
-        started?.process.kill();
-      } catch {
-        // The process is already gone.
-      }
+      kill(started?.process);
       throw error;
     } finally {
       await iterator.return?.().catch(() => undefined);
@@ -173,7 +192,6 @@ export const createFfmpegPlayer = ({
         // Stopping never throws.
       }
       r.end();
-      for (const slot of r.slots.values()) slot.resolve(undefined);
     },
   };
 };

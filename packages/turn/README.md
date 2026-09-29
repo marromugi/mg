@@ -10,7 +10,7 @@ There are six judgments. Each takes a situation and returns one action.
 | --- | -------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
 | ①   | Backchannel          | The transcript so far                                        | A backchannel phrase / do nothing                 |
 | ②   | Speech during work   | Tool history, elapsed time                                   | Report the status / a filler phrase / stay silent |
-| ③   | Stop                 | What the partner says during the work                        | Stop right away / continue                        |
+| ③   | Stop                 | What the partner says during the work, the running work      | Stop right away / continue                        |
 | ④   | Redirect             | The last few exchanges of speech and reply, the work request | Switch / continue                                 |
 | ⑤   | Report the result    | What has been said so far, the work result                   | Speak / defer                                     |
 | ⑥   | Overlapping requests | The running work's request, the new request                  | Replace / queue                                   |
@@ -35,7 +35,10 @@ const judge = createEstimatorStopJudge({
   continue: "The user says something else.",
 });
 
-const answer = await judge.judge({ utterance: "Wait, hold on." });
+const answer = await judge.judge({
+  utterance: "Wait, hold on.",
+  work: { request: "Fix the typos in README", tools: [] },
+});
 // answer is { action: "stop" } or { action: "continue" }
 ```
 

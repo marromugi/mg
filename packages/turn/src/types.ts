@@ -31,8 +31,12 @@ export type WorkSpeechAnswer =
   | { action: "fill"; text: string }
   | { action: "silent" };
 
-// what the partner said during the work
-export type StopSituation = { utterance: string };
+// what the partner said during the work, and the work itself: its
+// request and its tool activity so far
+export type StopSituation = {
+  utterance: string;
+  work: { request: string; tools: ToolActivity[] };
+};
 export type StopAnswer = { action: "stop" } | { action: "continue" };
 
 // one exchange: what the partner said, and what we replied

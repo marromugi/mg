@@ -26,14 +26,6 @@ export type ReplySpeakerOptions = {
 const reasonOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-// A sentence is synthesized in full before it is played, so a synthesizer
-// failure is told apart from a device failure.
-async function* replay(
-  chunks: AudioChunk[],
-): AsyncGenerator<AudioChunk> {
-  yield* chunks;
-}
-
 export const createReplySpeaker = ({
   synthesizer,
   player,
@@ -42,9 +34,15 @@ export const createReplySpeaker = ({
   let next = 0;
   let ended = false;
   let stopped = false;
+  let finished = false;
+  let heard = 0;
   const pending: Sentence[] = [];
   let wake: (() => void) | undefined;
   const abort = new AbortController();
+  let onStop: ((outcome: SpeakOutcome) => void) | undefined;
+  const stopWon = new Promise<SpeakOutcome>((resolve) => {
+    onStop = resolve;
+  });
 
   const notify = () => {
     wake?.();
@@ -58,7 +56,6 @@ export const createReplySpeaker = ({
   };
 
   const run = async (): Promise<SpeakOutcome> => {
-    let heard = 0;
     let index = 0;
     while (true) {
       if (stopped) return { heard };
@@ -69,30 +66,31 @@ export const createReplySpeaker = ({
         continue;
       }
 
-      const chunks: AudioChunk[] = [];
-      try {
-        for await (const chunk of synthesizer.synthesize(
-          sentence.text,
-          {
+      // The wrapper records a synthesizer error so that it is told apart
+      // from a device failure when play rejects.
+      let synthesizerError: { reason: string } | undefined;
+      const audio = (async function* (): AsyncGenerator<AudioChunk> {
+        try {
+          yield* synthesizer.synthesize(sentence.text, {
             signal: abort.signal,
-          },
-        )) {
-          chunks.push(chunk);
+          });
+        } catch (error) {
+          synthesizerError = { reason: reasonOf(error) };
+          throw error;
         }
-      } catch (error) {
-        if (stopped) return { heard };
-        return {
-          heard,
-          failed: "synthesizer",
-          reason: reasonOf(error),
-        };
-      }
-      if (stopped) return { heard };
+      })();
 
       try {
-        const end = await player.play(index, replay(chunks));
+        const end = await player.play(index, audio);
         if (!end.played) return { heard };
       } catch (error) {
+        if (synthesizerError !== undefined) {
+          return {
+            heard,
+            failed: "synthesizer",
+            reason: synthesizerError.reason,
+          };
+        }
         return { heard, failed: "device", reason: reasonOf(error) };
       }
       heard = sentence.end;
@@ -100,21 +98,26 @@ export const createReplySpeaker = ({
     }
   };
 
+  const done = Promise.race([run(), stopWon]).then((outcome) => {
+    finished = true;
+    return outcome;
+  });
+
   return {
     push(delta) {
-      if (ended || stopped) return;
+      if (ended || stopped || finished) return;
       text += delta;
       split();
       notify();
     },
     end() {
-      if (ended || stopped) return;
+      if (ended || stopped || finished) return;
       ended = true;
       split();
       notify();
     },
     stop() {
-      if (stopped) return;
+      if (stopped || finished) return;
       stopped = true;
       abort.abort();
       try {
@@ -122,8 +125,9 @@ export const createReplySpeaker = ({
       } catch {
         // A stop that fails leaves nothing more to end.
       }
+      onStop?.({ heard });
       notify();
     },
-    done: run(),
+    done,
   };
 };

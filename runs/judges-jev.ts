@@ -13,6 +13,7 @@ import {
 } from "@mg/turn";
 import { term } from "@mg/term";
 import { createSampleJevEstimator } from "./jev-estimator.ts";
+import { judgeFailureLine } from "./outcome-lines.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.TYPESAFE_API_KEY;
@@ -260,19 +261,8 @@ try {
     } catch (error) {
       failed = true;
       if (error instanceof JudgeError) {
-        const causeSuffix =
-          error.cause === undefined
-            ? ""
-            : ` (cause: ${
-                error.cause instanceof Error
-                  ? error.cause.message
-                  : String(error.cause)
-              })`;
         console.error(
-          term.paint(
-            "error",
-            `${line.judge}: ${error.message}${causeSuffix}`,
-          ),
+          term.paint("error", judgeFailureLine(line.judge, error)),
         );
       } else {
         throw error;

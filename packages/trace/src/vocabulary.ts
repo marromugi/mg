@@ -13,10 +13,12 @@ export const SPAN = {
   recall: "mg.recall",
   reflection: "mg.reflection",
   turn: "mg.turn",
+  dialogue: "mg.dialogue",
+  dialogueRun: "mg.dialogue.run",
 } as const;
 
 export const ATTR = {
-  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection" | "turn"
+  op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection" | "turn" | "dialogue" | "dialogue.run"
   harnessName: "mg.harness.name",
   harnessStopReason: "mg.harness.stop_reason", // HarnessStopReason
   runName: "mg.run.name", // RunConfig.name
@@ -73,4 +75,5 @@ export const ATTR = {
   turnModel: "mg.turn.model",
   turnLabel: "mg.turn.label",
   turnProbabilities: "mg.turn.probabilities", // jsonAttribute(Record<string, number>)
+  dialogueRole: "mg.dialogue.role", // "talker" | "worker"
 } as const;

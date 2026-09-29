@@ -51,6 +51,24 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
 
+  packages/dialogue:
+    dependencies:
+      '@mg/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@mg/trace':
+        specifier: workspace:*
+        version: link:../trace
+      '@mg/trigger':
+        specifier: workspace:*
+        version: link:../trigger
+      '@mg/turn':
+        specifier: workspace:*
+        version: link:../turn
+      '@mg/voice':
+        specifier: workspace:*
+        version: link:../voice
+
   packages/eval:
     dependencies:
       '@mg/core':

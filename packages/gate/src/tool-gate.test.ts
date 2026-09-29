@@ -1,5 +1,6 @@
 import {
   defineTool,
+  type Reach,
   type Tool,
   type ToolCall,
   type ToolMessage,
@@ -280,5 +281,101 @@ describe("gateRunToolCall", () => {
     await gateRunToolCall(gate, run)([weatherTool], call);
 
     expect(seenContext).not.toHaveProperty("trace");
+  });
+});
+
+type Recorded = { request?: GateRequest };
+
+const recordingGate = (recorded: Recorded): Gate =>
+  stubGate(async (request): Promise<Verdict> => {
+    recorded.request = request;
+    return { allowed: true, reason: "ok" };
+  });
+
+const fakeReadFile = (
+  reach: Reach,
+  seenArguments: unknown[],
+): Tool => ({
+  name: "read_file",
+  description: "Reads a file.",
+  input: schema,
+  reach: async (args: unknown) => {
+    seenArguments.push(args);
+    return reach;
+  },
+  execute: async () => "contents",
+});
+
+describe("gateRunToolCall reach", () => {
+  it("sends the gate the reach the callee declared for the arguments", async () => {
+    const declared: Reach = {
+      kind: "paths",
+      paths: [{ path: "/x/a.txt", extent: "file" }],
+    };
+    const seenArguments: unknown[] = [];
+    const recorded: Recorded = {};
+    const run = vi.fn(async (): Promise<ToolMessage> => ({
+      role: "tool",
+      toolCallId: "call-2",
+      content: "contents",
+    }));
+
+    await gateRunToolCall(recordingGate(recorded), run)(
+      [fakeReadFile(declared, seenArguments)],
+      { id: "call-2", name: "read_file", arguments: { path: "a.txt" } },
+    );
+
+    const payload = recorded.request?.payload as ToolCallPayload;
+    expect(payload.reach).toEqual({
+      kind: "paths",
+      paths: [{ path: "/x/a.txt", extent: "file" }],
+    });
+    expect(seenArguments).toEqual([{ path: "a.txt" }]);
+  });
+
+  it("sends the gate any-local and no tool definition when no callee has the name", async () => {
+    const recorded: Recorded = {};
+    const run = vi.fn(async (): Promise<ToolMessage> => ({
+      role: "tool",
+      toolCallId: "call-3",
+      content: "unknown",
+    }));
+
+    await gateRunToolCall(recordingGate(recorded), run)(
+      [fakeReadFile({ kind: "none" }, [])],
+      { id: "call-3", name: "nope", arguments: {} },
+    );
+
+    const payload = recorded.request?.payload as ToolCallPayload;
+    expect(payload.reach).toEqual({ kind: "any-local" });
+    expect(payload.tool).toBeUndefined();
+  });
+
+  it("returns the failed message, without asking the gate or running, when the callee's reach throws", async () => {
+    const judge = vi.fn(async (): Promise<Verdict> => ({
+      allowed: true,
+      reason: "ok",
+    }));
+    const execute = vi.fn(async () => "contents");
+    const callee: Tool = {
+      name: "read_file",
+      input: schema,
+      reach: async () => {
+        throw new Error("boom");
+      },
+      execute,
+    };
+
+    const result = await gateRunToolCall(stubGate(judge))([callee], {
+      id: "call-4",
+      name: "read_file",
+      arguments: {},
+    });
+
+    expect(result.content).toBe(
+      "[denied] Not executed. The policy check failed: boom",
+    );
+    expect(judge).toHaveBeenCalledTimes(0);
+    expect(execute).toHaveBeenCalledTimes(0);
   });
 });

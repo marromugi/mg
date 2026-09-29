@@ -1,4 +1,4 @@
-import type { ToolCall, ToolSchema } from "@mg/core";
+import type { Reach, ToolCall, ToolSchema } from "@mg/core";
 import {
   runSubagentCall,
   type Subagent,
@@ -127,5 +127,30 @@ describe("gateRunToolCall with runSubagentCall", () => {
     expect(result.content).toBe(
       "[denied] Not executed. The policy gate rejected this action: no delegation",
     );
+  });
+});
+
+describe("gateRunToolCall reach for a subagent", () => {
+  it("sends the gate the reach the subagent declared", async () => {
+    let seenRequest: GateRequest | undefined;
+    const gate = stubGate(async (request): Promise<Verdict> => {
+      seenRequest = request;
+      return { allowed: true, reason: "ok" };
+    });
+    const declared: Reach = { kind: "none" };
+    const helper: Subagent = {
+      ...stubResearcher(async () => "done"),
+      name: "helper",
+      reach: async () => declared,
+    };
+
+    await gateRunToolCall(gate, runSubagentCall)([helper], {
+      id: "c2",
+      name: "helper",
+      arguments: { prompt: "x" },
+    });
+
+    const payload = seenRequest?.payload as ToolCallPayload;
+    expect(payload.reach).toEqual({ kind: "none" });
   });
 });

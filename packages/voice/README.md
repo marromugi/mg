@@ -13,6 +13,9 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Defines the listener interface `Listener`.
 - Defines the player interface `Player`.
 - Holds `createGeminiTranscriber`, a transcriber built on Gemini's Live API.
+- Holds `createRecordedListener`, a listener that plays recorded utterances at given times.
+- Holds `createRecordingPlayer`, a player that writes each sentence to a WAV file.
+- Defines the clock interface `Clock`, which both of those wait on.
 - Holds `splitSentences`, a function that cuts text into sentences to read aloud.
 
 ## Usage
@@ -117,6 +120,30 @@ When the device fails, it rejects with the thrown value.
 
 `stop()` stops the sentence being played right away.
 It resolves every waiting `play` as not played.
+
+### Recorded listener and recording player
+
+Two implementations that let the dialogue run without a person.
+Both take their clock from outside, so a test can drive time itself.
+
+`Clock` has `now()` and `sleep(ms, signal)`.
+`sleep` rejects when the signal aborts.
+
+`createRecordedListener({ utterances, clock })` is a `Listener`.
+Each utterance has `at`, its start time in milliseconds, and `audio`, a list of chunks.
+It yields each utterance `at` milliseconds after listening starts, in the order given.
+Its audio yields each chunk, then waits as long as the chunk would take to play, then ends.
+
+`createRecordingPlayer({ write, clock })` is a `Player`.
+`write(name, bytes)` receives each sentence's file.
+It takes the chunks of sentence `n`, waiting each chunk's duration, then writes `n.wav`.
+The file is a WAV in the format of the chunks.
+It resolves `{ played: true }` once the audio's duration has passed.
+
+`stop()` ends the running sentence early and resolves every waiting `play` as not played.
+The stopped sentence's file holds only the audio taken before the stop.
+A sentence that never started writes no file.
+When `write` fails, that `play` rejects with the writer's error.
 
 ### `splitSentences`
 

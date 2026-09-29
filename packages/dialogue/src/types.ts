@@ -24,9 +24,16 @@ export type TalkerReplyOptions = {
   // settles with how many characters of the reply text the person heard
   heard: Promise<number>;
   onText: (delta: string) => void;
+  onTextEnd: () => void;
 };
 
-// reply rejects with TalkerError when the run fails or is not saved
+// onTextEnd is called once, after the last onText, when the generation
+// finished on its own and before the talker awaits heard. It is not
+// called when the generation fails, stops at a length or turn limit
+// (reply rejects with TalkerError naming the stop reason), or is
+// wrapped up (the talker awaits heard and saves).
+// reply rejects with TalkerError when the run fails or is not saved; a
+// reply that cannot be saved rejects after onTextEnd was called.
 export interface Talker {
   reply(
     message: string,

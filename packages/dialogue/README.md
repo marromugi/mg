@@ -21,6 +21,8 @@ It holds types and the talker's error only. The session itself is built against 
 
 Takes one message and returns the trace session id of its run.
 It streams the reply text through `onText`.
+`onTextEnd` is called once when the reply text is complete.
+It is not called when the run fails, stops at a limit or is wrapped up.
 `heard` settles with how many characters the person heard.
 It rejects with `TalkerError` when the run fails or is not saved.
 

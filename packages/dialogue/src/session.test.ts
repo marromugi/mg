@@ -1101,32 +1101,9 @@ describe("runDialogue", () => {
     });
   });
 
-  test("shows the wrapped-up ending in the status until new work starts", async () => {
+  test("keeps the ending of the earlier work in the status while new work runs, until the new work ends", async () => {
     vi.useFakeTimers();
-    const h = build({ work: "直して" });
-    await startWork(h);
-    h.worker.end({
-      kind: "ended",
-      reason: "wrapped-up",
-      text: "",
-      sessionId: "w1",
-    });
-    await settle();
-    await say(h, "B");
-    expect(h.statuses.at(-1)?.status.latest).toEqual({
-      kind: "ended",
-      reason: "wrapped-up",
-      text: "",
-      sessionId: "w1",
-    });
-  });
-
-  test("shows no latest ending once new work has started", async () => {
-    vi.useFakeTimers();
-    const h = build({
-      work: "直して",
-      redirect: ["switch"],
-    });
+    const h = build({ work: "直して", redirect: ["switch"] });
     await startWork(h);
     await say(h, "B");
     h.worker.end({
@@ -1138,7 +1115,29 @@ describe("runDialogue", () => {
     await settle();
     expect(h.worker.requests).toHaveLength(2);
     await say(h, "C");
-    expect(h.statuses.at(-1)?.status.latest).toBeNull();
+    const running = h.statuses.at(-1)?.status;
+    expect(running?.state).toBe("running");
+    expect(running?.request).toEqual({
+      text: "Q:A/はい。,B/",
+      omitted: 3,
+    });
+    expect(running?.latest).toMatchObject({
+      kind: "ended",
+      reason: "wrapped-up",
+    });
+    h.worker.end({
+      kind: "ended",
+      reason: "stop",
+      text: "完了",
+      sessionId: "w2",
+    });
+    await settle();
+    await say(h, "D");
+    expect(h.statuses.at(-1)?.status.latest).toMatchObject({
+      kind: "ended",
+      reason: "stop",
+      text: "完了",
+    });
   });
 
   test("emits the events of one cycle in order", async () => {

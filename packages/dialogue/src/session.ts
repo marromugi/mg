@@ -359,7 +359,6 @@ export const runDialogue: RunDialogue = async (options, context) => {
       ended: new Promise<void>((resolve) => (markEnded = resolve)),
     };
     work = current;
-    latest = null;
     emit({ type: "work", action: "requested" });
     detach(
       attempt(() =>

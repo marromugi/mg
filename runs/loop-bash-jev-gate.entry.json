@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/loop-bash-jev-gate.ts \"<入力>\"",
+  "needs": ["OPENROUTER_API_KEY", "TYPESAFE_API_KEY"],
+  "burdens": ["cost"]
+}

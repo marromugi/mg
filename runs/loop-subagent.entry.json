@@ -1,0 +1,12 @@
+{
+  "command": "node --env-file-if-exists=.env runs/loop-subagent.ts \"<入力>\"",
+  "needs": [
+    "OPENROUTER_API_KEY",
+    "MG_SSH_HOST",
+    "MG_SSH_USER",
+    "MG_SSH_KEY_PATH",
+    "MG_CDP_URL",
+    "MG_CLEAN_CDP_URL"
+  ],
+  "burdens": ["cost", "outside"]
+}

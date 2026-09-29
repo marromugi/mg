@@ -1,8 +1,8 @@
 # @mg/dialogue
 
-A package of interfaces for carrying a spoken conversation between a person, a talker and a worker.
+A package for carrying a spoken conversation between a person, a talker and a worker.
 
-It holds types and the talker's error only. The session itself is built against these interfaces.
+It holds the session function `runDialogue`, the interfaces the session is built against, and the talker's error.
 
 ## Features
 
@@ -13,6 +13,7 @@ It holds types and the talker's error only. The session itself is built against 
 - Defines `DialogueWording`, the wording the session is given.
 - Defines `DialogueOptions`, `DialogueContext` and `DialogueEvent`.
 - Defines `RunDialogue`, the type of the session function.
+- Holds `runDialogue`, the session: one cycle per utterance, deciding every handoff between the person, the talker and the worker.
 - Holds `TalkerError`, the error a talker rejects with.
 
 ## API
@@ -30,6 +31,13 @@ It rejects with `TalkerError` when the run fails or is not saved.
 
 Takes a request and ends with a `WorkEnding`.
 It can be held, released and wrapped up.
+
+### `runDialogue`
+
+Runs until the listener ends and the current cycle is done.
+It rejects when the listener or the player fails, and with the abort reason when its signal is aborted.
+Judgment and part failures do not end it; each shows as a `failure` event.
+It speaks replies, reports and notices one text at a time, through the reply speaker.
 
 ### `DialogueOptions`
 

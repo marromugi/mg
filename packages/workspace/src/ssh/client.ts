@@ -257,9 +257,10 @@ export const connectSsh = async (
 ): Promise<SshClient> =>
   new Ssh2Client(await openConnection(options, context));
 
-// ssh2 CHANNEL_OPEN_FAILURE.CONNECT_FAILED
-const isRefused = (error: unknown): boolean =>
-  (error as { reason?: unknown }).reason === 2;
+// ssh2 CHANNEL_OPEN_FAILURE.CONNECT_FAILED, worded "Connection refused"
+const isRefused = (error: Error): boolean =>
+  (error as { reason?: unknown }).reason === 2 &&
+  error.message.includes("Connection refused");
 
 export const toSshForwarder = (
   connection: Pick<Client, "forwardOut" | "end" | "once">,

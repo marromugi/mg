@@ -1,5 +1,9 @@
 import type { Message, Tool } from "@mg/core";
-import type { HarnessEvent, HarnessResult } from "@mg/harness";
+import type {
+  HarnessEvent,
+  HarnessResult,
+  HoldSignal,
+} from "@mg/harness";
 import { collect } from "@mg/harness";
 import { ATTR, SPAN, startRootSpan } from "@mg/trace";
 import { createTraceSdk } from "@mg/trace/otel";
@@ -14,6 +18,7 @@ import { mergeCallTools, withWorkspace } from "./workspace-scope.js";
 export type RunOptions = {
   signal?: AbortSignal;
   wrapUp?: AbortSignal;
+  hold?: HoldSignal;
   tools?: readonly Tool[];
   sessionId?: string;
   caseId?: string;
@@ -107,6 +112,7 @@ export async function run(
             messages,
             signal: options?.signal,
             wrapUp: options?.wrapUp,
+            hold: options?.hold,
             trace: root,
           }),
           options?.onEvent,

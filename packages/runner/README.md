@@ -168,6 +168,7 @@ The options it receives are passed as is to the run entry point.
 If you pass `sessionId`, the session id in the return value is also that value.
 The function passed to `onEvent` receives the run's events.
 If you pass `wrapUp`, a run stopped by that signal is appended the same way.
+If you pass `hold`, the run waits while it is held, and is appended once it goes on and ends.
 If you pass `tools`, they go to the run as tools used only for that call.
 
 #### Deciding what to keep
@@ -267,7 +268,7 @@ When recall or the conversation entry point fails, the record is closed with tha
 Once the conversation is saved, this entry point does not throw. This is so the saved result is not lost.
 Even if reflection throws, this entry point does not throw. The result carries it as a reason the update failed: "rejected".
 
-The `wrapUp` and `tools` options are passed as is to the conversation continuation entry point.
+The `wrapUp`, `hold` and `tools` options are passed as is to the conversation continuation entry point.
 `keep` is passed the same way.
 Reflection receives the entry saved with the answer from `keep`.
 
@@ -441,6 +442,11 @@ They receive the start and events of each run, with the item's id.
 It returns `true` if it sent one, and does nothing and returns `false` if nothing is running.
 It does not send the signal to waiting items.
 
+`queue.hold()` holds the queue, and `queue.release()` lets it go on.
+The queue has one hold for its whole life, and every run receives its signal as `hold`.
+A held queue holds the running item, and it holds the items that start later.
+The hold lasts across items until `release()`.
+
 `queue.close()` drops the waiting items without running them and finishes.
 The running item runs to the end, and `close()` resolves after waiting for it.
 Items queued after closing are also dropped without running.
@@ -458,6 +464,7 @@ The steps `run` goes through before it returns a result.
 - Passes the config's `gate` to the harness as is.
 - If `tools` are passed on the call, adds them after the list of tools.
 - If `wrapUp` is passed on the call, passes it to the harness as is.
+- If `hold` is passed on the call, passes it to the harness as is.
 - Passes the conversation to the harness, collects the events and makes the result.
 - Closes the opened workspace. It closes it even if the run fails.
 - Closes the root span, waits for the trace export, then returns.
@@ -568,6 +575,7 @@ Tool calls inside the child are checked by the config's `gate`.
 If the context passed to `start` has a span, the child harness's span sits under it.
 The context's abort signal is passed straight to the child harness.
 The context's wrap-up signal is also passed straight to the child harness.
+The context's hold signal is passed the same way.
 
 If the `harness` config is wrong, it throws when the run starts.
 This is so it is checked before the run starts, not partway through.

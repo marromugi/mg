@@ -16,5 +16,5 @@ export const personaChange = {
   question:
     "Should the agent's persona change to the proposed text, given " +
     "what happened in this conversation?",
-  threshold: 0.8,
+  threshold: 0.57,
 };

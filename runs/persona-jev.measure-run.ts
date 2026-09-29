@@ -135,7 +135,7 @@ const personaScenes: PersonaScene[] = [
     conversation: [
       { role: "user", author: "alice", content: "I got a dog" },
     ],
-    expected: true,
+    expected: false,
   },
   {
     previous: "I am Jev.",

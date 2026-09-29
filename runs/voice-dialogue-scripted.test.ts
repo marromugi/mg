@@ -88,7 +88,7 @@ describe("scripted entry", () => {
 
   test("exits with code 1 before any request when a WAV is not 16-bit PCM, naming the file", async () => {
     const { code, err, request, dir } = await start({
-      script: (dir) => [{ wav: join(dir, "eight.wav"), at: 0 }],
+      script: (root) => [{ wav: join(root, "eight.wav"), at: 0 }],
       close: async () => {},
     });
 

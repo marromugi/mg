@@ -356,10 +356,11 @@ describe("worker", () => {
     const store = await newStore("work");
     const provider: Provider = {
       generate: () => Promise.reject(new Error("boom")),
-      stream: () =>
-        (async function* (): AsyncGenerator<StreamEvent> {
-          throw new Error("boom");
-        })(),
+      stream: () => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(new Error("boom")),
+        }),
+      }),
     };
     const worker = createWorker({
       config: workerConfig(provider),

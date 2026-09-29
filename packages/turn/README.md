@@ -1,99 +1,125 @@
 # @mg/turn
 
-音声の会話の中で、いつ何をするかを判断するためのパッケージです。
+A package for deciding when to do what during a voice conversation.
 
-## 役割
+## Features
 
-判断は 6 つあり、どれも状況を受け取って行動を 1 つ返します。
+There are six judgments. Each takes a situation and returns one action.
 
-| #   | 判断         | 受け取る状況                         | 返す行動                           |
-| --- | ------------ | ------------------------------------ | ---------------------------------- |
-| ①   | 相づち       | 途中までの書き起こし                 | 相づちの文 / 何もしない            |
-| ②   | 作業中の発話 | ツールの履歴、経過時間               | 状況を伝える / 間を埋める文 / 黙る |
-| ③   | 停止         | 作業中の相手の発話                   | 即時に止める / 続ける              |
-| ④   | 方向転換     | 直近の数往復の発話と返事、作業の頼み | 切り替える / 続ける                |
-| ⑤   | 結果を話すか | これまでに話した内容、作業の結果     | 話す / あとに回す                  |
-| ⑥   | 頼みの重なり | 動いている作業の頼み、新しい頼み     | 置き換える / 列に積む              |
+| #   | Judgment             | Situation received                                           | Action returned                                   |
+| --- | -------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| ①   | Backchannel          | The transcript so far                                        | A backchannel phrase / do nothing                 |
+| ②   | Speech during work   | Tool history, elapsed time                                   | Report the status / a filler phrase / stay silent |
+| ③   | Stop                 | What the partner says during the work                        | Stop right away / continue                        |
+| ④   | Redirect             | The last few exchanges of speech and reply, the work request | Switch / continue                                 |
+| ⑤   | Report the result    | What has been said so far, the work result                   | Speak / defer                                     |
+| ⑥   | Overlapping requests | The running work's request, the new request                  | Replace / queue                                   |
 
-判断はどれも `Judge` というインターフェースの形を持ちます。
-状況の型と行動の型だけが、判断ごとに違います。
+Question text, labels, backchannel phrases, and similar wording are passed when you build a judgment.
+This package has no default values for that wording.
 
-判断は、状況とコンテキストを受け取ります。
-コンテキストは、中断の signal と、親になるトレースのスパンです。
-どちらも省けます。
+## Usage
 
-質問の文章やラベル、相づちの文などは、判断を作るときに渡します。
-このパッケージは、そうした文言の既定値を持ちません。
+Build a judgment with the question and label descriptions, then pass it a situation.
 
-## 失敗したとき
+```ts
+import type { Estimator } from "@mg/core";
+import { createEstimatorStopJudge } from "@mg/turn";
 
-判断できなかったときは `JudgeError` を投げます。
-`JudgeError` は、どの判断で失敗したかを `judge` に持ちます。
-元になったエラーは `cause` に残します。
+declare const estimator: Estimator;
 
-中断で止まったときは、中断のエラーをそのまま投げ直します。
+const judge = createEstimatorStopJudge({
+  estimator,
+  question: "Does the user want the work to stop?",
+  stop: "The user asks to stop the work.",
+  continue: "The user says something else.",
+});
 
-## やらないこと
-
-- 音声の入出力は持ちません。
-- 会話や作業の状態は持ちません。
-- どの判断をいつ呼ぶかは決めません。呼ぶ側が選びます。
-
-## Estimator の実装
-
-6 つの判断は、どれも Estimator の分類で答える実装を持ちます。
-`createEstimatorBackchannelJudge` のように、判断ごとに 1 つの関数で組み立てます。
-
-組み立てるときは、質問の文章とラベルごとの説明を渡します。
-相づちと作業中の発話は、文の一覧も渡します。
-
-判断は、状況をそのまま分類の対象にして、Estimator の `classify` を呼びます。
-質問とラベルの説明も、渡された文言のまま送ります。
-
-ラベルのキーは、行動の名前で固定です。
-
-| 判断         | 使うキー                                      |
-| ------------ | --------------------------------------------- |
-| 相づち       | `backchannel-0`, `backchannel-1`, ..., `none` |
-| 作業中の発話 | `report`, `fill-0`, `fill-1`, ..., `silent`   |
-| 停止         | `stop`, `continue`                            |
-| 方向転換     | `switch`, `continue`                          |
-| 結果を話すか | `speak`, `defer`                              |
-| 頼みの重なり | `replace`, `queue`                            |
-
-相づちの文と、間を埋める文だけは複数あります。
-渡した順に、番号付きのキーになります。
-
-### 失敗したとき
-
-Estimator の分類が失敗したときは、`JudgeError` になります。
-文言の書き出しは、次のとおりです。
-
-```
-Judgment "<判断の名前>" failed
+const answer = await judge.judge({ utterance: "Wait, hold on." });
+// answer is { action: "stop" } or { action: "continue" }
 ```
 
-元になったエラーは `cause` に持ちます。
+## API
 
-Estimator が選んだラベルが、渡したどの行動にも当たらないときも
-`JudgeError` になります。
-文言に、Estimator が選んだラベルをそのまま書きます。
+### `Judge`
 
-中断で止まったときは、中断のエラーをそのまま投げ直します。
-`JudgeError` にはしません。
+Every judgment has the shape of an interface called `Judge`.
+Only the situation type and the action type differ between judgments.
 
-組み立てるときの設定が使えないときは、その場で `RangeError` を投げます。
-質問が空のとき、文が 2 度渡されたとき、ラベルの数が Estimator の上限を超えるときが当たります。
+A judgment receives a situation and a context.
+The context is the abort signal and the trace span that becomes the parent.
+Both can be left out.
 
-## トレース
+### Estimator judges
 
-判断は、呼ばれるたびに `mg.turn` というスパンを親の下に作ります。
-親スパンは、コンテキストの `trace` で受け取ります。
+Each of the six judgments has an implementation that answers with an Estimator classification.
+Each judgment is built with one function, such as `createEstimatorBackchannelJudge`.
 
-親スパンを受け取ったときだけ、判断の記録が残ります。
-受け取らなければ、何も記録せずに行動だけを返します。
+When building one, you pass the question text and a description for each label.
+The backchannel and speech-during-work judgments also take a list of phrases.
 
-スパンには、判断の名前とモデルの名前を書きます。
-答えが決まったら、選ばれたラベルと、ラベルごとの確率も書きます。
+The judgment passes the situation as it is as the thing to classify, and calls the Estimator's `classify`.
+The question and the label descriptions are also sent with the wording as passed.
 
-判断が失敗したときは、スパンをそのエラーで閉じます。
+The label keys are fixed to the action names.
+
+| Judgment             | Keys used                                     |
+| -------------------- | --------------------------------------------- |
+| Backchannel          | `backchannel-0`, `backchannel-1`, ..., `none` |
+| Speech during work   | `report`, `fill-0`, `fill-1`, ..., `silent`   |
+| Stop                 | `stop`, `continue`                            |
+| Redirect             | `switch`, `continue`                          |
+| Report the result    | `speak`, `defer`                              |
+| Overlapping requests | `replace`, `queue`                            |
+
+Only the backchannel phrases and the filler phrases can be more than one.
+They become numbered keys in the order you pass them.
+
+#### Failures
+
+When the Estimator classification fails, it becomes a `JudgeError`.
+The message starts like this.
+
+```
+Judgment "<judgment name>" failed
+```
+
+The underlying error is kept in `cause`.
+
+When the label the Estimator chose matches none of the actions you passed, it is also a `JudgeError`.
+The message states the label the Estimator chose as it is.
+
+When stopped by an abort, the abort error is thrown again as it is.
+It is not turned into a `JudgeError`.
+
+When the settings passed at build time cannot be used, a `RangeError` is thrown right away.
+This covers an empty question, a phrase passed twice, and more labels than the Estimator's limit.
+
+### Errors
+
+When a judgment cannot be made, it throws `JudgeError`.
+`JudgeError` keeps which judgment failed in `judge`.
+The underlying error is kept in `cause`.
+
+When stopped by an abort, the abort error is thrown again as it is.
+
+## How it works
+
+### Tracing
+
+Each time a judgment is called, it creates a span named `mg.turn` under the parent.
+The parent span is received through the context's `trace`.
+
+Only when it receives a parent span is the judgment recorded.
+Without one, it records nothing and just returns the action.
+
+The span records the judgment name and the model name.
+Once the answer is decided, it also records the chosen label and the probability of each label.
+
+When a judgment fails, it closes the span with that error.
+
+## Non-goals
+
+- It has no audio input or output.
+- It holds no conversation or work state.
+- It does not decide which judgment to call when. The caller chooses.

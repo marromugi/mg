@@ -1,335 +1,436 @@
 # @mg/persona
 
-個体の想起と振り返りのための、インターフェースと型のパッケージです。
-
-個体とは、人格を持って生き続ける 1 体のエージェントのことです。
-走らせる側は、この 2 つのインターフェースだけを見て、個体の中身を知りません。
-
-## 役割
-
-- 想起と振り返りの操作を持つインターフェース `Persona` を決めます。
-- 会話から何を覚えるかの候補を決めるインターフェース `Extractor` を決めます。
-- 2 つのインターフェースの入出力の型を決めます。
-- 想起の実装 `createRecall` を持ちます。
-- 振り返りの実装 `createRemember` を持ちます。
-- 想起と振り返りの部品から `Persona` を組み立てる `createPersona` を
-  持ちます。
-- 決め手の約束を確かめる純粋な関数 `checkExtraction` を持ちます。
-- 会話のメッセージを書き起こしの文章にする `transcribe` を持ちます。
-- 想起と決め手が使う、専用のエラーを持ちます。
-- LLM で決め手を決める実装 `createLlmExtractor` を持ちます。
-
-## `Persona`
-
-`Persona<TInput, TRead>` は、1 体の個体を表すインターフェースです。
-id を公開し、想起 `recall` と振り返り `remember` の 2 つの操作を持ちます。
-どちらの操作も、個体の id を受け取りません。
-
-`TInput` は、想起のいまの入力の型です。
-`TRead` は、想起が返し振り返りが受け取る、読んだものの型です。
-中身は `Persona` の外から決まり、インターフェースはどちらの形も決めません。
-
-| 操作       | 受け取るもの                                   | 返すもの                                |
-| ---------- | ---------------------------------------------- | --------------------------------------- |
-| `recall`   | 想起の要求 `RecallRequest<TInput>` と文脈      | 想起の結果 `Recall<TRead>`              |
-| `remember` | 振り返りの要求 `RememberRequest<TRead>` と文脈 | 振り返りの結果 `RememberOutcome<TRead>` |
-
-文脈の型は `PersonaContext` です。
-中断の signal `signal` と、親になるスパン `trace` を持ち、どちらも省けます。
-
-`RecallRequest<TInput>` は、相手の並び `counterparts` と、会話の id
-`conversation` と、いまの入力 `input` を持ちます。
-相手の型は `Counterpart` で、id `id` と表示名 `name` を持ちます。
-
-`Recall<TRead>` は、指示の文章 `instruction` と、読んだもの `read` を持ちます。
-
-`RememberRequest<TRead>` は、読んだもの `read` と、走行のエントリーの
-メッセージの並び `entry` を持ちます。
-
-## 想起
-
-`createRecall(options)` は、`Persona.recall` として使える関数を作ります。
-options は次を持ちます。
-
-| 項目              | 内容                                                      |
-| ----------------- | --------------------------------------------------------- |
-| `id`              | この個体の id です。                                      |
-| `store`           | `@mg/memory` の `MemoryStore` です。                      |
-| `estimator`       | `@mg/core` の `Estimator` です。                          |
-| `question`        | 「この入力に関係ある記憶はどれか」を問う質問の文章です。  |
-| `noneDescription` | 「どれも関係ない」ラベルの説明の文章です。                |
-| `ratio`           | 選ばれたラベルの確率に対する比の下限です。0 から 1 です。 |
-| `headings`        | 相手の見出し `about` と、要約の見出し `earlier` です。    |
-
-作った関数は、次の順に動きます。
-
-1. 相手の並びの id と会話の id で、保存先から読み出します。
-2. 読んだ項目を新しい順に、`estimator.limits.maxLabels` から 1 を
-   引いた数だけ取り、候補にします。
-3. 候補が 0 件なら、Estimator を呼ばず、選ばれた項目も 0 件にします。
-4. 候補が 1 件以上なら、Estimator の `classify` を 1 回呼びます。
-   判定の対象はいまの入力、ラベルは候補の文章と `noneDescription` です。
-5. 選ばれたラベルが `none` なら、選ばれた項目は 0 件です。
-   そうでなければ、確率が選ばれたラベルの確率に `ratio` を掛けた値
-   以上の候補を選びます。
-6. 人格の文章、相手ごとの見出しと選ばれた項目、要約の見出しと文章を
-   組み合わせて、指示の文章にします。
-
-相手の id か表示名か会話の id が空のとき、相手の id が重複するときは、
-読み出す前に `RangeError` で拒否します。
-
-指示の文章を組む部分は、`composeInstruction(read, headings)` という
-純粋な関数に分けています。
-読んだもの `RecallRead` と見出しだけから、指示の文章を返します。
-
-`RecallRead` は、相手の並び `counterparts`、会話の id `conversation`、
-人格の文書 `persona`、要約 `summary`（あれば）、相手ごとの読んだ項目の
-全部 `items`、候補の項目の id の並び `candidates`、選ばれた項目の id の
-並び `selected` を持ちます。
-
-文脈にスパン `trace` があれば、その下に `mg.recall` のスパンを作ります。
-属性は、個体の id、Estimator のモデル、候補の数、選ばれた項目の id の
-JSON、ラベルごとの確率の JSON（Estimator を呼んだときだけ）です。
-スパンの操作が失敗しても、想起の返り値は変わりません。
-
-## 振り返り
-
-`createRemember(options)` は、`Persona.remember` として使える関数を
-作ります。options は次を持ちます。
-
-| 項目         | 内容                                                                         |
-| ------------ | ---------------------------------------------------------------------------- |
-| `id`         | この個体の id です。                                                         |
-| `store`      | `@mg/memory` の `MemoryStore` です。                                         |
-| `estimator`  | `@mg/core` の `Estimator` です。                                             |
-| `extractor`  | `Extractor` です。                                                           |
-| `keep`       | 残す質問 `question` と、残すしきい値 `threshold` です。                      |
-| `persona`    | 人格の質問 `question` と、人格のしきい値 `threshold` です。                  |
-| `forgetting` | 忘却の上限 `missLimit` と、相手ごとの項目の上限 `itemsPerCounterpart` です。 |
-| `now`        | 作られた時刻を返す関数です。                                                 |
-| `newId`      | 項目の id を返す関数です。                                                   |
-
-質問としきい値と上限に、既定はありません。どの値も呼び出し側が渡します。
-
-作った関数は、次の順に動きます。
-
-1. 決め手を、相手の並びと、走行のエントリーのメッセージと、いまの記憶
-   （人格の文章、相手ごとの読んだ項目の全部の文章、要約の文章）で
-   呼びます。文脈には、中断の signal と振り返りのスパンを渡します。
-2. 決め手の答えを `checkExtraction` で確かめます。約束を破っていれば、
-   `ExtractorContractError` を理由に決められなかった結果を返します。
-3. 相手の記憶の候補ごとに、Estimator の確率を残す質問で呼びます。
-   確率が残すしきい値以上の候補を残します。
-4. 決め手が人格の新しい文章も返していれば、Estimator の確率を人格の
-   質問で呼びます。判定の対象は、いまの人格の文章と新しい文章と、
-   会話の書き起こしです。確率が人格のしきい値以上なら書き換えます。
-5. 残す候補ごとに `newId` と `now` を呼び、新しい項目にします。
-6. 保存先に 1 回書き込みます。要約と、人格（書き換えるときだけ）と、
-   足す項目と、選ばれた項目の id と、候補のうち選ばれなかった項目の
-   id を渡します。
-7. 消す項目を決めます。書き込みが返した回数が忘却の上限以上の項目と、
-   相手ごとに項目を新しい順に並べて上限を超えた分の項目です。
-   1 件以上あれば、削除を 1 回呼びます。
-
-決め手か Estimator か `newId` か `now` が投げたときは、投げた値と
-受け取った要求そのものを持つ、決められなかった結果を返します。
-中断のエラーも同じ形で返し、投げ直しません。
-保存先の書き込みが投げたときは書けなかった結果を、削除が投げたときは
-消せなかった結果を返します。`remember` は投げません。
-
-`createRemember` が作る関数は、保存先の `write` と `delete` しか
-呼びません。`read` は呼ばず、読んだもの `RecallRead` だけを使います。
-
-文脈にスパン `trace` があれば、その下に `mg.reflection` のスパンを
-作ります。属性は、個体の id、Estimator のモデル、相手の記憶の候補の
-数、残した数、人格を書き換えたかどうか、消した項目の id の JSON です。
-決め手には、この文脈のスパンを渡します。
-失敗の結果を返すときは、その投げた値でスパンを閉じます。
-スパンの操作が失敗しても、振り返りの返り値は変わりません。
-
-## 決め手の約束を確かめる
-
-`checkExtraction(extraction, counterparts)` は、決め手の答え
-`Extraction` を約束に照らして確かめる、純粋な関数です。
-答えと相手の並びだけから判定し、他には何も見ません。
-
-確かめるのは、候補の相手の id が並びにあるか、要約と候補の文章と
-人格の新しい文章（返したときだけ）がどれも空でないか、同じ相手の
-同じ文章が重複していないかです。空白だけの文章も空として扱います。
-
-約束を破っていれば、`ExtractorContractError` を返します。
-守っていれば、`undefined` を返します。
-
-## 書き起こし
-
-`transcribe(messages)` は、会話のメッセージの並びを、決め手や振り返り
-が使う書き起こしの文章にする関数です。
-
-メッセージは 1 件ずつ、次の形の行に続けて本文を書きます。
-段落の間は空行 1 つです。
-
-| メッセージ           | 行の形                                         |
-| -------------------- | ---------------------------------------------- |
-| system               | `[system]`                                     |
-| user（書き手なし）   | `[user]`                                       |
-| user（書き手あり）   | `[user "<書き手の id>"]`                       |
-| assistant の文章     | `[assistant]`                                  |
-| assistant の考え     | `[reasoning]`                                  |
-| assistant の呼び出し | `[tool-call <id> <name>]`（本文は引数の JSON） |
-| tool                 | `[tool-result <id>]`                           |
-
-assistant のメッセージは、部分ごとに 1 つの行を作ります。
-
-user のメッセージに書き手があれば、id を JSON の文字列で
-`[user "alice"]` のように書きます。書き手がなければ `[user]` です。
-
-書き手が空か空白だけのときは、`transcribe` が `RangeError` を投げます。
-書き起こしの文章は返しません。
-
-## 振り返りの結果
-
-`RememberOutcome<TRead>` は、次の 4 つの形の合併型です。
-`updated` と、`updated` が `false` のときの `reason` で見分けます。
-
-| 形               | `updated` | `reason`          | 持つもの                                                                                  |
-| ---------------- | --------- | ----------------- | ----------------------------------------------------------------------------------------- |
-| 更新できた       | `true`    | なし              | 足した項目の id `added`、人格を書き換えたか `personaChanged`、消した項目の id `forgotten` |
-| 決められなかった | `false`   | `"undecided"`     | 投げた値 `error` と、受け取った要求そのもの `request`                                     |
-| 書けなかった     | `false`   | `"write-failed"`  | 投げた値 `error`                                                                          |
-| 消せなかった     | `false`   | `"forget-failed"` | 投げた値 `error`、`added`、`personaChanged`、消せなかった項目の id `pending`              |
-
-## 個体の組み立て
-
-`createPersona(options)` は、想起と振り返りの部品から `Persona` を
-1 体組み立てます。走らせる側は、組み立てたものの `recall` と
-`remember` だけを見ます。
-
-options は次を持ちます。
-
-| 項目         | 内容                                                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| `id`         | この個体の id です。                                                                            |
-| `store`      | `@mg/memory` の `MemoryStore` です。                                                            |
-| `estimator`  | `@mg/core` の `Estimator` です。                                                                |
-| `recall`     | 想起の質問 `question`、関係なしの説明 `noneDescription`、割合 `ratio`、見出し `headings` です。 |
-| `extractor`  | `Extractor` です。                                                                              |
-| `keep`       | 残す質問 `question` と、残すしきい値 `threshold` です。                                         |
-| `persona`    | 人格の質問 `question` と、人格のしきい値 `threshold` です。                                     |
-| `forgetting` | 忘却の上限 `missLimit` と、相手ごとの項目の上限 `itemsPerCounterpart` です。                    |
-| `now`        | 作られた時刻を返す関数です。省くと `Date.now` を使います。                                      |
-| `newId`      | 項目の id を返す関数です。省くと nanoid を使います。                                            |
-
-質問と説明と見出しと、割合としきい値と上限に、既定はありません。
-
-組み立てた個体の `id` は渡した id で、`recall` と `remember` は想起と
-振り返りの部品にそのまま委ねます。
-
-組み立ての時点で、次のときに `RangeError` を投げます。
-
-- 個体の id、質問、説明、見出しのどれかが空のとき。
-- 割合としきい値が、0 から 1 の有限の数でないとき。
-- 忘却の上限と相手ごとの項目の上限が、1 以上の整数でないとき。
-- Estimator の `limits.maxLabels` が、2 以上の整数でないとき。
-- 相手ごとの項目の上限が、`limits.maxLabels` から 1 を引いた数より
-  大きいとき。
-
-## `Extractor`
-
-`Extractor` は、会話から何を覚えるかの候補を決めるインターフェースです。
-版も id も時刻も持ちません。
-
-`extract` は、入力 `ExtractorInput` と文脈を受け取り、候補
-`Extraction` を返します。
-
-`ExtractorInput` は、相手の並び `counterparts` と、いまの会話のメッセージの
-並び `entry` と、いまの記憶 `memory` を持ちます。
-`memory` は、人格の文章 `persona` と、相手ごとの読んだ項目の文章の並び
-`items`（相手の id `counterpart` と文章 `text`）と、要約の文章 `summary`
-（省けます）を持ちます。
-
-`Extraction` は、会話の要約の新しい文章 `summary` と、相手の記憶の候補の
-並び `items`（相手の id `counterpart` と文章 `text`）と、人格の文書の
-新しい文章 `persona`（省けます）を持ちます。
-
-## LLM の決め手
-
-`createLlmExtractor(options)` は、LLM で `Extractor` を組み立てます。
-options はプロバイダー `provider` とモデル名 `model` と指示の文章
-`instruction` を持ちます。
-
-指示は必須です。使う側が測って選ぶものなので、既定は持ちません。
-指示が空なら、組み立ての時点で `RangeError` を投げます。
-
-組み立てた `extract` は、1 回につきプロバイダーの `generate` を
-1 回だけ呼びます。呼ぶ前に、文脈の signal を確かめます。
-中断済みなら、その理由で拒否し、プロバイダーは呼びません。
-
-system は、固定の枠組みの文と渡された指示を、空行で挟んでつないだ
-ものです。枠組みの文はこの実装だけが持ちます。
-
-user は、次の段落を空行で区切って並べたものです。見出しの文面も、
-この実装だけが持ちます。
-
-1. `Counterparts:` の行と、相手ごとの `- <id> (<表示名>)` の行です。
-2. `## Persona` の行と、人格の文章です。
-3. 相手ごとの `## About <id> (<表示名>)` の行と、読んだ項目の文章を
-   `- ` に続けて 1 行ずつです。項目のない相手は `(none)` と書きます。
-4. `## Summary` の行と、要約の文章です。なければ `(none)` と書きます。
-5. `## Conversation` の行と、`transcribe` による書き起こしです。
-
-答えの形は、記憶を書く専用のツール `remember` の呼び出しを強制して
-固定します。引数は、要約 `summary` と、相手の記憶の候補の並び
-`items` と、人格の文書の新しい文章 `persona`（省けます）です。
-引数をそのまま候補にして返します。
-
-`items` の相手の欄 `counterpart` は、その回の相手の並びの id だけを
-選べる列挙です。列挙は呼び出しごとに、渡された相手の並びから作ります。
-相手が 1 人もいない回は、`items` を空にしか書けません。
-
-次のときは `ExtractorError` を投げます。
-列挙にない相手を書いた答えも、引数の検証に落ちたときに含みます。
-
-| とき                                      | `cause`                   |
-| ----------------------------------------- | ------------------------- |
-| プロバイダーが失敗したとき                | 投げた値                  |
-| `remember` が 0 回か 2 回以上呼ばれたとき | 持ちません（`undefined`） |
-| 引数の検証に落ちたとき                    | 検証の結果                |
-| 約束を破る答えのとき                      | `ExtractorContractError`  |
-
-中断のエラーは、そのまま投げ直します。
-
-文脈にスパン `trace` があれば、プロバイダーをそのスパンの下に
-`mg.llm` として記録するラッパーで包みます。
-
-## エラー
-
-投げる例外を表にまとめます。
-
-| 例外             | 投げるとき                                            |
-| ---------------- | ----------------------------------------------------- |
-| `RecallError`    | 想起の中で、Estimator の呼び出しが失敗したとき        |
-| `ExtractorError` | 決め手が、約束を守れない答えしか得られなかったとき    |
-| `RangeError`     | `transcribe` が、空か空白だけの書き手を受け取ったとき |
-
-`RecallError` と `ExtractorError` は、投げた値を `cause` に持ちます。
-保存先が投げたエラーと、中断のエラー（`name` が `AbortError`）は、
-`createRecall` が作った関数もそのまま投げます。
-
-`ExtractorContractError` は、投げません。
-決め手の答えが約束を破ったときに、振り返りが使います。
-`RememberOutcome` の決められなかった形で、`error` に入って返ります。
-
-`ExtractorContractError` は、種類 `kind` と、詳しい説明 `detail` を持ちます。
-種類は、次の 3 つです。
-
-- `unknown-counterpart`: 候補の相手の id が、渡された並びにないとき
-- `empty-text`: 要約と、候補の文章と、人格の新しい文章（返したとき
-  だけ）のどれかが空のとき。空白だけの文章も空です。
-- `duplicate-item`: 同じ相手の同じ文章が、候補に 2 つ以上あるとき
-
-どの例外も、自分の名前を `name` に持ちます。
-
-## やらないこと
-
-- 個体の記憶の保存は、持ちません。保存のインターフェースは `@mg/memory`
-  が持ちます。
+A package of interfaces and types for a persona's recall and reflection.
+
+A persona is one agent that has a personality and keeps living.
+The side that runs it looks only at these 2 interfaces and does not know
+what is inside the persona.
+
+## Features
+
+- Defines `Persona`, the interface with the recall and reflection
+  operations.
+- Defines `Extractor`, the interface that decides the candidates for what to
+  remember from a conversation.
+- Defines the input and output types of the 2 interfaces.
+- Has `createRecall`, the recall implementation.
+- Has `createRemember`, the reflection implementation.
+- Has `createPersona`, which assembles a `Persona` from the recall and
+  reflection parts.
+- Has `checkExtraction`, a pure function that checks the extractor's
+  promise.
+- Has `transcribe`, which turns conversation messages into transcript text.
+- Has dedicated errors used by recall and the extractor.
+- Has `createLlmExtractor`, an implementation that decides with an LLM.
+
+## Usage
+
+Assemble a persona, recall before a turn, then reflect on the turn after it.
+
+```ts
+import { createLlmExtractor, createPersona } from "@mg/persona";
+import { createMemoryStore } from "@mg/memory";
+
+const store = createMemoryStore();
+await store.create("jev", "I am Jev.");
+
+const persona = createPersona({
+  id: "jev",
+  store,
+  estimator,
+  recall: {
+    question: "...",
+    noneDescription: "...",
+    ratio: 0.5,
+    headings: { about: "...", earlier: "..." },
+  },
+  extractor: createLlmExtractor({
+    provider,
+    model: "openai/gpt-4o-mini",
+    instruction: "...",
+  }),
+  keep: { question: "...", threshold: 0.5 },
+  persona: { question: "...", threshold: 0.5 },
+  forgetting: { missLimit: 3, itemsPerCounterpart: 20 },
+});
+
+const { instruction, read } = await persona.recall({
+  counterparts: [{ id: "alice", name: "Alice" }],
+  conversation: "c1",
+  input: "Hello",
+});
+
+// Run the turn with instruction, then pass the run's messages
+const outcome = await persona.remember({ read, entry: messages });
+```
+
+## API
+
+### `Persona`
+
+`Persona<TInput, TRead>` is the interface that represents one persona.
+It exposes its id and has 2 operations, recall `recall` and reflection
+`remember`.
+Neither operation takes the persona's id.
+
+`TInput` is the type of recall's current input.
+`TRead` is the type of what was read, which recall returns and reflection
+takes.
+Their contents are decided outside `Persona`; the interface fixes the shape
+of neither.
+
+| Operation  | Takes                                                       | Returns                                      |
+| ---------- | ----------------------------------------------------------- | -------------------------------------------- |
+| `recall`   | A recall request `RecallRequest<TInput>` and a context      | A recall result `Recall<TRead>`              |
+| `remember` | A reflection request `RememberRequest<TRead>` and a context | A reflection result `RememberOutcome<TRead>` |
+
+The context type is `PersonaContext`.
+It has an abort signal `signal` and a parent span `trace`, both optional.
+
+`RecallRequest<TInput>` has the list of counterparts `counterparts`, the
+conversation id `conversation`, and the current input `input`.
+The counterpart type is `Counterpart`, with an id `id` and a display name
+`name`.
+
+`Recall<TRead>` has the instruction text `instruction` and what was read
+`read`.
+
+`RememberRequest<TRead>` has what was read `read` and the list of messages
+in the run's entry `entry`.
+
+### `createRecall(options)`
+
+`createRecall(options)` creates a function that can be used as
+`Persona.recall`.
+The options have the following.
+
+| Field             | Contents                                                                |
+| ----------------- | ----------------------------------------------------------------------- |
+| `id`              | This persona's id.                                                      |
+| `store`           | A `MemoryStore` from `@mg/memory`.                                      |
+| `estimator`       | An `Estimator` from `@mg/core`.                                         |
+| `question`        | The question text that asks "which memories relate to this input".      |
+| `noneDescription` | The description text for the "none of them relate" label.               |
+| `ratio`           | The lower bound of the ratio to the chosen label's probability. 0 to 1. |
+| `headings`        | The counterpart heading `about` and the summary heading `earlier`.      |
+
+When a counterpart id, a display name, or the conversation id is empty, or
+when counterpart ids are duplicated, it refuses with `RangeError` before
+reading.
+
+The part that builds the instruction text is split out into a pure function,
+`composeInstruction(read, headings)`.
+It returns the instruction text from only what was read, `RecallRead`, and
+the headings.
+
+`RecallRead` has the list of counterparts `counterparts`, the conversation
+id `conversation`, the personality document `persona`, the summary
+`summary` (if any), all items read for each counterpart `items`, the list of
+candidate item ids `candidates`, and the list of chosen item ids
+`selected`.
+
+### `createRemember(options)`
+
+`createRemember(options)` creates a function that can be used as
+`Persona.remember`. The options have the following.
+
+| Field        | Contents                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `id`         | This persona's id.                                                                         |
+| `store`      | A `MemoryStore` from `@mg/memory`.                                                         |
+| `estimator`  | An `Estimator` from `@mg/core`.                                                            |
+| `extractor`  | An `Extractor`.                                                                            |
+| `keep`       | The keep question `question` and the keep threshold `threshold`.                           |
+| `persona`    | The personality question `question` and the personality threshold `threshold`.             |
+| `forgetting` | The forgetting limit `missLimit` and the per-counterpart item limit `itemsPerCounterpart`. |
+| `now`        | A function that returns the creation time.                                                 |
+| `newId`      | A function that returns an item id.                                                        |
+
+The questions, thresholds and limits have no defaults. The caller passes
+every value.
+
+When the extractor, the Estimator, `newId` or `now` throws, it returns an
+undecided result that holds the thrown value and the request it received,
+as is.
+Abort errors are returned in the same shape and are not rethrown.
+When the store's write throws, it returns a could-not-write result; when the
+delete throws, it returns a could-not-forget result. `remember` does not
+throw.
+
+### `checkExtraction(extraction, counterparts)`
+
+`checkExtraction(extraction, counterparts)` is a pure function that checks
+the extractor's answer, `Extraction`, against the promise.
+It judges from only the answer and the list of counterparts, and looks at
+nothing else.
+
+It checks that each candidate's counterpart id is in the list, that the
+summary, the candidate texts, and the new personality text (only when
+returned) are all non-empty, and that no counterpart has the same text
+twice. Text that is only whitespace is treated as empty.
+
+If the promise is broken, it returns `ExtractorContractError`.
+If it is kept, it returns `undefined`.
+
+### `transcribe(messages)`
+
+`transcribe(messages)` is a function that turns a list of conversation
+messages into the transcript text that the extractor and reflection use.
+
+Each message is written one at a time, as a line of the form below followed
+by its body.
+Paragraphs are separated by one blank line.
+
+| Message             | Line form                                                  |
+| ------------------- | ---------------------------------------------------------- |
+| system              | `[system]`                                                 |
+| user (no author)    | `[user]`                                                   |
+| user (with author)  | `[user "<author id>"]`                                     |
+| assistant text      | `[assistant]`                                              |
+| assistant reasoning | `[reasoning]`                                              |
+| assistant tool call | `[tool-call <id> <name>]` (the body is the arguments JSON) |
+| tool                | `[tool-result <id>]`                                       |
+
+An assistant message produces one line per part.
+
+If a user message has an author, the id is written as a JSON string, like
+`[user "alice"]`. With no author it is `[user]`.
+
+When the author is empty or only whitespace, `transcribe` throws
+`RangeError`.
+It returns no transcript text.
+
+### `RememberOutcome`
+
+`RememberOutcome<TRead>` is a union of the following 4 shapes.
+They are told apart by `updated`, and by `reason` when `updated` is
+`false`.
+
+| Shape            | `updated` | `reason`          | Holds                                                                                                                |
+| ---------------- | --------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Updated          | `true`    | none              | ids of added items `added`, whether the personality was rewritten `personaChanged`, ids of deleted items `forgotten` |
+| Undecided        | `false`   | `"undecided"`     | the thrown value `error` and the request received, as is, `request`                                                  |
+| Could not write  | `false`   | `"write-failed"`  | the thrown value `error`                                                                                             |
+| Could not forget | `false`   | `"forget-failed"` | the thrown value `error`, `added`, `personaChanged`, ids of items that could not be deleted `pending`                |
+
+### `createPersona(options)`
+
+`createPersona(options)` assembles one `Persona` from the recall and
+reflection parts. The side that runs it looks only at the assembled
+`recall` and `remember`.
+
+The options have the following.
+
+| Field        | Contents                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `id`         | This persona's id.                                                                                                  |
+| `store`      | A `MemoryStore` from `@mg/memory`.                                                                                  |
+| `estimator`  | An `Estimator` from `@mg/core`.                                                                                     |
+| `recall`     | The recall question `question`, the none description `noneDescription`, the ratio `ratio`, and headings `headings`. |
+| `extractor`  | An `Extractor`.                                                                                                     |
+| `keep`       | The keep question `question` and the keep threshold `threshold`.                                                    |
+| `persona`    | The personality question `question` and the personality threshold `threshold`.                                      |
+| `forgetting` | The forgetting limit `missLimit` and the per-counterpart item limit `itemsPerCounterpart`.                          |
+| `now`        | A function that returns the creation time. When left out, `Date.now` is used.                                       |
+| `newId`      | A function that returns an item id. When left out, nanoid is used.                                                  |
+
+The questions, description, headings, ratio, thresholds and limits have no
+defaults.
+
+The assembled persona's `id` is the id passed in, and `recall` and
+`remember` hand off to the recall and reflection parts as is.
+
+At assembly time, it throws `RangeError` in these cases.
+
+- The persona id, a question, the description, or a heading is empty.
+- The ratio or a threshold is not a finite number from 0 to 1.
+- The forgetting limit or the per-counterpart item limit is not an integer
+  of 1 or more.
+- The Estimator's `limits.maxLabels` is not an integer of 2 or more.
+- The per-counterpart item limit is greater than `limits.maxLabels` minus 1.
+
+### `Extractor`
+
+`Extractor` is the interface that decides the candidates for what to
+remember from a conversation.
+It has no version, id or time.
+
+`extract` takes an input `ExtractorInput` and a context, and returns
+candidates `Extraction`.
+
+`ExtractorInput` has the list of counterparts `counterparts`, the list of
+messages in the current conversation `entry`, and the current memory
+`memory`.
+`memory` has the personality text `persona`, the list of texts of items read
+for each counterpart `items` (counterpart id `counterpart` and text `text`),
+and the summary text `summary` (optional).
+
+`Extraction` has the conversation summary's new text `summary`, the list of
+candidate memories about counterparts `items` (counterpart id `counterpart`
+and text `text`), and the personality document's new text `persona`
+(optional).
+
+### `createLlmExtractor(options)`
+
+`createLlmExtractor(options)` builds an `Extractor` with an LLM.
+The options have the provider `provider`, the model name `model`, and the
+instruction text `instruction`.
+
+The instruction is required. It is something the caller measures and
+chooses, so there is no default.
+If the instruction is empty, it throws `RangeError` at build time.
+
+It throws `ExtractorError` in these cases.
+An answer that names a counterpart not in the enum is included in failing
+argument validation.
+
+| When                                      | `cause`                  |
+| ----------------------------------------- | ------------------------ |
+| The provider fails                        | The thrown value         |
+| `remember` is called 0 times or 2 or more | None (`undefined`)       |
+| The arguments fail validation             | The validation result    |
+| The answer breaks the promise             | `ExtractorContractError` |
+
+Abort errors are rethrown as is.
+
+### Errors
+
+The table lists the exceptions thrown.
+
+| Exception        | Thrown when                                                       |
+| ---------------- | ----------------------------------------------------------------- |
+| `RecallError`    | A call to the Estimator fails during recall                       |
+| `ExtractorError` | The extractor could only get answers that cannot keep the promise |
+| `RangeError`     | `transcribe` receives an author that is empty or only whitespace  |
+
+`RecallError` and `ExtractorError` hold the thrown value in `cause`.
+Errors thrown by the store and abort errors (`name` is `AbortError`) are
+also thrown as is by the function `createRecall` creates.
+
+`ExtractorContractError` is not thrown.
+Reflection uses it when the extractor's answer breaks the promise.
+It comes back in `error` of the undecided shape of `RememberOutcome`.
+
+`ExtractorContractError` has a kind `kind` and a detailed description
+`detail`.
+There are 3 kinds.
+
+- `unknown-counterpart`: a candidate's counterpart id is not in the given
+  list
+- `empty-text`: the summary, a candidate text, or the new personality text
+  (only when returned) is empty. Text that is only whitespace also counts as
+  empty.
+- `duplicate-item`: the candidates have the same text for the same
+  counterpart 2 or more times
+
+Every exception has its own name in `name`.
+
+## How it works
+
+### Recall
+
+The function `createRecall` creates runs in this order.
+
+1. Reads from the store with the counterpart ids and the conversation id.
+2. Takes the items read, newest first, up to `estimator.limits.maxLabels`
+   minus 1, as candidates.
+3. If there are 0 candidates, it does not call the Estimator, and 0 items
+   are chosen.
+4. If there are 1 or more candidates, it calls the Estimator's `classify`
+   once. The subject is the current input, and the labels are the candidate
+   texts and `noneDescription`.
+5. If the chosen label is `none`, 0 items are chosen. Otherwise it chooses
+   the candidates whose probability is at least the chosen label's
+   probability times `ratio`.
+6. Combines the personality text, each counterpart's heading and chosen
+   items, and the summary heading and text into the instruction text.
+
+If the context has a span `trace`, it creates an `mg.recall` span under it.
+The attributes are the persona id, the Estimator's model, the number of
+candidates, the JSON of the chosen item ids, and the JSON of the probability
+for each label (only when the Estimator was called).
+Even if a span operation fails, recall's return value does not change.
+
+### Reflection
+
+The function `createRemember` creates runs in this order.
+
+1. Calls the extractor with the list of counterparts, the messages in the
+   run's entry, and the current memory (the personality text, the texts of
+   all items read for each counterpart, and the summary text). The context
+   carries the abort signal and the reflection span.
+2. Checks the extractor's answer with `checkExtraction`. If the promise is
+   broken, it returns an undecided result with `ExtractorContractError` as
+   the reason.
+3. For each candidate memory about a counterpart, it calls the Estimator's
+   probability with the keep question. It keeps the candidates whose
+   probability is at least the keep threshold.
+4. If the extractor also returned new personality text, it calls the
+   Estimator's probability with the personality question. The subject is
+   the current personality text, the new text, and the conversation
+   transcript. If the probability is at least the personality threshold, it
+   rewrites the personality.
+5. For each candidate to keep, it calls `newId` and `now` and makes a new
+   item.
+6. Writes to the store once. It passes the summary, the personality (only
+   when rewriting), the items to add, the ids of chosen items, and the ids
+   of candidate items that were not chosen.
+7. Decides which items to delete: items whose count returned by the write
+   is at or over the forgetting limit, and, for each counterpart with items
+   sorted newest first, the items past the limit. If there are 1 or more,
+   it calls delete once.
+
+The function `createRemember` creates calls only the store's `write` and
+`delete`. It does not call `read`, and uses only what was read,
+`RecallRead`.
+
+If the context has a span `trace`, it creates an `mg.reflection` span under
+it. The attributes are the persona id, the Estimator's model, the number of
+candidate memories about counterparts, the number kept, whether the
+personality was rewritten, and the JSON of the deleted item ids.
+The extractor is given the span in this context.
+When a failure result is returned, the span is closed with that thrown
+value.
+Even if a span operation fails, reflection's return value does not change.
+
+### The LLM extractor
+
+The built `extract` calls the provider's `generate` only once per call.
+Before calling, it checks the context's signal.
+If already aborted, it refuses with that reason and does not call the
+provider.
+
+The system message joins a fixed framing text and the given instruction
+with a blank line between them. Only this implementation holds the framing
+text.
+
+The user message lists the following paragraphs, separated by blank lines.
+Only this implementation holds the heading wording too.
+
+1. A `Counterparts:` line, and a `- <id> (<display name>)` line for each
+   counterpart.
+2. A `## Persona` line and the personality text.
+3. For each counterpart, a `## About <id> (<display name>)` line and the
+   texts of the items read, one per line after `- `. A counterpart with no
+   items gets `(none)`.
+4. A `## Summary` line and the summary text. If there is none, `(none)`.
+5. A `## Conversation` line and the transcript made by `transcribe`.
+
+The shape of the answer is fixed by forcing a call to `remember`, a tool
+dedicated to writing memory. The arguments are the summary `summary`, the
+list of candidate memories about counterparts `items`, and the personality
+document's new text `persona` (optional).
+The arguments are returned as is as the candidates.
+
+The counterpart field `counterpart` in `items` is an enum that allows only
+the ids in that call's list of counterparts. The enum is built for each
+call from the given list of counterparts.
+In a call with no counterparts, `items` can only be written empty.
+
+If the context has a span `trace`, the provider is wrapped in a wrapper that
+records it as `mg.llm` under that span.
+
+## Non-goals
+
+- It does not save a persona's memory. The storage interface belongs to
+  `@mg/memory`.

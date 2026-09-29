@@ -1,306 +1,181 @@
 # mg
 
-LLM で動くエージェントのハーネスを試すための土台です。
+A workbench for trying out harnesses for LLM-driven agents.
 
-## 目的
+## Overview
 
-ハーネスとは、LLM とツールをつないで仕事をさせる仕組みです。
+A harness is what connects an LLM to tools so it can get work done.
 
-このリポジトリは、ハーネスを測って直し続けられる土台を作ります。
-その土台の上で、形の軸のハーネスに取り組みます。
+This repository builds a base where harnesses can be measured and
+improved over and over. On that base, it works on form-focused harnesses.
 
-ハーネスは、目指すものによって結果の軸と形の軸に分かれます。
-それぞれの違いを表にまとめます。
+Harnesses split into two kinds by what they aim for: outcome and form.
 
-| 軸   | 目指すもの                       | 終わり | 測り方                        |
-| ---- | -------------------------------- | ------ | ----------------------------- |
-| 結果 | 課題が正しく片づくこと           | あり   | 最終状態を機械で採点          |
-| 形   | 一貫した話し方と記憶と会話の形式 | なし   | 出力そのものを人か LLM が判定 |
+| Kind    | Aims for                                         | Ends? | Measured by                           |
+| ------- | ------------------------------------------------ | ----- | ------------------------------------- |
+| Outcome | The task gets done correctly                     | Yes   | Scoring the final state by machine    |
+| Form    | Consistent voice, memory and conversation format | No    | A person or an LLM judging the output |
 
-## パッケージ
+## Quick start
 
-いまあるパッケージと、その役割を表にまとめます。
-
-| パッケージ                                            | 役割                                                                                           |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [`@mg/core`](packages/core/README.md)                 | プロバイダーの抽象化と、ツールの共通の型                                                       |
-| [`@mg/tools`](packages/tools/README.md)               | ハーネスが共通で使う組み込みのツール                                                           |
-| [`@mg/workspace`](packages/workspace/README.md)       | 別のマシンにつなぐコネクターの型と、ワークスペースの開閉                                       |
-| [`@mg/conversation`](packages/conversation/README.md) | 会話を保存して返すインターフェースと型とエラー                                                 |
-| [`@mg/memory`](packages/memory/README.md)             | 個体の記憶（人格、相手ごとの項目、要約）を保存して返す                                         |
-| [`@mg/persona`](packages/persona/README.md)           | 個体の想起と振り返りのインターフェースと、LLM の決め手の実装                                   |
-| [`@mg/gate`](packages/gate/README.md)                 | 実行してよいか判定するゲートの型と、LLM と Estimator の実装                                    |
-| [`@mg/trigger`](packages/trigger/README.md)           | 走行を始めるべきか判定するトリガーの型とエラーと、判定のスパンを作る部品と、Estimator の実装   |
-| [`@mg/harness`](packages/harness/README.md)           | ハーネスが従う共通の入力と出力の型と、サブエージェントのインターフェース                       |
-| [`@mg/trace`](packages/trace/README.md)               | トレースの実装と、共通の語彙                                                                   |
-| [`@mg/loop`](packages/loop/README.md)                 | ツールの呼び出しを繰り返すループ型のハーネス                                                   |
-| [`@mg/runner`](packages/runner/README.md)             | 設定からハーネスを組み立て、トレースを開いて実行する                                           |
-| [`@mg/eval`](packages/eval/README.md)                 | 走行後に記録を読んで判定するインターフェースと、規則と Estimator の実装                        |
-| [`@mg/term`](packages/term/README.md)                 | 端末に書く文字の色と印                                                                         |
-| [`@mg/voice`](packages/voice/README.md)               | 音声の入出力（断片・音声合成・書き起こし・聞き手・再生）の型と、文の切り分けと、音声合成の実装 |
-| [`@mg/turn`](packages/turn/README.md)                 | 音声の会話で聞く判断 ①〜⑥ の型とエラーと、Estimator の実装                                     |
-| [`@mg/dashboard`](dashboard/README.md)                | 日常の利用だけが要る画面と保存と起動                                                           |
-| [`runs/`](runs/)                                      | 検証ごとの設定ファイルの置き場所                                                               |
-
-名前を選ぶと、詳しい説明を読めます。
-
-### 新しいコードの置き場所
-
-足したいものごとに、置く場所を表にまとめます。
-
-| 足したいもの                                              | 置く場所                         |
-| --------------------------------------------------------- | -------------------------------- |
-| 別のプロバイダーの実装                                    | core                             |
-| ツールの型や実行関数                                      | core                             |
-| ハーネスが共通で使うツール                                | tools                            |
-| 1 つのハーネスだけで使うツール                            | ハーネス（core の型で書く）      |
-| サブエージェントのインターフェース                        | harness                          |
-| 別のマシンへのコネクター                                  | workspace                        |
-| 実行の可否を判定するゲートの実装                          | gate                             |
-| 走行を始めるかを判定するトリガーの実装                    | trigger                          |
-| ツールの呼び出しの繰り返し                                | loop                             |
-| 検証の失敗を LLM にどう返すか                             | loop                             |
-| トレースの語彙とエクスポーター                            | trace                            |
-| 走行後の判定のインターフェースと、規則と Estimator の実装 | eval                             |
-| 端末に出す文字の色と印                                    | term                             |
-| 検証ごとの組み立ての設定                                  | runs                             |
-| 判定の規則や質問の中身、境目の値                          | runs                             |
-| 日常の利用だけが要る画面と保存と起動                      | dashboard                        |
-| 実行の方法そのもの（トレースの開閉、複数件、読み込み）    | runner                           |
-| 設定からのサブエージェントの組み立て                      | runner                           |
-| 会話の保存のインターフェースと実装                        | conversation                     |
-| 個体の記憶（保存先）                                      | memory                           |
-| 個体の想起と振り返り                                      | persona                          |
-| 音声の入出力の型                                          | voice                            |
-| 音声合成と書き起こしの実装                                | voice                            |
-| 話す文の切り分け                                          | voice                            |
-| 会話の判断（相づち、停止など）の型と実装                  | turn                             |
-| 個体の返事の出し方                                        | 未定（出し方の設計の回で決める） |
-
-迷ったときは、環境に依存するかを見ます。
-子プロセスのように環境に依存するものは、core に置きません。
-
-## 依存の向き
-
-パッケージ同士の依存を図にします。
-矢印は、使う側から使われる側への向きです。
-
-<table>
-  <tr>
-    <td align="center" colspan="2"><code>@mg/runs</code> → <code>@mg/runner</code></td>
-  </tr>
-  <tr>
-    <td align="center">↓</td>
-    <td align="center">↓</td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><code>@mg/loop</code></td>
-  </tr>
-  <tr>
-    <td align="center">↓</td>
-    <td align="center">↓</td>
-  </tr>
-  <tr>
-    <td align="center"><code>@mg/tools</code> → <code>@mg/core</code></td>
-    <td align="center"><code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-eval は、実行の流れの外にいます。
-実行が終わったあとで、トレースを読み直すときだけつながります。
-
-<table>
-  <tr>
-    <td align="center" colspan="2"><code>@mg/runs</code> → <code>@mg/eval</code></td>
-  </tr>
-  <tr>
-    <td align="center">↓</td>
-    <td align="center">↓</td>
-  </tr>
-  <tr>
-    <td align="center"><code>@mg/core</code></td>
-    <td align="center"><code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-term は、runs が端末に書くときに使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/runs</code> → <code>@mg/term</code></td>
-  </tr>
-</table>
-
-gate は、実行の流れの中にいます。
-runner と loop が、判定を挟むために使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/runner</code> → <code>@mg/gate</code></td>
-  </tr>
-  <tr>
-    <td align="center"><code>@mg/loop</code> → <code>@mg/gate</code></td>
-  </tr>
-  <tr>
-    <td align="center">↓</td>
-  </tr>
-  <tr>
-    <td align="center"><code>@mg/gate</code> → <code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-trigger は、走行の前にいます。
-runner が、走行を始めるべきかを判定するために使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/runner</code> → <code>@mg/trigger</code></td>
-  </tr>
-  <tr>
-    <td align="center">↓</td>
-  </tr>
-  <tr>
-    <td align="center"><code>@mg/trigger</code> → <code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-workspace は、core だけを使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/workspace</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-conversation は、core だけを使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/conversation</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-runner は、走る前後で作業場を開いて閉じるために workspace を使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/runner</code> → <code>@mg/workspace</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-runner は、会話の続きを走らせる入口のために conversation を使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/runner</code> → <code>@mg/conversation</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-persona は、個体の想起と振り返りのために core と harness と trace と memory を使います。
-runner は、個体として会話の続きを走らせる入口のために persona を使います。
-
-<table>
-  <tr>
-    <td align="center" colspan="2"><code>@mg/runner</code> → <code>@mg/persona</code></td>
-  </tr>
-  <tr>
-    <td align="center">↓</td>
-    <td align="center">↓</td>
-  </tr>
-  <tr>
-    <td align="center"><code>@mg/memory</code></td>
-    <td align="center"><code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-voice は、音声の入出力だけを持つ、独立したパッケージです。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/voice</code></td>
-  </tr>
-</table>
-
-runs は、音声合成を試すために voice を使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/runs</code> → <code>@mg/voice</code></td>
-  </tr>
-</table>
-
-turn は、会話の中でいつ何をするかを判断します。
-trigger と同じく、trace と harness と core を使います。
-
-<table>
-  <tr>
-    <td align="center"><code>@mg/turn</code> → <code>@mg/trace</code> → <code>@mg/harness</code> → <code>@mg/core</code></td>
-  </tr>
-</table>
-
-- runs は、runner を使います。
-- 設定を書くには、core と tools も使います。loop と trace と gate も使います。
-- runs は、端末に書くために term も使います。
-- runs は、eval も使います。
-- runs は、音声合成を試すために voice も使います。
-- runner は、core と harness を使います。loop と trace と gate と trigger も使います。
-- runner は、workspace と conversation と persona も使います。
-- runner は、tools を使いません。
-- runner は、eval を使いません。
-- runner は、memory を使いません。保存先は個体の中にあります。
-- loop は、5 つを使います。core と tools と harness と trace と gate です。
-- trace は、harness と core を使います。
-- eval は、core と trace を使います。
-- harness と tools は、それぞれ core を使います。
-- gate は、core と harness と trace を使います。
-- trigger は、core と harness と trace を使います。
-- workspace は、core を使います。
-- conversation は、core を使います。
-- persona は、core と harness と trace と memory を使います。
-- memory と persona は、runner を知りません。
-- memory は、このリポジトリの他のパッケージに依存しません。
-- term は、このリポジトリの他のパッケージに依存しません。
-- core は、このリポジトリの他のパッケージに依存しません。
-- runs と dashboard は、使う側です。互いを使いません。
-- dashboard は、いまは何も使いません。
-- packages のどのパッケージも、dashboard を使いません。
-- voice は、このリポジトリの他のパッケージに依存しません。
-- turn は、core と harness と trace を使います。voice を知りません。
-
-## 開発
-
-どのコマンドも、リポジトリの一番上で実行します。
-ビルドや検査は、すべてのパッケージに対して動きます。
+Run every command from the repository root.
 
 ```sh
-pnpm install       # 依存を入れる
-pnpm build         # ビルドする
-pnpm typecheck     # 型を調べる
-pnpm test          # テストを走らせる
-pnpm lint          # コードの問題を探す
-pnpm lint:fix      # 直せる問題を直す
-pnpm format        # 整形する
-pnpm format:check  # 整形の崩れを探す
-```
-
-lint は型の情報を使うので、先に build を済ませておきます。
-ビルド結果が無いと、型が解決できずに誤った指摘が出ます。
-
-runs は型を調べる対象ですが、ビルドの対象ではありません。
-見本の設定は、次のように実行します。
-
-```sh
+pnpm install
+pnpm build
 node --env-file-if-exists=.env runs/example.ts
 ```
 
-キーはプロセスの環境変数から読みます。
-`.env` があれば、そこからも読みます。
+API keys are read from the process environment.
+If a `.env` file exists, they are read from it as well.
 
-コミットすると、その直前に整形が走ります。
-対象は、コミットに含めるファイルだけです。
-整形した結果は、そのままコミットに含まれます。
+## Packages
 
-急いでいて整形を飛ばしたいときは、次の指定を付けます。
+| Package                                               | What it does                                                                                                                           |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@mg/core`](packages/core/README.md)                 | Provider abstraction and shared tool types                                                                                             |
+| [`@mg/tools`](packages/tools/README.md)               | Built-in tools shared by harnesses                                                                                                     |
+| [`@mg/workspace`](packages/workspace/README.md)       | Connector types for reaching other machines, and opening and closing workspaces                                                        |
+| [`@mg/conversation`](packages/conversation/README.md) | Interface, types and errors for storing and loading conversations                                                                      |
+| [`@mg/memory`](packages/memory/README.md)             | Stores and loads an individual's memory (persona, per-person entries, summaries)                                                       |
+| [`@mg/persona`](packages/persona/README.md)           | Interfaces for an individual's recall and reflection, and an LLM-backed implementation                                                 |
+| [`@mg/gate`](packages/gate/README.md)                 | Gate types that decide whether an action may run, with LLM and Estimator implementations                                               |
+| [`@mg/trigger`](packages/trigger/README.md)           | Trigger types and errors that decide whether to start a run, span helpers, and an Estimator implementation                             |
+| [`@mg/harness`](packages/harness/README.md)           | Shared input and output types every harness follows, and the subagent interface                                                        |
+| [`@mg/trace`](packages/trace/README.md)               | Tracing implementation and the shared vocabulary                                                                                       |
+| [`@mg/loop`](packages/loop/README.md)                 | A loop harness that keeps calling tools                                                                                                |
+| [`@mg/runner`](packages/runner/README.md)             | Builds a harness from a config, opens a trace and runs it                                                                              |
+| [`@mg/eval`](packages/eval/README.md)                 | Interface for judging a run from its records afterwards, with rule and Estimator implementations                                       |
+| [`@mg/term`](packages/term/README.md)                 | Colors and markers for terminal output                                                                                                 |
+| [`@mg/voice`](packages/voice/README.md)               | Voice I/O types (chunks, speech synthesis, transcription, listener, player), sentence splitting, and a speech synthesis implementation |
+| [`@mg/turn`](packages/turn/README.md)                 | Types and errors for the listening decisions ①–⑥ in voice conversations, and an Estimator implementation                               |
+| [`@mg/dashboard`](dashboard/README.md)                | Screens, storage and startup needed only for everyday use                                                                              |
+| [`runs/`](runs/)                                      | Config files for each experiment                                                                                                       |
+
+### Where new code goes
+
+| What you are adding                                                              | Where                                        |
+| -------------------------------------------------------------------------------- | -------------------------------------------- |
+| An implementation of another provider                                            | core                                         |
+| Tool types or the tool runner                                                    | core                                         |
+| Tools shared by harnesses                                                        | tools                                        |
+| A tool used by only one harness                                                  | that harness (written with core's types)     |
+| The subagent interface                                                           | harness                                      |
+| A connector to another machine                                                   | workspace                                    |
+| A gate implementation that decides whether an action may run                     | gate                                         |
+| A trigger implementation that decides whether to start a run                     | trigger                                      |
+| Repeating tool calls                                                             | loop                                         |
+| How validation failures are reported to the LLM                                  | loop                                         |
+| Tracing vocabulary and exporters                                                 | trace                                        |
+| The post-run judging interface, and rule and Estimator implementations           | eval                                         |
+| Colors and markers for terminal output                                           | term                                         |
+| Per-experiment wiring configs                                                    | runs                                         |
+| Judging rules, question contents and thresholds                                  | runs                                         |
+| Screens, storage and startup needed only for everyday use                        | dashboard                                    |
+| How runs are executed (opening and closing traces, batches, loading)             | runner                                       |
+| Building subagents from a config                                                 | runner                                       |
+| The conversation storage interface and implementations                           | conversation                                 |
+| An individual's memory (storage)                                                 | memory                                       |
+| An individual's recall and reflection                                            | persona                                      |
+| Voice I/O types                                                                  | voice                                        |
+| Speech synthesis and transcription implementations                               | voice                                        |
+| Splitting text into sentences to speak                                           | voice                                        |
+| Conversation decisions (backchannels, stopping, etc.): types and implementations | turn                                         |
+| How an individual delivers replies                                               | undecided (settled when that design is done) |
+
+When in doubt, check whether it depends on the environment.
+Anything environment-dependent, such as child processes, stays out of core.
+
+## Architecture
+
+Package dependencies. Arrows point from the user to the package it uses.
+
+```mermaid
+graph TD
+  runs --> runner
+  runs --> eval
+  runs --> term
+  runs --> voice
+  runs --> loop
+  runs --> tools
+  runs --> trace
+  runs --> gate
+  runs --> core
+  runner --> loop
+  runner --> gate
+  runner --> trigger
+  runner --> workspace
+  runner --> conversation
+  runner --> persona
+  runner --> trace
+  runner --> harness
+  runner --> core
+  loop --> tools
+  loop --> gate
+  loop --> trace
+  loop --> harness
+  loop --> core
+  persona --> memory
+  persona --> trace
+  persona --> harness
+  persona --> core
+  gate --> trace
+  gate --> harness
+  gate --> core
+  trigger --> trace
+  trigger --> harness
+  trigger --> core
+  turn --> trace
+  turn --> harness
+  turn --> core
+  eval --> trace
+  eval --> core
+  trace --> harness
+  trace --> core
+  harness --> core
+  tools --> core
+  workspace --> core
+  conversation --> core
+```
+
+- eval sits outside the run itself. It connects only when reading
+  traces back after a run.
+- runner does not use tools, eval or memory. An individual's storage
+  lives inside the individual.
+- memory and persona do not know about runner.
+- core, memory, term and voice depend on no other package in this
+  repository.
+- turn does not know about voice.
+- runs and dashboard are consumers and do not use each other.
+  dashboard uses no package yet, and no package uses dashboard.
+
+## Development
+
+Run every command from the repository root.
+Build and checks run across all packages.
+
+```sh
+pnpm install       # install dependencies
+pnpm build         # build
+pnpm typecheck     # check types
+pnpm test          # run tests
+pnpm lint          # find code problems
+pnpm lint:fix      # fix what can be fixed
+pnpm format        # format
+pnpm format:check  # find formatting drift
+```
+
+lint uses type information, so run build first.
+Without build output, types do not resolve and lint reports false
+problems.
+
+runs is type-checked but not built.
+
+A formatter runs right before each commit.
+It only touches files in the commit, and the formatted result is
+committed as is.
+
+To skip formatting when in a hurry, add this flag.
 
 ```sh
 git commit --no-verify

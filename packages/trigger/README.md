@@ -1,57 +1,24 @@
 # @mg/trigger
 
-走行を始めるべきかを、走行の前に判定するトリガーのパッケージです。
+A package for triggers, which decide before a run whether the run should start.
 
-## 役割
+## Features
 
-判定する役割は、判定する時点で 3 つに分かれます。
+Deciding splits into three roles by when the decision is made.
 
-| 時点       | 役割     | 問い                     | パッケージ |
-| ---------- | -------- | ------------------------ | ---------- |
-| 走行の前   | トリガー | 走行を始めるべきか       | trigger    |
-| 走行の途中 | ゲート   | この操作を実行してよいか | gate       |
-| 走行の後   | 評価     | 結果は正しかったか       | eval       |
+| When       | Role       | Question                        | Package |
+| ---------- | ---------- | ------------------------------- | ------- |
+| Before run | Trigger    | Should the run start?           | trigger |
+| During run | Gate       | May this action be carried out? | gate    |
+| After run  | Evaluation | Was the result correct?         | eval    |
 
-ゲートは許可を問い、トリガーは必要を問います。
-このパッケージは、トリガーの型とエラーと、判定のスパンを作る部品を持ちます。
-Estimator を使う判定の実装も持ちます。
+A gate asks for permission, and a trigger asks for need.
+This package has the trigger type, its error, and a helper that creates the decision span.
+It also has a decision implementation that uses an Estimator.
 
-### 型と実装の分け方
+## Usage
 
-トリガーは、入力とコンテキストを受け取り、判定を返すインターフェースです。
-
-入力の型は、トリガーごとに決まる型引数です。
-インターフェースは、入力の形を決めません。
-
-コンテキストは、中断の signal と、親になるトレースのスパンです。
-どちらも省けます。
-
-判定は、発火したかどうかの真偽値と、理由の文字列です。
-判定できなかったときは、専用のエラーを投げます。
-原因は cause に持ちます。
-
-### トレース
-
-トリガーは、判定のたびにスパンを親の下に作ります。
-親スパンは、コンテキストの `trace` で受け取ります。
-
-親スパンを受け取ったときだけ、判定を `mg.trigger` として書きます。
-受け取らなければ、何も記録せずに判定だけを返します。
-
-親がスパンを作れずに投げたときも、記録なしで判定を続けます。
-判定の処理そのものが投げたときは、スパンをそのエラーで閉じ、同じエラーを投げ直します。
-
-スパンには、発火したかどうかと理由を書きます。
-入力は書きません。
-入力を記録するのは、トリガーを呼ぶ側の役目です。
-
-## やらないこと
-
-- 走行を始める入口は持ちません。
-
-## 使い方
-
-判定のインターフェースを実装すると、トリガーを作れます。
+You can make a trigger by implementing the decision interface.
 
 ```ts
 import type { Trigger } from "@mg/trigger";
@@ -70,21 +37,25 @@ const trigger: Trigger<Input> = {
 };
 
 const decision = await trigger.decide({ kind: "issue", text: "hi" });
-// decision は { fired: boolean, reason: string }
+// decision is { fired: boolean, reason: string }
 ```
 
-スパンを作る部品に渡すものを表にまとめます。
+## API
 
-| 名前         | 内容                                                     |
-| ------------ | -------------------------------------------------------- |
-| `context`    | 呼び出し元から受け取ったコンテキスト（省くと記録しない） |
-| `attributes` | スパンに追加で書く属性                                   |
-| `body`       | 判定の処理。スパンを受け取り、判定を返す                 |
+### `withTriggerSpan(context, attributes, body)`
 
-## Estimator を使う実装
+The table lists what you pass to the span helper.
 
-Estimator から確率を受け取り、しきい値で判定する実装です。
-`createEstimatorTrigger` で組み立てます。
+| Name         | Contents                                                               |
+| ------------ | ---------------------------------------------------------------------- |
+| `context`    | The context received from the caller (nothing is recorded if left out) |
+| `attributes` | Extra attributes written to the span                                   |
+| `body`       | The decision itself. It receives the span and returns the decision     |
+
+### `createEstimatorTrigger(options)`
+
+This implementation takes a probability from an Estimator and decides with a threshold.
+Build it with `createEstimatorTrigger`.
 
 ```ts
 import { createEstimatorTrigger } from "@mg/trigger";
@@ -103,34 +74,69 @@ const decision = await trigger.decide({
 });
 ```
 
-組み立てに渡すものを表にまとめます。
+The table lists what you pass when building it.
 
-| 名前        | 内容                                 |
-| ----------- | ------------------------------------ |
-| `estimator` | 確率を返す Estimator                 |
-| `question`  | Estimator に渡す質問                 |
-| `threshold` | 発火とみなす確率の下限（省くと 0.7） |
+| Name        | Contents                                                   |
+| ----------- | ---------------------------------------------------------- |
+| `estimator` | The Estimator that returns the probability                 |
+| `question`  | The question passed to the Estimator                       |
+| `threshold` | The lowest probability that counts as firing (default 0.7) |
 
-しきい値は 0 から 1 の範囲で渡します。
-範囲の外か、有限の数でなければ、組み立ての時点で `RangeError` を投げます。
+Pass a threshold between 0 and 1.
+If it is out of range or not a finite number, a `RangeError` is thrown when building.
 
-`question` は必須です。
-空か、空白だけの文字列は、組み立ての時点で `RangeError` を投げます。
+`question` is required.
+An empty string, or one with only whitespace, throws a `RangeError` when building.
 
-判定は、入力の種類とテキストを Estimator に渡します。
-テキストは `Kind: <種類>` の行と、入力のテキストをつないだものです。
-質問には、渡した `question` を前後の空白も含めてそのまま送ります。
-何も足しません。
+The decision passes the input's kind and text to the Estimator.
+The text is a `Kind: <kind>` line joined with the input's text.
+The question is sent exactly as the `question` you passed, including leading and trailing whitespace.
+Nothing is added.
 
-質問の文面は、使う側の入力に合わせて選ぶものです。
-このパッケージは既定の質問を持ちません。
-測って選んだ質問の例は `runs/trigger-jev.trigger.ts` にあります。
+The wording of the question is something you choose to fit your input.
+This package has no default question.
+An example question chosen by measurement is in `runs/trigger-jev.trigger.ts`.
 
-確率がしきい値以上なら発火します。
-理由の文には、確率としきい値をそのまま書きます。
+It fires when the probability is at or above the threshold.
+The reason text states the probability and the threshold as they are.
 
-Estimator が投げたエラーは、トリガーのエラーに包んで投げます。
-それ以外のエラーは、そのまま投げます。
+Errors thrown by the Estimator are wrapped in a trigger error and thrown.
+Other errors are thrown as they are.
 
-親スパンを受け取ったときは、モデルと確率としきい値も書きます。
-入力の種類とテキストは、この実装のスパンにも書きません。
+When it receives a parent span, it also writes the model, the probability, and the threshold.
+This implementation's span does not record the input's kind or text either.
+
+## How it works
+
+### Separating the type from implementations
+
+A trigger is an interface that takes an input and a context and returns a decision.
+
+The input type is a type parameter set by each trigger.
+The interface does not fix the shape of the input.
+
+The context is the abort signal and the trace span that becomes the parent.
+Both can be left out.
+
+The decision is a boolean for whether it fired, and a reason string.
+When it cannot decide, it throws a dedicated error.
+The underlying cause is kept in `cause`.
+
+### Tracing
+
+Each time a trigger decides, it creates a span under the parent.
+The parent span is received through the context's `trace`.
+
+Only when it receives a parent span does it write the decision as `mg.trigger`.
+Without one, it records nothing and just returns the decision.
+
+If the parent throws when creating the span, it still decides, without recording.
+If the decision itself throws, it closes the span with that error and throws the same error again.
+
+The span records whether it fired and the reason.
+It does not record the input.
+Recording the input is the job of the code that calls the trigger.
+
+## Non-goals
+
+- It has no entry point that starts runs.

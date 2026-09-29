@@ -1,62 +1,34 @@
 # @mg/conversation
 
-会話を保存して、あとから読み返すための土台のパッケージです。
+A base package for saving conversations and reading them back later.
 
-会話とは、1 体のエージェントが LLM とやり取りする、メッセージの列です。
-会話は id で区別します。
+A conversation is the list of messages one agent exchanges with an LLM.
+Conversations are told apart by id.
 
-保存の単位は、1 回の走行で増えた分です。
-これを「エントリー」と呼びます。
+The unit of saving is what one run added.
+This is called an "entry".
 
-## 役割
+## Features
 
-- 会話のメッセージの型を決めます。
-  core のメッセージの型そのものです。
-- エントリーの型を決めます。
-  エントリーは、メッセージを 1 件以上持ちます。
-- 読む範囲の型を決めます。
-  範囲は「全部」か「最後の n 件」のどちらかです。
-- 読み出しの結果の型を決めます。
-  結果は、エントリーの並びと、その会話のエントリーの総数を持ちます。
-- 会話の保存のインターフェース `ConversationStore` を決めます。
-  操作は、作成と読み出しと追記の 3 つです。
-- 保存と確かめが使う、専用のエラーを持ちます。
-- 追記の前に使う、2 つの確かめの関数を持ちます。
-- `ConversationStore` の実装を 2 つ持ちます。
-  プロセスの中だけの実装と、SQLite の実装です。
+- Defines the type of a conversation message.
+  It is core's message type itself.
+- Defines the type of an entry.
+  An entry holds one or more messages.
+- Defines the type of a read range.
+  A range is either "all" or "the last n".
+- Defines the type of a read result.
+  The result holds the list of entries and the total number of entries in
+  that conversation.
+- Defines `ConversationStore`, the interface for saving conversations.
+  It has 3 operations: create, read and append.
+- Has dedicated errors used by the stores and the checks.
+- Has 2 check functions to use before appending.
+- Has 2 implementations of `ConversationStore`.
+  One lives only inside the process, the other uses SQLite.
 
-### 型の分け方
+## Usage
 
-会話のメッセージの型は、core のメッセージの型そのものです。
-system のメッセージも、ほかのメッセージと同じように代入できます。
-system も、走行が渡した位置のまま、そのまま保存されます。
-
-エントリーの型 `ConversationEntry` は、メッセージを 1 件以上持ちます。
-メッセージが 0 件のエントリーは、型の検査で通りません。
-
-読む範囲の型 `ReadRange` に、既定はありません。
-読み出しの操作は、範囲を渡さずに呼べません。
-
-## `ConversationStore`
-
-インターフェースが持つ操作を表にまとめます。
-
-| 操作     | すること                                                 |
-| -------- | -------------------------------------------------------- |
-| `create` | id を受け取り、エントリーが 0 件の会話を作ります。       |
-| `read`   | id と範囲を受け取り、エントリーの並びと総数を返します。  |
-| `append` | id とエントリー 1 件と、読んだ時点の総数を受け取ります。 |
-
-`append` に渡す総数は、読み出した時点でのエントリーの総数です。
-保存先の実際の総数と違うと、追記は失敗します。
-
-## メモリ上の保存
-
-`createMemoryConversationStore` は、`ConversationStore` を
-プロセスの中だけで実装したものです。
-
-引数を受け取りません。
-呼ぶたびに、会話を 1 件も持たない新しい保存を返します。
+Create a store, create a conversation, append an entry, then read it back.
 
 ```ts
 import { createMemoryConversationStore } from "@mg/conversation";
@@ -67,14 +39,7 @@ await store.append("jev", entry, 0);
 const slice = await store.read("jev", { kind: "all" });
 ```
 
-保存した会話は、プロセスが終わると消えます。
-別に作った保存どうしは、会話を共有しません。
-
-## SQLite の保存
-
-`openSqliteConversationStore` は、`ConversationStore` を
-SQLite で実装したものです。
-`@mg/conversation` の主の入口とは別の入口から出します。
+The SQLite store is used the same way.
 
 ```ts
 import { openSqliteConversationStore } from "@mg/conversation/sqlite";
@@ -87,107 +52,156 @@ await store.append("jev", entry, 0);
 const slice = await store.read("jev", { kind: "all" });
 ```
 
-引数は、開くファイルのパスです。
-保存先のディレクトリがなければ作ります。
-テーブルがなければ作ります。
+## API
 
-パスに `":memory:"` を渡すと、ファイルを作らずに開けます。
+### `ConversationStore`
 
-同じパスをもう一度開くと、前に保存した会話が読めます。
-ファイルが残っていれば、プロセスをまたいでも会話は残ります。
+The table lists the interface's operations.
 
-同じパスを 2 つの保存が同時に開いていても、総数の照合は働きます。
-先に追記した側だけが残ります。
-後から追記した側は、`ConversationConflictError` で失敗します。
+| Operation | What it does                                                            |
+| --------- | ----------------------------------------------------------------------- |
+| `create`  | Takes an id and creates a conversation with 0 entries.                  |
+| `read`    | Takes an id and a range, and returns the list of entries and the total. |
+| `append`  | Takes an id, one entry, and the total at the time of reading.           |
 
-保存先を開けないときは、開く関数がそのエラーで拒否されます。
-保存は返りません。
+The total passed to `append` is the total number of entries at the time of
+reading.
+If it differs from the actual total in the store, the append fails.
 
-SQLite とやり取りするライブラリは、この入口の中だけで
-読み込みます。
-`@mg/conversation` の主の入口からは読み込みません。
+### The two checks
 
-## 2 つの確かめ
+There are 2 functions to use before appending.
+Neither changes the entry passed in.
+They take neither the store nor the conversation id, and look only at the
+entry.
 
-追記する前に使う、2 つの関数を持ちます。
-どちらも、渡したエントリーを書き換えません。
-保存先も会話の id も受け取らず、エントリーだけを見ます。
+The table lists what each function checks.
 
-| 関数                | 確かめること                                      |
-| ------------------- | ------------------------------------------------- |
-| `assertJsonEntry`   | エントリーの値が、JSON にして戻しても同じかどうか |
-| `assertToolPairing` | ツールの呼び出しと結果が、対になっているかどうか  |
+| Function            | What it checks                                                 |
+| ------------------- | -------------------------------------------------------------- |
+| `assertJsonEntry`   | Whether the entry's value stays the same through JSON and back |
+| `assertToolPairing` | Whether tool calls and results come in pairs                   |
 
-問題がなければ、どちらも何も返しません。
-問題があれば、専用のエラーを投げます。
+If there is no problem, neither returns anything.
+If there is a problem, they throw a dedicated error.
 
-`assertJsonEntry` が通す値は、文字列と、真偽値と、null です。
-有限で -0 でない数も通ります。
-それらの配列と、それらを値に持つ素のオブジェクトも通ります。
-それ以外の値を見つけると、`EntryNotJsonError` を投げます。
-場所は、`messages` から始まる文字列です。
-配列の添字は `[n]`、オブジェクトのキーは `.key` でつなぎます。
+`assertJsonEntry` lets through strings, booleans and null.
+Numbers that are finite and not -0 also pass.
+Arrays of these, and plain objects with these as values, also pass.
+When it finds any other value, it throws `EntryNotJsonError`.
+The location is a string that starts with `messages`.
+Array indexes are joined as `[n]`, and object keys as `.key`.
 
-値の中には、それを含むオブジェクトや配列へ戻る参照が入ることが
-あります。
-その参照の場所で、循環という種類の `EntryNotJsonError` を
-投げます。
-含む値とは、いま見ている値から根までの道の上にある値です。
+A value can contain a reference back to an object or array that contains it.
+At that reference, it throws `EntryNotJsonError` of the cycle kind.
+A containing value is one on the path from the current value up to the root.
 
-道の上にない、同じオブジェクトへの参照は通します。
-別々の場所からの参照は、JSON にしても同じ値が現れるからです。
+A reference to the same object that is not on that path is let through.
+References from separate places show up as the same value in JSON too.
 
-`assertToolPairing` が通すエントリーは、次の条件を満たします。
+An entry that `assertToolPairing` lets through meets these conditions.
 
-- 呼び出しの id は、同じエントリーの中で重複しません。
-- 呼び出しのどれにも、後ろに同じ id の結果があります。
-- 結果のどれにも、前に同じ id の呼び出しがあります。
+- Call ids are not duplicated within the same entry.
+- Every call has a result with the same id after it.
+- Every result has a call with the same id before it.
 
-ツールを使わないエントリーも通します。
+Entries that use no tools also pass.
 
-対になっていなければ、`EntryToolPairingError` を投げます。
-重複した呼び出しを見つけたときも、同じエラーを投げます。
-同じ id の呼び出しが 2 つ目に現れた時点で、エラーになります。
-先に結果が付いていたかどうかは問いません。
+If they are not paired, it throws `EntryToolPairingError`.
+It throws the same error when it finds a duplicated call.
+The error happens as soon as a second call with the same id appears.
+It does not matter whether a result came first.
 
-## エラー
+### Errors
 
-投げる例外を表にまとめます。
+The table lists the exceptions thrown.
 
-| 例外                        | 投げるとき                                                     |
+| Exception                   | Thrown when                                                    |
 | --------------------------- | -------------------------------------------------------------- |
-| `ConversationExistsError`   | すでにある id で、作成したとき                                 |
-| `ConversationNotFoundError` | 作成されていない id で、読み出しか追記をしたとき               |
-| `ConversationRangeError`    | 範囲の件数が、正の整数でないとき                               |
-| `ConversationConflictError` | 渡した総数と、保存先の実際の総数が違ったとき                   |
-| `EntryNotJsonError`         | エントリーの値が、JSON にして戻すと同じにならないとき          |
-| `EntryToolPairingError`     | ツールの呼び出しと結果が、エントリーの中で対になっていないとき |
+| `ConversationExistsError`   | Creating with an id that already exists                        |
+| `ConversationNotFoundError` | Reading or appending with an id that was never created         |
+| `ConversationRangeError`    | The range's count is not a positive integer                    |
+| `ConversationConflictError` | The total passed differs from the actual total in the store    |
+| `EntryNotJsonError`         | The entry's value does not stay the same through JSON and back |
+| `EntryToolPairingError`     | Tool calls and results do not come in pairs within the entry   |
 
-`ConversationExistsError` と `ConversationNotFoundError` は、id
-`conversationId` を持ちます。
+`ConversationExistsError` and `ConversationNotFoundError` have the id
+`conversationId`.
 
-`ConversationRangeError` は、渡された件数 `count` を持ちます。
+`ConversationRangeError` has the given count `count`.
 
-`ConversationConflictError` は、`conversationId` と、渡された総数
-`expectedLength` と、実際の総数 `actualLength` を持ちます。
+`ConversationConflictError` has `conversationId`, the given total
+`expectedLength`, and the actual total `actualLength`.
 
-`EntryNotJsonError` は、種類 `kind` と、最初に見つかった値の場所
-`path` を持ちます。
-種類は、JSON の値でない値 `not-json` と、循環 `cycle` の 2 つです。
+`EntryNotJsonError` has a kind `kind` and the location of the first value
+found, `path`.
+There are 2 kinds: a value that is not a JSON value, `not-json`, and a cycle,
+`cycle`.
 
-`EntryToolPairingError` は、種類 `kind` と、ツールの呼び出しの id
-`toolCallId` を持ちます。
-種類は、結果のない呼び出し `unanswered-call` と、呼び出しのない結果
-`orphan-result` と、重複した呼び出し `duplicate-call` の 3 つです。
+`EntryToolPairingError` has a kind `kind` and the tool call id `toolCallId`.
+There are 3 kinds: a call with no result, `unanswered-call`, a result with no
+call, `orphan-result`, and a duplicated call, `duplicate-call`.
 
-どの例外も、自分の名前を `name` に持ちます。
+Every exception has its own name in `name`.
 
-## やらないこと
+## How it works
 
-- 会話の一覧と、削除と、名前づけは、持ちません。
-- エントリーの時刻は、持ちません。
-- id の選び方は、持ちません。
-  id は、使う側が選びます。
-- 読む範囲の選び方は、持ちません。
-  範囲は、使う側が選びます。
-- 伸びた会話の要約は、持ちません。
+### How the types are split
+
+The type of a conversation message is core's message type itself.
+A system message can be assigned just like any other message.
+System messages are also saved as is, at the position the run gave them.
+
+The entry type `ConversationEntry` holds one or more messages.
+An entry with 0 messages does not pass the type check.
+
+The read range type `ReadRange` has no default.
+The read operation cannot be called without a range.
+
+### In-memory store
+
+`createMemoryConversationStore` is an implementation of `ConversationStore`
+that lives only inside the process.
+
+It takes no arguments.
+Each call returns a new store with no conversations.
+
+Saved conversations are gone when the process ends.
+Stores created separately do not share conversations.
+
+### SQLite store
+
+`openSqliteConversationStore` is an implementation of `ConversationStore`
+that uses SQLite.
+It is exported from an entry point separate from the main entry point of
+`@mg/conversation`.
+
+The argument is the path of the file to open.
+If the store's directory does not exist, it is created.
+If the tables do not exist, they are created.
+
+Passing `":memory:"` as the path opens it without creating a file.
+
+Opening the same path again lets you read the conversations saved before.
+As long as the file remains, conversations survive across processes.
+
+Even when 2 stores have the same path open at once, the total check still
+works.
+Only the side that appended first is kept.
+The side that appended later fails with `ConversationConflictError`.
+
+When the store cannot be opened, the open function rejects with that error.
+No store is returned.
+
+The library that talks to SQLite is loaded only inside this entry point.
+It is not loaded from the main entry point of `@mg/conversation`.
+
+## Non-goals
+
+- It does not list, delete or name conversations.
+- It does not keep times for entries.
+- It does not choose ids.
+  The caller chooses ids.
+- It does not choose read ranges.
+  The caller chooses ranges.
+- It does not summarize conversations that grow long.

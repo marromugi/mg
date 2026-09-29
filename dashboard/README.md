@@ -1,16 +1,16 @@
 # @mg/dashboard
 
-日常的にハーネスを使うための画面を置く、使う側のパッケージです。
+A package on the using side that holds the screens for using harnesses day to day.
 
-## 役割
+## Features
 
-- runs と並ぶ、使う側の置き場所です。
-- 日常の利用だけが要る画面と保存と起動を、ここに集めます。
-- 画面と保存と起動は、機能を作る別の issue で足します。
-- いまは、説明の文書とパッケージの定義だけを持ちます。
+- It is a place for the using side, alongside runs.
+- The screens, storage, and startup that only day-to-day use needs are gathered here.
+- The screens, storage, and startup are added by separate issues that build the features.
+- For now it holds only this document and the package definition.
 
-## やらないこと
+## Non-goals
 
-- ハーネスの部品や型は持ちません。
-- トレースの保存は持ちません。保存は trace の役割のままです。
-- 公開する export は持ちません。どこからも import されません。
+- It holds no harness parts or types.
+- It does not store traces. Storage stays trace's job.
+- It has no public exports. Nothing imports it.

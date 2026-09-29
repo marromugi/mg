@@ -1,25 +1,20 @@
 # @mg/term
 
-端末に書く出力を装飾する、小さなパッケージです。
+A small package that decorates the output you write to a terminal.
 
-## 役割
+## Features
 
-- 意味で選ぶ色付けの関数を持ちます。成功、失敗、注意、控えめ、強調の 5 つです。
-- 同じ 5 つの意味に対応する印（絵文字）を持ちます。
-- 端末の判定を持ちます。端末でないときと `NO_COLOR` があるときは色を外し、`FORCE_COLOR` があるときは付けます。
-- 書く先と環境を差し替えられる作り方を持ちます。
+- Coloring functions picked by meaning. There are five: success, error, warning, muted, and strong.
+- Marks (emoji) for the same five meanings.
+- Terminal detection. Color is removed when the output is not a terminal or when `NO_COLOR` is set, and added when `FORCE_COLOR` is set.
+- A factory that lets you swap the output target and the environment.
 
-他のパッケージにも、外部のライブラリにも依存しません。
-色は、自前の制御文字で書きます。
+It depends on no other package and no outside library.
+Colors are written with its own control codes.
 
-## やらないこと
+## Usage
 
-- イベント（メッセージ、ツールの呼び出し、件ごとの結果）を端末に書く関数は持ちません。
-- ログの水準、時刻、ファイルへの書き出しは持ちません。
-
-## 使い方
-
-既定の `term` は、標準出力と実際の環境変数を見て作られています。
+The default `term` is built from standard output and the real environment variables.
 
 ```ts
 import { term } from "@mg/term";
@@ -28,8 +23,12 @@ console.log(term.paint("success", "done"));
 console.log(`${term.mark.error} failed`);
 ```
 
-書く先や環境を差し替えたいときは、`createTerm` を使います。
-テストでは、これで端末かどうかや環境変数を固定して確かめます。
+## API
+
+### `createTerm(options)`
+
+To swap the output target or the environment, use `createTerm`.
+Tests use it to pin whether the output is a terminal and what the environment variables are.
 
 ```ts
 import { createTerm } from "@mg/term";
@@ -38,11 +37,20 @@ const t = createTerm({ isTTY: true, env: { NO_COLOR: "1" } });
 t.colorEnabled; // false
 ```
 
-`colorEnabled` の決め方は、次の順です。
+## How it works
 
-1. `FORCE_COLOR` が空でなく `"0"` でもなければ、色を付けます。
-2. そうでなく `NO_COLOR` があれば、色を外します。
-3. そうでなく端末でなければ、色を外します。
-4. それ以外は、色を付けます。
+### Deciding `colorEnabled`
 
-印は、この判定に関わらず常に付きます。
+`colorEnabled` is decided in this order.
+
+1. If `FORCE_COLOR` is set, not empty, and not `"0"`, color is on.
+2. Otherwise, if `NO_COLOR` is set, color is off.
+3. Otherwise, if the output is not a terminal, color is off.
+4. In every other case, color is on.
+
+Marks are always added, whatever this decision is.
+
+## Non-goals
+
+- It has no functions that write events (messages, tool calls, per-case results) to the terminal.
+- It has no log levels, timestamps, or writing to files.

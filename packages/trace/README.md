@@ -1,200 +1,22 @@
 # @mg/trace
 
-トレースの実装と、共通の語彙を持つパッケージです。
+A package that holds the tracing implementation and a shared vocabulary.
 
-ハーネスは、親スパンを入力で受け取ります。
-そのスパンの実装は、このパッケージが持ちます。
+A harness receives a parent span through its input.
+This package holds the implementation of that span.
 
-## 役割
+## Features
 
-trace の役割は 4 つです。
+- Holds the tracing implementation and the vocabulary.
+- Wraps an LLM provider and records each call.
+- Wraps a tool's run function and records each run.
+- Holds the SDK and the exporters that carry traces out.
+- A reader returns a saved trace as a tree.
 
-- トレースの実装と、語彙を持ちます。
-- LLM のプロバイダーをラップし、呼び出しの記録を書きます。
-- ツールの実行関数をラップし、実行の記録を書きます。
-- トレースを外へ運ぶ、SDK とエクスポーターを持ちます。
-- 保存したトレースを、リーダーがツリーの形にして返します。
+## Usage
 
-### 三つのエントリーポイント
-
-エントリーポイントは三つあります。
-持ち物と依存を、表にまとめます。
-
-| エントリーポイント | 持つもの                                     | 依存                                |
-| ------------------ | -------------------------------------------- | ----------------------------------- |
-| `@mg/trace`        | トレースの実装、語彙、ラッパー               | OpenTelemetry の API、harness、core |
-| `@mg/trace/otel`   | SDK とエクスポーター                         | `@mg/trace`、OpenTelemetry の SDK   |
-| `@mg/trace/store`  | トレースとツリーの型、リーダーの型、表の定義 | drizzle、libsql                     |
-
-このエントリーポイントは、OpenTelemetry の SDK を読み込みません。
-エクスポーターとは切り離して、トレースの形だけを扱えます。
-
-trace は、harness と core を使います。
-harness は、trace を知りません。
-
-### セッション
-
-トレースは、セッションという単位で束ねます。
-セッション id は `createTraceSdk` で SDK を作るときに決まります。
-
-入力で渡せばその値を使い、渡さなければ新しく作ります。
-同じ会話の続きは、同じ SDK を使い続けます。
-
-1 つのセッションは、複数のトレースを持てます。
-スパンの `startRoot` は、同じセッションに新しい根を作ります。
-新しい根のスパンは、親を持ちません。
-トレースの ID は、元のスパンと別になります。
-セッションの ID は、元のスパンと同じです。
-
-セッション id は、リソース属性に入ります。
-サービス名と合わせて、表にまとめます。
-
-| 属性           | 意味            |
-| -------------- | --------------- |
-| `session.id`   | セッションの id |
-| `service.name` | サービスの名前  |
-
-### リーダー
-
-保存先ごとに、トレースを読む役目があります。
-リーダーの型は `TraceReader` です。
-`@mg/trace/store` にあります。
-
-リーダーは、セッション一つ分のトレースをツリーの形にして返します。
-保存先が違っても、返る形は同じです。
-
-| リーダー            | 対象                  |
-| ------------------- | --------------------- |
-| `JsonlTraceReader`  | JSONL のファイル      |
-| `SqliteTraceReader` | SQLite のデータベース |
-
-### 記録を書く場所
-
-LLM の呼び出しの記録は、プロバイダーのラッパーが書きます。
-そのラッパーは `traceProvider` です。
-
-ツールの実行の記録は、実行関数のラッパーが書きます。
-そのラッパーは `traceRunToolCall` です。
-
-サブエージェントの呼び出しの記録は、実行関数のラッパーが書きます。
-そのラッパーは `traceRunSubagentCall` です。
-呼び出しのスパンを渡された親スパンの下に付け、子の会話の根になる
-スレッドのスパンを新しく作ります。
-2 つのスパンは、同じスレッドの ID を属性に持ちます。
-
-ハーネス自身は、自分の記録だけを書きます。
-記録に失敗しても、ハーネスは止まりません。
-
-判定の記録は、`@mg/gate` が書きます。
-親スパンを受け取ったときだけ、判定を `mg.gate` として書きます。
-
-### 語彙
-
-トレースに書く名前は、`mg.` で始まるものだけです。
-スパンの名前は、共通のものが 13 個あります。
-
-| 定数              | 名前            | 意味                               |
-| ----------------- | --------------- | ---------------------------------- |
-| `SPAN.harness`    | `mg.harness`    | ハーネス全体のスパン               |
-| `SPAN.llm`        | `mg.llm`        | LLM の呼び出しのスパン             |
-| `SPAN.tool`       | `mg.tool`       | ツールの実行のスパン               |
-| `SPAN.run`        | `mg.run`        | 1 回の実行のスパン                 |
-| `SPAN.gate`       | `mg.gate`       | 判定のスパン                       |
-| `SPAN.workspace`  | `mg.workspace`  | 作業場の開閉のスパン               |
-| `SPAN.subagent`   | `mg.subagent`   | サブエージェントの呼び出しのスパン |
-| `SPAN.thread`     | `mg.thread`     | 子の会話のスパン                   |
-| `SPAN.input`      | `mg.input`      | 入力 1 件を扱う間のルートのスパン  |
-| `SPAN.trigger`    | `mg.trigger`    | トリガーの判定のスパン             |
-| `SPAN.persona`    | `mg.persona`    | 個体の入口のルートのスパン         |
-| `SPAN.recall`     | `mg.recall`     | 想起のスパン                       |
-| `SPAN.reflection` | `mg.reflection` | 振り返りのスパン                   |
-
-ハーネス固有のスパンは、`mg.<ハーネス名>.` で始めます。
-
-呼び出しのスパンは、渡された親のスパンの下に付きます。
-スレッドのスパンは、同じセッションの中の新しい根です。
-親の木の下には付きません。
-
-属性の名前も、表にまとめます。
-
-| 定数                            | 名前                            | 意味                                                                                                                                |
-| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `ATTR.op`                       | `mg.op`                         | スパンの種類（harness / llm / tool / run / gate / workspace / subagent / thread / input / trigger / persona / recall / reflection） |
-| `ATTR.harnessName`              | `mg.harness.name`               | ハーネスの名前                                                                                                                      |
-| `ATTR.harnessStopReason`        | `mg.harness.stop_reason`        | 処理系が止まった理由（stop / max-turns / length / wrapped-up）                                                                      |
-| `ATTR.runName`                  | `mg.run.name`                   | 設定の名前                                                                                                                          |
-| `ATTR.runCase`                  | `mg.run.case`                   | 件の ID                                                                                                                             |
-| `ATTR.runSession`               | `mg.run.session`                | 始めた走行に渡したセッションの ID（入力のスパンに書く）                                                                             |
-| `ATTR.workspaceName`            | `mg.workspace.name`             | 作業場の名前                                                                                                                        |
-| `ATTR.workspaceConnectors`      | `mg.workspace.connectors`       | 接続方法の種類の並び（JSON 文字列）                                                                                                 |
-| `ATTR.workspaceTools`           | `mg.workspace.tools`            | 生まれた道具の名前の並び（JSON 文字列）                                                                                             |
-| `ATTR.llmModel`                 | `mg.llm.model`                  | 使ったモデルの名前                                                                                                                  |
-| `ATTR.llmProvider`              | `mg.llm.provider`               | プロバイダーの名前（名前がなければ省く）                                                                                            |
-| `ATTR.llmStream`                | `mg.llm.stream`                 | ストリーミングで受け取ったか                                                                                                        |
-| `ATTR.llmFinishReason`          | `mg.llm.finish_reason`          | 終わった理由                                                                                                                        |
-| `ATTR.llmInputTokens`           | `mg.llm.usage.input_tokens`     | 入力のトークン数                                                                                                                    |
-| `ATTR.llmOutputTokens`          | `mg.llm.usage.output_tokens`    | 出力のトークン数                                                                                                                    |
-| `ATTR.llmInputMessages`         | `mg.llm.messages.input`         | 送った会話（JSON 文字列）                                                                                                           |
-| `ATTR.llmOutputMessages`        | `mg.llm.messages.output`        | 返った会話（JSON 文字列）                                                                                                           |
-| `ATTR.toolName`                 | `mg.tool.name`                  | ツールの名前                                                                                                                        |
-| `ATTR.toolCallId`               | `mg.tool.call_id`               | 呼び出しの ID                                                                                                                       |
-| `ATTR.toolArguments`            | `mg.tool.arguments`             | 渡した引数（JSON 文字列）                                                                                                           |
-| `ATTR.toolResult`               | `mg.tool.result`                | 実行の結果                                                                                                                          |
-| `ATTR.gateKind`                 | `mg.gate.kind`                  | 判定した対象の種類                                                                                                                  |
-| `ATTR.gateDescription`          | `mg.gate.description`           | 判定した対象の説明文                                                                                                                |
-| `ATTR.gateAllowed`              | `mg.gate.allowed`               | 判定の可否                                                                                                                          |
-| `ATTR.gateReason`               | `mg.gate.reason`                | 判定の理由                                                                                                                          |
-| `ATTR.gateModel`                | `mg.gate.model`                 | 判定に使ったモデルの名前（LLM の実装だけ）                                                                                          |
-| `ATTR.subagentName`             | `mg.subagent.name`              | サブエージェントの名前                                                                                                              |
-| `ATTR.subagentCallId`           | `mg.subagent.call_id`           | 呼び出しの ID                                                                                                                       |
-| `ATTR.subagentArguments`        | `mg.subagent.arguments`         | 渡した引数（JSON 文字列）                                                                                                           |
-| `ATTR.subagentResult`           | `mg.subagent.result`            | 子が返した文字列                                                                                                                    |
-| `ATTR.threadId`                 | `mg.thread.id`                  | スレッドの ID                                                                                                                       |
-| `ATTR.inputValue`               | `mg.input.value`                | 入力（JSON 文字列）                                                                                                                 |
-| `ATTR.triggerFired`             | `mg.trigger.fired`              | 発火したかどうか                                                                                                                    |
-| `ATTR.triggerReason`            | `mg.trigger.reason`             | 判定の理由                                                                                                                          |
-| `ATTR.triggerModel`             | `mg.trigger.model`              | 判定に使ったモデルの名前                                                                                                            |
-| `ATTR.triggerProbability`       | `mg.trigger.probability`        | 確率                                                                                                                                |
-| `ATTR.triggerThreshold`         | `mg.trigger.threshold`          | しきい値                                                                                                                            |
-| `ATTR.personaId`                | `mg.persona.id`                 | 個体の ID                                                                                                                           |
-| `ATTR.personaConversation`      | `mg.persona.conversation`       | 会話の ID                                                                                                                           |
-| `ATTR.personaCounterparts`      | `mg.persona.counterparts`       | 相手の ID の並び（JSON 文字列）                                                                                                     |
-| `ATTR.personaSaved`             | `mg.persona.saved`              | 会話を保存できたかどうか                                                                                                            |
-| `ATTR.personaUpdated`           | `mg.persona.updated`            | 記憶を更新できたかどうか                                                                                                            |
-| `ATTR.personaReferenced`        | `mg.persona.referenced`         | 走行のセッションへの参照が保たれたかどうか                                                                                          |
-| `ATTR.recallModel`              | `mg.recall.model`               | 判定に使ったモデルの名前                                                                                                            |
-| `ATTR.recallCandidates`         | `mg.recall.candidates`          | 候補の項目の数                                                                                                                      |
-| `ATTR.recallSelected`           | `mg.recall.selected`            | 選ばれた項目の ID の並び（JSON 文字列）                                                                                             |
-| `ATTR.recallProbabilities`      | `mg.recall.probabilities`       | ラベルごとの確率（JSON 文字列）                                                                                                     |
-| `ATTR.reflectionModel`          | `mg.reflection.model`           | 判定に使ったモデルの名前                                                                                                            |
-| `ATTR.reflectionCandidates`     | `mg.reflection.candidates`      | 候補の数                                                                                                                            |
-| `ATTR.reflectionKept`           | `mg.reflection.kept`            | 残した数                                                                                                                            |
-| `ATTR.reflectionPersonaChanged` | `mg.reflection.persona_changed` | 人格を書き換えたかどうか                                                                                                            |
-| `ATTR.reflectionForgotten`      | `mg.reflection.forgotten`       | 消した項目の ID の並び（JSON 文字列）                                                                                               |
-
-属性の値は、文字列と数値と真偽値だけです。
-構造がある値は、JSON の文字列にして持たせます。
-
-### gen_ai の書き手
-
-- ユーザーのメッセージに書き手があると、エクスポーターはそれを `name` に入れます。
-- `name` は、gen_ai の入力のメッセージが持つ、参加者の欄です。
-- 空か空白だけの書き手があると、そのエクスポーターは `RangeError` を投げます。
-
-## やらないこと
-
-trace が扱わないことをまとめます。
-
-- トレースには `gen_ai.` の名前を書きません。
-- `gen_ai.` の名前は、画面へ送るエクスポーターの直前でだけ足します。
-- 会話の中身を伏せる仕組みは作りません。
-- トレースを見るための画面は作りません。
-- OpenTelemetry Collector は使いません。
-
-## 使い方
-
-SDK から親スパンを作り、ハーネスに渡す例です。
-トレースは SQLite に保存します。
+This example creates a parent span from the SDK and passes it to a harness.
+Traces are saved to SQLite.
 
 ```ts
 import { createTraceSdk } from "@mg/trace/otel";
@@ -218,24 +40,206 @@ trace.end();
 await sdk.shutdown();
 ```
 
-trace は、スパンを書き出し先へ渡す時点と順番を約束します。
+## API
 
-- 記録されるスパンは、終わった時点で書き出し先に渡されます。終了の処理を待ちません。
-- 書き出し先が受け取る順番は、スパンが終わった順番です。始めた順番ではありません。
-- 書き出し先が複数あるときは、どの書き出し先も、同じスパンを同じ順番で受け取ります。
-- 終了の処理は、途中の書き出しが終わるのを待ってから終わります。
+### Three entry points
 
-終了の処理が失敗すると、`shutdown` は拒否します。
-拒否する値は `TraceShutdownError` です。
-`failures` に、書き出し先と段と失敗の値を持ちます。
+There are three entry points.
+The table lists what each one holds and what it depends on.
 
-ルートスパンは、`end` で閉じないと書き出されません。
+| Entry point       | Holds                                                | Depends on                       |
+| ----------------- | ---------------------------------------------------- | -------------------------------- |
+| `@mg/trace`       | Tracing implementation, vocabulary, wrappers         | OpenTelemetry API, harness, core |
+| `@mg/trace/otel`  | SDK and exporters                                    | `@mg/trace`, OpenTelemetry SDK   |
+| `@mg/trace/store` | Trace and tree types, reader type, table definitions | drizzle, libsql                  |
 
-記録のしかたは、環境変数では変わりません。
+This entry point does not load the OpenTelemetry SDK.
+It lets you work with the shape of a trace, apart from the exporters.
 
-trace は、サンプラーとスパンの上限を SDK に渡します。
-OpenTelemetry には、サンプラーとスパンの上限を変える環境変数があります。
-それらは、trace の記録には効きません。
+trace uses harness and core.
+harness does not know about trace.
 
-終わったスパンは、必ず書き出し先に渡ります。
-何も記録したくないときは、書き出し先を渡しません。
+### Readers
+
+Each storage backend has something that reads traces.
+The reader type is `TraceReader`.
+It lives in `@mg/trace/store`.
+
+A reader returns the traces of one session as a tree.
+The shape is the same whatever the storage backend.
+
+| Reader              | Reads           |
+| ------------------- | --------------- |
+| `JsonlTraceReader`  | A JSONL file    |
+| `SqliteTraceReader` | SQLite database |
+
+### Vocabulary
+
+Every name written to a trace starts with `mg.`.
+There are 13 shared span names.
+
+| Constant          | Name            | Meaning                                  |
+| ----------------- | --------------- | ---------------------------------------- |
+| `SPAN.harness`    | `mg.harness`    | Span for the whole harness               |
+| `SPAN.llm`        | `mg.llm`        | Span for an LLM call                     |
+| `SPAN.tool`       | `mg.tool`       | Span for a tool run                      |
+| `SPAN.run`        | `mg.run`        | Span for one run                         |
+| `SPAN.gate`       | `mg.gate`       | Span for a gate check                    |
+| `SPAN.workspace`  | `mg.workspace`  | Span for opening and closing a workspace |
+| `SPAN.subagent`   | `mg.subagent`   | Span for a subagent call                 |
+| `SPAN.thread`     | `mg.thread`     | Span for a child conversation            |
+| `SPAN.input`      | `mg.input`      | Root span while handling one input       |
+| `SPAN.trigger`    | `mg.trigger`    | Span for a trigger check                 |
+| `SPAN.persona`    | `mg.persona`    | Root span for the persona entry point    |
+| `SPAN.recall`     | `mg.recall`     | Span for recall                          |
+| `SPAN.reflection` | `mg.reflection` | Span for reflection                      |
+
+Spans specific to one harness start with `mg.<harness name>.`.
+
+A call span sits under the parent span it was given.
+A thread span is a new root in the same session.
+It does not sit under the parent's tree.
+
+The table below lists the attribute names.
+
+| Constant                        | Name                            | Meaning                                                                                                                            |
+| ------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `ATTR.op`                       | `mg.op`                         | Kind of span (harness / llm / tool / run / gate / workspace / subagent / thread / input / trigger / persona / recall / reflection) |
+| `ATTR.harnessName`              | `mg.harness.name`               | Name of the harness                                                                                                                |
+| `ATTR.harnessStopReason`        | `mg.harness.stop_reason`        | Why the harness stopped (stop / max-turns / length / wrapped-up)                                                                   |
+| `ATTR.runName`                  | `mg.run.name`                   | Name of the config                                                                                                                 |
+| `ATTR.runCase`                  | `mg.run.case`                   | ID of the case                                                                                                                     |
+| `ATTR.runSession`               | `mg.run.session`                | ID of the session passed to the started run (written on the input span)                                                            |
+| `ATTR.workspaceName`            | `mg.workspace.name`             | Name of the workspace                                                                                                              |
+| `ATTR.workspaceConnectors`      | `mg.workspace.connectors`       | List of connector kinds (JSON string)                                                                                              |
+| `ATTR.workspaceTools`           | `mg.workspace.tools`            | List of names of the tools it produced (JSON string)                                                                               |
+| `ATTR.llmModel`                 | `mg.llm.model`                  | Name of the model used                                                                                                             |
+| `ATTR.llmProvider`              | `mg.llm.provider`               | Name of the provider (left out when there is no name)                                                                              |
+| `ATTR.llmStream`                | `mg.llm.stream`                 | Whether the response was streamed                                                                                                  |
+| `ATTR.llmFinishReason`          | `mg.llm.finish_reason`          | Why the call finished                                                                                                              |
+| `ATTR.llmInputTokens`           | `mg.llm.usage.input_tokens`     | Number of input tokens                                                                                                             |
+| `ATTR.llmOutputTokens`          | `mg.llm.usage.output_tokens`    | Number of output tokens                                                                                                            |
+| `ATTR.llmInputMessages`         | `mg.llm.messages.input`         | Messages sent (JSON string)                                                                                                        |
+| `ATTR.llmOutputMessages`        | `mg.llm.messages.output`        | Messages returned (JSON string)                                                                                                    |
+| `ATTR.toolName`                 | `mg.tool.name`                  | Name of the tool                                                                                                                   |
+| `ATTR.toolCallId`               | `mg.tool.call_id`               | ID of the call                                                                                                                     |
+| `ATTR.toolArguments`            | `mg.tool.arguments`             | Arguments passed (JSON string)                                                                                                     |
+| `ATTR.toolResult`               | `mg.tool.result`                | Result of the run                                                                                                                  |
+| `ATTR.gateKind`                 | `mg.gate.kind`                  | Kind of thing checked                                                                                                              |
+| `ATTR.gateDescription`          | `mg.gate.description`           | Description of the thing checked                                                                                                   |
+| `ATTR.gateAllowed`              | `mg.gate.allowed`               | Whether it was allowed                                                                                                             |
+| `ATTR.gateReason`               | `mg.gate.reason`                | Reason for the decision                                                                                                            |
+| `ATTR.gateModel`                | `mg.gate.model`                 | Name of the model used for the check (LLM implementation only)                                                                     |
+| `ATTR.subagentName`             | `mg.subagent.name`              | Name of the subagent                                                                                                               |
+| `ATTR.subagentCallId`           | `mg.subagent.call_id`           | ID of the call                                                                                                                     |
+| `ATTR.subagentArguments`        | `mg.subagent.arguments`         | Arguments passed (JSON string)                                                                                                     |
+| `ATTR.subagentResult`           | `mg.subagent.result`            | String the child returned                                                                                                          |
+| `ATTR.threadId`                 | `mg.thread.id`                  | ID of the thread                                                                                                                   |
+| `ATTR.inputValue`               | `mg.input.value`                | The input (JSON string)                                                                                                            |
+| `ATTR.triggerFired`             | `mg.trigger.fired`              | Whether it fired                                                                                                                   |
+| `ATTR.triggerReason`            | `mg.trigger.reason`             | Reason for the decision                                                                                                            |
+| `ATTR.triggerModel`             | `mg.trigger.model`              | Name of the model used for the check                                                                                               |
+| `ATTR.triggerProbability`       | `mg.trigger.probability`        | Probability                                                                                                                        |
+| `ATTR.triggerThreshold`         | `mg.trigger.threshold`          | Threshold                                                                                                                          |
+| `ATTR.personaId`                | `mg.persona.id`                 | ID of the persona                                                                                                                  |
+| `ATTR.personaConversation`      | `mg.persona.conversation`       | ID of the conversation                                                                                                             |
+| `ATTR.personaCounterparts`      | `mg.persona.counterparts`       | List of counterpart IDs (JSON string)                                                                                              |
+| `ATTR.personaSaved`             | `mg.persona.saved`              | Whether the conversation was saved                                                                                                 |
+| `ATTR.personaUpdated`           | `mg.persona.updated`            | Whether memory was updated                                                                                                         |
+| `ATTR.personaReferenced`        | `mg.persona.referenced`         | Whether the reference to the run's session was kept                                                                                |
+| `ATTR.recallModel`              | `mg.recall.model`               | Name of the model used for the check                                                                                               |
+| `ATTR.recallCandidates`         | `mg.recall.candidates`          | Number of candidate items                                                                                                          |
+| `ATTR.recallSelected`           | `mg.recall.selected`            | List of IDs of the selected items (JSON string)                                                                                    |
+| `ATTR.recallProbabilities`      | `mg.recall.probabilities`       | Probability per label (JSON string)                                                                                                |
+| `ATTR.reflectionModel`          | `mg.reflection.model`           | Name of the model used for the check                                                                                               |
+| `ATTR.reflectionCandidates`     | `mg.reflection.candidates`      | Number of candidates                                                                                                               |
+| `ATTR.reflectionKept`           | `mg.reflection.kept`            | Number kept                                                                                                                        |
+| `ATTR.reflectionPersonaChanged` | `mg.reflection.persona_changed` | Whether the persona was rewritten                                                                                                  |
+| `ATTR.reflectionForgotten`      | `mg.reflection.forgotten`       | List of IDs of the removed items (JSON string)                                                                                     |
+
+Attribute values are strings, numbers and booleans only.
+A value with structure is stored as a JSON string.
+
+## How it works
+
+### Sessions
+
+Traces are grouped into units called sessions.
+The session id is set when `createTraceSdk` creates the SDK.
+
+If one is passed in the input, that value is used; otherwise a new one is created.
+The continuation of the same conversation keeps using the same SDK.
+
+One session can hold several traces.
+A span's `startRoot` creates a new root in the same session.
+The new root span has no parent.
+Its trace ID differs from the original span's.
+Its session ID is the same as the original span's.
+
+The session id goes into a resource attribute.
+The table shows it together with the service name.
+
+| Attribute      | Meaning             |
+| -------------- | ------------------- |
+| `session.id`   | ID of the session   |
+| `service.name` | Name of the service |
+
+### Where records are written
+
+The record of an LLM call is written by a wrapper around the provider.
+That wrapper is `traceProvider`.
+
+The record of a tool run is written by a wrapper around the run function.
+That wrapper is `traceRunToolCall`.
+
+The record of a subagent call is written by a wrapper around the run function.
+That wrapper is `traceRunSubagentCall`.
+It puts the call span under the parent span it was given, and creates a new
+thread span that becomes the root of the child conversation.
+Both spans carry the same thread ID as an attribute.
+
+The harness itself writes only its own records.
+If recording fails, the harness does not stop.
+
+Gate records are written by `@mg/gate`.
+It writes a check as `mg.gate` only when it receives a parent span.
+
+### gen_ai author names
+
+- When a user message has an author, the exporter puts it in `name`.
+- `name` is the participant field on a gen_ai input message.
+- If an author is empty or only whitespace, that exporter throws `RangeError`.
+
+### Export
+
+trace promises when and in what order spans are handed to the exporters.
+
+- A recorded span is handed to the exporters when it ends. It does not wait for shutdown.
+- Exporters receive spans in the order they ended, not the order they started.
+- When there are several exporters, each one receives the same spans in the same order.
+- Shutdown finishes only after any in-progress export has finished.
+
+If shutdown fails, `shutdown` rejects.
+The rejection value is `TraceShutdownError`.
+Its `failures` holds the exporter, the stage and the failure value.
+
+A root span is not exported unless it is closed with `end`.
+
+Environment variables do not change how recording works.
+
+trace passes a sampler and span limits to the SDK.
+OpenTelemetry has environment variables that change the sampler and span limits.
+They have no effect on trace's recording.
+
+A span that has ended is always handed to the exporters.
+To record nothing, pass no exporters.
+
+## Non-goals
+
+These are things trace does not do.
+
+- It does not write `gen_ai.` names to traces.
+- `gen_ai.` names are added only just before the exporter that sends to a viewer.
+- It does not build a way to hide conversation content.
+- It does not build a screen for viewing traces.
+- It does not use the OpenTelemetry Collector.

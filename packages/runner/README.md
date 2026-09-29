@@ -1,528 +1,399 @@
 # @mg/runner
 
-設定ファイルからプロバイダーとハーネスを組み立てて、実行するパッケージです。
+A package that builds a provider and a harness from a config file and runs them.
 
-## 役割
+## Features
 
-runner の役割は 6 つです。
+- Holds the config file type `RunConfig` and `defineRun`, which creates one.
+- Holds `run`, which runs one config.
+- Holds `runMany`, which runs several cases of a config together.
+- Holds `loadRun`, which loads a config file from a path.
+- Holds `continueConversation`, an entry point that runs the continuation of a saved conversation.
+- Holds `continueAsPersona`, an entry point that runs the continuation of a conversation as a persona.
 
-- 設定ファイルの型 `RunConfig` と、それを作る `defineRun` を持ちます。
-- 設定を 1 件実行する `run` を持ちます。
-- 設定を複数件まとめて実行する `runMany` を持ちます。
-- 設定ファイルをパスから読み込む `loadRun` を持ちます。
-- 保存した会話の続きを走らせる入口 `continueConversation` を持ちます。
-- 個体として会話の続きを走らせる入口 `continueAsPersona` を持ちます。
+## Usage
 
-### 実行の流れ
+How to write a config file, and the list of fields you can set, are in `agent-guide.md`.
+This section shows only how to run one.
 
-`run` が結果を返すまでの流れです。
+```ts
+import { run } from "@mg/runner";
+import config from "./loop-bash-gate.config.ts";
 
-- 設定の `trace` から、トレースの SDK を作ります。
-- 設定に `workspace` があれば、走る前に開いて道具をハーネスに渡します。
-- 設定の `subagents` があれば、作業場を渡してサブエージェントを組み立てます。
-- 設定の `harness.kind` に合わせて、ハーネスを組み立てます。組み立てたサブエージェントも渡します。
-- 設定の `gate` を、そのままハーネスに渡します。
-- 呼ぶたびに渡す `tools` があれば、ツールの列の後ろに足します。
-- 呼ぶたびに渡す `wrapUp` があれば、そのままハーネスに渡します。
-- ハーネスに会話を渡し、イベントを集めて結果にします。
-- 開いた作業場を閉じます。走行が失敗しても閉じます。
-- ルートスパンを閉じ、トレースの書き出しを待ってから返します。
-
-### 判定
-
-設定に、実行してよいか判定するゲート `gate` を書けます。
-書くと、ツールを実行する前にその判定を挟むハーネスが組み立ちます。
-runner は判定の実装を知りません。
-@mg/gate で作ったゲートを、そのまま設定に渡します。
-
-`tools` か `workspace` を書いた設定は、`gate` が必須です。
-書かないと、型の検査に落ちます。空のツールの並びでも必須です。
-
-型の検査を通らない値も、実行時に同じ条件で拒否します。
-`loadRun` は、`tools` か `workspace` があって `gate` がない設定を
-`InvalidRunConfigError` で拒否します。
-文は `<path>: gate is required when tools or workspace is set` です。
-
-`run`、`continueConversation`、`continueAsPersona` も、
-何かを始める前に同じ条件を確かめます。
-設定に `tools` か `workspace` があって `gate` がなければ、
-`GateRequiredError` を投げます。
-文は `gate is required when tools or workspace is set` です。
-
-呼び出しに足すツールを渡すこともあります。
-設定に `gate` がなければ、そのときも `GateRequiredError` を投げます。
-文は `gate is required when tools are added to the call` です。
-両方に当たるときは、前者の文です。
-
-書き方は `agent-guide.md` にまとめています。
-
-### 作業場
-
-設定に作業場 `workspace` を書くと、走る前にそれを開きます。
-開いた道具は、設定の道具の後ろに並べてハーネスに渡します。
-
-走行の後には、その作業場を閉じます。走行が失敗しても閉じます。
-設定の道具と作業場の道具で名前が重なると、作業場を閉じてから例外になります。
-作業場を閉じるのに失敗すると、走行が成功していても例外になります。
-
-`runMany` は件ごとに `run` を呼びます。そのため、作業場も件ごとに開いて閉じます。
-1 つの作業場を複数の件で使い回すことは、まだできません。
-
-設定に作業場があっても、`concurrency` を 2 以上にできることがあります。
-決まるのは、作業場のコネクターが排他的に持つものの宣言です。
-サブエージェントが自分のワークスペースとして持つ作業場も、同じように見ます。
-
-宣言に名前が 1 つもなければ、いくつでも並行して走ります。
-名前が 1 つでもあれば、`concurrency` を 1 にしてください。
-2 以上を渡すと、件を 1 つも走らせずに例外になります。
-例外の文には、作業場の名前と排他的に持つものの名前が入ります。
-
-書き方は `agent-guide.md` にまとめています。
-
-### 足すツール
-
-`run` を呼ぶたびに、その回だけ使うツールを渡せます。`options.tools` です。
-
-渡したツールは、設定のツールと作業場のツールの後ろに並べて、ハーネスに渡します。
-設定のツールと違い、呼び出しごとに違うツールを渡せます。
-
-名前が設定のツールか作業場のツールと重なると、作業場を閉じてから例外になります。
-例外は `DuplicateToolNameError` です。重なった側の名前と `"options"` を持ちます。
-
-設定に書いたゲートは、足したツールの呼び出しも判定します。
-
-`runMany` と `runOnTrigger` には、足すツールを渡す口はありません。
-
-### トレース
-
-`run` は、1 回の実行を `mg.run` のスパンとして記録します。
-その `mg.run.name` には、設定の `name` が入ります。
-
-`runMany` から実行したときは、`mg.run.case` に件の ID も入ります。
-トレースの書き出しに失敗すると、例外になります。
-実行が成功していても、`TraceShutdownError` を投げます。
-
-作業場を開いて閉じる区間は、`mg.workspace` のスパンに記録します。
-`mg.workspace` は `mg.run` の直下にあります。
-`mg.workspace` は `mg.harness` の兄弟でもあります。
-
-`mg.run` のスパンは、作業場を閉じ終えてから終わります。
-作業場を閉じるのに失敗すると、その失敗は `mg.workspace` に残ります。
-同じ失敗は `mg.run` のスパンにも、誤りとして残ります。
-
-### トリガーから走行を始める
-
-`runOnTrigger` は、入力 1 件を判定してから走行を始める入口です。
-発火するかどうかは、渡したトリガーが決めます。
-走行の始め方は、渡した関数が決めます。
-runner は、トリガーの中身も、走行の始め方の中身も知りません。
-
-入口が受け取るものを表にまとめます。
-
-| 項目         | 内容                                                        |
-| ------------ | ----------------------------------------------------------- |
-| `trigger`    | 発火を判定する @mg/trigger のトリガーです。                 |
-| `toMessages` | 入力をメッセージの列に変える関数です。                      |
-| `start`      | 発火したときに走行を始める関数です。                        |
-| `trace`      | 判定の記録のトレースの設定です。保存先を 1 つ以上求めます。 |
-| `input`      | 判定する入力です。JSON にできる値に限ります。               |
-
-どれにも既定はありません。
-任意で、中断の signal と、走行のイベントを受ける関数も渡せます。
-どちらも `start` にそのまま渡ります。signal はトリガーにも渡ります。
-
-`start` は、変換したメッセージと、次を持つオプションを受け取ります。
-
-- `sessionId`: 入口が決めた、走行のセッションの id です。
-- `signal`: 呼び出し側から渡された、中断の signal です。
-- `onEvent`: 呼び出し側から渡された、イベントを受ける関数です。
-
-`start` は、走行のセッションの id を持つ値を返す約束です。
-既存の走行の入口 `run` を `start` の中で呼ぶのが、基本の使い方です。
-
-入口は、入力 1 件につき次の順で動きます。
-
-1. 判定のセッションを開き、入力のスパン `mg.input` をルートとして始めます。入力を JSON で書きます。
-2. トリガーに判定させます。親として入力のスパンを渡します。
-3. 発火しなければ、判定の記録を閉じて書き出し、発火しなかった結果を返します。
-4. 発火したら、入力をメッセージに変えます。
-5. 走行のセッションの id を決め、入力のスパンに参照として書きます。
-6. 判定の記録を閉じて書き出します。
-7. 決めた id と signal とイベントを受ける関数を渡し、`start` を呼んで完了を待ちます。
-
-返す値は、発火したかどうかと、参照が保たれたかどうかで形が変わります。
-
-- 発火しなかったとき: 判定のセッションの id と判定です。
-- 発火し、参照が保たれたとき: 判定のセッションの id と判定と、`start` の返り値です。
-- 発火し、参照が外れたとき: 上に加え、入口が決めた id も持ちます。
-
-参照が保たれるとは、`start` の返り値が持つ id が、入口が決めた id と同じことです。
-違えば参照が外れます。入口は例外を投げず、参照が外れたことを返り値の形で伝えます。
-どちらの形でも、`start` の返り値はそのまま `run` に載ります。
-
-判定の記録は、走行の記録とは別のセッションです。
-保存先を走行と同じにするか分けるかは、渡す設定で決まります。
-走行を始める前に閉じて書き出すため、走行の途中でも判定の記録を読めます。
-
-トリガーが投げたときと、`toMessages` が投げたときは、同じエラーを投げ直します。
-どちらも、入力のスパンをエラーで閉じてから投げます。走行は始めません。
-
-判定の記録の書き出しに失敗すると、例外になります。
-閉じる処理が投げた `TraceShutdownError` を、そのまま投げます。
-走行は始めません。先にほかのエラーがあれば、そちらを投げます。
-
-`start` が投げると、入口は同じエラーを投げ直します。
-判定の記録は、走行への参照を持ったまま、エラーでない状態で残ります。
-
-### 会話の続きを走らせる
-
-`continueConversation` は、保存した会話の続きから走行を始める入口です。
-会話の保存には @mg/conversation の `ConversationStore` を使います。
-runner は、保存の実装を知りません。渡されたインターフェースだけを見ます。
-
-入口が受け取るものを表にまとめます。
-
-| 引数           | 内容                                                  |
-| -------------- | ----------------------------------------------------- |
-| `config`       | 走行の設定です。`run` と同じ `RunConfig` です。       |
-| `conversation` | 会話の指定です。`ConversationTarget` の型を持ちます。 |
-| `options`      | `run` と同じオプションです。省略できます。            |
-
-`ConversationTarget` が持つ項目です。
-
-| 項目       | 必須 | 内容                             |
-| ---------- | ---- | -------------------------------- |
-| `store`    | はい | 会話の保存先です。               |
-| `id`       | はい | 続ける会話の id です。           |
-| `history`  | はい | 読む範囲です。既定はありません。 |
-| `messages` | はい | 新しいメッセージです。           |
-
-`messages` は 1 件以上要ります。system のメッセージも書けます。
-書いた位置のまま走行に渡り、そのままエントリーに保存されます。
-
-入口は、1 回の呼び出しにつき次の順で動きます。
-
-1. 中断の signal がすでに中断済みなら、その理由で拒否します。会話は読みません。
-2. 指定の範囲で会話を読みます。読み出しが失敗したら、そのエラーをそのまま投げます。
-3. 読んだエントリーのメッセージに、新しいメッセージをこの順に並べます。
-   保存済みの system も、その位置のまま並びます。
-4. その並びを渡して走行を始めます。走行が失敗したら、そのエラーをそのまま投げます。
-5. 結果の会話の先頭が、渡した並びと等しいか確かめます。
-6. 新しいメッセージと、走行が足した分を、1 件のエントリーとして追記します。
-7. 結果を返します。
-
-走行がどの理由で終わっても、返った会話をそのまま追記します。
-止まった理由と、往復の上限と、長さの上限のどれでも変わりません。
-
-返り値は、保存できたかどうかで形が変わります。
-
-| 形                     | 内容                                                                               |
-| ---------------------- | ---------------------------------------------------------------------------------- |
-| 保存できた             | 保存できたことと、走行のセッションの id と、走行の結果と、保存したエントリーです。 |
-| 先頭が違った           | 保存できなかったことと、先頭の不一致という理由です。                               |
-| 答えが認められなかった | 保存できなかったことと、答えが認められないという理由です。                         |
-| 残す関数が失敗した     | 保存できなかったことと、残す関数の失敗という理由と、投げられたエラーです。         |
-| 追記に失敗した         | 保存できなかったことと、追記の失敗という理由と、追記が投げたエラーです。           |
-
-保存できないときの理由は、次の 4 つです。
-
-- 先頭が渡した並びと違ったときです。
-- `keep` の答えが認められなかったときです。
-- `keep` が投げたか拒否したときです。
-- 追記が失敗したときです。
-
-どの理由でも、追記していません。
-
-オプションは、受け取ったものがそのまま走行の入口に渡ります。
-`sessionId` を渡すと、返り値のセッションの id もそれになります。
-`onEvent` に渡した関数には、走行のイベントが届きます。
-`wrapUp` を渡すと、その合図で止まった走行も同じように追記します。
-`tools` を渡すと、その回だけ使うツールとして走行に渡ります。
-
-#### 残す分を決める
-
-オプションの `keep` に、関数を渡せます。
-渡すと、その関数が残す分を決めます。
-
-入口は、先頭の一致を確かめたあとに `keep` を呼びます。
-足した分をそのまま渡し、答えを待ちます。
-呼ぶのは 1 度だけです。
-答えが出るまでは、走行が終わっていても追記しません。
-
-認める答えは、次のどちらかと等しい並びです。
-
-- 足した分の全部です。
-- 足した分を、ある位置で切り出した結果です。
-
-位置で切り出した結果は、次を持ちます。
-
-- その位置までの文章です。
-- すべてのツールの呼び出しと結果です。
-- 考えた内容のすべてです。
-
-位置は「何番目の往復の、文章の何文字目まで」で表します。
-往復は、足した分に含まれる assistant のメッセージを順に数えます。
-
-図で、認める答えと認めない答えを示します。
-
-```
-足した分:          A1[文章 "Hello there.", 呼び出し c1]  T1  A2[文章 "It is queued. ..."]
-往復 0 の 5 文字目: A1[文章 "Hello", 呼び出し c1]  T1
-往復 1 の 5 文字目: A1  T1  A2[文章 "It is"]
-認めない答え:       A1[呼び出し c1]  T1  A2[文章 "It is"]    前の文章を落としている
-認めない答え:       A1[文章 "Hello there."]  T1  A2         呼び出しを落としている
+const { sessionId } = await run(config, [
+  { role: "user", content: "..." },
+]);
 ```
 
-答えは、位置の切り出しとも全部とも一致しないことがあります。
-そのときは追記せず、理由を返します。
-返り値は `{ saved: false, reason: { kind: "not-in-result" } }` です。
+To run several cases together, use `runMany`.
+To load a config file from a path, use `loadRun`.
+To start a run from a trigger's decision, use `runOnTrigger`.
+To run from the continuation of a saved conversation, use `continueConversation`.
+To run from the continuation of a conversation as a persona, use `continueAsPersona`.
 
-`keep` が投げるか拒否したときも、追記しません。
-返り値は `{ saved: false, reason: { kind: "keep-failed", error } }` です。
-`error` には、投げられた値がそのまま入ります。
+For the detailed meaning of each field and samples, see `agent-guide.md`.
 
-`keep` を渡さないときは、足した分を全部追記します。
+## API
 
-会話の続きを切り出す部品 `addedMessages` も公開しています。
-渡した並びと、結果の会話を比べ、足した分か先頭の不一致を返します。
-走行なしに単体で確かめられます。
+### `runOnTrigger(config, input, options)`
 
-足した分を、届いた位置で切り出す部品 `keepDelivered` も公開しています。
-足した分と位置を受け取り、残す分を返します。入出力を持たない、純粋な関数です。
-`keep` が返せる答えは、この部品の返り値のどれかと等しい必要があります。
-渡した位置が並びの範囲外のときは、`RangeError` を投げます。
+`runOnTrigger` is an entry point that checks one input and then starts a run.
+The trigger you pass decides whether it fires.
+The function you pass decides how the run is started.
+runner knows neither what is inside the trigger nor how the run is started.
 
-入口を作る関数 `createContinueConversation` も公開しています。
-走らせる関数を外から受け取って、入口を組み立てます。
-公開している `continueConversation` は、既存の `run` を渡して作ったものです。
+It takes three arguments: `config`, `input` and `options`.
 
-### 個体として会話の続きを走らせる
+The table lists the fields of `config`.
 
-`continueAsPersona` は、想起と会話の続きの走行と振り返りをこの順につなぐ入口です。
-個体とは、人格を持って生き続ける 1 体のエージェントです。@mg/persona の `Persona` が表します。
-runner は `Persona` のインターフェースだけを見て、中身は知りません。
+| Field        | Contents                                                                |
+| ------------ | ----------------------------------------------------------------------- |
+| `trigger`    | The @mg/trigger trigger that decides whether to fire.                   |
+| `toMessages` | A function that turns the input into a list of messages.                |
+| `start`      | A function that starts the run when it fires.                           |
+| `trace`      | Trace settings for the decision record. Needs at least one destination. |
 
-入口が受け取るものを表にまとめます。
+None of these has a default.
 
-| 引数           | 内容                                                  |
-| -------------- | ----------------------------------------------------- |
-| `config`       | 走行の設定です。`run` と同じ `RunConfig` です。       |
-| `conversation` | 会話の指定です。`continueConversation` と同じ型です。 |
-| `persona`      | 個体の指定です。`PersonaTarget` の型を持ちます。      |
-| `options`      | `run` と同じオプションです。省略できます。            |
+`input` is the input to check. It is limited to values that can be
+turned into JSON.
 
-`PersonaTarget` が持つ項目です。
+`options` is optional. It may hold an abort signal (`signal`) and a
+function that receives the run's events (`onEvent`).
+Both are passed straight to `start`. The signal is also passed to the trigger.
 
-| 項目           | 内容                                                  |
-| -------------- | ----------------------------------------------------- |
-| `persona`      | 想起と振り返りを持つ、個体そのものです。              |
-| `counterparts` | 相手の並びです。id と表示名を持ちます。               |
-| `input`        | 想起のいまの入力です。                                |
-| `trace`        | この入口の記録の設定です。保存先を 1 つ以上求めます。 |
+`start` receives the converted messages and options holding the following.
 
-入口は、1 回の呼び出しにつき次の順で動きます。
+- `sessionId`: the id of the run's session, decided by the entry point.
+- `signal`: the abort signal passed by the caller.
+- `onEvent`: the function passed by the caller that receives events.
 
-1. 中断の signal がすでに中断済みなら、その理由で拒否します。想起も記録も始めません。
-2. 個体のセッションを開き、`mg.persona` のスパンをルートとして始めます。
-3. 走行のセッションの id を決めます。オプションにあればそれを、なければ新しく作ります。
-4. 想起を呼びます。投げたら、ルートをそのエラーで閉じます。記録を書き出してから、同じエラーを投げます。
-5. 想起の指示を system のメッセージにし、新しいメッセージの先頭に置いて会話の入口を呼びます。
-6. 会話の入口が投げたら、4 と同じに扱います。振り返りはしません。
-7. 会話が保存できなかったときは、振り返りをしません。ルートを閉じ、記録を書き出して返します。
-8. 保存できたときは、保存したエントリーと想起の読んだものを渡して振り返りを呼びます。
-9. ルートを閉じ、記録を書き出します。書き出しに失敗しても投げません。
+`start` promises to return a value that holds the id of the run's session.
+The basic use is to call the existing run entry point `run` inside `start`.
 
-想起と会話の入口の失敗は、そのエラーで記録を閉じます。書き出しにも失敗すると、先のエラーを投げます。
-会話が保存された後は、この入口は投げません。保存できた結果を失わせないためです。
-振り返りが投げても、この入口は投げません。更新できなかった理由「拒否」として結果に載せます。
+For each input, the entry point works in this order.
 
-オプションの `wrapUp` と `tools` は、会話の続きの入口にそのまま渡ります。
-同じく `keep` も渡ります。
-振り返りには、`keep` の答えで保存したエントリーが渡ります。
+1. Opens the decision session and starts the input span `mg.input` as the root. Writes the input as JSON.
+2. Has the trigger decide. Passes the input span as the parent.
+3. If it does not fire, closes and exports the decision record and returns a not-fired result.
+4. If it fires, turns the input into messages.
+5. Decides the id of the run's session and writes it on the input span as a reference.
+6. Closes and exports the decision record.
+7. Calls `start` with the decided id, the signal and the event function, and waits for it to finish.
 
-`mg.persona` のスパンの属性です。
+The shape of the return value depends on whether it fired and whether the reference was kept.
 
-| 属性                      | 内容                                         |
-| ------------------------- | -------------------------------------------- |
-| `mg.persona.id`           | 個体の id です。                             |
-| `mg.persona.conversation` | 会話の id です。                             |
-| `mg.persona.counterparts` | 相手の id の JSON です。                     |
-| `mg.run.session`          | 走行のセッションの id です。                 |
-| `mg.persona.referenced`   | 参照が保たれたかどうかです。                 |
-| `mg.persona.saved`        | 会話が保存できたかどうかです。               |
-| `mg.persona.updated`      | 保存できたときの、振り返りの更新の有無です。 |
+- When it did not fire: the decision session's id and the decision.
+- When it fired and the reference was kept: the decision session's id, the decision and the return value of `start`.
+- When it fired and the reference was broken: all of the above, plus the id the entry point decided.
 
-返り値は、会話の入口の返り値に次を足したものです。
+The reference is kept when the id in the return value of `start` equals the id the entry point decided.
+If they differ, the reference is broken. The entry point does not throw; it reports the broken reference through the shape of the return value.
+In either shape, the return value of `start` is carried as is in `run`.
 
-| 項目               | 内容                                                                         |
-| ------------------ | ---------------------------------------------------------------------------- |
-| `personaSessionId` | 個体のセッションの id です。                                                 |
-| `referenced`       | 参照が保たれたかどうかです。外れたときは `expectedRunSessionId` も持ちます。 |
-| `recorded`         | 記録を書き出せたかどうかです。                                               |
-| `memory`           | 振り返りの返り値です。会話が保存できたときだけ持ちます。                     |
+The decision record is a separate session from the run's record.
+Whether it is stored in the same place as the run or elsewhere depends on the settings you pass.
+It is closed and exported before the run starts, so you can read the decision record even while the run is in progress.
 
-`memory` を読むには、`saved` を先に確かめて絞り込みます。型で表しています。
+When the trigger throws, or when `toMessages` throws, the same error is rethrown.
+In both cases, the input span is closed with the error first. The run is not started.
 
-入口を作る関数 `createContinueAsPersona` も公開しています。
-会話の入口を外から受け取って、入口を組み立てます。
-公開している `continueAsPersona` は、既存の `continueConversation` を渡して作ったものです。
+If exporting the decision record fails, it throws.
+It throws the `TraceShutdownError` thrown by the close step as is.
+The run is not started. If another error happened first, that one is thrown instead.
 
-### サブエージェントの組み立て
+If `start` throws, the entry point rethrows the same error.
+The decision record stays in a non-error state, holding its reference to the run.
 
-サブエージェントは、別のハーネスの走行です。
-ハーネスが、LLM の呼び出しに応じて始めます。
-インターフェースは @mg/harness にあります。
+### `continueConversation(config, conversation, options)`
 
-サブエージェントは、走行の設定に書きます。
-組み立てるのは `run` です。
-設定の型は `SubagentConfig` です。
-設定をそのまま返す `defineSubagent` もあります。
+`continueConversation` is an entry point that starts a run from the continuation of a saved conversation.
+Conversations are saved with @mg/conversation's `ConversationStore`.
+runner does not know the storage implementation. It only looks at the interface it is given.
 
-設定は、次の項目を持ちます。
+The table lists what the entry point receives.
 
-| 項目          | 必須     | 内容                                                            |
-| ------------- | -------- | --------------------------------------------------------------- |
-| `name`        | はい     | LLM に見せる名前です。                                          |
-| `description` | はい     | LLM に見せる説明です。                                          |
-| `system`      | いいえ   | 子の会話の先頭に置くシステムプロンプトです。                    |
-| `provider`    | はい     | 子が使うプロバイダーです。                                      |
-| `harness`     | はい     | 子のハーネスの設定です。`RunConfig` の `harness` と同じ型です。 |
-| `tools`       | いいえ   | 子が使うツールです。                                            |
-| `gate`        | 条件つき | 子の中の呼び出しを判定します。                                  |
-| `workspace`   | いいえ   | 子へのワークスペースの渡し方です。下の表にまとめます。          |
+| Argument       | Contents                                               |
+| -------------- | ------------------------------------------------------ |
+| `config`       | The run's config. The same `RunConfig` as for `run`.   |
+| `conversation` | Which conversation. Has the type `ConversationTarget`. |
+| `options`      | The same options as `run`. Can be left out.            |
 
-`gate` が必須になるのは、`tools` か `workspace` を書いたときです。
-どちらも書かない設定は、`gate` がなくても型の検査を通ります。
+The fields `ConversationTarget` holds.
 
-設定に書かなかったものは、子に渡りません。
-プロバイダーやゲートやツールを、親の設定から補うことはしません。
+| Field      | Required | Contents                                |
+| ---------- | -------- | --------------------------------------- |
+| `store`    | Yes      | Where the conversation is saved.        |
+| `id`       | Yes      | The id of the conversation to continue. |
+| `history`  | Yes      | The range to read. There is no default. |
+| `messages` | Yes      | The new messages.                       |
 
-組み立てたサブエージェントの入力のスキーマは、文字列 `prompt` だけです。
-子の会話は、`system` があれば system として始まります。
-続けて `prompt` を、user として渡します。
+`messages` needs at least one message. It may include system messages.
+They go to the run in the position written, and are saved in the entry as is.
 
-子の終わり方によって、返す文字列が変わります。
+For each call, the entry point works in this order.
 
-- 子が最後まで走り、最後のテキストがあれば、それをそのまま返します。
-- テキストがなければ、空だったと伝える決まった文を返します。
-- 子がターンの上限に達したら、決まった文に、上限前の最後のテキストを付けて返します。
-- 子の出力が長さの上限で切れたら、決まった文に、切れたテキストを付けて返します。
-- 呼び出した側に子が切り上げられたら、決まった文に、そこまでの
-  テキストを付けて返します。
-- どれも、付けるテキストが空なら、空だったと文の中で伝えます。
+1. If the abort signal is already aborted, it rejects with that reason. It does not read the conversation.
+2. Reads the conversation in the given range. If reading fails, it throws that error as is.
+3. Places the new messages after the messages of the entries read, in this order.
+   Saved system messages also stay in their positions.
+4. Starts the run with that list. If the run fails, it throws that error as is.
+5. Checks that the start of the resulting conversation equals the list it passed.
+6. Appends the new messages and what the run added as one entry.
+7. Returns the result.
 
-子の中のツールの呼び出しは、設定の `gate` が判定します。
-`start` に渡した文脈にスパンがあれば、子のハーネスのスパンはその下に付きます。
-文脈の中断のシグナルは、そのまま子のハーネスに渡ります。
-文脈の切り上げのシグナルも、そのまま子のハーネスに渡ります。
+Whatever reason the run ended for, the returned conversation is appended as is.
+This is the same whether it stopped, hit the turn limit, or hit the length limit.
 
-`harness` の設定が誤っていると、走行を始める時点で例外になります。
-走行の途中ではなく、始める前に確かめるためです。
+The shape of the return value depends on whether it could save.
 
-走行の設定 `RunConfig` に、`subagents` を書けます。
-サブエージェントの設定を並べます。
-省略した設定は、これまでと変わりません。
+| Shape                | Contents                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| Saved                | That it saved, the id of the run's session, the run's result, and the saved entry. |
+| Start differed       | That it did not save, and the reason: the start did not match.                     |
+| Answer not accepted  | That it did not save, and the reason: the answer was not accepted.                 |
+| Keep function failed | That it did not save, the reason: the keep function failed, and the thrown error.  |
+| Append failed        | That it did not save, the reason: the append failed, and the error it threw.       |
 
-`run` は、作業場を開いた後にこの並びからサブエージェントを組み立てます。
-組み立てたサブエージェントを、ハーネスに渡します。
+It fails to save for one of these four reasons.
 
-#### ワークスペースの受け取り方
+- The start differed from the list it passed.
+- The answer from `keep` was not accepted.
+- `keep` threw or rejected.
+- The append failed.
 
-設定の `workspace` で、子へのワークスペースの渡し方を決められます。
-受け取り方は 3 つです。
+For every reason, nothing was appended.
 
-| 受け取り方 | 書き方               | 内容                                        |
-| ---------- | -------------------- | ------------------------------------------- |
-| なし       | `workspace` を省略   | ワークスペースを使いません。                |
-| 固定       | `{ pick: "fixed" }`  | 設定に書いた出どころを、毎回使います。      |
-| 親が選ぶ   | `{ pick: "caller" }` | 親の LLM が、呼ぶたびに出どころを選びます。 |
+The options it receives are passed as is to the run entry point.
+If you pass `sessionId`, the session id in the return value is also that value.
+The function passed to `onEvent` receives the run's events.
+If you pass `wrapUp`, a run stopped by that signal is appended the same way.
+If you pass `tools`, they go to the run as tools used only for that call.
 
-出どころは 2 種類です。
+#### Deciding what to keep
 
-| 出どころ   | 書き方                       | 内容                                                 |
-| ---------- | ---------------------------- | ---------------------------------------------------- |
-| 親のもの   | `{ kind: "parent" }`         | 親の開いたワークスペースを借ります。子は閉じません。 |
-| 自分のもの | `{ kind: "own", workspace }` | 設定のワークスペースを、始めるたびに開いて閉じます。 |
+You can pass a function to the `keep` option.
+When passed, that function decides what to keep.
 
-出どころに親のものを書いたのに、走行に `workspace` がないことがあります。
-そのときは、走行を始める時点で例外になります。
-「親が選ぶ」で出どころの名前が重なったときも、走行を始める時点で例外になります。
+The entry point calls `keep` after it checks that the start matches.
+It passes the added messages as is and waits for the answer.
+It calls it only once.
+Until the answer comes, it does not append, even if the run has ended.
 
-「親が選ぶ」を書くと、入力のスキーマに `workspace` の引数が加わります。
-値は、出どころの名前の列挙です。
-自分のものはワークスペースの名前、親のものは親のワークスペースの名前です。
+An accepted answer is a list equal to one of the following.
 
-必須にするかどうかは、設定の `required` で決めます。
-省略できる設定で引数を省くと、子はワークスペースなしで走ります。
+- All of the added messages.
+- The added messages cut at some position.
 
-自分のワークスペースを開くのに失敗すると、その失敗をそのまま投げます。
-子のプロバイダーは呼ばれません。
+A result cut at a position holds the following.
 
-設定のツールとワークスペースのツールで、名前が重なることがあります。
-そのときは、開いたものを閉じてから例外になります。
+- The text up to that position.
+- Every tool call and result.
+- All of the reasoning.
 
-子が失敗したときも、開いたものを閉じてから、子の失敗を投げます。
-閉じるのにも失敗したら、投げるのは子の失敗です。
+A position is expressed as "which turn, and up to which character of its text".
+Turns are counted over the assistant messages in the added messages, in order.
 
-子が成功して、閉じるのにだけ失敗することもあります。
-そのときは、専用の例外を投げます。
-名前は `SubagentCloseError` です。
-文には、子の答えと、閉じる失敗の理由が入ります。
-
-組み立てと走行の例外を、まとめます。
-
-| 例外                     | 起きるとき                                           |
-| ------------------------ | ---------------------------------------------------- |
-| `InvalidRunConfigError`  | 出どころか名前の重なりに、誤りがあったとき。         |
-| `ConnectorOpenError`     | 自分のワークスペースを開けなかったとき。             |
-| `DuplicateToolNameError` | ツールの名前が、設定とワークスペースで重なったとき。 |
-| `SubagentCloseError`     | 子は終わったが、閉じるのに失敗したとき。             |
-
-自分のワークスペースのスパンは、`start` に渡した文脈のスパンの下に付きます。
-子のハーネスのスパンの兄弟です。
-
-#### 並行と順番待ち
-
-自分のワークスペースには、排他的に持つものの名前があることがあります。
-名前は `@mg/workspace` の `exclusiveNamesOf` で調べます。
-
-名前が 1 つもなければ、いくつでも同時に開きます。
-
-名前が 1 つでもあれば、開く前にその名前を全部確保します。
-確保できるまで、来た順に待ちます。
-別々に書いた 2 つのワークスペースでも、名前が重なれば同じ順番待ちに入ります。
-
-確保した名前は、閉じ終えたら手放します。
-閉じるのに失敗しても、名前は手放します。
-
-順番待ちの状態は、1 回の走行につき 1 つ作ります。
-`run` が、全部のサブエージェントに同じ状態を渡します。
-1 回の走行の全部のサブエージェントは、同じ順番待ちを共有します。
-共有しているため、別々のサブエージェントでも名前の重なりを待ち合います。
-
-待っている間に中断のシグナルが来ると、開かずに中断の例外で終わります。
-待ちに時間の上限はありません。
-
-自分のワークスペースの名前が、走行のワークスペースの名前と重なることもあります。
-走行はその名前を、走行の間ずっと確保しています。
-そのままでは、待ちが終わらないからです。
-そのため、走行を始める時点で設定の誤りになります。
-
-### 走行を 1 つずつ進める列
-
-`createRunQueue` は、積んだ入力を 1 件ずつ走らせる列を作ります。
-
-呼び出し側と走らせる関数の間に、この列を置きます。
+The diagram shows accepted and rejected answers.
 
 ```
-呼び出し側 ──積む──▶ 列 ──1 つずつ──▶ 走らせる関数
-     ▲                 │
-     └── 始まり / 出来事 / 終わり ──┘
+Added messages:        A1[text "Hello there.", call c1]  T1  A2[text "It is queued. ..."]
+Turn 0, character 5:   A1[text "Hello", call c1]  T1
+Turn 1, character 5:   A1  T1  A2[text "It is"]
+Rejected answer:       A1[call c1]  T1  A2[text "It is"]    drops earlier text
+Rejected answer:       A1[text "Hello there."]  T1  A2      drops a call
 ```
 
-`createRunQueue` は、走らせる関数を 1 つ受け取って列を作ります。
-走らせる関数は、既存の入口をラップして呼び出し側が用意します。
-列は、入口の中身を知りません。
+An answer may match neither a cut at a position nor the whole.
+In that case it does not append, and returns the reason.
+The return value is `{ saved: false, reason: { kind: "not-in-result" } }`.
+
+When `keep` throws or rejects, it does not append either.
+The return value is `{ saved: false, reason: { kind: "keep-failed", error } }`.
+`error` holds the thrown value as is.
+
+When `keep` is not passed, all of the added messages are appended.
+
+The helper `addedMessages`, which cuts out the continuation of a conversation, is also exported.
+It compares the list you passed with the resulting conversation, and returns the added messages or a start mismatch.
+It can be checked on its own, without a run.
+
+The helper `keepDelivered`, which cuts the added messages at the position reached, is also exported.
+It takes the added messages and a position, and returns what to keep. It is a pure function with no input or output.
+An answer `keep` returns must equal one of this helper's return values.
+If the position is outside the list, it throws `RangeError`.
+
+The function that creates the entry point, `createContinueConversation`, is also exported.
+It takes the function that runs from outside and builds the entry point.
+The exported `continueConversation` is made by passing the existing `run`.
+
+### `continueAsPersona(config, conversation, persona, options)`
+
+`continueAsPersona` is an entry point that chains recall, the run of the conversation's continuation, and reflection, in this order.
+A persona is a single agent that has a personality and keeps living. It is represented by @mg/persona's `Persona`.
+runner only looks at the `Persona` interface and does not know what is inside.
+
+The table lists what the entry point receives.
+
+| Argument       | Contents                                                         |
+| -------------- | ---------------------------------------------------------------- |
+| `config`       | The run's config. The same `RunConfig` as for `run`.             |
+| `conversation` | Which conversation. The same type as for `continueConversation`. |
+| `persona`      | Which persona. Has the type `PersonaTarget`.                     |
+| `options`      | The same options as `run`. Can be left out.                      |
+
+The fields `PersonaTarget` holds.
+
+| Field          | Contents                                                             |
+| -------------- | -------------------------------------------------------------------- |
+| `persona`      | The persona itself, which holds recall and reflection.               |
+| `counterparts` | The list of counterparts. Each has an id and a display name.         |
+| `input`        | The current input for recall.                                        |
+| `trace`        | Trace settings for this entry point. Needs at least one destination. |
+
+For each call, the entry point works in this order.
+
+1. If the abort signal is already aborted, it rejects with that reason. It starts neither recall nor recording.
+2. Opens the persona session and starts the `mg.persona` span as the root.
+3. Decides the id of the run's session. Uses the one in the options if present, otherwise creates a new one.
+4. Calls recall. If it throws, closes the root with that error. Exports the record, then throws the same error.
+5. Turns recall's instructions into a system message, puts it at the start of the new messages, and calls the conversation entry point.
+6. If the conversation entry point throws, it is handled the same as in step 4. No reflection is done.
+7. If the conversation could not be saved, no reflection is done. Closes the root, exports the record and returns.
+8. If it was saved, calls reflection with the saved entry and what recall read.
+9. Closes the root and exports the record. It does not throw even if exporting fails.
+
+When recall or the conversation entry point fails, the record is closed with that error. If exporting also fails, it throws the earlier error.
+Once the conversation is saved, this entry point does not throw. This is so the saved result is not lost.
+Even if reflection throws, this entry point does not throw. The result carries it as a reason the update failed: "rejected".
+
+The `wrapUp` and `tools` options are passed as is to the conversation continuation entry point.
+`keep` is passed the same way.
+Reflection receives the entry saved with the answer from `keep`.
+
+The attributes of the `mg.persona` span.
+
+| Attribute                 | Contents                                       |
+| ------------------------- | ---------------------------------------------- |
+| `mg.persona.id`           | The persona's id.                              |
+| `mg.persona.conversation` | The conversation's id.                         |
+| `mg.persona.counterparts` | JSON of the counterparts' ids.                 |
+| `mg.run.session`          | The id of the run's session.                   |
+| `mg.persona.referenced`   | Whether the reference was kept.                |
+| `mg.persona.saved`        | Whether the conversation was saved.            |
+| `mg.persona.updated`      | When saved, whether reflection made an update. |
+
+The return value is the conversation entry point's return value plus the following.
+
+| Field              | Contents                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `personaSessionId` | The id of the persona session.                                                            |
+| `referenced`       | Whether the reference was kept. When it was broken, it also holds `expectedRunSessionId`. |
+| `recorded`         | Whether the record could be exported.                                                     |
+| `memory`           | Reflection's return value. Present only when the conversation was saved.                  |
+
+To read `memory`, first check `saved` to narrow the type. The types express this.
+
+The function that creates the entry point, `createContinueAsPersona`, is also exported.
+It takes the conversation entry point from outside and builds the entry point.
+The exported `continueAsPersona` is made by passing the existing `continueConversation`.
+
+### `defineSubagent(config)`
+
+Subagents are written in the run's config.
+`run` is what builds them.
+The config type is `SubagentConfig`.
+There is also `defineSubagent`, which returns the config as is.
+
+The config has the following fields.
+
+| Field         | Required    | Contents                                                           |
+| ------------- | ----------- | ------------------------------------------------------------------ |
+| `name`        | Yes         | The name shown to the LLM.                                         |
+| `description` | Yes         | The description shown to the LLM.                                  |
+| `system`      | No          | The system prompt placed at the start of the child conversation.   |
+| `provider`    | Yes         | The provider the child uses.                                       |
+| `harness`     | Yes         | The child's harness config. Same type as `harness` in `RunConfig`. |
+| `tools`       | No          | The tools the child uses.                                          |
+| `gate`        | Conditional | Checks calls inside the child.                                     |
+| `workspace`   | No          | How a workspace is passed to the child. See the table below.       |
+
+`gate` is required when `tools` or `workspace` is written.
+A config with neither passes the type check without `gate`.
+
+Anything not written in the config does not reach the child.
+The provider, gate and tools are not filled in from the parent's config.
+
+#### How the child receives a workspace
+
+The config's `workspace` decides how a workspace is passed to the child.
+There are three ways.
+
+| Way            | How to write          | Contents                                          |
+| -------------- | --------------------- | ------------------------------------------------- |
+| None           | Leave out `workspace` | Uses no workspace.                                |
+| Fixed          | `{ pick: "fixed" }`   | Uses the source written in the config every time. |
+| Parent chooses | `{ pick: "caller" }`  | The parent LLM chooses the source on each call.   |
+
+There are two kinds of source.
+
+| Source   | How to write                 | Contents                                                          |
+| -------- | ---------------------------- | ----------------------------------------------------------------- |
+| Parent's | `{ kind: "parent" }`         | Borrows the parent's open workspace. The child does not close it. |
+| Own      | `{ kind: "own", workspace }` | Opens and closes the config's workspace on every start.           |
+
+The source may say the parent's, while the run has no `workspace`.
+In that case, it throws when the run starts.
+With "parent chooses", if source names overlap, it also throws when the run starts.
+
+With "parent chooses", a `workspace` argument is added to the input schema.
+Its value is an enum of source names.
+An own source is named by its workspace's name; the parent's source is named by the parent's workspace's name.
+
+Whether it is required is set by the config's `required`.
+With an optional setting, if the argument is left out, the child runs without a workspace.
+
+If opening its own workspace fails, that failure is thrown as is.
+The child's provider is not called.
+
+A tool name in the config may overlap with a tool name from the workspace.
+In that case, it closes what it opened and then throws.
+
+When the child fails, it also closes what it opened, then throws the child's failure.
+If closing fails too, it throws the child's failure.
+
+The child may succeed while only closing fails.
+In that case, it throws a dedicated exception.
+Its name is `SubagentCloseError`.
+Its message includes the child's answer and the reason closing failed.
+
+The table sums up the exceptions from building and running.
+
+| Exception                | When                                                         |
+| ------------------------ | ------------------------------------------------------------ |
+| `InvalidRunConfigError`  | A source or a name overlap was wrong.                        |
+| `ConnectorOpenError`     | Its own workspace could not be opened.                       |
+| `DuplicateToolNameError` | A tool name overlapped between the config and the workspace. |
+| `SubagentCloseError`     | The child finished, but closing failed.                      |
+
+The span of its own workspace sits under the span in the context passed to `start`.
+It is a sibling of the child harness's span.
+
+### `createRunQueue(run, options)`
+
+`createRunQueue` creates a queue that runs queued inputs one at a time.
+
+This queue sits between the caller and the function that runs.
+
+```
+caller ──enqueue──▶ queue ──one at a time──▶ run function
+   ▲                  │
+   └── start / event / end ──┘
+```
+
+`createRunQueue` takes one run function and creates a queue.
+The caller prepares the run function by wrapping an existing entry point.
+The queue does not know what is inside the entry point.
 
 ```ts
 import { continueConversation, createRunQueue } from "@mg/runner";
@@ -537,73 +408,212 @@ const { id, ending } = queue.enqueue("hello");
 console.log(id, await ending);
 ```
 
-列を 1 つ作ると、その中で走行は 1 つずつになります。
-積んだ順に始め、前の走らせる関数が返り終えてから次を始めます。
+Within one queue, runs happen one at a time.
+They start in the order queued, and the next starts only after the previous run function has returned.
 
-`enqueue` は、その場で id を返します。
-id は 21 文字の文字列で、走らせる関数に `sessionId` として渡ります。
-走る前から、走行のセッションの id が分かります。
+`enqueue` returns an id right away.
+The id is a 21-character string and is passed to the run function as `sessionId`.
+You know the id of the run's session before it runs.
 
-先頭に積むには、次のように渡します。
+To queue at the front, pass the following.
 
 ```ts
 queue.enqueue(input, { first: true });
 ```
 
-待っている項目より前、走っている項目の後に入ります。
+It goes before the waiting items and after the running item.
 
-積んだ項目ごとに、終わりを表す値が `ending` に届きます。
-例外にはなりません。
+For each queued item, a value that describes how it ended arrives in `ending`.
+It does not throw.
 
-| 終わり方 | 値                                      | 内容                                     |
-| -------- | --------------------------------------- | ---------------------------------------- |
-| 成功     | `{ kind: "finished", outcome }`         | 走らせる関数が返した値です。             |
-| 失敗     | `{ kind: "failed", error }`             | 走らせる関数が投げたか拒否した値です。   |
-| 取りやめ | `{ kind: "dropped", reason: "closed" }` | 列を閉じたために走らせなかった項目です。 |
+| Ending  | Value                                   | Contents                                               |
+| ------- | --------------------------------------- | ------------------------------------------------------ |
+| Success | `{ kind: "finished", outcome }`         | The value the run function returned.                   |
+| Failure | `{ kind: "failed", error }`             | The value the run function threw or rejected with.     |
+| Dropped | `{ kind: "dropped", reason: "closed" }` | An item that did not run because the queue was closed. |
 
-失敗した項目があっても列は止まらず、次の項目を始めます。
+If an item fails, the queue does not stop; it starts the next item.
 
-第 2 引数に `onStart` と `onEvent` を渡せます。
-走行の始まりと出来事が、項目の id 付きで届きます。
+You can pass `onStart` and `onEvent` as the second argument.
+They receive the start and events of each run, with the item's id.
 
-`queue.wrapUp()` は、いま走っている項目にだけ切り上げの合図を出します。
-出せたら `true` を、走っている項目がなければ何もせず `false` を返します。
-待っている項目の合図は出しません。
+`queue.wrapUp()` sends the wrap-up signal only to the item running now.
+It returns `true` if it sent one, and does nothing and returns `false` if nothing is running.
+It does not send the signal to waiting items.
 
-`queue.close()` は、待っている項目を走らせずに取りやめて終えます。
-走っている項目はそのまま最後まで走り、`close()` はそれを待って解決します。
-閉じたあとに積んだ項目も、走らせずに取りやめて終わります。
+`queue.close()` drops the waiting items without running them and finishes.
+The running item runs to the end, and `close()` resolves after waiting for it.
+Items queued after closing are also dropped without running.
 
-## やらないこと
+## How it works
 
-次のことは runner の外に任せます。
+### Run flow
 
-- ハーネスの実装は持ちません。`harness.kind` に応じて @mg/loop などから組み立てます。
-- プロバイダーやツールの実装は持ちません。@mg/core や @mg/tools から渡します。
-- 実行してよいかの判定は持ちません。@mg/gate から作ったゲートを渡します。
-- 走行を始めるべきかの判定は持ちません。@mg/trigger から作ったトリガーを渡します。
-- トレースの実装は持ちません。@mg/trace の SDK を使います。
-- 作業場の実装は持ちません。@mg/workspace から渡された作業場を、開いて閉じるだけです。
-- コマンドラインからの実行は持ちません。
+The steps `run` goes through before it returns a result.
 
-## 使い方
+- Creates the trace SDK from the config's `trace`.
+- If the config has a `workspace`, opens it before the run and passes its tools to the harness.
+- If the config has `subagents`, passes the workspace and builds the subagents.
+- Builds the harness to match the config's `harness.kind`. Also passes it the built subagents.
+- Passes the config's `gate` to the harness as is.
+- If `tools` are passed on the call, adds them after the list of tools.
+- If `wrapUp` is passed on the call, passes it to the harness as is.
+- Passes the conversation to the harness, collects the events and makes the result.
+- Closes the opened workspace. It closes it even if the run fails.
+- Closes the root span, waits for the trace export, then returns.
 
-設定ファイルの書き方と、選べる項目の一覧は `agent-guide.md` にまとめています。
-ここでは、実行の方法だけを示します。
+### Gate
 
-```ts
-import { run } from "@mg/runner";
-import config from "./loop-bash-gate.config.ts";
+A config can include a gate, `gate`, that decides whether a call may run.
+When included, the harness is built to run that check before running a tool.
+runner does not know the gate's implementation.
+You pass a gate made with @mg/gate straight into the config.
 
-const { sessionId } = await run(config, [
-  { role: "user", content: "..." },
-]);
-```
+A config that includes `tools` or `workspace` requires `gate`.
+Without it, the type check fails. It is required even for an empty list of tools.
 
-複数件をまとめて実行するときは `runMany` を使います。
-設定ファイルをパスから読み込みたいときは `loadRun` を使います。
-トリガーの判定から走行を始めたいときは `runOnTrigger` を使います。
-保存した会話の続きから走らせたいときは `continueConversation` を使います。
-個体として会話の続きから走らせたいときは `continueAsPersona` を使います。
+Values that do not pass the type check are also rejected at run time under the same condition.
+`loadRun` rejects a config that has `tools` or `workspace` but no `gate`,
+with `InvalidRunConfigError`.
+The message is `<path>: gate is required when tools or workspace is set`.
 
-項目の詳しい意味や見本は `agent-guide.md` を見てください。
+`run`, `continueConversation` and `continueAsPersona` also check the same
+condition before starting anything.
+If the config has `tools` or `workspace` but no `gate`,
+they throw `GateRequiredError`.
+The message is `gate is required when tools or workspace is set`.
+
+Tools may also be added to the call.
+If the config has no `gate`, that also throws `GateRequiredError`.
+The message is `gate is required when tools are added to the call`.
+When both apply, the first message is used.
+
+How to write it is in `agent-guide.md`.
+
+### Workspace
+
+When a config includes a workspace, `workspace`, it is opened before the run.
+Its tools are placed after the config's tools and passed to the harness.
+
+After the run, the workspace is closed. It is closed even if the run fails.
+If a config tool and a workspace tool share a name, the workspace is closed and then it throws.
+If closing the workspace fails, it throws even if the run succeeded.
+
+`runMany` calls `run` for each case. So the workspace is also opened and closed for each case.
+Sharing one workspace across several cases is not possible yet.
+
+Even with a workspace in the config, `concurrency` can sometimes be 2 or more.
+What decides it is the workspace connectors' declaration of what they hold exclusively.
+A workspace that a subagent holds as its own is looked at the same way.
+
+If the declaration has no names, any number run in parallel.
+If it has even one name, set `concurrency` to 1.
+If you pass 2 or more, it throws without running any case.
+The exception message includes the workspace's name and the names it holds exclusively.
+
+How to write it is in `agent-guide.md`.
+
+### Extra tools
+
+Each call to `run` can pass tools used only for that call. This is `options.tools`.
+
+The passed tools are placed after the config's tools and the workspace's tools, and passed to the harness.
+Unlike the config's tools, a different set can be passed on each call.
+
+If a name overlaps with a config tool or a workspace tool, the workspace is closed and then it throws.
+The exception is `DuplicateToolNameError`. It holds the name of the overlapping side and `"options"`.
+
+The gate written in the config also checks calls to the added tools.
+
+There is no way to pass extra tools to `runMany` or `runOnTrigger`.
+
+### Tracing
+
+`run` records one run as an `mg.run` span.
+Its `mg.run.name` holds the config's `name`.
+
+When run from `runMany`, `mg.run.case` also holds the case's ID.
+If exporting the trace fails, it throws.
+Even if the run succeeded, it throws `TraceShutdownError`.
+
+The period of opening and closing the workspace is recorded as an `mg.workspace` span.
+`mg.workspace` sits directly under `mg.run`.
+`mg.workspace` is also a sibling of `mg.harness`.
+
+The `mg.run` span ends after the workspace has finished closing.
+If closing the workspace fails, the failure stays on `mg.workspace`.
+The same failure also stays on the `mg.run` span as an error.
+
+### Building subagents
+
+A subagent is a run of another harness.
+A harness starts it in response to an LLM call.
+The interface is in @mg/harness.
+
+A built subagent's input schema is only the string `prompt`.
+The child conversation starts with `system` as a system message, if present.
+Then `prompt` is passed as a user message.
+
+The string it returns depends on how the child ended.
+
+- If the child ran to the end and has final text, it returns that text as is.
+- If there is no text, it returns a fixed message saying the result was empty.
+- If the child hit the turn limit, it returns a fixed message with the last text before the limit attached.
+- If the child's output was cut at the length limit, it returns a fixed message with the cut text attached.
+- If the caller wrapped the child up, it returns a fixed message with the
+  text so far attached.
+- In each case, if the attached text is empty, the message says it was empty.
+
+Tool calls inside the child are checked by the config's `gate`.
+If the context passed to `start` has a span, the child harness's span sits under it.
+The context's abort signal is passed straight to the child harness.
+The context's wrap-up signal is also passed straight to the child harness.
+
+If the `harness` config is wrong, it throws when the run starts.
+This is so it is checked before the run starts, not partway through.
+
+The run config `RunConfig` can include `subagents`.
+It lists subagent configs.
+A config that leaves it out behaves as before.
+
+`run` builds the subagents from this list after opening the workspace.
+It passes the built subagents to the harness.
+
+#### Concurrency and queueing
+
+An own workspace may have names that it holds exclusively.
+The names are found with `exclusiveNamesOf` from `@mg/workspace`.
+
+If there are no names, any number open at the same time.
+
+If there is even one name, all of the names are acquired before opening.
+Until they can be acquired, it waits in arrival order.
+Even two workspaces written separately enter the same queue if their names overlap.
+
+Acquired names are released after closing finishes.
+They are released even if closing fails.
+
+One queueing state is created per run.
+`run` passes the same state to every subagent.
+All subagents in one run share the same queue.
+Because it is shared, even separate subagents wait on each other when names overlap.
+
+If an abort signal comes while waiting, it ends with an abort exception without opening.
+There is no time limit on waiting.
+
+An own workspace's name may overlap with the run's workspace's name.
+The run holds that name for the whole run.
+Left as is, the wait would never end.
+So it is a config error when the run starts.
+
+## Non-goals
+
+These things are left outside runner.
+
+- It does not hold harness implementations. It builds them from @mg/loop and others according to `harness.kind`.
+- It does not hold provider or tool implementations. They are passed from @mg/core or @mg/tools.
+- It does not hold the decision of whether a call may run. You pass a gate made from @mg/gate.
+- It does not hold the decision of whether a run should start. You pass a trigger made from @mg/trigger.
+- It does not hold the trace implementation. It uses the @mg/trace SDK.
+- It does not hold workspace implementations. It only opens and closes the workspace passed from @mg/workspace.
+- It does not hold running from the command line.

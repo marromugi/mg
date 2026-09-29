@@ -1,128 +1,21 @@
 # @mg/harness
 
-ハーネスが何であっても従う、共通の入力と出力の型を決めるパッケージです。
+A package that sets the shared input and output types every harness follows, whatever it is.
 
-ハーネスとは、LLM とツールをつないで仕事を進める仕組みです。
-このパッケージは、形だけを決めます。
-進め方までは決めません。
+A harness is something that connects an LLM and tools to get work done.
+This package only sets the shape.
+It does not decide how the work proceeds.
 
-## 役割
+## Features
 
-harness の役割は 4 つです。
+- Sets the type of the input passed to a harness.
+- Sets the type of the events a harness returns in order.
+- Has a function that takes a stream of events and pulls out only the final result.
+- Has the subagent interface and a function that runs a subagent call.
 
-- ハーネスに渡す入力の型を決めます。
-- ハーネスが順に返すイベントの型を決めます。
-- イベントの列から、最後の結果だけを取り出す関数を持ちます。
-- サブエージェントのインターフェースと、その呼び出しを実行する関数を持ちます。
+## Usage
 
-### 入力
-
-ハーネスには、会話の履歴を渡します。
-途中で止めるためのシグナル（AbortSignal）も渡せます。
-切り上げのシグナル（AbortSignal）も渡せます。
-親スパンも渡せますが、省略もできます。
-
-切り上げは、中断とは別の合図です。
-そこまでの会話を結果として返しながら止めたいときに使います。
-どちらも省略できます。
-切り上げを受けてハーネスがどう止まるかは、ハーネスの実装が決めます。
-
-スパンは、子のスパンを作れます。
-同じセッションの中に、新しい根のスパンも作れます。
-新しい根のスパンは、親を持ちません。
-トレースの ID が、元のスパンと別になります。
-セッションの ID は、元のスパンと同じです。
-
-### イベント
-
-ハーネスは、入力を受け取ってイベントを返す関数です。
-イベントの名前をまとめます。
-
-```
-text-delta   文章の断片が届いた
-tool-call    ツールの呼び出しが届いた
-tool-result  ツールの結果が届いた
-turn         1 回分のやり取りが終わった
-done         ハーネス全体が終わった
-```
-
-全体の終わりのイベントには、3 つの中身があります。
-
-- 終わった理由です。
-- そこまでの会話です。
-- 使った量です。
-
-終わった理由は、次の 4 つのどれかです。
-
-| 理由         | 意味                                             |
-| ------------ | ------------------------------------------------ |
-| `stop`       | LLM が、ツールを呼ばずに答えを返しました。       |
-| `max-turns`  | 往復の上限に達しました。                         |
-| `length`     | LLM の出力が、長さの上限で切れました。           |
-| `wrapped-up` | 切り上げのシグナルを受けて、途中で止まりました。 |
-
-### 結果をまとめる関数
-
-`collect` は、イベントの列を順に見ます。
-全体の終わりのイベントが来たら、中の結果を返します。
-来ないまま列が終わったときは、例外を投げます。
-
-### サブエージェント
-
-サブエージェントは、別のハーネスの走行です。
-ハーネスが、LLM の呼び出しに応じて始めます。
-親の LLM からは、ツールと同じに見えます。
-
-サブエージェントの型は、次の項目を持ちます。
-
-- LLM に見せる名前です。
-- LLM に見せる説明です。
-- 入力のスキーマです。
-- 始める関数です。
-
-始める関数は、検証済みの入力を受け取ります。
-文脈（`SubagentContext`）も、一緒に受け取ります。
-返り値は、文字列です。
-
-文脈は、次の 3 つを持ちます。
-
-- 中断のシグナル（`AbortSignal`）です。
-- 切り上げのシグナル（`AbortSignal`）です。
-- スパンです。
-
-切り上げのシグナルは、中断のシグナルとは別の合図です。
-親のハーネスから渡され、省略もできます。
-子がどう止まるかは、サブエージェントの実装が決めます。
-
-`runSubagentCall` は、呼び出し 1 件を実行する関数です。
-次の順で動きます。
-
-1. 名前の合うサブエージェントを探します。
-2. 入力を検証します。
-3. 始める関数を呼びます。
-4. 返った文字列を、ツールのメッセージにして返します。
-
-文脈を渡さずに呼ぶと、始める関数は空の文脈を受け取ります。
-
-名前の合うサブエージェントがないときは、例外を投げます。
-入力の検証に落ちたときも、例外を投げます。
-core のツールの例外は継承しません。
-
-- `SubagentNotFoundError` は、名前が合わないときに投げます。
-- `SubagentInputError` は、検証に落ちたときに投げます。指摘も持ちます。
-
-## やらないこと
-
-次のことは harness の外に任せます。
-
-- ツールの呼び出しを繰り返す進め方は持ちません。loop などの仕事です。
-- プロバイダーとのやり取りはしません。LLM との通信は core の仕事です。
-- ツールの実装は持ちません。
-- サブエージェントの中身は持ちません。runner などの外側が用意します。
-
-## 使い方
-
-ハーネスを作る側は、次の形の関数を用意します。
+A harness author writes a function of this shape.
 
 ```ts
 import type { Harness } from "@mg/harness";
@@ -142,3 +35,112 @@ const harness: Harness = async function* (input) {
 
 const result = await collect(harness({ messages: [] }));
 ```
+
+## API
+
+### Input
+
+You pass the conversation history to a harness.
+You can also pass a signal (AbortSignal) to stop it midway.
+You can also pass a wrap-up signal (AbortSignal).
+You can pass a parent span too, or leave it out.
+
+Wrapping up is a different signal from aborting.
+Use it when you want the harness to stop while still returning the conversation so far as the result.
+Both can be left out.
+How a harness stops on wrap-up is up to the harness implementation.
+
+A span can create child spans.
+It can also create a new root span in the same session.
+A new root span has no parent.
+Its trace ID differs from the original span's.
+Its session ID is the same as the original span's.
+
+### Events
+
+A harness is a function that takes the input and returns events.
+The event names are listed below.
+
+```
+text-delta   a piece of text arrived
+tool-call    a tool call arrived
+tool-result  a tool result arrived
+turn         one exchange finished
+done         the whole harness finished
+```
+
+The event for the end of the whole run carries three things.
+
+- The reason it ended.
+- The conversation so far.
+- The usage.
+
+The reason it ended is one of these four.
+
+| Reason       | Meaning                                               |
+| ------------ | ----------------------------------------------------- |
+| `stop`       | The LLM returned an answer without calling tools.     |
+| `max-turns`  | The limit on exchanges was reached.                   |
+| `length`     | The LLM's output was cut off by the length limit.     |
+| `wrapped-up` | It stopped midway after receiving the wrap-up signal. |
+
+### `collect(events)`
+
+`collect` reads the stream of events in order.
+When the event for the end of the whole run arrives, it returns the result inside.
+If the stream ends without that event, it throws.
+
+### `Subagent`
+
+A subagent is a run of another harness.
+A harness starts it in response to an LLM call.
+To the parent LLM, it looks the same as a tool.
+
+The subagent type has these fields.
+
+- The name shown to the LLM.
+- The description shown to the LLM.
+- The input schema.
+- The start function.
+
+The start function receives the validated input.
+It also receives a context (`SubagentContext`).
+It returns a string.
+
+The context has these three things.
+
+- The abort signal (`AbortSignal`).
+- The wrap-up signal (`AbortSignal`).
+- The span.
+
+The wrap-up signal is a different signal from the abort signal.
+It is passed from the parent harness and can be left out.
+How the child stops is up to the subagent implementation.
+
+### `runSubagentCall(subagents, call, context)`
+
+`runSubagentCall` is a function that runs one call.
+It works in this order.
+
+1. Finds the subagent whose name matches.
+2. Validates the input.
+3. Calls the start function.
+4. Turns the returned string into a tool message and returns it.
+
+If you call it without a context, the start function receives an empty context.
+
+When no subagent has a matching name, it throws.
+When input validation fails, it throws too.
+These do not extend the core tool errors.
+
+- `SubagentNotFoundError` is thrown when no name matches.
+- `SubagentInputError` is thrown when validation fails. It also carries the issues found.
+
+## Non-goals
+
+The following are left to code outside harness.
+
+- It has no way of proceeding that repeats tool calls. That is the job of loop and similar packages.
+- It does not talk to providers. Talking to the LLM is core's job.
+- It has no tool implementations.
+- It has no subagent contents. Outside code such as runner provides them.

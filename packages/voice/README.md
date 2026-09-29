@@ -1,178 +1,200 @@
 # @mg/voice
 
-音声の入出力のための、インターフェースと型のパッケージです。
+A package of interfaces and types for audio input and output.
 
-音声の断片と音声合成と書き起こし、聞き手と再生と文の切り分けを持ちます。
+It holds audio chunks, speech synthesis, transcription, listeners, players, and sentence splitting.
 
-## 役割
+## Features
 
-- 音声の断片の型 `AudioChunk` を決めます。
-- 形式の型 `AudioFormat` を決めます。
-- 音声合成のインターフェース `SpeechSynthesizer` を決めます。
-- 書き起こしのインターフェース `Transcriber` を決めます。
-- 聞き手のインターフェース `Listener` を決めます。
-- 再生のインターフェース `Player` を決めます。
-- 文章を読み上げる文に切る関数 `splitSentences` を持ちます。
+- Defines the audio chunk type `AudioChunk`.
+- Defines the format type `AudioFormat`.
+- Defines the speech synthesis interface `SpeechSynthesizer`.
+- Defines the transcription interface `Transcriber`.
+- Defines the listener interface `Listener`.
+- Defines the player interface `Player`.
+- Holds `splitSentences`, a function that cuts text into sentences to read aloud.
 
-## 音声の断片
+## Usage
 
-`AudioFormat` は、エンコード `encoding` を持ちます。
-サンプルレート `sampleRate` も持ちます。
-チャンネル数 `channels` も持ちます。
-形式は、実装が宣言します。
+Split text into sentences, then turn each sentence into audio.
 
-`AudioChunk` は、形式 `format` を持ちます。
-サンプルのデータ `data` も持ちます。
+```ts
+import { createGeminiSynthesizer, splitSentences } from "@mg/voice";
 
-| 型           | 受け取るもの | 返すもの       |
-| ------------ | ------------ | -------------- |
-| `AudioChunk` | なし         | サンプルと形式 |
+const synthesizer = createGeminiSynthesizer({
+  apiKey: "your-api-key",
+  voice: "Kore",
+});
 
-## `SpeechSynthesizer`
+const { sentences } = splitSentences(text, 0, true);
 
-文章を、音声の断片の流れにするインターフェースです。
+for (const sentence of sentences) {
+  for await (const chunk of synthesizer.synthesize(sentence.text)) {
+    // chunk.format and chunk.data hold one piece of audio
+  }
+}
+```
 
-| 型                  | 受け取るもの | 返すもの   |
-| ------------------- | ------------ | ---------- |
-| `SpeechSynthesizer` | 文章         | 断片の流れ |
+## API
 
-`synthesize(text, options)` は、文章につき 1 回呼びます。
-返す断片は、それぞれ自分の形式を持ちます。
+### Audio chunks
 
-## `Transcriber`
+`AudioFormat` has an encoding, `encoding`.
+It also has a sample rate, `sampleRate`.
+It also has a channel count, `channels`.
+The format is declared by the implementation.
 
-発話の音声から、文章を作るインターフェースです。
+`AudioChunk` has a format, `format`.
+It also has the sample data, `data`.
 
-| 型            | 受け取るもの     | 返すもの               |
-| ------------- | ---------------- | ---------------------- |
-| `Transcriber` | 発話の断片の流れ | 途中と確定の文章の流れ |
+| Type         | Takes   | Returns            |
+| ------------ | ------- | ------------------ |
+| `AudioChunk` | Nothing | Samples and format |
 
-`transcribe(audio, options)` は、発話につき 1 回呼びます。
-音声の流れは、話し手が話し終わると終わります。
-途中の文章をいくつか流したあと、確定した文章を 1 つ流します。
+### `SpeechSynthesizer`
 
-## `Listener`
+An interface that turns text into a stream of audio chunks.
 
-相手の発話を届けるインターフェースです。
+| Type                | Takes | Returns          |
+| ------------------- | ----- | ---------------- |
+| `SpeechSynthesizer` | Text  | Stream of chunks |
 
-| 型         | 受け取るもの | 返すもの   |
-| ---------- | ------------ | ---------- |
-| `Listener` | 中断の合図   | 発話の流れ |
+`synthesize(text, options)` is called once per text.
+Each returned chunk carries its own format.
 
-`listen(signal)` は、相手が話し始めるたびに `HeardUtterance`
-を 1 つ流します。
-声で話し始めたときも、押して話す操作でも同じです。
-`HeardUtterance` の音声は、相手が話し終わると終わります。
+### `Transcriber`
 
-流れが終わると、聞き手は終わりです。
-投げると、聞き手は失敗です。
+An interface that makes text from spoken audio.
 
-## `Player`
+| Type          | Takes                   | Returns                          |
+| ------------- | ----------------------- | -------------------------------- |
+| `Transcriber` | Stream of speech chunks | Stream of partial and final text |
 
-文ごとに音声を鳴らすインターフェースです。
+`transcribe(audio, options)` is called once per utterance.
+The audio stream ends when the speaker finishes talking.
+It streams some partial text, then one piece of final text.
 
-| 型       | 受け取るもの         | 返すもの       |
-| -------- | -------------------- | -------------- |
-| `Player` | 文の番号と断片の流れ | 鳴らし終えたか |
+### `Listener`
 
-`play(index, audio)` は、文の番号の順に 1 文ずつ鳴らします。
-最後まで鳴らすと `{ played: true }` で解決します。
-途中で止めると `{ played: false }` で解決します。
-デバイスが失敗すると、投げた値で拒否します。
+An interface that delivers what the other person says.
 
-`stop()` は、鳴らしている文をその場で止めます。
-待っているすべての `play` を、鳴らせなかった形で解決します。
+| Type       | Takes        | Returns              |
+| ---------- | ------------ | -------------------- |
+| `Listener` | Abort signal | Stream of utterances |
 
-## `splitSentences`
+`listen(signal)` streams one `HeardUtterance` each time the other person starts talking.
+It is the same whether they start by voice or by push-to-talk.
+The audio of a `HeardUtterance` ends when the other person finishes talking.
 
-流れてくる文章を、読み上げる文の単位に切る純粋な関数です。
-入出力もタイマーも使いません。
+When the stream ends, the listener is finished.
+When it throws, the listener has failed.
 
-| 型               | 受け取るもの                   | 返すもの               |
-| ---------------- | ------------------------------ | ---------------------- |
-| `splitSentences` | 文章と開始位置と往復の終わりか | 文の並びと次の開始位置 |
+### `Player`
 
-`splitSentences(text, from, final)` は、次を受け取ります。
+An interface that plays audio one sentence at a time.
 
-- `text` は、その往復でこれまでに届いた文章全体です。
-- `from` は、前回の呼び出しが返した `next` です。
-- 新しい往復では、`from` は 0 です。
-- `final` は、その往復が終わったかどうかです。
+| Type     | Takes                                | Returns             |
+| -------- | ------------------------------------ | ------------------- |
+| `Player` | Sentence number and stream of chunks | Whether it finished |
 
-返り値の `sentences` は、`{ text, end }` の並びです。
-`text` は、前後の空白を除いた 1 文です。
-`end` は、その文が `text` の中で終わる位置です。
+`play(index, audio)` plays one sentence at a time, in order of sentence number.
+When it plays to the end, it resolves with `{ played: true }`.
+When stopped partway, it resolves with `{ played: false }`.
+When the device fails, it rejects with the thrown value.
 
-返り値の `next` は、次に切り始める位置です。
+`stop()` stops the sentence being played right away.
+It resolves every waiting `play` as not played.
 
-文の終わりは、「。」「！」「？」「!」「?」と改行です。
-「.」は、後ろに空白が続くときだけ終わりとして扱います。
-終わりの記号が連続するときは、まとめて 1 つの終わりにします。
-終わりのすぐあとに続く閉じかっこも、同じ文に含めます。
-かっこや引用符で開いた内側にある終わりの記号では、文を切りません。
+### `splitSentences`
 
-空白だけの区切りは、文にしません。
-ただし、その分だけ `next` は先に進みます。
+A pure function that cuts streaming text into sentences to read aloud.
+It uses no I/O and no timers.
 
-往復の途中で終わりの記号が文章の末尾にあるときは、その文をまだ返しません。
-続きが届いてから決めます。
-`final` が `true` のときは、残った文章を最後の 1 文として返します。
-このとき `next` は `text.length` になります。
+| Type             | Takes                                            | Returns                               |
+| ---------------- | ------------------------------------------------ | ------------------------------------- |
+| `splitSentences` | Text, start position, and whether the turn ended | Sentences and the next start position |
 
-`from` が整数でないときは、`RangeError` を投げます。
-`from` が負の数のときも、同じく投げます。
-`text.length` より大きいときも、投げます。
-理由には、`from` と `text.length` の両方を書きます。
+`splitSentences(text, from, final)` takes the following.
 
-位置は、`text.length` と同じ数え方で数えます。
+- `text` is all the text that has arrived so far in the turn.
+- `from` is the `next` returned by the previous call.
+- In a new turn, `from` is 0.
+- `final` is whether the turn has ended.
 
-## Gemini の音声合成
+The returned `sentences` is a list of `{ text, end }`.
+`text` is one sentence with leading and trailing whitespace removed.
+`end` is where that sentence ends in `text`.
 
-`SpeechSynthesizer` の実装の 1 つです。
-Gemini の音声合成に、文章を渡して音声にします。
+The returned `next` is where to start cutting next.
 
-次のものを渡して作ります。
+A sentence ends at "。", "！", "？", "!", "?", or a line break.
+"." counts as an end only when whitespace follows it.
+A run of end marks counts as one end.
+A closing bracket right after the end is included in the same sentence.
+End marks inside an open bracket or quotation do not cut a sentence.
 
-- 鍵です。
-- 声の名前です。省略できません。
-- 言語です。省略できます。
-- 話す速さです。省略できます。
-- モデル名です。省略できます。
-- 接続先の URL です。省略できます。
-- 追加のヘッダーです。
-- 差し替え用の通信の関数です。
+A break of only whitespace does not become a sentence.
+Even so, `next` moves forward past it.
 
-モデル名と接続先と音声の形式の既定は、この実装の中にだけ持ちます。
+If an end mark is at the end of the text in the middle of a turn, that sentence is not returned yet.
+It is decided after more text arrives.
+When `final` is `true`, the remaining text is returned as the last sentence.
+In that case `next` becomes `text.length`.
 
-`synthesize(text, options)` は、1 回の要求で文章を渡します。
-返ってきた音声は、届いた順に断片として流れます。
-どの断片も、符号付き 16 bit のリトルエンディアンです。
-レートとチャンネル数は、応答が宣言した値です。
-チャンネル数の宣言がなければ 1 です。
+When `from` is not an integer, it throws `RangeError`.
+It throws the same when `from` is negative.
+It also throws when it is larger than `text.length`.
+The message includes both `from` and `text.length`.
 
-言語は、確かめた API にある欄にそのまま載せます。
-省略すると、欄を送らず、判定を Gemini に任せます。
-空の文字列を渡すと、作る時点で `RangeError` になります。
+Positions are counted the same way as `text.length`.
 
-話す速さは、確かめた Gemini の音声合成の API に欄がありません。
-渡すと、通信をせず、作る時点でエラーになります。
+### Gemini speech synthesis
 
-応答の終わりの理由が `STOP` のときは、そのイベントの音声を断片にします。
-そこで読むのをやめて、合成を終えます。
-そのイベントに文章などの音声以外の部分があっても、流しません。
-`STOP` より前に音声が 1 つも来ていなければ、失敗になります。
+One implementation of `SpeechSynthesizer`.
+It passes text to Gemini speech synthesis and turns it into audio.
 
-終わりの理由が `STOP` 以外のときは、そのイベントの音声を断片にします。
-そのあと、その理由を持つ失敗になります。
-音声の有無にかかわらず失敗です。
+It is created from the following.
 
-合成の途中で受け取った中断の合図は、そのまま投げます。
-それ以外の失敗は、専用の 3 種類のエラーで返ります。
+- A key.
+- A voice name. It cannot be omitted.
+- A language. It can be omitted.
+- A speaking rate. It can be omitted.
+- A model name. It can be omitted.
+- A server URL. It can be omitted.
+- Extra headers.
+- A replacement request function.
 
-## やらないこと
+The defaults for the model name, server, and audio format live only inside this implementation.
 
-- 端末のマイクとスピーカーは、持ちません。
-- 音声での会話の組み立ては、持ちません。
-- 実行してよいかの判断は、持ちません。
-- いつ話すかの判断は、持ちません。
-- このリポジトリのほかのパッケージには、依存しません。
+`synthesize(text, options)` passes the text in one request.
+The audio that comes back streams as chunks in the order it arrives.
+Every chunk is signed 16-bit little-endian.
+The rate and channel count are the values the response declares.
+If no channel count is declared, it is 1.
+
+The language is put as is into the field that the checked API has.
+When omitted, the field is not sent and Gemini decides.
+Passing an empty string gives `RangeError` at creation time.
+
+The checked Gemini speech synthesis API has no field for speaking rate.
+Passing one gives an error at creation time, without any request.
+
+When the response's finish reason is `STOP`, the audio in that event becomes a chunk.
+Reading stops there and synthesis ends.
+Even if that event has parts other than audio, such as text, they are not streamed.
+If no audio arrived before `STOP`, it fails.
+
+When the finish reason is anything other than `STOP`, the audio in that event becomes a chunk.
+After that, it fails with that reason.
+It fails whether or not there was audio.
+
+An abort signal received during synthesis is thrown as is.
+Other failures come back as 3 dedicated error types.
+
+## Non-goals
+
+- It does not hold the device's microphone or speakers.
+- It does not put together voice conversations.
+- It does not decide whether something may run.
+- It does not decide when to speak.
+- It does not depend on any other package in this repository.

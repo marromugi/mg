@@ -1,65 +1,73 @@
 # @mg/tools
 
-ハーネスが共通で使う、組み込みのツールを集めたパッケージです。
+A package of the built-in tools that harnesses share.
 
-## 役割
+## Features
 
-- 組み込みのツールの実装を持ちます。
-- どのツールも、core のツールの型で作ります。core の実行関数にそのまま渡せます。
-- 引数のスキーマは zod で書きます。スキーマの実装を持つのはここだけです。
-- 子プロセスなど、環境に依存するコードはここに閉じます。
-- 作業ディレクトリや時間制限は、ツールを作るときに受け取ります。
+- Holds the implementations of the built-in tools.
+- Every tool is built with the core tool type. You can pass it straight to the core run function.
+- Argument schemas are written with zod. This is the only place that holds schema implementations.
+- Code that depends on the environment, such as child processes, stays inside this package.
+- The working directory and time limits are taken when a tool is created.
 
-## やらないこと
+## Usage
 
-- プロバイダーとはやり取りしません。LLM との通信は core の仕事です。
-- ツールの呼び出しの繰り返しはしません。ハーネスの仕事です。
+Create the tools you need, then pass them to a harness.
 
-## ツールの一覧
+```ts
+import { createBashTool, createReadFileTool } from "@mg/tools";
 
-いま入っているツールを表にまとめます。
+const tools = [
+  createBashTool({ cwd: "/path/to/work" }),
+  createReadFileTool({ root: "/path/to/work" }),
+];
+```
 
-| ツール       | すること                                  | オプション                |
-| ------------ | ----------------------------------------- | ------------------------- |
-| `bash`       | シェルでコマンドを 1 つ実行する           | 作業ディレクトリなど 4 つ |
-| `web_search` | 検索のバックエンドを使って Web を検索する | バックエンドなど 3 つ     |
-| `read_file`  | ルートの下のテキストファイルを読む        | ルートなど 2 つ           |
-| `write_file` | ルートの下にファイルを丸ごと書く          | ルートの 1 つ             |
-| `edit_file`  | 元の文字列の一致でファイルの一部を直す    | ルートの 1 つ             |
-| `grep`       | ripgrep でファイルの中身を探す            | ルートなど 6 つ           |
+## API
+
+This table lists the tools included today.
+
+| Tool         | What it does                                    | Options                        |
+| ------------ | ----------------------------------------------- | ------------------------------ |
+| `bash`       | Runs one command in a shell                     | 4, including working directory |
+| `web_search` | Searches the web through a search backend       | 3, including backend           |
+| `read_file`  | Reads a text file under the root                | 2, including root              |
+| `write_file` | Writes a whole file under the root              | 1: root                        |
+| `edit_file`  | Fixes part of a file by matching the old string | 1: root                        |
+| `grep`       | Searches file contents with ripgrep             | 6, including root              |
 
 ### bash
 
-LLM から受け取る引数は、コマンドの文字列 1 つです。
+The only argument taken from the LLM is one command string.
 
-作るときのオプションは 4 つです。
-作業ディレクトリだけは必須です。
-ほかは省くと、例に書いた値になります。
+There are 4 options when creating it.
+Only the working directory is required.
+The others default to the values in the example when omitted.
 
 ```ts
 createBashTool({
-  cwd: "/path/to/work", // 作業ディレクトリ
-  timeoutMs: 30000, // 時間制限（ミリ秒）
-  shell: "/bin/sh", // 使うシェル
-  maxOutputBytes: 1048576, // 出力の上限（バイト）
+  cwd: "/path/to/work", // working directory
+  timeoutMs: 30000, // time limit (milliseconds)
+  shell: "/bin/sh", // shell to use
+  maxOutputBytes: 1048576, // output limit (bytes)
 });
 ```
 
-結果は 1 つの文字列にまとめて返します。
+The result is returned as one string.
 
-- 標準出力と標準エラーと終了コードを含めます。
-- 終了コードが 0 以外でも、例外は投げません。
-- 時間切れでも投げません。その旨を結果に書きます。
-- 出力が上限を超えたら、切り詰めてその旨を付けます。
-- 中断のシグナル（AbortSignal）で止めたときは、例外をそのまま通します。
+- It includes standard output, standard error, and the exit code.
+- A non-zero exit code does not throw.
+- A timeout does not throw either. The result says so.
+- If the output goes over the limit, it is truncated and marked as such.
+- When stopped by an abort signal (AbortSignal), the exception passes through as is.
 
 ### web_search
 
-Web を検索するツールです。実際に検索する処理は持ちません。
+A tool that searches the web. It holds no code that actually searches.
 
-検索する処理はバックエンドに任せます。
-バックエンドは、語句と件数の上限を受け取ります。
-返すのは、タイトルと URL とスニペットの一覧です。
+The search itself is left to a backend.
+The backend takes a query and a result limit.
+It returns a list of titles, URLs, and snippets.
 
 ```ts
 type WebSearchBackend = {
@@ -71,62 +79,64 @@ type WebSearchBackend = {
 };
 ```
 
-LLM から受け取る引数は、検索したい語句の文字列 1 つです。
+The only argument taken from the LLM is the query string.
 
-作るときのオプションは 3 つです。
-バックエンドだけは必須です。
-ほかは省くと、例に書いた値になります。
+There are 3 options when creating it.
+Only the backend is required.
+The others default to the values in the example when omitted.
 
 ```ts
 createWebSearchTool({
-  backend: myBackend, // 検索のバックエンド
-  maxResults: 5, // 返す件数の上限
-  maxSnippetChars: 500, // スニペットの文字数の上限
+  backend: myBackend, // search backend
+  maxResults: 5, // maximum number of results returned
+  maxSnippetChars: 500, // maximum snippet length in characters
 });
 ```
 
-結果は 1 つの文章にまとめて返します。
+The result is returned as one piece of text.
 
-- タイトルと URL とスニペットを、番号付きで結果ごとに並べます。
-- スニペットは改行や連続する空白を 1 つにまとめてから、上限の文字数で切ります。
-- 切ったところには「…」を付けます。
-- バックエンドが返した件数が上限より多くても、ツールの側で上限まで切ります。
-- 結果が 0 件なら、その旨を文章で返します。
+- Each result lists its title, URL, and snippet, numbered.
+- Line breaks and runs of whitespace in a snippet are collapsed to one, then the snippet is cut at the character limit.
+- A cut snippet ends with "…".
+- Even if the backend returns more results than the limit, the tool cuts them down to the limit.
+- If there are no results, the text says so.
 
-バックエンドが失敗したときは、その例外をそのまま通します。
-ツールはバックエンドの例外をラップしません。
+When the backend fails, its exception passes through as is.
+The tool does not wrap backend exceptions.
 
-バックエンドの実装は、検索の失敗を表す専用の例外を投げられます。
+A backend implementation can throw a dedicated exception for search failures.
 
 ```ts
-new WebSearchError("失敗の説明", { cause: 元の例外 });
+new WebSearchError("description of the failure", {
+  cause: originalError,
+});
 ```
 
-#### Ollama のバックエンド
+#### Ollama backend
 
-Ollama の検索 API を使うバックエンドです。手元の Ollama ではなく、ollama.com のサーバーと通信します。
+A backend that uses the Ollama search API. It talks to the ollama.com server, not a local Ollama.
 
-API キーは ollama.com の無料のアカウントで作れます。
+You can create an API key with a free ollama.com account.
 
 ```ts
 createOllamaWebSearchBackend({
-  apiKey: "your-api-key", // ollama.com の API キー
-  baseUrl: "https://ollama.com", // 接続先。省くとこの値になります
-  headers: {}, // 追加で送るヘッダー
-  fetch: globalThis.fetch, // 通信に使う関数
+  apiKey: "your-api-key", // ollama.com API key
+  baseUrl: "https://ollama.com", // server to connect to; this value when omitted
+  headers: {}, // extra headers to send
+  fetch: globalThis.fetch, // function used for requests
 });
 ```
 
-API キーだけが必須です。ほかは省くと、例に書いた値になります。
+Only the API key is required. The others default to the values in the example when omitted.
 
-| オプション | 必須   | すること                         |
-| ---------- | ------ | -------------------------------- |
-| `apiKey`   | 必須   | ollama.com の API キーを渡します |
-| `baseUrl`  | 省略可 | 接続先の URL を差し替えます      |
-| `headers`  | 省略可 | 送るヘッダーを追加します         |
-| `fetch`    | 省略可 | 通信する関数を差し替えます       |
+| Option    | Required | What it does                  |
+| --------- | -------- | ----------------------------- |
+| `apiKey`  | Required | Passes the ollama.com API key |
+| `baseUrl` | Optional | Replaces the server URL       |
+| `headers` | Optional | Adds headers to send          |
+| `fetch`   | Optional | Replaces the request function |
 
-このバックエンドを `web_search` のツールと組み合わせて使います。
+Use this backend together with the `web_search` tool.
 
 ```ts
 createWebSearchTool({
@@ -134,34 +144,34 @@ createWebSearchTool({
 });
 ```
 
-Ollama の検索 API は、1 回の検索で返す件数が 10 件までに決まっています。
-`maxResults` にそれより大きい値を渡しても、10 件までしか返りません。
+The Ollama search API returns at most 10 results per search.
+Passing a larger `maxResults` still returns at most 10.
 
-## ファイルのツールの共通の決まり
+### Shared rules for file tools
 
-`read_file` をはじめ、ファイルを扱うツールに共通する決まりです。
-後で足すツールも、この決まりに従います。
+Rules shared by `read_file` and the other tools that handle files.
+Tools added later follow these rules too.
 
-- 作るときに、ルートとなるディレクトリを受け取ります。
-- ルートは省略できません。
-- LLM から渡す path は、ルートからの相対で解釈します。
-- 絶対 path も受け取りますが、ルートの外なら断ります。
-- 記号リンクを解いた後の場所で、ルートの中かどうかを確かめます。
-- ルートの外や、読み込みの失敗は `FileToolError` で表します。
-- 行番号は 1 から数えます。
-- 文字の位置も 1 から数えます。
-- 文字の位置は、行の中の Unicode の符号点で数えます。
-- 区間の始まりは含み、終わりの文字の位置は含みません。
-- 行だけを指定したときは、その行を丸ごと含みます。
+- A root directory is taken when the tool is created.
+- The root cannot be omitted.
+- A path passed from the LLM is read as relative to the root.
+- Absolute paths are accepted too, but refused if outside the root.
+- Whether a path is inside the root is checked after resolving symbolic links.
+- Being outside the root and read failures are reported as `FileToolError`.
+- Line numbers count from 1.
+- Character positions also count from 1.
+- Character positions are counted in Unicode code points within the line.
+- A range includes its start and excludes its end character position.
+- When only a line is given, the whole line is included.
 
 ### read_file
 
-ルートの下にあるテキストファイルを読むツールです。
-文字コードは UTF-8 だけに対応します。
+A tool that reads a text file under the root.
+Only UTF-8 is supported.
 
-LLM から受け取る引数は、ファイルの path と、省略できる区間です。
-区間は `start` と、省略できる `end` からなります。
-それぞれに行番号と、省略できる文字の位置を指定します。
+The arguments taken from the LLM are the file path and an optional range.
+A range has a `start` and an optional `end`.
+Each takes a line number and an optional character position.
 
 ```ts
 type ReadFileInput = {
@@ -173,42 +183,42 @@ type ReadFileInput = {
 };
 ```
 
-作るときのオプションは 2 つです。
-ルートだけは必須です。
-もう一方は省くと、例に書いた値になります。
+There are 2 options when creating it.
+Only the root is required.
+The other defaults to the value in the example when omitted.
 
 ```ts
 createReadFileTool({
-  root: "/path/to/root", // ルートのディレクトリ
-  maxOutputChars: 100000, // 出力の上限（文字数）
+  root: "/path/to/root", // root directory
+  maxOutputChars: 100000, // output limit (characters)
 });
 ```
 
-結果は 1 つの文字列にまとめて返します。
+The result is returned as one string.
 
-- 各行の頭に、行番号とタブを付けます。
-- 区間を省くと、ファイル全体を返します。
-- `start` だけを指定すると、その行から最後まで返します。
-- 文字の位置の区間を指定すると、最初と最後の行をその位置で切ります。
-- 出力が上限を超えたら、切り詰めてその旨を付けます。
-- 空のファイルは `(empty file)` という文字列を返します。
+- Each line starts with its line number and a tab.
+- Without a range, the whole file is returned.
+- With only `start`, the file is returned from that line to the end.
+- With character positions in the range, the first and last lines are cut at those positions.
+- If the output goes over the limit, it is truncated and marked as such.
+- An empty file returns the string `(empty file)`.
 
-次のときは `FileToolError` を投げます。
+It throws `FileToolError` in these cases.
 
-- 存在しないファイルを指定したときです。
-- ディレクトリを指定したときです。
-- バイナリのファイルを指定したときです。
-- ファイルにない行を指定したときです。
+- The file does not exist.
+- The path is a directory.
+- The file is binary.
+- The line does not exist in the file.
 
 ### write_file
 
-ファイルを丸ごと書くツールです。
-新しいファイルを作るときと、全部を置き換えるときに使います。
+A tool that writes a whole file.
+Use it to create a new file or to replace all of one.
 
-上書きです。存在するファイルも黙って置き換えます。
-親ディレクトリが無ければ、先に作ってから書きます。
+It overwrites. An existing file is replaced without warning.
+If the parent directory does not exist, it is created first.
 
-LLM から受け取る引数は、ファイルの path と content です。
+The arguments taken from the LLM are the file path and content.
 
 ```ts
 type WriteFileInput = {
@@ -217,36 +227,36 @@ type WriteFileInput = {
 };
 ```
 
-作るときのオプションは、ルートの 1 つだけです。省略できません。
+The only option when creating it is the root. It cannot be omitted.
 
 ```ts
 createWriteFileTool({
-  root: "/path/to/root", // ルートのディレクトリ
+  root: "/path/to/root", // root directory
 });
 ```
 
-結果は 1 つの文字列で返します。書いた行数を含みます。
+The result is returned as one string. It includes the number of lines written.
 
-- 空のファイルを書いたときは、行数を 0 として返します。
+- Writing an empty file returns 0 lines.
 
-次のときは `FileToolError` を投げます。
+It throws `FileToolError` in this case.
 
-- ディレクトリを指定したときです。
+- The path is a directory.
 
 ### edit_file
 
-ファイルの一部を直すツールです。
-行番号ではなく、元の文字列の一致で場所を決めます。
+A tool that fixes part of a file.
+The place is found by matching the old string, not by line number.
 
-置き換えるかどうかは、一致した件数で決まります。
+Whether it replaces depends on the number of matches.
 
-- 1 件だけ一致したら、新しい文字列に置き換えます。
-- 0 件なら、見つからなかった旨で失敗にします。
-- 2 件以上で、全部を置き換える印が無ければ失敗にします。
-- 2 件以上でも、印があれば全部を置き換えます。
+- With exactly 1 match, it replaces it with the new string.
+- With 0 matches, it fails, saying the string was not found.
+- With 2 or more matches and no replace-all flag, it fails.
+- With 2 or more matches and the flag set, it replaces them all.
 
-LLM から受け取る引数は、path と oldString と newString です。
-全部を置き換える印の replaceAll も受け取ります。
+The arguments taken from the LLM are path, oldString, and newString.
+It also takes replaceAll, the flag to replace every match.
 
 ```ts
 type EditFileInput = {
@@ -257,25 +267,25 @@ type EditFileInput = {
 };
 ```
 
-作るときのオプションは、ルートの 1 つだけです。省略できません。
+The only option when creating it is the root. It cannot be omitted.
 
 ```ts
 createEditFileTool({
-  root: "/path/to/root", // ルートのディレクトリ
+  root: "/path/to/root", // root directory
 });
 ```
 
-結果は 1 つの文字列で返します。置き換えた件数と行番号を含みます。
+The result is returned as one string. It includes the number of replacements and their line numbers.
 
-次のときは `FileToolError` を投げます。
+It throws `FileToolError` in these cases.
 
-- ディレクトリを指定したときです。
-- 元の文字列が見つからなかったときです。
-- 元の文字列と新しい文字列が同じときです。
-- 元の文字列が 2 か所以上に一致し、印も無いときです。
+- The path is a directory.
+- The old string is not found.
+- The old string and the new string are the same.
+- The old string matches in 2 or more places and the flag is not set.
 
-一致が 2 件以上のときの失敗は、件数と行番号を添えて返します。
-前後の文字列を足して、一致を 1 つに絞るよう促す文言も含みます。
+The failure for 2 or more matches includes the count and the line numbers.
+It also includes wording that asks for more surrounding text to narrow it to one match.
 
 ```
 oldString matches 2 times in foo.txt (lines 3, 10). Include more surrounding text to make it unique, or set replaceAll.
@@ -283,16 +293,16 @@ oldString matches 2 times in foo.txt (lines 3, 10). Include more surrounding tex
 
 ### grep
 
-ripgrep でファイルの中身を探すツールです。
-見つけた場所を、`read_file` がそのまま受け取れる形で返します。
+A tool that searches file contents with ripgrep.
+It returns the places it finds in a form `read_file` can take as is.
 
-前提として、動かす機械に ripgrep が入っている必要があります。
-`rg` という名前で PATH に通っている必要があります。
-入っていない機械では、その旨を `FileToolError` で返します。
+The machine it runs on must have ripgrep installed.
+It must be on the PATH under the name `rg`.
+On a machine without it, this is reported as `FileToolError`.
 
-LLM から受け取る引数は、正規表現の pattern です。
-探す場所の path と、ファイル名を絞る glob を受け取ります。
-大文字小文字を無視する印の ignoreCase も受け取ります。
+The argument taken from the LLM is a regular expression, pattern.
+It also takes path, where to search, and glob, to narrow file names.
+It also takes ignoreCase, the flag to ignore case.
 
 ```ts
 type GrepInput = {
@@ -303,58 +313,63 @@ type GrepInput = {
 };
 ```
 
-path を省くと、ルートの全体を探します。
+Without path, it searches the whole root.
 
-作るときのオプションは 6 つです。
-ルートだけは必須です。
-ほかは省くと、例に書いた値になります。
+There are 6 options when creating it.
+Only the root is required.
+The others default to the values in the example when omitted.
 
 ```ts
 createGrepTool({
-  root: "/path/to/root", // ルートのディレクトリ
-  rgPath: "rg", // ripgrep の実行ファイル
-  timeoutMs: 30000, // 時間制限（ミリ秒）
-  maxResults: 200, // 返す件数の上限
-  maxLineChars: 300, // 行の文字数の上限
-  maxOutputBytes: 8388608, // 出力の上限（バイト）
+  root: "/path/to/root", // root directory
+  rgPath: "rg", // ripgrep executable
+  timeoutMs: 30000, // time limit (milliseconds)
+  maxResults: 200, // maximum number of results returned
+  maxLineChars: 300, // maximum line length in characters
+  maxOutputBytes: 8388608, // output limit (bytes)
 });
 ```
 
-結果は 1 つの文字列にまとめて返します。
+The result is returned as one string.
 
-- 一致ごとに `path:line:col: text` という形で 1 行にまとめます。
-- path はルートからの相対です。
-- 行番号と文字の位置は `read_file` と同じ数え方です。
-- 1 行に複数の一致があれば、その分だけ行を分けて返します。
-- 行の末尾の改行が CRLF でも、`\r` と `\n` の両方を落とします。
-- 隠しファイルと、隠しディレクトリの中のファイルも探します。`.git` の中も探します。
-- `.gitignore` に書かれたファイルは探しません。
-- 一致が無いときは、その旨を文章で返します。失敗にはしません。
-- path を省いたときは、その場所を `the root` と書きます。
-- 件数が上限を超えたら切り詰めます。印として `[results truncated]` を付けます。
-- 一致が 1 件も残らずに切り詰めたときも、印だけを返します。
-- UTF-8 でない一致は返しません。件数を `[skipped N matches: not valid UTF-8]` の注記で言います。
-- ディレクトリの探索でバイナリと判定されたファイルの一致も返しません。件数を `[skipped N matches: binary file]` の注記で言います。
-- この 2 つの注記は、結果の件数の上限を消費しません。
-- 一致の行が無くても、それだけを返す場合があります。打ち切りの印か、UTF-8 とバイナリの注記のどちらかがあるときです。一致なしの文章は付けません。
-- 長い行も、文字数の上限で切り詰めて `…` を付けます。
+- Each match becomes one line in the form `path:line:col: text`.
+- The path is relative to the root.
+- Line numbers and character positions are counted the same way as in `read_file`.
+- If one line has several matches, each is returned on its own line.
+- If a line ends with CRLF, both `\r` and `\n` are dropped.
+- Hidden files and files inside hidden directories are searched. The inside of `.git` is searched too.
+- Files listed in `.gitignore` are not searched.
+- When nothing matches, the text says so. This is not a failure.
+- When path is omitted, the place is written as `the root`.
+- When the count goes over the limit, the results are truncated. `[results truncated]` is added as the marker.
+- When truncation leaves no match at all, only the marker is returned.
+- Matches that are not UTF-8 are not returned. The count is given in the note `[skipped N matches: not valid UTF-8]`.
+- Matches in files judged binary during the directory search are not returned either. The count is given in the note `[skipped N matches: binary file]`.
+- These 2 notes do not count toward the result limit.
+- Even with no match lines, those alone may be returned. This happens when there is a truncation marker or a UTF-8 or binary note. The no-match text is not added.
+- Long lines are also truncated at the character limit and end with `…`.
 
-探す範囲に読めないファイルが混じっても、失敗にはしません。
-見つけられた一致は返し、読めなかった理由を末尾の注記で言います。
+If the search area contains unreadable files, it does not fail.
+It returns the matches it found and gives the reasons for the unreadable files in a note at the end.
 
-- 注記は `[search incomplete: ripgrep reported errors]` という行から始まります。
-- 続けて、ripgrep のエラー出力のうち空でない行を、先頭から 5 行まで載せます。
-- 6 行目からは `... and M more lines` という 1 行にまとめます。M は残りの行数です。
-- 行が「rg: 絶対 path: 理由」の形なら「相対 path: 理由」に直します。相対 path はルートからのものです。
-- この形で読み取れない行は、先頭の `rg: ` だけを取って、そのまま載せます。
-- この注記は、ほかの注記より後ろに付けます。
-- 一致が無いときも、一致なしの文章の後ろに同じ注記を付けます。
-- 出力のバイト数の上限で切れたときも、エラー出力があれば同じ注記を付けます。
+- The note starts with the line `[search incomplete: ripgrep reported errors]`.
+- Next come the non-empty lines of ripgrep's error output, up to the first 5.
+- From the 6th line on, they are collapsed into one line, `... and M more lines`. M is the number of remaining lines.
+- A line in the form "rg: absolute path: reason" is rewritten as "relative path: reason". The relative path is from the root.
+- A line that cannot be read in this form is included as is, with only the leading `rg: ` removed.
+- This note comes after the other notes.
+- When nothing matches, the same note is added after the no-match text.
+- When output is cut at the byte limit, the same note is added if there is error output.
 
-次のときは `FileToolError` を投げます。
+It throws `FileToolError` in these cases.
 
-- ripgrep が機械に入っていないときです。
-- 正規表現が誤っているときです。
-- 時間切れのときです。
-- path がルートの外を指しているときです。
-- バイナリのファイルを path で直接指したときです。
+- ripgrep is not installed on the machine.
+- The regular expression is invalid.
+- It times out.
+- The path points outside the root.
+- The path points directly at a binary file.
+
+## Non-goals
+
+- It does not talk to providers. Talking to the LLM is core's job.
+- It does not repeat tool calls. That is the harness's job.

@@ -1,61 +1,27 @@
 # @mg/workspace
 
-手元とは別のマシンで作業するための、土台のパッケージです。
+A base package for working on a machine other than your own.
 
-ワークスペースが束ねるのは、別のマシンにつなぐ方法です。
-コードでは、これをコネクター（connector）と呼びます。
-コネクターをまとめたものを、ワークスペース（workspace）と呼びます。
+What a workspace bundles is ways to connect to another machine.
+In code, one of these is called a connector.
+A set of connectors is called a workspace.
 
-## 役割
+## Features
 
-- ワークスペースの型を決めます。
-  ワークスペースは、名前とコネクターの並びです。
-- コネクターの型を決めます。
-  コネクターが持つのは、開く操作だけです。
-- ワークスペースを開く関数 `openWorkspace` を持ちます。
-  全部の接続を開き、ツールを 1 つの一覧にまとめます。
-- 開く失敗と閉じる失敗のための、専用の例外を持ちます。
-- 排他的に持つものの名前を出す関数を持ちます。
-  関数の名前は `exclusiveNamesOf` です。
+- Defines the workspace type.
+  A workspace is a name and a list of connectors.
+- Defines the connector type.
+  A connector holds only an open operation.
+- Holds `openWorkspace`, a function that opens a workspace.
+  It opens every connection and gathers the tools into one list.
+- Holds dedicated exceptions for open failures and close failures.
+- Holds a function that returns the names of what is held exclusively.
+  The function is named `exclusiveNamesOf`.
 
-### 型の分け方
+## Usage
 
-コネクターは、開く操作だけを持ちます。
-
-開いた接続が持つのは、ツールの一覧と閉じる操作だけです。
-できる操作の一覧は、別の型では持ちません。
-返すツールの集合が、できる操作の一覧そのものだからです。
-
-SSH や CDP のような具体的な方法は、この型の実装です。
-型の側には、方法ごとの分岐を入れません。
-
-### コネクターが排他的に持つもの
-
-コネクターは、自分が排他的に持つものの名前を宣言します。
-
-同じ接続先を同時に開くと壊れるコネクターが、この宣言を使います。
-たとえば CDP は、同じブラウザの最初のタブを掴みます。
-そのため、同じ接続先を指すコネクターと、同時には開けません。
-
-名前の並びが空のときは、何も排他的に持たないという意味です。
-名前の作り方は、コネクターの実装ごとに決めます。
-
-`exclusiveNamesOf` に、ワークスペースを渡します。
-全コネクターの宣言をまとめた名前の一覧が返ります。
-重なりを除き、文字列の昇順に並びます。
-
-## やらないこと
-
-- runner への組み込みは、まだ持ちません。
-- トレースは、持ちません。
-  トレースは、runner の側で付けます。
-- ツールの実装は、持ちません。
-  ツールは、コネクターの実装が返します。
-
-## 使い方
-
-ワークスペースは `defineWorkspace` で作ります。
-渡すのは、名前とコネクターの並びです。
+A workspace is made with `defineWorkspace`.
+You pass it a name and a list of connectors.
 
 ```ts
 import { defineWorkspace, openWorkspace } from "@mg/workspace";
@@ -67,92 +33,96 @@ const workspace = defineWorkspace({
 
 const opened = await openWorkspace(workspace);
 
-// opened.tools をハーネスに渡します
+// Pass opened.tools to the harness
 
 await opened.close();
 ```
 
-`openWorkspace` は、コネクターを並びの順に開きます。
-同時には開きません。
+## API
 
-途中で 1 つでも失敗すると、開いた分を閉じます。
-そのあとで、例外を投げます。
-ツールの名前がコネクターをまたいで重なったときも、同じです。
+The prerequisites for each connector are written in its section below.
+Prerequisites are what the machine side needs.
+The person who owns the machine sets them up.
 
-中断のシグナル（AbortSignal）は、ラップせずにそのまま通します。
-すでに中断済みのシグナルを渡すと、1 つも開かずに投げます。
+### `openWorkspace(workspace)`
 
-投げる例外を表にまとめます。
+`openWorkspace` opens the connectors in list order.
+It does not open them at the same time.
 
-| 例外                     | 投げるとき                                        |
-| ------------------------ | ------------------------------------------------- |
-| `ConnectorOpenError`     | コネクターを開けなかったとき                      |
-| `DuplicateToolNameError` | ツールの名前が重なったとき                        |
-| `WorkspaceCloseError`    | 閉じるときに、接続が失敗したとき                  |
-| `ConnectorCloseError`    | コネクターの 2 つの閉じる処理が、両方失敗したとき |
+If even one fails along the way, it closes the ones already opened.
+After that, it throws.
+The same happens when tool names overlap across connectors.
 
-`ConnectorOpenError` は `kind` と `index` を持ちます。
-元の例外は `cause` に入ります。
+An abort signal (AbortSignal) passes through as is, without wrapping.
+If the signal is already aborted, it throws without opening any.
 
-`DuplicateToolNameError` は `toolName` を持ちます。
-重なったコネクターの `kind` の並びは、`kinds` に入ります。
+The returned `close` closes the opened connections in reverse order.
+If one fails, it keeps closing the rest.
+Calling it a second time or later does nothing.
 
-`WorkspaceCloseError` は、失敗した例外の並び `errors` を持ちます。
-最初の 1 つは、`cause` にも入ります。
+### Errors
 
-`ConnectorCloseError` は `kind` と、失敗した例外の並び `errors` を持ちます。
-最初の 1 つは、`cause` にも入ります。
+This table lists the exceptions it throws.
 
-`isWorkspaceError` で、これらの例外かどうかを判定できます。
+| Exception                | Thrown when                                |
+| ------------------------ | ------------------------------------------ |
+| `ConnectorOpenError`     | A connector could not be opened            |
+| `DuplicateToolNameError` | Tool names overlapped                      |
+| `WorkspaceCloseError`    | A connection failed while closing          |
+| `ConnectorCloseError`    | Both of a connector's 2 close steps failed |
 
-返る `close` は、開いた接続を逆順に閉じます。
-1 つが失敗しても、残りは閉じ続けます。
-2 回目以降に呼んでも、何もしません。
+`ConnectorOpenError` has `kind` and `index`.
+The original exception is in `cause`.
 
-## コネクターごとの前提
+`DuplicateToolNameError` has `toolName`.
+The list of `kind` values of the overlapping connectors is in `kinds`.
 
-各コネクターの前提は、ここに書きます。
-前提とは、マシンの側に必要なものです。
-整えるのは、マシンを持つ人です。
+`WorkspaceCloseError` has `errors`, the list of exceptions that failed.
+The first one is also in `cause`.
+
+`ConnectorCloseError` has `kind` and `errors`, the list of exceptions that failed.
+The first one is also in `cause`.
+
+`isWorkspaceError` tells whether a value is one of these exceptions.
 
 ### SSH
 
-SSH でマシンにつなぐコネクターです。
-世の中で決まっている約束だけを使うので、マシンの側に独自のプログラムを置きません。
+A connector that connects to a machine over SSH.
+It uses only widely agreed standards, so no custom program is placed on the machine side.
 
-排他的に持つものの名前は、空です。
-何本つないでも、互いに干渉しません。
+The list of names it holds exclusively is empty.
+However many you connect, they do not interfere with each other.
 
-開くと、ツールを 1 つ返します。
-ツールの名前は `shell` です。
-渡されたコマンドを、リモートの shell で 1 つ実行します。
+When opened, it returns one tool.
+The tool is named `shell`.
+It runs one given command in the remote shell.
 
-結果の文字列の形は、bash のツールと同じです。
-標準出力のあとに、必要な印だけを続けます。
+The result string has the same form as the bash tool.
+Standard output comes first, followed only by the markers needed.
 
-| 印                       | 付くとき                 |
-| ------------------------ | ------------------------ |
-| `[stderr]`               | 標準エラー出力があるとき |
-| `[exit code: N]`         | 0 以外の終了コードのとき |
-| `[killed by SIGNAL]`     | シグナルで止められたとき |
-| `[timed out after N ms]` | 時間切れのとき           |
-| `[output truncated]`     | 出力が上限を超えたとき   |
+| Marker                   | Added when                     |
+| ------------------------ | ------------------------------ |
+| `[stderr]`               | There is standard error output |
+| `[exit code: N]`         | The exit code is not 0         |
+| `[killed by SIGNAL]`     | It was stopped by a signal     |
+| `[timed out after N ms]` | It timed out                   |
+| `[output truncated]`     | The output went over the limit |
 
-時間切れと出力の上限超えは、例外にしません。
-どちらも、結果の文字列に印として書きます。
+Timeouts and output over the limit are not exceptions.
+Both are written as markers in the result string.
 
-接続が切れているなど、コマンドそのものを実行できないときは、例外を投げます。
-ハーネス側が、その旨を LLM に結果として返します。
+When the command itself cannot run, such as when the connection is lost, it throws.
+The harness side returns that to the LLM as a result.
 
-#### マシンの側に必要な前提
+#### Prerequisites on the machine side
 
-- SSH サーバーが、指定したホスト名とポートで待っている必要があります。
-- 秘密鍵かパスワードで、ログインできる必要があります。
-- マシンまでの経路は、マシンを持つ人が整えます。
-  この土台が持つのは、SSH の接続の中を通す処理だけです。
-  マシンまでの経路を通すコードは、持ちません。
+- An SSH server must be listening on the given host name and port.
+- You must be able to log in with a private key or a password.
+- The route to the machine is set up by the person who owns it.
+  What this base holds is only the code that passes through the SSH connection.
+  It holds no code that opens a route to the machine.
 
-#### 作るときの指定
+#### Options when creating it
 
 ```ts
 import { createSshConnector } from "@mg/workspace";
@@ -164,61 +134,61 @@ const sshConnector = createSshConnector({
 });
 ```
 
-指定できるものを表にまとめます。
+This table lists what you can set.
 
-| 指定             | 内容                                             | 既定値           |
-| ---------------- | ------------------------------------------------ | ---------------- |
-| `host`           | マシンのホスト名                                 | 必須             |
-| `port`           | SSH サーバーのポート                             | `22`             |
-| `username`       | ログインするユーザー名                           | 必須             |
-| `auth`           | 秘密鍵かパスワード                               | 必須             |
-| `cwd`            | コマンドを実行する作業ディレクトリ               | ユーザーのホーム |
-| `timeoutMs`      | 1 回のコマンドの時間の上限（ミリ秒）             | `30000`          |
-| `maxOutputBytes` | 標準出力・標準エラー出力それぞれの上限（バイト） | `1048576`        |
+| Option           | Meaning                                                      | Default     |
+| ---------------- | ------------------------------------------------------------ | ----------- |
+| `host`           | Host name of the machine                                     | Required    |
+| `port`           | Port of the SSH server                                       | `22`        |
+| `username`       | User name to log in as                                       | Required    |
+| `auth`           | Private key or password                                      | Required    |
+| `cwd`            | Working directory to run commands in                         | User's home |
+| `timeoutMs`      | Time limit for one command (milliseconds)                    | `30000`     |
+| `maxOutputBytes` | Limit for each of standard output and standard error (bytes) | `1048576`   |
 
-`auth` は、秘密鍵かパスワードのどちらか一方です。
+`auth` is either a private key or a password, not both.
 
 ```ts
 { privateKey: string, passphrase?: string }
 { password: string }
 ```
 
-#### テストについて
+#### About tests
 
-`client.ts` は、実際の SSH サーバーが要ります。
-そのため、単体テストは持ちません。
+`client.ts` needs a real SSH server.
+So it has no unit tests.
 
-ツールの組み立て（`tool.ts`）は、モックの `SshClient` でテストします。
+Building the tool (`tool.ts`) is tested with a mock `SshClient`.
 
-### SSH の到達先
+### SSH endpoint
 
-SSH の接続の中を通して、マシンの中のポートに手元からつなぐ到達先です。
-到達先の型は `Endpoint` で、CDP のコネクターに渡せます。
+An endpoint that connects from your side to a port inside the machine, through the SSH connection.
+Its type is `Endpoint`, and it can be passed to the CDP connector.
 
-開くと、次のことをします。
+When opened, it does the following.
 
-- 自分の SSH の接続を開きます。
-- マシンから見たホストとポートに、SSH の中を通して一度つないでみます。
-- 断られたら、`NothingListeningError` で失敗します。
-  断られたのは、SSH のエラーの `reason` が 2 で、文が `Connection refused` を含むときです。
-  文は `nothing is listening on <ホスト>:<ポート> on <SSH のホスト>` です。
-  SSH の接続は閉じます。
-- つながれば、手元の 127.0.0.1 の空いたポートで待ち受けます。
-  そのホストとポートを返します。
+- Opens its own SSH connection.
+- Tries once to connect, through SSH, to the host and port as seen from the machine.
+- If refused, it fails with `NothingListeningError`.
+  It counts as refused when the SSH error's `reason` is 2 and its message contains `Connection refused`.
+  The message is `nothing is listening on <host>:<port> on <SSH host>`.
+  The SSH connection is closed.
+- If it connects, it listens on a free local port on 127.0.0.1.
+  It returns that host and port.
 
-待ち受けで受けた接続は、SSH の中を通します。
-そして、マシンのホストとポートにつなぎます。
-つなげなかった接続だけを切ります。
-到達先は開いたままで、次の接続を受けます。
+Connections received on that listener are passed through SSH.
+Then they are connected to the machine's host and port.
+Only connections that could not be connected are dropped.
+The endpoint stays open and accepts the next connection.
 
-断られた以外の理由で届かないときは、SSH のエラーをそのまま投げます。
-たとえば、SSH サーバーが転送を許していないときです。
+When it cannot reach for any reason other than refusal, it throws the SSH error as is.
+For example, when the SSH server does not allow forwarding.
 
-閉じると、待ち受けと受けた接続と SSH の接続を閉じます。
-2 回目以降に閉じても、何もしません。
+When closed, it closes the listener, the received connections, and the SSH connection.
+Closing it a second time or later does nothing.
 
-排他的に持つものの名前は、1 つです。
-形は `ssh-forward:<SSH のホスト>:<SSH のポート>:<マシンのホスト>:<マシンのポート>` です。
+It holds one name exclusively.
+The form is `ssh-forward:<SSH host>:<SSH port>:<machine host>:<machine port>`.
 
 ```ts
 import fs from "node:fs";
@@ -234,84 +204,84 @@ const cdpConnector = createCdpConnector({
 });
 ```
 
-指定できるものを表にまとめます。
+This table lists what you can set.
 
-| 指定         | 内容                             | 既定値      |
-| ------------ | -------------------------------- | ----------- |
-| `host`       | SSH サーバーのホスト名           | 必須        |
-| `port`       | SSH サーバーのポート             | `22`        |
-| `username`   | ログインするユーザー名           | 必須        |
-| `auth`       | 秘密鍵かパスワード               | 必須        |
-| `remoteHost` | マシンから見た、つなぐ先のホスト | `127.0.0.1` |
-| `remotePort` | マシンから見た、つなぐ先のポート | 必須        |
+| Option       | Meaning                                      | Default     |
+| ------------ | -------------------------------------------- | ----------- |
+| `host`       | Host name of the SSH server                  | Required    |
+| `port`       | Port of the SSH server                       | `22`        |
+| `username`   | User name to log in as                       | Required    |
+| `auth`       | Private key or password                      | Required    |
+| `remoteHost` | Host to connect to, as seen from the machine | `127.0.0.1` |
+| `remotePort` | Port to connect to, as seen from the machine | Required    |
 
-ブラウザは、マシンの側の環境が起動しておきます。
-この到達先は、つなぐだけです。
-ブラウザの起動も片付けもしません。
+The browser is started ahead of time by the environment on the machine side.
+This endpoint only connects.
+It neither starts nor cleans up the browser.
 
-#### テストについて
+#### About tests
 
-`client.ts` の `toSshForwarder` は、ssh2 の接続の偽物でテストします。
-到達先の本体（`endpoint.ts`）は、転送を開くインターフェースの偽物でテストします。
+`toSshForwarder` in `client.ts` is tested with a fake ssh2 connection.
+The endpoint itself (`endpoint.ts`) is tested with a fake of the interface that opens forwarding.
 
 ### CDP
 
-CDP で、別のマシンのブラウザにつなぐコネクターです。
-CDP は、Chrome を外部から操作するための、決まった約束です。
+A connector that connects to a browser on another machine over CDP.
+CDP is an agreed protocol for controlling Chrome from outside.
 
-ブラウザは、すでに動いているものにつなぎます。
-新しいコンテキスト（context）は作らず、ブラウザが持つコンテキストをそのまま使います。
-ログインの状態は、そのブラウザに残り続けます。
+It connects to a browser that is already running.
+It creates no new context and uses the context the browser already has.
+The login state stays in that browser.
 
-排他的に持つものの名前は、URL を渡したときは 1 つです。
-`cdp:` に、接続先の URL のホストとポートを続けたものです。
-経路の部分が違っても、同じブラウザを指す URL は同じ名前になります。
-URL として読めない文字列を渡すと、作る時点で `TypeError` になります。
+When a URL is passed, it holds one name exclusively.
+The name is `cdp:` followed by the host and port of the URL.
+URLs that point at the same browser get the same name even if their paths differ.
+Passing a string that cannot be read as a URL gives `TypeError` at creation time.
 
-URL の代わりに、到達先（`Endpoint`）を渡すこともできます。
-到達先は、開くと手元から使えるホストとポートを返し、閉じると後片付けをします。
-排他的に持つものの名前は、到達先が宣言したものになります。
+Instead of a URL, you can pass an endpoint (`Endpoint`).
+When opened, an endpoint returns a host and port usable from your side, and when closed, it cleans up.
+The names it holds exclusively are the ones the endpoint declares.
 
-到達先を渡すと、開くときに到達先を開き、返ったホストとポートから `http://<ホスト>:<ポート>` の URL を作ってつなぎます。
-ブラウザにつなげなければ、到達先を閉じてから、つなぐときの例外で失敗します。
-閉じるときは、ブラウザとの接続を切り、そのあと到達先を閉じます。
-片方が失敗しても、もう片方は閉じます。
-両方が失敗したら、`ConnectorCloseError` で失敗します。
+When an endpoint is passed, opening opens the endpoint, builds the URL `http://<host>:<port>` from the returned host and port, and connects.
+If it cannot connect to the browser, it closes the endpoint, then fails with the connection exception.
+When closing, it disconnects from the browser, then closes the endpoint.
+If one fails, the other is still closed.
+If both fail, it fails with `ConnectorCloseError`.
 
-開くと、ツールを 4 つ返します。
+When opened, it returns 4 tools.
 
-| ツール名           | すること                                           |
-| ------------------ | -------------------------------------------------- |
-| `browser_navigate` | 指定した URL に、ページを移動します。              |
-| `browser_read`     | ページの中身を、役割と名前のツリーとして返します。 |
-| `browser_click`    | 役割と名前で指定した要素を、押します。             |
-| `browser_type`     | 役割と名前で指定した要素に、文字を打ちます。       |
+| Tool name          | What it does                                            |
+| ------------------ | ------------------------------------------------------- |
+| `browser_navigate` | Moves the page to the given URL.                        |
+| `browser_read`     | Returns the page contents as a tree of roles and names. |
+| `browser_click`    | Clicks the element given by role and name.              |
+| `browser_type`     | Types text into the element given by role and name.     |
 
-`browser_read` が返すのは、画面の絵ではありません。
-ページの要素を、役割（role）と名前（name）のツリーにした、文字です。
+What `browser_read` returns is not a picture of the screen.
+It is text: the page's elements as a tree of roles (role) and names (name).
 
-`browser_click` と `browser_type` は、役割と名前で要素を指します。
-要素が見つからない、または複数あるときは、例外を投げます。
-ハーネス側が、その旨を LLM に結果として返します。
+`browser_click` and `browser_type` point at an element by role and name.
+When the element is not found, or there are several, it throws.
+The harness side returns that to the LLM as a result.
 
-`browser_type` に `submit` を渡すと、文字を打ったあとに Enter を押します。
+Passing `submit` to `browser_type` presses Enter after typing the text.
 
-#### マシンの側に必要な前提
+#### Prerequisites on the machine side
 
-- Chrome か Chromium を起動しておく必要があります。
-  起動の指定には `--remote-debugging-port` を付けます。
-- そのポートは、実行する側から見える必要があります。
-- ログインの状態は、そのブラウザのプロファイルに残ります。
-  閉じても、消えません。
-- ブラウザは、マシンの側の環境が起動しておきます。
-  この土台は、ブラウザを起動も片付けもしません。
-- SSH の到達先を通す場合です。
-  ブラウザは、マシンの 127.0.0.1 だけで待ち受けていて構いません。
-- マシンまでの経路は、マシンを持つ人が整えます。
-  この土台が持つのは、SSH の接続の中を通す処理だけです。
-  マシンまでの経路を通すコードは、持ちません。
+- Chrome or Chromium must be running.
+  Start it with `--remote-debugging-port`.
+- That port must be visible from the side that runs.
+- The login state stays in that browser's profile.
+  Closing does not erase it.
+- The browser is started ahead of time by the environment on the machine side.
+  This base neither starts nor cleans up the browser.
+- This applies when going through the SSH endpoint.
+  The browser may listen only on the machine's 127.0.0.1.
+- The route to the machine is set up by the person who owns it.
+  What this base holds is only the code that passes through the SSH connection.
+  It holds no code that opens a route to the machine.
 
-#### 作るときの指定
+#### Options when creating it
 
 ```ts
 import { createCdpConnector } from "@mg/workspace";
@@ -321,18 +291,54 @@ const cdpConnector = createCdpConnector({
 });
 ```
 
-指定できるものを表にまとめます。
+This table lists what you can set.
 
-| 指定             | 内容                                   | 既定値                    |
-| ---------------- | -------------------------------------- | ------------------------- |
-| `url`            | ブラウザの CDP のエンドポイントの URL  | `endpoint` とどちらか一方 |
-| `endpoint`       | 手元から届くホストとポートを返す到達先 | `url` とどちらか一方      |
-| `timeoutMs`      | 1 回の操作の時間の上限（ミリ秒）       | `30000`                   |
-| `maxOutputBytes` | `browser_read` の出力の上限（バイト）  | `1048576`                 |
+| Option           | Meaning                                                        | Default                   |
+| ---------------- | -------------------------------------------------------------- | ------------------------- |
+| `url`            | URL of the browser's CDP endpoint                              | Either this or `endpoint` |
+| `endpoint`       | Endpoint that returns a host and port reachable from your side | Either this or `url`      |
+| `timeoutMs`      | Time limit for one operation (milliseconds)                    | `30000`                   |
+| `maxOutputBytes` | Output limit for `browser_read` (bytes)                        | `1048576`                 |
 
-#### テストについて
+#### About tests
 
-`browser.ts` は、実際のブラウザが要ります。
-そのため、単体テストは持ちません。
+`browser.ts` needs a real browser.
+So it has no unit tests.
 
-ツールの組み立て（`tools.ts`）は、モックの `BrowserPage` でテストします。
+Building the tools (`tools.ts`) is tested with a mock `BrowserPage`.
+
+## How it works
+
+### How the types are split
+
+A connector holds only an open operation.
+
+An open connection holds only a list of tools and a close operation.
+The list of possible operations is not held in a separate type.
+The set of tools it returns is itself the list of possible operations.
+
+Concrete ways such as SSH and CDP are implementations of this type.
+The type side has no branching per way.
+
+### What a connector holds exclusively
+
+A connector declares the names of what it holds exclusively.
+
+Connectors that break when the same target is opened twice at once use this declaration.
+For example, CDP grabs the first tab of the same browser.
+So it cannot be opened at the same time as a connector pointing at the same target.
+
+An empty list of names means it holds nothing exclusively.
+How names are made is decided by each connector implementation.
+
+Pass a workspace to `exclusiveNamesOf`.
+It returns the list of names gathered from every connector's declaration.
+Duplicates are removed, and the names are sorted in ascending string order.
+
+## Non-goals
+
+- It does not yet hold the wiring into runner.
+- It does not hold tracing.
+  Tracing is added on the runner side.
+- It does not hold tool implementations.
+  Tools are returned by the connector implementations.

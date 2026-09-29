@@ -1,249 +1,304 @@
 # @mg/core
 
-LLM のプロバイダーと、ツールの共通の型と関数を集めたパッケージです。
+A package that collects the shared types and functions for LLM providers and tools.
 
-ハーネスは、ここにある型だけを見て作ります。
-プロバイダーやスキーマのライブラリを替えても、書き直しが要りません。
+Harnesses are built by looking only at the types here.
+Swapping the provider or the schema library needs no rewrite.
 
-## 役割
+## Features
 
-core の役割は 4 つです。
+- Defines the shared type for providers. Also has implementations for OpenRouter and ollama.
+- Defines the shared type for model services that answer with probabilities. Also has an implementation for Jev.
+- Defines the shared type for runnable tools.
+- Has a function that validates and runs one tool call.
 
-- プロバイダーの共通の型を決めます。OpenRouter と ollama 向けの実装も持ちます。
-- 確率で答えるモデルサービスの共通の型を決めます。Jev 向けの実装も持ちます。
-- 実行できるツールの共通の型を決めます。
-- ツールの呼び出しを 1 回分、検証して実行する関数を持ちます。
+## Usage
 
-### プロバイダー
+Create a provider and a tool, ask the model, then run the tool calls it returns.
 
-プロバイダーは、LLM との 1 ターンだけを担当します。
-返し方は、一括とストリーミングの 2 通りです。
-ストリーミングのほうは、文章の断片などのイベントを順に返します。
+```ts
+import {
+  createOpenRouterProvider,
+  defineTool,
+  runToolCall,
+} from "@mg/core";
+import { z } from "zod";
 
-OpenRouter との通信は、その実装の中に閉じています。
-API キーは、プロバイダーを作るときに受け取ります。
+const provider = createOpenRouterProvider({ apiKey });
 
-ollama との通信も、別の実装として持ちます。
-ollama は API キーを確かめないため、API キーは受け取りません。
+const echo = defineTool({
+  name: "echo",
+  description: "Returns the text as is.",
+  input: z.object({ text: z.string() }),
+  async reach() {
+    return { kind: "none" };
+  },
+  async execute({ text }) {
+    return text;
+  },
+});
 
-接続先の URL は省略できます。
-省略したときは、手元で動く ollama に向きます。
+const response = await provider.generate({
+  model: "openai/gpt-4o-mini",
+  messages: [{ role: "user", content: "Say hi with echo." }],
+  tools: [echo],
+});
 
-次の指定も、プロバイダーを作るときに渡せます。
+for (const part of response.parts) {
+  if (part.type === "tool-call") {
+    // A tool message that carries the tool's result
+    const message = await runToolCall([echo], part);
+  }
+}
+```
 
-- 読めるコンテキストの長さです。
-- 考える動作を使うかどうかです。
-- モデルをメモリに残しておく時間です。
+## API
 
-プロバイダーへの要求には、止める合図を渡せます。
+### Errors
 
-合図が来たら、プロバイダーは応答を読むのをやめます。
-ストリーミングは、それまでに流した出来事はそのまま残します。
-そのうえで、終わりの理由 `halted` の出来事だけを追加で流します。
-一括の受け取りは、中身のない返事を終わりの理由 `halted` で返します。
+Errors fall into 3 families.
 
-止めたことは例外にしません。
-合図は省略できます。
-合図に関係のない中断のエラーは、そのまま投げます。
+- Provider failures.
+- Estimator failures.
+- Tool run failures.
 
-ユーザーのメッセージには、書き手を付けられます。
-書き手は、場の参加者を指す空でない文字列です。
-省いたときは、書き手が分からないという意味です。
+The names in each family are listed below.
 
-OpenRouter と ollama、どちらの実装も、書き手を LLM に送りません。
-書き手を付けても、送る要求は書き手がないときと同じです。
+```
+Provider errors
+  ProviderBaseError       parent (cannot be created directly)
+  ProviderHttpError       a failure response came back
+  ProviderTransportError  the connection itself failed
+  ToolArgumentsError      the call's arguments cannot be read
+  ToolSchemaError         the schema cannot be converted
+  ProviderError           union of the 4
+  isProviderError         type guard
+
+Estimator errors
+  EstimatorBaseError            parent (cannot be created directly)
+  EstimatorHttpError            a failure response came back
+  EstimatorTransportError       the connection itself failed
+  EstimatorResponseError        the response is not JSON, has the wrong shape,
+                                the chosen label is not one of the given
+                                labels, or a probability is out of range
+  EstimatorRetryExhaustedError  the retries ran out
+  EstimatorError                union of the 4
+  isEstimatorError              type guard
+
+Tool run errors
+  ToolRunBaseError        parent (cannot be created directly)
+  ToolNotFoundError       no tool has that name
+  ToolInputError          the arguments failed validation
+  ToolRunError            union of the 2
+  isToolRunError          type guard
+```
+
+Wrapping follows these rules.
+
+- Provider and Estimator errors keep the original exception inside.
+- A stop caused by an abort passes through unwrapped.
+- An exception thrown by a tool's run function also passes through as is.
+
+The Estimator's `EstimatorHttpError`, `EstimatorTransportError` and
+`EstimatorResponseError` have `retryable`, which says whether a retry is
+possible, and `retryAfterMs`, the time to wait in milliseconds.
+`retryAfterMs` is optional.
+
+- The Jev implementation treats connection failures and 429 and 5xx
+  responses as retryable failures.
+- If the response's Retry-After reads as a number of seconds or as an HTTP
+  date, it is written to `retryAfterMs`. If not, it is left out.
+- `EstimatorRetryExhaustedError` says the retries ran out.
+  It holds the number of attempts and the last error as its cause. It is not
+  retryable.
+
+## How it works
+
+### Providers
+
+A provider handles only one turn with an LLM.
+It can answer in 2 ways: all at once, or streaming.
+Streaming returns events, such as pieces of text, in order.
+
+Talking to OpenRouter stays inside that implementation.
+The API key is taken when the provider is created.
+
+Talking to ollama is a separate implementation.
+ollama does not check API keys, so it takes no API key.
+
+The URL to connect to can be left out.
+When it is left out, it points at ollama running locally.
+
+These settings can also be passed when the provider is created.
+
+- The context length the model can read.
+- Whether to use the thinking behaviour.
+- How long to keep the model in memory.
+
+A request to a provider can carry a stop signal.
+
+When the signal fires, the provider stops reading the response.
+Streaming keeps the events it has already sent.
+Then it sends only one more event, with the finish reason `halted`.
+The all-at-once call returns an empty reply with the finish reason `halted`.
+
+Stopping is not treated as an exception.
+The signal is optional.
+Abort errors not related to the signal are thrown as is.
+
+A user message can carry an author.
+The author is a non-empty string that points at a participant.
+When it is left out, it means the author is unknown.
+
+Neither the OpenRouter nor the ollama implementation sends the author to the
+LLM.
+Adding an author leaves the request the same as without one.
 
 ### Estimator
 
-判定の対象と質問を受け取り、型のついた判定を返すモデルサービスの型です。
-名前は Estimator です。
+A type for model services that take a subject and a question and return a
+typed judgment.
+Its name is Estimator.
 
-判定の対象は、文章か、構造を持つ値です。
-構造を持つ値は、項目に名前があるものか、並びです。
-中身は、文章と、数と、真偽と、空と、それらの入れ子です。
+The subject is text or a structured value.
+A structured value is either one with named fields or a list.
+Its contents are text, numbers, booleans, null, and nestings of these.
 
-会話を返すプロバイダーとは別の種類です。
-型もエラーも共有しません。
+It is a different kind from providers, which return conversation.
+They share no types and no errors.
 
-次のものを渡して作ります。
+It is created from these.
 
-- 鍵です。
-- モデル名です。
-- 接続先の URL です。
-- 追加のヘッダーです。
-- 差し替え用の通信の関数です。
+- A key.
+- A model name.
+- The URL to connect to.
+- Extra headers.
+- A fetch function to swap in.
 
-モデル名と接続先の既定は、Jev の実装の中に持ちます。
+The defaults for the model name and the URL live inside the Jev
+implementation.
 
-問い合わせるときに中断の合図を渡せます。
-中断されたときは、中断のエラーをそのまま投げます。
-それ以外の失敗は、専用の 3 種類のエラーで返ります。
+An abort signal can be passed when asking.
+When aborted, the abort error is thrown as is.
+Other failures come back as 3 dedicated errors.
 
-`createRetryingEstimator` は、Estimator を受け取って Estimator を返す、
-やり直しの実装です。渡した Estimator に呼び出しを任せ、やり直せる失敗
-だけを待ってからもう一度呼びます。
+`createRetryingEstimator` is a retry implementation that takes an Estimator
+and returns an Estimator. It leaves each call to the given Estimator, and for
+retryable failures only, it waits and then calls again.
 
-次のものを、使う側が引数で渡します。既定の値は持ちません。
+The caller passes these as arguments. There are no defaults.
 
-- 呼び出しの回数の上限です。
-- やり直しごとの待ち方です。エラーに待つ時間がなければ、この順で待ちます。
-- 待つ時間の上限です。エラーの待つ時間がこれを超えるときは、待たずに
-  やり直しを使い切ったことにします。
-- 待つ関数です。省くと、実際の時間を待ちます。
+- The upper limit on the number of calls.
+- How to wait before each retry. If the error has no wait time, it waits in
+  this order.
+- The upper limit on the wait time. When the error's wait time is over this,
+  it does not wait and treats the retries as used up.
+- The wait function. When left out, it waits real time.
 
-引数が正しくなければ、作る時点で `RangeError` を投げて拒否します。
+If the arguments are wrong, it refuses at creation by throwing `RangeError`.
 
-#### 分類
+#### Classify
 
-分類の操作は、判定の対象と質問と、ラベルごとの説明を受け取ります。
-ラベルごとの説明は、ラベルを鍵にした map で渡します。
-ラベルは 1 つ以上あれば成り立ちます。
+The classify operation takes a subject, a question, and a description for
+each label.
+The descriptions are passed as a map keyed by label.
+One or more labels is enough.
 
-返す判定は、選ばれたラベルと、ラベルごとの確率です。
-確率は、どれも 0 から 1 の有限の数です。
-Jev が返す確信度は写しません。
+The judgment it returns is the chosen label and a probability for each label.
+Every probability is a finite number from 0 to 1.
+The confidence that Jev returns is not copied over.
 
-#### 段階
+#### Score
 
-段階の操作は、判定の対象と質問と、段階ごとの説明を受け取ります。
-段階ごとの説明は、配列で渡します。
-段階は 2 つ以上あれば成り立ちます。
-段階の位置は、この配列の添字です。
+The score operation takes a subject, a question, and a description for each
+level.
+The descriptions are passed as an array.
+Two or more levels is enough.
+A level's position is its index in this array.
 
-返す判定は、点数と、段階ごとの確率です。
-点数は、0 から、段階の数から 1 を引いた値までの数です。
-段階の間の値も取ります。
-段階ごとの確率は、渡した配列と同じ順の配列です。
-Jev が返す確信度と凡例は写しません。
+The judgment it returns is a score and a probability for each level.
+The score is a number from 0 to the number of levels minus 1.
+It can also take values between levels.
+The per-level probabilities are an array in the same order as the given
+array.
+The confidence and legend that Jev returns are not copied over.
 
-#### 上限の宣言
+#### Declared limits
 
-Estimator は、上限を値として宣言します。
-上限は、ラベルの数と段階の数です。
-上限は実装ごとに違います。
-Jev の実装は、ラベルに 255、段階に 10 を宣言します。
+An Estimator declares its limits as a value.
+The limits are the number of labels and the number of levels.
+The limits differ by implementation.
+The Jev implementation declares 255 for labels and 10 for levels.
 
-要求のラベルが 1 つもないときは、通信の前に拒否します。
-上限を超えるときも、同じく拒否します。
-拒否は RangeError で行います。
-この確かめは、中断の合図を確かめた次に呼びます。
+When a request has no labels at all, it is refused before any network call.
+It is refused the same way when it goes over a limit.
+The refusal is a RangeError.
+This check runs right after the abort signal is checked.
 
-### 実行できるツール
+### Runnable tools
 
-実行できるツールは、LLM に見せるツールの形に実行関数を足したものです。
-形を変えずに、そのままプロバイダーへの要求に渡せます。
+A runnable tool is the tool shape shown to the LLM plus a run function.
+It can be passed as is, unchanged, in a request to a provider.
 
-引数のスキーマには条件があります。
-検証と JSON Schema への変換の両方ができるものに限ります。
+The argument schema has a condition.
+It must support both validation and conversion to JSON Schema.
 
-作業ディレクトリや時間制限は、ツールを作るときに渡します。
+Settings like the working directory and the time limit are passed when the
+tool is created.
 
-### 実行関数
+### Run function
 
-実行関数は、ツールの一覧と呼び出し要求を受け取ります。
-名前でツールを探し、引数を検証してから実行します。
-結果は、ツールの結果を伝えるメッセージとして返します。
+The run function takes a list of tools and a call request.
+It finds the tool by name, validates the arguments, then runs it.
+The result comes back as a message carrying the tool's result.
 
-## やらないこと
+### Layout
 
-次のことは core の外に任せます。
-
-- ツールの実装は持ちません。組み込みのツールは tools に置きます。
-- ツールの呼び出しの繰り返しはしません。ハーネスの仕事です。
-- 子プロセスや環境変数など、環境に依存するコードを入れません。
-- スキーマのライブラリには依存しません。使う側が持ち込みます。
-- プロバイダーは、引数をスキーマで検証しません。実行関数が行います。
-
-## 構成
-
-ソースは 3 つのフォルダに分かれます。
+The source is split into 3 folders.
 
 ```
 src/
-├── estimators/ 確率で答えるモデルサービスの型、エラー、Jev の実装
-├── providers/  プロバイダーの型、エラー、OpenRouter と ollama の実装
-└── tools/      実行できるツールの型、実行関数、そのエラー
+├── estimators/ types, errors and the Jev implementation for model services that answer with probabilities
+├── providers/  provider types, errors, and the OpenRouter and ollama implementations
+└── tools/      runnable tool types, the run function, and its errors
 ```
 
-主な名前を、フォルダごとに並べます。
+The main names are listed by folder.
 
 ```
 estimators/
-  Estimator                確率と分類と段階で答えるモデルサービスの共通の型
-  ClassifyRequest          分類の要求の型
-  Classification           分類の判定の型
-  ScoreRequest             段階の要求の型
-  Score                    段階の判定の型
-  EstimatorLimits          ラベルと段階の数の上限の型
-  assertClassifyRequest    分類の要求が上限に収まっているかを確かめる
-  assertScoreRequest       段階の要求が上限に収まっているかを確かめる
-  createJevEstimator       Jev と話す Estimator を作る
-  createRetryingEstimator  やり直す Estimator を作る
+  Estimator                shared type for model services that answer with probabilities, classes and levels
+  ClassifyRequest          type of a classify request
+  Classification           type of a classify judgment
+  ScoreRequest             type of a score request
+  Score                    type of a score judgment
+  EstimatorLimits          type of the limits on the number of labels and levels
+  assertClassifyRequest    checks that a classify request fits within the limits
+  assertScoreRequest       checks that a score request fits within the limits
+  createJevEstimator       creates an Estimator that talks to Jev
+  createRetryingEstimator  creates an Estimator that retries
 
 providers/
-  Provider                  プロバイダーの共通の型
-  createOpenRouterProvider  OpenRouter のプロバイダーを作る
-  createOllamaProvider      ollama のプロバイダーを作る
-  readSseData               ストリーミングの応答を読む
+  Provider                  shared type for providers
+  createOpenRouterProvider  creates the OpenRouter provider
+  createOllamaProvider      creates the ollama provider
+  readSseData               reads a streaming response
 
 tools/
-  Tool, defineTool          実行できるツールの型と、定義のヘルパー
-  ToolInput, ToolInputIssue 検証を通った入力の型と、指摘 1 件の型
-  validateToolInput         入力をスキーマで検証する
-  runToolCall               呼び出しを 1 回分、検証して実行する
+  Tool, defineTool          type of runnable tools, and a helper for defining them
+  ToolInput, ToolInputIssue type of validated input, and type of one issue
+  validateToolInput         validates input against the schema
+  runToolCall               validates and runs one call
 ```
 
-## エラー
+## Non-goals
 
-エラーは 3 つの系統に分かれます。
+These are left to code outside core.
 
-- プロバイダーの失敗です。
-- Estimator の失敗です。
-- ツールの実行の失敗です。
-
-系統ごとの名前をまとめます。
-
-```
-プロバイダーのエラー
-  ProviderBaseError       親（直接は作れない）
-  ProviderHttpError       失敗の応答が返った
-  ProviderTransportError  通信そのものが失敗した
-  ToolArgumentsError      呼び出しの引数が読めない
-  ToolSchemaError         スキーマを変換できない
-  ProviderError           4 つのユニオン型
-  isProviderError         型ガード
-
-Estimator のエラー
-  EstimatorBaseError            親（直接は作れない）
-  EstimatorHttpError            失敗の応答が返った
-  EstimatorTransportError       通信そのものが失敗した
-  EstimatorResponseError        応答が JSON でない、形が合わない、選ばれた
-                                ラベルが渡したラベルにない、確率が範囲の外
-  EstimatorRetryExhaustedError  やり直しを使い切った
-  EstimatorError                4 つのユニオン型
-  isEstimatorError              型ガード
-
-ツールの実行のエラー
-  ToolRunBaseError        親（直接は作れない）
-  ToolNotFoundError       その名前のツールがない
-  ToolInputError          引数の検証に失敗した
-  ToolRunError            2 つのユニオン型
-  isToolRunError          型ガード
-```
-
-ラップの仕方には、次の決まりがあります。
-
-- プロバイダーと Estimator のエラーは、元の例外を中に残します。
-- 中断による停止は、ラップせずにそのまま通します。
-- ツールの実行関数が投げた例外も、そのまま通します。
-
-Estimator の `EstimatorHttpError`、`EstimatorTransportError`、
-`EstimatorResponseError` は、やり直せるかを示す `retryable` と、
-待つべき時間をミリ秒で示す `retryAfterMs` を持ちます。`retryAfterMs`
-は省ける値です。
-
-- Jev の実装は、通信の失敗と、429 と 5xx の応答を、やり直せる失敗にします。
-- 応答の Retry-After が秒数か HTTP の日時として読めれば、`retryAfterMs`
-  に書きます。読めなければ書きません。
-- `EstimatorRetryExhaustedError` は、やり直しを使い切ったことを示します。
-  試した回数と、最後のエラーを原因として持ちます。やり直せない失敗です。
+- It has no tool implementations. Built-in tools live in tools.
+- It does not repeat tool calls. That is the harness's job.
+- It contains no code that depends on the environment, such as child
+  processes or environment variables.
+- It does not depend on a schema library. The caller brings one in.
+- Providers do not validate arguments against the schema. The run function
+  does.

@@ -1,249 +1,22 @@
 # @mg/gate
 
-ツールの呼び出しなどを、人に聞かずに実行してよいか判定するゲートのパッケージです。
-
-## 役割
-
-- ゲートの型を決めます。
-  受け取るのは、種類と説明文と元の値です。
-  返すのは、可否と理由です。
-- 方針の文章とプロバイダーとモデルから、LLM で判定する実装を作れます。
-- `Estimator` と方針の文章から、確率で判定する実装も作れます。
-- 根のパスと規則の並びから、規則だけで判定する実装も作れます。
-- ゲートの並びから、順に聞いて束ねる実装も作れます。
-- 判定そのものが失敗したときのための、専用の例外を持ちます。
-- ツールの実行をラップし、実行の前に判定を挟むラッパーを持ちます。
-
-### 型と実装の分け方
-
-core のプロバイダーと同じ考え方です。
-ゲートは、入力と出力を型で固定します。
-
-中身は差し替えられます。
-最初の実装は、方針の文章を LLM に読ませて判定するものです。
-規則だけで判定する実装も、同じ型で作れます。
-
-型を固定することで、ゲートを付ける側は中身を知らずに済みます。
-中身を差し替えても、付ける側の書き直しは要りません。
-
-### LLM の実装
-
-`createLlmGate` は、方針の文章とプロバイダーとモデルを受け取ります。
-受け取ったものから、ゲートを作ります。
-
-判定するたびに、プロバイダーへ 1 回だけ問い合わせます。
-送るのはシステムの指示と方針の文章、それに判定したい内容です。
-判定したい内容は、渡された説明文そのままです。
-
-答えの形は、判定専用のツールの呼び出しを強制して固定します。
-ツールから返った値を検証し、可否と理由に変えます。
-
-### Estimator の実装
-
-`createEstimatorGate` は、core の `Estimator` と方針の文章を受け取ります。
-受け取ったものから、ゲートを作ります。
-
-`Estimator` は、判定の対象と質問を受け取り、
-答えが「はい」である確率を返すモデルサービスの型です。
-どのモデルサービスと話すかは、渡す `Estimator` の実装が決めます。
-たとえば core の `createJevEstimator` を渡せます。
-
-聞くのは「この操作は実行して問題ないか」の 1 つだけです。
-返ってきた確率がしきい値以上なら通し、下回れば断ります。
-
-しきい値は渡せます。省くと 0.5 になります。
-理由の文章には、確率もしきい値も出しません。
-ツールを呼ぶ側にしきい値を狙われないためです。
-
-判定そのものが失敗したときは、ツールを動かしません。
-LLM の実装と同じ振る舞いです。
-
-### 規則の実装
-
-規則の実装は、ツールの名前と、呼び出しが触れる範囲で判定します。
-呼び出しの引数は読みません。
-プロバイダーや外部のサービスへの問い合わせは、一度もしません。
-
-`createRulesGate` は、根のパスと規則の並びを受け取ります。
-受け取ったものから、ゲートを作ります。
-
-規則は、ツールの名前の一覧と glob の一覧を持ちます。
-通すか断るかの真偽値と、理由の文章も持ちます。
-名前と glob は、どちらも省けます。
-
-判定するのは、種類が `tool-call` の判定だけです。
-ほかの種類は、そのまま通します。
-
-#### 触れる範囲を読む
-
-判定の要求には、呼び先が宣言した触れる範囲が入っています。
-規則の実装は、この範囲だけを見ます。
-名前が見つからない呼び出しは、`any-local` で届きます。
-範囲が付いていない要求は、`GateError` で拒否します。
-
-比べる前に、根をリンクをたどった絶対パスにします。
-根は、実在するパスでなければなりません。
-`paths` のパスは、たどった根からの相対パスにして、glob と比べます。
-根をたどれないときは、`GateError` を投げます。
-
-glob を持つ規則の当たり方は、断る規則と許す規則で分かれます。
-
-- 断る規則は、当たりうるなら当てます。
-- 許す規則は、確かに合うときだけ当てます。
-
-範囲の形は、次の 4 つです。
-
-- `paths` は、手元のパスの並びです。
-  各パスが、広さの `file`（そのパスだけ）か `tree`（その下すべて）を持ちます。
-- `any-local` は、手元のどこにでも触れうる範囲です。
-- `outside` は、手元のパスに触れない範囲です。
-- `none` は、何にも触れない範囲です。
-
-形ごとの当たり方を、表にまとめます。
-
-| 範囲の形                  | 断る規則                                | 許す規則     |
-| ------------------------- | --------------------------------------- | ------------ |
-| `paths`（根の中、`file`） | glob に合えば当たります                 | 同じです     |
-| `paths`（根の中、`tree`） | glob に合うか、下に合いうれば当たります | 当たりません |
-| `paths`（根の外）         | 広さによらず当たります                  | 当たりません |
-| `paths`（0 個）           | 当たりません                            | 当たりません |
-| `any-local`               | 当たります                              | 当たりません |
-| `outside`                 | 当たりません                            | 当たりません |
-| `none`                    | 当たりません                            | 当たりません |
-
-複数のパスを宣言したときの扱いは、次のとおりです。
-
-- 断る規則は、どれか 1 つが当たれば当たります。
-- 許す規則は、すべてが当たるときだけ当たります。
-
-`tree` の下に合うパスがありうるかは、glob を `/` で区切って決めます。
-パスの区切りと、先頭から合わせます。
-`file` のパスは、そのパスだけを比べます。
-
-ゲートを作る時点で、区切りに分けられない glob をはじきます。
-次のどれかを含む glob は、`RangeError` になります。
-
-- `/` を中に持つ `{...}` と `(...)` の組です。
-- 先頭の `/` か `./`、末尾の `/`、空の区切り `//` です。
-- エスケープの `\` です。
-
-ツールの名前だけを持つ規則は、範囲を見ずに、名前だけで当たります。
-
-規則は、並びの先頭から順に見ます。
-最初に当てはまった規則で、可否と理由を決めます。
-当てはまる規則が無ければ、通します。
-
-#### 理由の文章
-
-規則に理由の文章があれば、それを返します。
-省いた規則には、既定の理由を付けます。
-
-| 当たり方     | 既定の理由                                                           |
-| ------------ | -------------------------------------------------------------------- |
-| 根の中のパス | `Rule <i> <verb> <name> on <相対パス>`                               |
-| 根の外のパス | `Rule <i> <verb> <name> on <絶対パス> (outside the root)`            |
-| `any-local`  | `Rule <i> <verb> <name>: the paths it touches could not be decided.` |
-| 範囲を見ない | `Rule <i> <verb> <name>`                                             |
-
-`<verb>` は `allowed` か `denied` です。
-パスが複数あるときは、宣言の順で最初に当たったものを書きます。
-許す規則では、宣言の順で最初のパスです。
-
-`any-local` に当たったときだけ、決まり方が変わります。
-規則に理由の文章があれば、既定の文、空白、理由の文章の順に並べます。
-
-### 複数のゲートを束ねる
-
-`composeGates` は、ゲートの並びを受け取ります。
-受け取った並びから、1 つのゲートを作ります。
-
-judge を呼ぶと、渡した順にそれぞれのゲートへ聞きます。
-最初に「だめ」と判定したところで止めます。
-そこで返ってきた可否と理由を、そのまま返します。
-
-途中まで聞いたゲートが全部「よい」なら、通します。
-理由の文章には、聞いたゲートの数を入れます。
-
-judge そのものが失敗したときは、そこで止めます。
-失敗はそのまま投げ直し、後ろのゲートには聞きません。
-
-渡す並びが空だと、その場で例外を投げます。
-
-束ねたゲート自身は、スパンを記録しません。
-中のゲートが、渡された `context` を使って自分のスパンを記録します。
-
-### ツールの実行に挟むラッパー
-
-`gateRunToolCall` は、ツールを実行する関数を受け取り、
-実行の前に判定を挟んだ関数を返します。
-
-ツールの呼び出しは、判定の入力に組み立てます。
-種類は `tool-call` で、説明文にはツールの名前と説明と引数を並べます。
-元の値には、呼び出しとツールの定義と `reach` を入れます。
-ツールの定義は、`execute` と `reach` を除いたものです。
-`reach` は、呼び先が引数から宣言した触れる範囲です。
-名前が見つからない呼び出しは、`any-local` を入れます。
-
-呼び先の宣言が失敗したときは、ゲートに聞かず、ツールも動かしません。
-失敗した旨を、ツールの結果として返します。
-
-判定が「よい」なら、元の実行関数をそのまま呼びます。
-「だめ」ならツールを動かさず、理由をツールの結果として返します。
-判定そのものが失敗したときも、ツールを動かさず、
-失敗した旨をツールの結果として返します。
-中断のシグナル（AbortSignal）だけは、ラップせずにそのまま投げ直します。
-渡したシグナルがすでに中断済みなら、失敗の種類によらず投げ直します。
-
-呼び出す側と受け取る側の型は、型引数で決まります。
-サブエージェントの呼び出しにも、同じラッパーを使えます。
-
-渡すのは、サブエージェントの一覧と `@mg/harness` の `runSubagentCall` です。
-判定に渡す依頼の種類は、ツールの呼び出しと同じ `tool-call` です。
-元の値には、呼び出しとサブエージェントの定義と `reach` を入れます。
-定義は、`start` と `reach` を除いたものです。
-
-規則で判定するゲートの `tools` は、サブエージェントの名前にも効きます。
-ツールの名前と同じ一覧で、断る対象を選べます。
-サブエージェントが宣言した範囲も、同じ表で読みます。
-
-### トレース
-
-ゲートは、親スパンを受け取ったときだけ記録します。
-受け取るのは `GateContext.trace` です。
-自分の判定を `mg.gate` のスパンとして記録します。
-受け取らなければ、何も記録しません。
-
-LLM の実装は、判定用のプロバイダーへの呼び出しを残します。
-`mg.gate` の下に `mg.llm` のスパンとして残します。
-
-Estimator の実装は、呼び出し先が 1 つだけです。
-子のスパンは残さず、`mg.gate` だけを残します。
-
-Estimator の実装は、返ってきた確率を `mg.gate` に残します。
-トレースを読める人には、確率の数値が見えます。
-
-規則の実装は、外部への問い合わせを持ちません。
-子のスパンは残さず、`mg.gate` だけを残します。
-
-`gateRunToolCall` に親スパンを渡すと、
-ツールの呼び出しごとにゲートへそのまま渡します。
-渡さなければ、判定は記録に残りません。
-
-## やらないこと
-
-- ハーネスのループや runner への組み込みは持ちません。
-- トレースを見る画面には手を入れません。
-- 束ねる実装は、並列に聞く仕組みや、どれか 1 つの許可で通す仕組みを持ちません。
-
-## 使い方
-
-`createLlmGate` に渡すものを表にまとめます。
-
-| 名前       | 内容                       |
-| ---------- | -------------------------- |
-| `provider` | 使うプロバイダー           |
-| `model`    | 使うモデルの名前           |
-| `policy`   | 判定の根拠にする方針の文章 |
+A package for gates, which decide whether a tool call or similar may run without asking a person.
+
+## Features
+
+- Sets the gate type.
+  It receives a kind, a description, and the original value.
+  It returns whether it is allowed, and a reason.
+- Can build an implementation that decides with an LLM, from a policy text, a provider, and a model.
+- Can also build an implementation that decides by probability, from an `Estimator` and a policy text.
+- Can also build an implementation that decides by rules alone, from a root path and a list of rules.
+- Can also build an implementation that combines a list of gates by asking them in order.
+- Has a dedicated exception for when the decision itself fails.
+- Has a wrapper that wraps tool execution and puts a decision before it runs.
+
+## Usage
+
+Build a gate, then pass it the request you want decided.
 
 ```ts
 import { createLlmGate } from "@mg/gate";
@@ -259,22 +32,64 @@ const verdict = await gate.judge({
   description: "Runs `bash` with command: rm -rf /",
 });
 
-// verdict は { allowed: boolean, reason: string }
+// verdict is { allowed: boolean, reason: string }
 ```
 
-判定そのものが失敗すると、`GateError` を投げます。
-元の例外は `cause` に残ります。
+## API
 
-中断のシグナルだけは、ラップせずにそのまま通します。
-`context.signal` に中断済みのシグナルを渡すと、プロバイダーを呼ばずに投げます。
+### `createLlmGate(options)`
 
-`createEstimatorGate` に渡すものを表にまとめます。
+`createLlmGate` takes a policy text, a provider, and a model.
+It builds a gate from them.
 
-| 名前        | 内容                                              |
-| ----------- | ------------------------------------------------- |
-| `estimator` | 使う `Estimator`（`@mg/core` から）               |
-| `policy`    | 判定の根拠にする方針の文章                        |
-| `threshold` | 通すしきい値の確率。0 以上 1 以下（省くと `0.5`） |
+Each time it decides, it queries the provider exactly once.
+It sends the system instructions, the policy text, and what is to be decided.
+What is to be decided is the description as passed.
+
+The shape of the answer is fixed by forcing a call to a tool made only for deciding.
+The value returned from that tool is validated and turned into allowed-or-not and a reason.
+
+The table lists what you pass to `createLlmGate`.
+
+| Name       | Contents                                 |
+| ---------- | ---------------------------------------- |
+| `provider` | The provider to use                      |
+| `model`    | The name of the model to use             |
+| `policy`   | The policy text the decision is based on |
+
+If the decision itself fails, it throws `GateError`.
+The original exception is kept in `cause`.
+
+Only an abort signal is passed through as it is, without wrapping.
+If you pass an already aborted signal in `context.signal`, it throws without calling the provider.
+
+### `createEstimatorGate(options)`
+
+`createEstimatorGate` takes a core `Estimator` and a policy text.
+It builds a gate from them.
+
+`Estimator` is the type for a model service that takes a subject and a question,
+and returns the probability that the answer is "yes".
+Which model service it talks to is up to the `Estimator` implementation you pass.
+For example, you can pass core's `createJevEstimator`.
+
+It asks only one thing: "Is it fine to run this action?"
+If the returned probability is at or above the threshold, it allows. If below, it denies.
+
+You can pass the threshold. If left out, it is 0.5.
+The reason text shows neither the probability nor the threshold.
+This is so the side calling the tool cannot aim at the threshold.
+
+When the decision itself fails, the tool is not run.
+This is the same as the LLM implementation.
+
+The table lists what you pass to `createEstimatorGate`.
+
+| Name        | Contents                                                     |
+| ----------- | ------------------------------------------------------------ |
+| `estimator` | The `Estimator` to use (from `@mg/core`)                     |
+| `policy`    | The policy text the decision is based on                     |
+| `threshold` | The probability needed to allow. From 0 to 1 (default `0.5`) |
 
 ```ts
 import { createJevEstimator } from "@mg/core";
@@ -292,33 +107,49 @@ const verdict = await gate.judge({
   description: "Runs `bash` with command: rm -rf /",
 });
 
-// verdict は { allowed: boolean, reason: string }
+// verdict is { allowed: boolean, reason: string }
 ```
 
-判定そのものが失敗すると、`GateError` を投げます。
-中断のシグナルだけは、ラップせずにそのまま通します。
+If the decision itself fails, it throws `GateError`.
+Only an abort signal is passed through as it is, without wrapping.
 
-しきい値には 0 以上 1 以下の有限の数を渡します。
-外れた値を渡すと、作る時点で `RangeError` を投げます。
+Pass a finite number from 0 to 1 as the threshold.
+If you pass a value outside that range, a `RangeError` is thrown when building.
 
-`createRulesGate` に渡すものを表にまとめます。
+### `createRulesGate(options)`
 
-| 名前    | 内容                     |
-| ------- | ------------------------ |
-| `root`  | 規則の基準になる根のパス |
-| `rules` | 規則の並び               |
+The rules implementation decides by the tool name and the reach the call touches.
+It does not read the call's arguments.
+It never queries a provider or any outside service.
 
-規則ひとつぶんの項目も、表にまとめます。
+`createRulesGate` takes a root path and a list of rules.
+It builds a gate from them.
 
-| 名前      | 内容                                   |
-| --------- | -------------------------------------- |
-| `tools`   | 対象のツールの名前の一覧（省くと全部） |
-| `paths`   | 対象の glob の一覧（省くと全部）       |
-| `allowed` | 通すなら `true`、断るなら `false`      |
-| `reason`  | 理由の文章（省くと既定の理由を使う）   |
+A rule has a list of tool names and a list of globs.
+It also has a boolean for allow or deny, and a reason text.
+Both the names and the globs can be left out.
 
-`root` は、実在するパスを渡します。
-次の例は、`/repo` があるものとします。
+It only decides requests whose kind is `tool-call`.
+Other kinds are allowed as they are.
+
+The table lists what you pass to `createRulesGate`.
+
+| Name    | Contents                             |
+| ------- | ------------------------------------ |
+| `root`  | The root path the rules are based on |
+| `rules` | The list of rules                    |
+
+The fields of a single rule are also listed in a table.
+
+| Name      | Contents                                         |
+| --------- | ------------------------------------------------ |
+| `tools`   | The list of target tool names (all if left out)  |
+| `paths`   | The list of target globs (all if left out)       |
+| `allowed` | `true` to allow, `false` to deny                 |
+| `reason`  | The reason text (the default reason if left out) |
+
+Pass a path that exists as `root`.
+The example below assumes `/repo` exists.
 
 ```ts
 import { createRulesGate } from "@mg/gate";
@@ -351,31 +182,106 @@ const verdict = await gate.judge({
   },
 });
 
-// verdict は { allowed: false, reason: "秘密の情報が入ったファイルには書かせない。" }
+// verdict is { allowed: false, reason: "秘密の情報が入ったファイルには書かせない。" }
 ```
 
-規則は、並びの先頭から順に見ます。
-最初に当てはまった規則で、可否と理由を決めます。
-当てはまる規則が無ければ、通します。
+#### Reading the reach
 
-種類が `tool-call` ではない判定は、規則を見ずに通します。
+The request contains the reach that the callee declared it touches.
+The rules implementation looks only at this reach.
+A call whose name is not found arrives as `any-local`.
+A request with no reach attached is rejected with `GateError`.
 
-`gateRunToolCall` は、ゲートを受け取ります。
-実行関数と親スパンも渡せます。
-実行関数を省くと `@mg/core` の `runToolCall` を使います。
-親スパンを省くと、判定は記録に残りません。
+Before comparing, the root is made into an absolute path with links followed.
+The root must be a path that exists.
+Each path in `paths` is made relative to the resolved root and compared with the globs.
+When the root cannot be resolved, it throws `GateError`.
 
-```ts
-import { gateRunToolCall } from "@mg/gate";
+How a rule with globs matches differs between deny rules and allow rules.
 
-const runToolCall = gateRunToolCall(gate, undefined, span);
+- A deny rule matches if it could match.
+- An allow rule matches only when it surely matches.
 
-const message = await runToolCall(tools, call, context);
-// 判定が「だめ」なら、tools と call は実行されない
-// span を渡すと、判定は mg.gate として span の下に記録される
-```
+The reach has one of these four shapes.
 
-`composeGates` は、ゲートの並びを受け取ります。
+- `paths` is a list of local paths.
+  Each path has an extent of `file` (that path only) or `tree` (everything under it).
+- `any-local` is a reach that could touch anywhere locally.
+- `outside` is a reach that touches no local path.
+- `none` is a reach that touches nothing.
+
+The table shows how each shape matches.
+
+| Reach shape                   | Deny rule                                        | Allow rule     |
+| ----------------------------- | ------------------------------------------------ | -------------- |
+| `paths` (inside root, `file`) | Matches if the glob matches                      | Same           |
+| `paths` (inside root, `tree`) | Matches if the glob matches or could match below | Does not match |
+| `paths` (outside root)        | Matches whatever the extent                      | Does not match |
+| `paths` (none)                | Does not match                                   | Does not match |
+| `any-local`                   | Matches                                          | Does not match |
+| `outside`                     | Does not match                                   | Does not match |
+| `none`                        | Does not match                                   | Does not match |
+
+When several paths are declared, they are handled like this.
+
+- A deny rule matches if any one of them matches.
+- An allow rule matches only when all of them match.
+
+Whether a path under a `tree` could match is decided by splitting the glob on `/`.
+It is matched against path segments from the start.
+A `file` path is compared only as that path.
+
+When the gate is built, globs that cannot be split into segments are rejected.
+A glob containing any of these becomes a `RangeError`.
+
+- A `{...}` or `(...)` group with `/` inside.
+- A leading `/` or `./`, a trailing `/`, or an empty segment `//`.
+- An escape `\`.
+
+A rule with only tool names matches by name alone, without looking at the reach.
+
+Rules are checked in order from the start of the list.
+The first rule that applies decides allow-or-not and the reason.
+If no rule applies, it allows.
+
+#### Reason text
+
+If the rule has a reason text, that is returned.
+A rule without one gets a default reason.
+
+| How it matched    | Default reason                                                       |
+| ----------------- | -------------------------------------------------------------------- |
+| Path inside root  | `Rule <i> <verb> <name> on <relative path>`                          |
+| Path outside root | `Rule <i> <verb> <name> on <absolute path> (outside the root)`       |
+| `any-local`       | `Rule <i> <verb> <name>: the paths it touches could not be decided.` |
+| Reach not checked | `Rule <i> <verb> <name>`                                             |
+
+`<verb>` is `allowed` or `denied`.
+When there are several paths, the first one that matched in declared order is written.
+For allow rules, it is the first path in declared order.
+
+Only when it matched `any-local` is it built differently.
+If the rule has a reason text, it is the default text, a space, and the reason text, in that order.
+
+### `composeGates(gates)`
+
+`composeGates` takes a list of gates.
+It builds one gate from that list.
+
+When you call judge, it asks each gate in the order passed.
+It stops at the first gate that says "no".
+It returns the allow-or-not and the reason from there as they are.
+
+If every gate asked says "yes", it allows.
+The reason text includes the number of gates asked.
+
+When judge itself fails, it stops there.
+The failure is thrown again as it is, and later gates are not asked.
+
+If the list you pass is empty, it throws right away.
+
+The combined gate does not record a span itself.
+The inner gates record their own spans using the `context` passed in.
 
 ```ts
 import { composeGates } from "@mg/gate";
@@ -387,8 +293,100 @@ const verdict = await gate.judge({
   description: "Writes to `sub/.env`",
 });
 
-// rulesGate が「だめ」と判定すれば、llmGate には聞かない
-// 両方が「よい」なら、verdict は { allowed: true, reason: "All 2 gates allowed." }
+// if rulesGate says "no", llmGate is not asked
+// if both say "yes", verdict is { allowed: true, reason: "All 2 gates allowed." }
 ```
 
-並びを空にして呼ぶと、`RangeError` を投げます。
+Calling it with an empty list throws a `RangeError`.
+
+### `gateRunToolCall(gate, run, parent)`
+
+`gateRunToolCall` takes a function that runs tools,
+and returns a function that puts a decision before running.
+
+The tool call is built into the decision's input.
+The kind is `tool-call`, and the description lists the tool's name, description, and arguments.
+The original value holds the call, the tool definition, and `reach`.
+The tool definition leaves out `execute` and `reach`.
+`reach` is the reach the callee declared from the arguments.
+A call whose name is not found gets `any-local`.
+
+When the callee's declaration fails, it neither asks the gate nor runs the tool.
+It returns the failure as the tool result.
+
+If the decision is "yes", it calls the original run function as it is.
+If "no", it does not run the tool and returns the reason as the tool result.
+When the decision itself fails, it also does not run the tool,
+and returns the failure as the tool result.
+Only an abort signal (AbortSignal) is thrown again as it is, without wrapping.
+If the signal you passed is already aborted, it is thrown again whatever the kind of failure.
+
+The types of the caller and callee are set by type parameters.
+The same wrapper can be used for subagent calls.
+
+For that, you pass the list of subagents and `runSubagentCall` from `@mg/harness`.
+The kind of request passed to the decision is `tool-call`, the same as for tool calls.
+The original value holds the call, the subagent definition, and `reach`.
+The definition leaves out `start` and `reach`.
+
+The `tools` of a rules gate also apply to subagent names.
+You can choose what to deny from the same list as tool names.
+The reach a subagent declares is read with the same table.
+
+`gateRunToolCall` takes a gate.
+You can also pass a run function and a parent span.
+If you leave out the run function, it uses `runToolCall` from `@mg/core`.
+If you leave out the parent span, decisions are not recorded.
+
+```ts
+import { gateRunToolCall } from "@mg/gate";
+
+const runToolCall = gateRunToolCall(gate, undefined, span);
+
+const message = await runToolCall(tools, call, context);
+// if the decision is "no", tools and call are not run
+// if span is passed, the decision is recorded as mg.gate under span
+```
+
+## How it works
+
+### Separating the type from implementations
+
+It follows the same idea as the core provider.
+A gate fixes its input and output with types.
+
+The contents can be swapped.
+The first implementation has an LLM read the policy text and decide.
+An implementation that decides by rules alone can be built with the same type.
+
+Because the type is fixed, the side that attaches a gate does not need to know its contents.
+Swapping the contents requires no rewrite on the attaching side.
+
+### Tracing
+
+A gate records only when it receives a parent span.
+It receives it through `GateContext.trace`.
+It records its own decision as an `mg.gate` span.
+Without one, it records nothing.
+
+The LLM implementation keeps the call to the provider used for deciding.
+It keeps it as an `mg.llm` span under `mg.gate`.
+
+The Estimator implementation calls only one thing.
+It keeps no child span, only `mg.gate`.
+
+The Estimator implementation keeps the returned probability on `mg.gate`.
+Anyone who can read the trace can see the probability.
+
+The rules implementation makes no outside queries.
+It keeps no child span, only `mg.gate`.
+
+When you pass a parent span to `gateRunToolCall`,
+it passes it as is to the gate for each tool call.
+If you do not pass one, decisions are not recorded.
+
+## Non-goals
+
+- It does not plug into the harness loop or runner.
+- It does not touch the screen for viewing traces.
+- The combining implementation has no way to ask in parallel or to allow when any one gate allows.

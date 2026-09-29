@@ -1,133 +1,20 @@
 # @mg/loop
 
-ツールの呼び出しを繰り返す、ループ型のハーネスを作るパッケージです。
+Builds a loop harness that keeps calling tools until the model stops.
 
-## 役割
+## Features
 
-loop の役割は 6 つです。
+- Builds a harness that fits the @mg/harness types from a provider and tools.
+- When a tool fails, reports the failure to the LLM and keeps going.
+- Lets you receive results all at once or as a stream.
+- When given a parent span, hangs its own spans under it.
+- When given a gate, checks each tool call with it before running the tool.
+- When given a list of subagents, shows them to the LLM next to the
+  tools and routes each call by name.
 
-- プロバイダーとツールから、@mg/harness の型に合うハーネスを作ります。
-- ツールの実行に失敗しても、その旨を LLM に返して続けます。
-- 一括とストリーミングの、2 通りの受け取り方を選べます。
-- 親スパンを受け取ると、その下に自分のスパンをぶら下げます。
-- 実行してよいか判定するゲートを受け取ると、ツールを実行する前にその判定を挟みます。
-- サブエージェントの一覧を受け取ると、ツールと並べて LLM に見せ、
-  呼ばれた名前で振り分けます。
+## Usage
 
-### ループの流れ
-
-`createLoopHarness` が返す関数は、次の流れを繰り返します。
-
-- プロバイダーを呼び、返った文章とツールの呼び出しをイベントとして流します。
-- ツールの呼び出しがなければ、そこで終わりのイベントを返します。
-- ツールの呼び出しがあれば、それぞれを実行して会話に結果を足します。
-- 回数の上限に届いたら、そこで終わりにします。
-
-### 切り上げ
-
-入力に切り上げのシグナルを渡すと、ハーネスは途中までの結果を
-残して止まります。
-
-- 生成中なら、プロバイダーへの要求に毎回そのシグナルを渡します。
-- プロバイダーが理由 `halted` で終えたら、そこで生成を止めます。
-  そこまでの文章は、1 つの assistant のメッセージとして会話に
-  足します。
-- そのメッセージにツールの呼び出しがあれば、どれも実行しません。
-  結果には、実行しなかった旨を残します。
-- 実行中のツールがあるときに切り上げが来たら、その文脈の中断の
-  シグナルを出します。終わりは待ちません。
-- 結果には、止めた旨を残します。その前に終わっていた呼び出しは、
-  本当の結果のままです。
-- 同じ往復でまだ始めていないツールの呼び出しは実行しません。
-  結果には、実行しなかった旨を残します。
-- サブエージェントの呼び出しには、切り上げのシグナルをそのまま
-  渡します。返った文字列を待って、そのまま結果にします。
-- 次の往復には進みません。終わりの理由は `wrapped-up` です。
-
-最後の往復がツールを呼ばずに終わったときの理由は、`stop` か
-`length` です。
-
-中断のシグナルは、切り上げより先に効きます。
-切り上げのシグナルは省略できます。
-
-### ツールの失敗
-
-ツールの実行に失敗しても、例外を投げずにツールの結果に変えます。
-その変換は、`toolErrorToMessage` が受け持ちます。
-中断のシグナル（AbortSignal）による停止だけは、そのまま例外として通します。
-
-### トレース
-
-入力で親スパンを渡すと、その下にスパンがぶら下がります。
-
-まず `mg.harness` のスパンを開きます。
-その `mg.harness.name` は `loop` です。
-
-プロバイダーは、`traceProvider` でラップします。
-ツールの実行は、`traceRunToolCall` でラップします。
-
-結果として、`mg.llm` と `mg.tool` のスパンが下に並びます。
-親スパンを渡さなければ、これらは起きません。
-
-親スパンを渡さなければ、プロバイダーも実行関数もラップしません。
-作るときに渡した `provider` を、そのまま使います。
-
-止まる直前に、`mg.harness` のスパンへ `mg.harness.stop_reason` を書きます。
-値は、結果の止まった理由と同じです。
-
-記録に失敗しても、処理系の結果は変わりません。
-例外で終わったときは、この属性を書かずにスパンを閉じます。
-
-### 判定
-
-作るときにゲートを渡すと、ツールの実行の前に判定を挟みます。
-だめだったときは、ツールを動かさずに理由を結果として返します。
-
-親スパンも渡していれば、判定のスパン `mg.gate` は、ツールのスパン
-`mg.tool` の兄弟として `mg.harness` の下に並びます。
-だめだった呼び出しには、`mg.tool` は生まれません。
-
-ゲートを渡さなければ、判定は挟みません。
-
-### サブエージェント
-
-作るときにサブエージェントの一覧を渡すと、LLM に見せるツールの
-定義の一覧に、その名前と説明と入力のスキーマが並びます。
-並ぶ位置は、ツールの定義の後ろです。
-
-呼ばれた名前がサブエージェントの一覧にあれば、サブエージェント
-として実行します。なければ、いまのままツールとして実行します。
-判定と失敗の文への変換は、ツールの呼び出しと同じ部品を使います。
-
-ツールとサブエージェントで名前が重なると、ハーネスを作る時点で
-例外になります。サブエージェントどうしの名前が重なったときも
-同じです。
-
-サブエージェントの一覧を渡さなければ、何も変わりません。
-
-## やらないこと
-
-次のことは loop の外に任せます。
-
-- ハーネスの入力とイベントの型は持ちません。@mg/harness を使います。
-- ツールの実装は持ちません。@mg/tools などから渡します。
-- プロバイダーの実装は持ちません。@mg/core の型に合うプロバイダーを渡します。
-- トレースの実装は持ちません。@mg/trace のラッパーを使います。
-- 判定の実装は持ちません。@mg/gate から作ったゲートを渡します。
-
-## 使い方
-
-作るときに渡すものを表にまとめます。
-
-| 名前        | 内容                                         |
-| ----------- | -------------------------------------------- |
-| `provider`  | 使うプロバイダー                             |
-| `model`     | 使うモデルの名前                             |
-| `tools`     | 使わせるツールの一覧（省略できる）           |
-| `subagents` | 使わせるサブエージェントの一覧（省略できる） |
-| `maxTurns`  | 繰り返しの回数の上限                         |
-| `stream`    | ストリーミングで受け取るか（省くと true）    |
-| `gate`      | ツールの実行前に挟むゲート（省略できる）     |
+Build a harness from a provider and tools, then run it with a conversation.
 
 ```ts
 import { createLoopHarness } from "@mg/loop";
@@ -144,3 +31,129 @@ const result = await collect(
   harness({ messages: [{ role: "user", content: "..." }] }),
 );
 ```
+
+## API
+
+### `createLoopHarness(options)`
+
+Builds a harness.
+Pass @mg/harness input to the returned function and it streams events.
+
+Options:
+
+| Name        | Description                                   |
+| ----------- | --------------------------------------------- |
+| `provider`  | Provider to use                               |
+| `model`     | Model name                                    |
+| `tools`     | Tools the model may call (optional)           |
+| `subagents` | Subagents the model may call (optional)       |
+| `maxTurns`  | Maximum number of turns                       |
+| `stream`    | Whether to receive a stream (default `true`)  |
+| `gate`      | Gate checked before each tool call (optional) |
+
+## How it works
+
+### The loop
+
+The function returned by `createLoopHarness` repeats these steps.
+
+- Calls the provider and emits the returned text and tool calls as events.
+- If there are no tool calls, emits the finish event and ends.
+- If there are tool calls, runs each one and adds the results to the
+  conversation.
+- Ends when it reaches the turn limit.
+
+### Wrap-up
+
+When the input carries a wrap-up signal, the harness stops and keeps
+the results so far.
+
+- While generating, it passes the signal with every provider request.
+- When the provider finishes with reason `halted`, generation stops.
+  The text so far is added to the conversation as one assistant
+  message.
+- If that message has tool calls, none of them run. The results say
+  they were not run.
+- If a tool is running when wrap-up arrives, it fires that call's
+  abort signal. It does not wait for the tool to finish.
+- The result says the tool was stopped. Calls that finished earlier
+  keep their real results.
+- Tool calls in the same turn that have not started are not run.
+  The results say they were not run.
+- Subagent calls receive the wrap-up signal as is. The harness waits
+  for the returned string and uses it as the result.
+- It does not move on to the next turn. The stop reason is
+  `wrapped-up`.
+
+When the last turn ends without calling tools, the reason is `stop` or
+`length`.
+
+The abort signal takes precedence over wrap-up.
+The wrap-up signal is optional.
+
+### Tool failures
+
+When a tool fails, the harness turns the error into a tool result
+instead of throwing. `toolErrorToMessage` does the conversion.
+Only a stop caused by the abort signal (AbortSignal) is rethrown as is.
+
+### Tracing
+
+When the input carries a parent span, spans hang under it.
+
+First it opens an `mg.harness` span.
+Its `mg.harness.name` is `loop`.
+
+The provider is wrapped with `traceProvider`.
+Tool execution is wrapped with `traceRunToolCall`.
+
+As a result, `mg.llm` and `mg.tool` spans appear underneath.
+Without a parent span, none of this happens.
+
+Without a parent span, neither the provider nor the tool runner is
+wrapped. The `provider` passed at build time is used as is.
+
+Right before stopping, it writes `mg.harness.stop_reason` to the
+`mg.harness` span. The value is the same as the result's stop reason.
+
+A failure to record does not change the harness's result.
+When it ends with an exception, the span is closed without this
+attribute.
+
+### Gate
+
+When a gate is passed at build time, each tool call is checked before
+it runs. A rejected call does not run; the reason is returned as the
+result.
+
+With a parent span as well, the gate span `mg.gate` sits under
+`mg.harness` as a sibling of the tool span `mg.tool`.
+A rejected call gets no `mg.tool` span.
+
+Without a gate, no check happens.
+
+### Subagents
+
+When a list of subagents is passed at build time, each subagent's name,
+description and input schema are added to the tool definitions shown to
+the LLM. They come after the tool definitions.
+
+If the called name is in the subagent list, it runs as a subagent.
+Otherwise it runs as a tool, as before. Gate checks and the conversion
+of failures to text use the same code as tool calls.
+
+If a tool and a subagent share a name, building the harness throws.
+The same happens when two subagents share a name.
+
+Without a subagent list, nothing changes.
+
+## Non-goals
+
+These are left to other packages.
+
+- Harness input and event types: use @mg/harness.
+- Tool implementations: pass them in from @mg/tools or elsewhere.
+- Provider implementations: pass a provider that fits the @mg/core
+  type.
+- Tracing implementation: use the @mg/trace wrappers.
+- Gate implementations: pass a gate built with @mg/gate.

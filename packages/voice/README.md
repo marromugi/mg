@@ -74,6 +74,18 @@ An interface that makes text from spoken audio.
 The audio stream ends when the speaker finishes talking.
 It streams some partial text, then one piece of final text.
 
+Each partial holds the whole text heard so far.
+It replaces the previous partial instead of adding to it.
+
+`accepts` lists the audio formats the transcriber takes.
+Audio in any other format fails the call with a `RangeError` that names the format.
+The transcriber does not convert audio.
+
+`options.languages` lists the languages the speech is expected to be in, as BCP-47 codes.
+When it is left out, the transcriber works the language out.
+An implementation may treat the list as a hint.
+A code that is not a well-formed tag fails the call with a `RangeError`.
+
 ### `Listener`
 
 An interface that delivers what the other person says.

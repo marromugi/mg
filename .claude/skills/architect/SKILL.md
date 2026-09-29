@@ -60,7 +60,7 @@ Then follow principle 1 in order:
 Before choosing, sort any fact the choice rests on: a question that running
 something would settle in one reading — behaviour, output, timing, whether
 an outside system accepts something — goes to `prototyper`, not to a guess.
-Write its answer into `確かめたこと` and let it settle the choice.
+Write its answer into `Confirmed facts` and let it settle the choice.
 
 Consider at least two whole shapes, not two variations of one. Choose by the
 principles, and keep the rejected shapes with the principle that rejected
@@ -86,7 +86,7 @@ and pointers to the code.
   that skill. Then sort what is left: a question that running something
   would settle in one reading — behaviour, output, timing, whether an
   outside system accepts something — goes to `prototyper`, not to step 4.
-  Write its answer into `確かめたこと` and let the decision rest on it, with
+  Write its answer into `Confirmed facts` and let the decision rest on it, with
   the principle that now settles it. Take what is still `ask` to step 4
   before revising anything: questions the theory sends to the developer, and
   questions whose observation came back open to more than one reading, or
@@ -147,7 +147,7 @@ nothing is asked why it is there.
 Then write the cases for the behaviour constraints
 (`software-design-theory`, Cases).
 
-Then write `## 実物での確認` as `references/issue-format.md` describes. For
+Then write `## Verification` as `references/issue-format.md` describes. For
 every entry a V item names that already exists, run
 `node .claude/scripts/entries.mjs show <entry>` and put its declared command
 in the item, so the item names the command the entry actually declares, not
@@ -173,8 +173,8 @@ Do not ask before creating. Both reviews have passed, and the developer reads
 the result in the report.
 
 Create the issues with `gh issue create` from the checked bodies, parent
-first if there is one, then fill the parent's 子 issue list with the real
-numbers. A defect set aside under principle 9 becomes a note issue: 背景 and
+first if there is one, then fill the parent's `Child issues` list with the real
+numbers. A defect set aside under principle 9 becomes a note issue: Background and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
 
 Then invoke `reconciler` with the numbers of the issues just created, so
@@ -219,7 +219,7 @@ not one of them (`software-design-theory`: a small diff is not a reason).
   boundary.
 - One way to do it: within the existing shape there is only one reasonable
   fix, so nothing is chosen between.
-- It contradicts no open issue's design, and no shape under `## 見送った形`
+- It contradicts no open issue's design, and no shape under `## Rejected shapes`
   in the record the code came from.
 
 When any of them is in doubt, take the full flow.
@@ -227,9 +227,9 @@ When any of them is in doubt, take the full flow.
 Steps:
 
 1. Write one issue body in the format from `references/issue-format.md`.
-   `設計` says which existing design the fix follows — link the issue that
+   `Design` says which existing design the fix follows — link the issue that
    holds it when there is one — and states in one sentence that the fix
-   makes no design decision. 制約 and ケース are written as step 5 says;
+   makes no design decision. Constraints and Cases are written as step 5 says;
    a bug fix carries a case that reproduces the bug.
 2. Run `check-issue.mjs` on it until it prints no problems.
 3. Create it with `gh issue create`, without asking.
@@ -266,11 +266,11 @@ Two results:
 2. Run step 2 (Design from the whole) over the existing record as if
    drawing it from the start, keeping the original request and scope. The
    facts passed in are read the same way a `prototyper` answer is: they
-   settle whatever they settle, and go into `確かめたこと`.
+   settle whatever they settle, and go into `Confirmed facts`.
 3. Run step 3 (Design review) on the redrawn record, with the same Rounds.
 4. Run step 4 only for what the theory still sends to the developer, plus
    one more case: when the shape the redraw settles on is one already
-   listed under `## 見送った形`, stop and ask instead of choosing it again —
+   listed under `## Rejected shapes`, stop and ask instead of choosing it again —
    it was rejected once already, so choosing it again is not this skill's
    call. Ask with the AskUserQuestion tool the way step 4 does. When the
    developer answers, revise the record for it and carry on to step 5. When
@@ -290,7 +290,7 @@ Two results:
    `check-issue.mjs` first. Where the new design contradicts work already
    merged, leave that work alone and open a new issue instead — principle 9
    settled that behaviour once, and a redo does not reopen it in place. Add
-   every shape the redraw did not choose to `## 見送った形`, including ones
+   every shape the redraw did not choose to `## Rejected shapes`, including ones
    already listed there.
 
 Return `redone` with the list of edited and created issue numbers. This is
@@ -300,9 +300,10 @@ report the same list plainly.
 
 ## Things to keep in mind
 
-- Human-facing issue text (背景, 設計, 対応内容, 制約, ケース) is Japanese and
-  follows `.claude/rules/writing.md`. `To Implementer` is the one place
-  file names and signatures belong.
+- Issues are written in English, headings included
+  (`references/issue-format.md`). Reports to the developer stay Japanese
+  and follow `.claude/rules/writing.md`. `To Implementer` is the one place
+  in an issue that file names and signatures belong.
 - If the developer asks you to "just do it", remind them once that this repo
   works design-first, then follow their call — but still write the issue so
   the decision and its cases are recorded.

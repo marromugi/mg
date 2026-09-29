@@ -23,7 +23,7 @@ decision see two different versions of the same issue.
 ## When an issue can start
 
 An issue that names a parent is only ready once its predecessors in the
-parent's `## 子 issue` list are done. The snapshot (see step 1 below)
+parent's `## Child issues` list are done. The snapshot (see step 1 below)
 already carries what that needs: `parent.body` holds the ordered list, and
 `parent.children` gives every other child's current `state` (`OPEN` or
 `CLOSED`) and `stateReason` (`COMPLETED`, `NOT_PLANNED`, or `null`). A
@@ -75,7 +75,7 @@ node .claude/skills/architect/scripts/check-issue.mjs <body.md>
 
 If the check reports problems, the issue cannot hold the implementation to
 the design. Stop and show the developer the output; repairing the issue is
-architect's job. The one exception is an issue with no `## ケース` section at
+architect's job. The one exception is an issue with no `## Cases` section at
 all: build it from its `To Implementer` section as written, and say in the
 handoff that it carried no cases.
 
@@ -99,16 +99,16 @@ improve on it.
 <parent decision record, if any>
 
 Rules:
-- Implement only what 対応内容 and To Implementer describe. Nothing listed
+- Implement only what Changes and To Implementer describe. Nothing listed
   under "Out of scope" changes.
-- Every line under 制約 binds you, in this issue and in the parent. If you
+- Every line under Constraints binds you, in this issue and in the parent. If you
   find that the design as written cannot work, or you would need to make a
   design decision the issue does not cover, stop, do not choose, and report
   the question in your final message.
 - Read the Tests section and principle 8 (No history in the code) of
   .claude/skills/software-design-theory/SKILL.md before writing any code.
   Principle 8 governs comments, test names, and documents.
-- Tests come first. Turn every case under ケース into a test, run them, and
+- Tests come first. Turn every case under Cases into a test, run them, and
   confirm each fails because the behaviour is missing, not because of a typo
   or a missing import that the implementation would not fix. Commit the tests
   alone. Then implement, and commit the implementation on top. If the issue

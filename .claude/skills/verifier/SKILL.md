@@ -1,6 +1,6 @@
 ---
 name: verifier
-description: "Run a pull request's actual behaviour and post a verdict on its head commit. Use after the reviewer skill finishes with a PR, whenever a child issue carries a behaviour constraint. Reads the issue's 実物での確認 section, runs each declared entry point in a disposable worktree, judges it with a fresh agent that neither wrote nor reviewed the code, and posts pass, fail, not-needed, or unverifiable to GitHub with the reason and evidence on the PR."
+description: "Run a pull request's actual behaviour and post a verdict on its head commit. Use after the reviewer skill finishes with a PR, whenever a child issue carries a behaviour constraint. Reads the issue's Verification section, runs each declared entry point in a disposable worktree, judges it with a fresh agent that neither wrote nor reviewed the code, and posts pass, fail, not-needed, or unverifiable to GitHub with the reason and evidence on the PR."
 ---
 
 # Verifier
@@ -66,11 +66,11 @@ step 5.
 
 ### 1. Read the confirmation section
 
-Read `## 実物での確認` from the snapshot's `body`.
+Read `## Verification` from the snapshot's `body`.
 
-- `- なし` alone: this issue has no entry points to check. Note the result as
+- `- None` alone: this issue has no entry points to check. Note the result as
   not-needed, with no reason, and go to step 5.
-- `- なし: <reason>`: note the result as not-needed, with that reason, and go
+- `- None: <reason>`: note the result as not-needed, with that reason, and go
   to step 5.
 - Anything else: it names the entry points (V items) to check. Continue to
   step 2 with that list.

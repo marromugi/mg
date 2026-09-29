@@ -3,29 +3,29 @@ import fs from "node:fs";
 import process from "node:process";
 
 const CHILD_H2 = [
-  "背景",
-  "設計",
-  "対応内容",
-  "制約",
-  "ケース",
-  "実物での確認",
+  "Background",
+  "Design",
+  "Changes",
+  "Constraints",
+  "Cases",
+  "Verification",
   "To Implementer",
 ];
 const RECORD_H2 = [
-  "決定",
-  "変わる振る舞い",
-  "全体の中の位置",
-  "確かめたこと",
-  "理由",
-  "見送った形",
-  "手放したもの",
+  "Decision",
+  "Behaviour changes",
+  "Place in the whole",
+  "Confirmed facts",
+  "Reasons",
+  "Rejected shapes",
+  "Trade-offs",
 ];
 const KINDS = [
-  ["振る舞い", "B"],
-  ["構造", "S"],
-  ["向き", "D"],
+  ["Behaviour", "B"],
+  ["Structure", "S"],
+  ["Direction", "D"],
 ];
-const NONE = "なし";
+const NONE = "None";
 
 const file = process.argv[2];
 if (!file) {
@@ -69,19 +69,19 @@ const requireInOrder = (titles) => {
 };
 
 const isChild = Boolean(find("To Implementer"));
-const hasRecord = Boolean(find("決定"));
+const hasRecord = Boolean(find("Decision"));
 const isParent = hasRecord && !isChild;
 
 if (!isChild && !hasRecord) {
-  fail(1, 'neither "## To Implementer" nor "## 決定": not an architect issue');
+  fail(1, 'neither "## To Implementer" nor "## Decision": not an architect issue');
 }
 if (isChild) requireInOrder(CHILD_H2);
 if (hasRecord) requireInOrder(RECORD_H2);
-if (isParent && !find("子 issue")) fail(1, 'missing section "## 子 issue"');
+if (isParent && !find("Child issues")) fail(1, 'missing section "## Child issues"');
 
-for (const title of ["理由", "見送った形"]) {
+for (const title of ["Reasons", "Rejected shapes"]) {
   for (const { n, item } of bullets(find(title)?.lines ?? [])) {
-    if (item !== NONE && !/原則 ?\d/.test(item)) {
+    if (item !== NONE && !/Principle ?\d/.test(item)) {
       fail(n, `"${title}" item cites no principle`);
     }
   }
@@ -93,7 +93,7 @@ const declare = (id, n) => {
   else ids.set(id, n);
 };
 
-const constraints = find("制約");
+const constraints = find("Constraints");
 if (constraints) {
   let prefix = null;
   const seen = new Set();
@@ -122,7 +122,7 @@ if (constraints) {
 }
 
 const received = new Set();
-const cases = find("ケース");
+const cases = find("Cases");
 if (cases) {
   for (const { n, item } of bullets(cases.lines)) {
     if (item === NONE) continue;
@@ -147,21 +147,21 @@ for (const [id, n] of ids) {
 }
 
 const hasBehaviourConstraints = [...ids.keys()].some((id) => id.startsWith("B"));
-const checks = find("実物での確認");
+const checks = find("Verification");
 if (checks) {
   const items = bullets(checks.lines);
   const isBareNone = items.length === 1 && items[0].item === NONE;
 
   for (const { n, item } of items) {
-    if (item === NONE || /^なし: \S/.test(item)) {
+    if (item === NONE || /^None: \S/.test(item)) {
       if (items.length > 1) {
-        fail(n, '"なし" must be the only item in "実物での確認"');
+        fail(n, '"None" must be the only item in "Verification"');
       }
       continue;
     }
     const m = /^V(\d+)(?: \[([^\]]*)\])?: (\S.*)$/.exec(item);
     if (!m) {
-      fail(n, 'check is not "V<n>: <entry> ..." or "なし: <reason>"');
+      fail(n, 'check is not "V<n>: <entry> ..." or "None: <reason>"');
       continue;
     }
     const vId = `V${m[1]}`;
@@ -179,12 +179,12 @@ if (checks) {
 
   if (!hasBehaviourConstraints) {
     if (!isBareNone) {
-      fail(checks.n, '"実物での確認" must be "- なし" when there are no behaviour constraints');
+      fail(checks.n, '"Verification" must be "- None" when there are no behaviour constraints');
     }
   } else if (isBareNone || items.length === 0) {
     fail(
       checks.n,
-      '"実物での確認" needs "V<n>" items or "なし: <reason>" when there are behaviour constraints',
+      '"Verification" needs "V<n>" items or "None: <reason>" when there are behaviour constraints',
     );
   }
 }

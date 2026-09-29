@@ -85,7 +85,7 @@ body; they are structural, not keyword matches.
 
 - The body has a `## To Implementer` section. Without it, the issue did not
   come through architect. Leave it alone; it is not work to build.
-- It is not a parent. A parent has a `## 決定` section and a `## 子 issue`
+- It is not a parent. A parent has a `## Decision` section and a `## Child issues`
   list; it holds the record, not work.
 - No open PR already closes it. A PR that is still open after a run is the
   developer's to look at, and the reason is on the PR. Check with:
@@ -108,7 +108,7 @@ On success the script prints `ok: issue #<N> can start`, then `parent: none`
 or `parent: #<P>` followed by one `child #<n>: …` line per other child of
 the parent. The script does not judge ordering, and its output carries
 neither the parent's body nor this issue's own place in the parent's
-`## 子 issue` list, so the ordering rule cannot be applied from that output
+`## Child issues` list, so the ordering rule cannot be applied from that output
 alone. When it printed `parent: #<P>`, read the parent now:
 
 ```
@@ -143,7 +143,7 @@ next one.
 Two questions decide the order: which issues touch everything, and which
 issues can be built at the same time. Both come from reading the ready
 issues' `To Implementer` sections, in particular `Files / modules` and
-`Out of scope`, and the parents' `子 issue` lists. Do this reading before
+`Out of scope`, and the parents' `Child issues` lists. Do this reading before
 starting anything, over the whole ready set, so a later issue cannot
 surprise an earlier one.
 
@@ -159,7 +159,7 @@ else is in flight while it builds, reviews, and merges.
 **Everything else goes in batches of independent issues.** Two issues can
 share a batch only when all of these are certain:
 
-- Neither is before the other in a parent's `子 issue` order, or the parent
+- Neither is before the other in a parent's `Child issues` order, or the parent
   says they are independent.
 - Their `Files / modules` lists name no common file, and neither lists a
   file the other's `Out of scope` protects.
@@ -234,7 +234,7 @@ gather from the run:
 - Findings, from either pass, that ask for something the issue or its
   parent already decided against: a different return shape than the
   issue's interface, a fallback the issue prescribed, a trade-off listed
-  under 承知の上で手放したもの. These are not defects in the PR. Reply on
+  under Trade-offs. These are not defects in the PR. Reply on
   the thread with the issue or parent section that decides it, do not fix,
   and keep them for the report as questions the developer may reopen.
 - Whether CI ran, and its final result.
@@ -344,7 +344,7 @@ After the whole batch is decided, go back to step 1 with the same scope.
 Re-read the queue rather than reusing the plan: merges and open PRs have
 changed what is ready.
 
-**Close finished parents.** When a parent's `子 issue` list is entirely
+**Close finished parents.** When a parent's `Child issues` list is entirely
 closed and no PR for any child is left open, close the parent too, with
 one comment listing each child and the PR that closed it:
 
@@ -356,7 +356,7 @@ The parent holds the decision record; closing it does not change that,
 the record stays readable. Do this whenever a merge completes a parent,
 not only at the end, so the queue reads true while the loop runs. Do not
 close a parent whose children are only partly done, or one that is a
-方針 issue with no `子 issue` list.
+方針 issue with no `Child issues` list.
 
 ## Stop conditions
 
@@ -386,7 +386,7 @@ Japanese, following `.claude/rules/writing.md`. Order:
    and what the developer decides. Point at the PR comments rather than
    repeating them. A design question with no PR is quoted here in full.
 4. Not started: each issue on the not-started list, the reason, and what
-   the developer needs to repair — usually the parent's `子 issue` list.
+   the developer needs to repair — usually the parent's `Child issues` list.
    Keep these separate from item 3; there is no PR to point at.
 5. Questions the developer may reopen: the findings answered on their
    threads because the issue already decided them (step 3), one line each

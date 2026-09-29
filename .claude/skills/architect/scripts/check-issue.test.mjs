@@ -10,58 +10,58 @@ import { fileURLToPath } from "node:url";
 const execFileAsync = promisify(execFile);
 const SCRIPT = fileURLToPath(new URL("./check-issue.mjs", import.meta.url));
 
-const BASE_CHILD = `## 背景
+const BASE_CHILD = `## Background
 
-テスト用の背景です。
+Background for the test.
 
-## 設計
+## Design
 
-テスト用の設計です。
+Design for the test.
 
-## 対応内容
+## Changes
 
-- テスト用の対応内容です。
+- Changes for the test.
 
-## 制約
+## Constraints
 
-### 振る舞い
-- B1: テスト用の振る舞いです。
+### Behaviour
+- B1: Behaviour for the test.
 
-### 構造
-- なし
+### Structure
+- None
 
-### 向き
-- なし
+### Direction
+- None
 
-## ケース
-- C1 [B1]: テスト用のケースです。
+## Cases
+- C1 [B1]: Case for the test.
 
-## 実物での確認
-- V1 [B1]: \`runs/example.ts\` を走らせます。「ok」と出れば合格です。
+## Verification
+- V1 [B1]: Run \`runs/example.ts\`. It passes when it prints ok.
 
 ## To Implementer
-- Files / modules: なし
+- Files / modules: none
 `;
 
-const PARENT_WITHOUT_CONFIRMED = `## 決定
+const PARENT_WITHOUT_CONFIRMED = `## Decision
 
-テスト用の決定です。
+Decision for the test.
 
-## 変わる振る舞い
-- なし
+## Behaviour changes
+- None
 
-## 全体の中の位置
+## Place in the whole
 
-テスト用の位置です。
+Place for the test.
 
-## 理由
-- 原則 1: テスト用の理由です。
+## Reasons
+- Principle 1: Reason for the test.
 
-## 見送った形
-- なし
+## Rejected shapes
+- None
 
-## 手放したもの
-- なし
+## Trade-offs
+- None
 `;
 
 function tempFile(name, body) {
@@ -83,45 +83,45 @@ async function runCheck(body, name = "body.md") {
 
 test("reports a missing confirmation section and exits 1", async () => {
   const body = BASE_CHILD.replace(
-    /## 実物での確認\n[\s\S]*?\n\n## To Implementer/,
+    /## Verification\n[\s\S]*?\n\n## To Implementer/,
     "## To Implementer",
   );
 
   const { code, stderr } = await runCheck(body);
 
   assert.equal(code, 1);
-  assert.match(stderr, /missing section "## 実物での確認"/);
+  assert.match(stderr, /missing section "## Verification"/);
 });
 
 test("reports a confirmation section placed before the cases and exits 1", async () => {
-  const confirmationBlock = `## 実物での確認
-- V1 [B1]: \`runs/example.ts\` を走らせます。「ok」と出れば合格です。
+  const confirmationBlock = `## Verification
+- V1 [B1]: Run \`runs/example.ts\`. It passes when it prints ok.
 
 `;
   const body = BASE_CHILD.replace(
-    /## 実物での確認\n[\s\S]*?\n\n(?=## To Implementer)/,
+    /## Verification\n[\s\S]*?\n\n(?=## To Implementer)/,
     "",
-  ).replace("## ケース", `${confirmationBlock}## ケース`);
+  ).replace("## Cases", `${confirmationBlock}## Cases`);
 
   const { code, stderr } = await runCheck(body);
 
   assert.equal(code, 1);
-  assert.match(stderr, /"## 実物での確認" is out of order/);
+  assert.match(stderr, /"## Verification" is out of order/);
 });
 
 test("reports a decision record missing the confirmed-facts section and exits 1", async () => {
   const { code, stderr } = await runCheck(PARENT_WITHOUT_CONFIRMED);
 
   assert.equal(code, 1);
-  assert.match(stderr, /missing section "## 確かめたこと"/);
+  assert.match(stderr, /missing section "## Confirmed facts"/);
 });
 
 test("reports a bare confirmation entry as wrong when there are no behaviour constraints, and exits 1", async () => {
-  const body = BASE_CHILD.replace("- B1: テスト用の振る舞いです。", "- なし")
-    .replace("- C1 [B1]: テスト用のケースです。", "- なし")
+  const body = BASE_CHILD.replace("- B1: Behaviour for the test.", "- None")
+    .replace("- C1 [B1]: Case for the test.", "- None")
     .replace(
-      "- V1 [B1]: `runs/example.ts` を走らせます。「ok」と出れば合格です。",
-      "- なし: 入口がありません",
+      "- V1 [B1]: Run `runs/example.ts`. It passes when it prints ok.",
+      "- None: no entry reaches it",
     );
 
   const { code, stderr } = await runCheck(body);
@@ -129,14 +129,14 @@ test("reports a bare confirmation entry as wrong when there are no behaviour con
   assert.equal(code, 1);
   assert.match(
     stderr,
-    /"実物での確認" must be "- なし" when there are no behaviour constraints/,
+    /"Verification" must be "- None" when there are no behaviour constraints/,
   );
 });
 
 test("reports a bare confirmation entry as wrong when there are behaviour constraints, and exits 1", async () => {
   const body = BASE_CHILD.replace(
-    "- V1 [B1]: `runs/example.ts` を走らせます。「ok」と出れば合格です。",
-    "- なし",
+    "- V1 [B1]: Run `runs/example.ts`. It passes when it prints ok.",
+    "- None",
   );
 
   const { code, stderr } = await runCheck(body);
@@ -144,20 +144,20 @@ test("reports a bare confirmation entry as wrong when there are behaviour constr
   assert.equal(code, 1);
   assert.match(
     stderr,
-    /"実物での確認" needs "V<n>" items or "なし: <reason>" when there are behaviour constraints/,
+    /"Verification" needs "V<n>" items or "None: <reason>" when there are behaviour constraints/,
   );
 });
 
 test("reports a confirmation entry with the wrong shape and exits 1", async () => {
   const body = BASE_CHILD.replace(
-    "- V1 [B1]: `runs/example.ts` を走らせます。「ok」と出れば合格です。",
-    "- runs/example.ts を走らせます",
+    "- V1 [B1]: Run `runs/example.ts`. It passes when it prints ok.",
+    "- Run runs/example.ts",
   );
 
   const { code, stderr } = await runCheck(body);
 
   assert.equal(code, 1);
-  assert.match(stderr, /check is not "V<n>: <entry> \.\.\." or "なし: <reason>"/);
+  assert.match(stderr, /check is not "V<n>: <entry> \.\.\." or "None: <reason>"/);
 });
 
 test("reports a confirmation entry naming an undeclared behaviour constraint, and exits 1", async () => {
@@ -180,8 +180,8 @@ test("reports a confirmation entry naming a case instead of a behaviour constrai
 
 test("reports a confirmation entry with no entry in backticks, and exits 1", async () => {
   const body = BASE_CHILD.replace(
-    "`runs/example.ts` を走らせます",
-    "runs/example.ts を走らせます",
+    "Run `runs/example.ts`",
+    "Run runs/example.ts",
   );
 
   const { code, stderr } = await runCheck(body);
@@ -192,8 +192,8 @@ test("reports a confirmation entry with no entry in backticks, and exits 1", asy
 
 test("reports a repeated confirmation id, naming the line it was already used on, and exits 1", async () => {
   const body = BASE_CHILD.replace(
-    "- V1 [B1]: `runs/example.ts` を走らせます。「ok」と出れば合格です。\n",
-    "- V1 [B1]: `runs/example.ts` を走らせます。「ok」と出れば合格です。\n- V1 [B1]: `runs/example.ts` をもう一度走らせます。\n",
+    "- V1 [B1]: Run `runs/example.ts`. It passes when it prints ok.\n",
+    "- V1 [B1]: Run `runs/example.ts`. It passes when it prints ok.\n- V1 [B1]: Run `runs/example.ts` again.\n",
   );
 
   const { code, stderr } = await runCheck(body);
@@ -211,8 +211,8 @@ test("prints ok and exits 0 for a body with every section in place", async () =>
 
 test("prints ok and exits 0 when the confirmation entry gives a reason instead of an entry", async () => {
   const body = BASE_CHILD.replace(
-    "- V1 [B1]: `runs/example.ts` を走らせます。「ok」と出れば合格です。",
-    "- なし: 走らせる入口がありません。#12 で確かめます",
+    "- V1 [B1]: Run `runs/example.ts`. It passes when it prints ok.",
+    "- None: no entry to run. Checked in #12",
   );
 
   const { code, stdout, file } = await runCheck(body);

@@ -10,8 +10,8 @@ const execFileAsync = promisify(execFile);
 const GH_MAX_BUFFER = 256 * 1024 * 1024;
 
 const HEADING_RE = /^## /;
-const CHILDREN_HEADING_RE = /^## 子 issue\s*$/;
-const DESIGN_HEADING_RE = /^## 設計\s*$/;
+const CHILDREN_HEADING_RE = /^## Child issues\s*$/;
+const DESIGN_HEADING_RE = /^## Design\s*$/;
 const CHILD_ITEM_RE = /^\d+\.\s+#(\d+)/;
 
 function section(body, headingRe) {
@@ -39,7 +39,7 @@ function parseChildren(body) {
 
 function mentionsParent(body) {
   const lines = section(body, DESIGN_HEADING_RE);
-  return lines !== null && lines.join("\n").includes("親");
+  return lines !== null && lines.join("\n").toLowerCase().includes("parent");
 }
 
 function formatState({ state, stateReason }) {
@@ -141,7 +141,7 @@ async function resolve(gh, n) {
     if (mentionsParent(issue.body)) {
       return {
         ok: false,
-        lines: [`refused: issue #${n} mentions a parent but no issue lists it under 子 issue`],
+        lines: [`refused: issue #${n} mentions a parent but no issue lists it under Child issues`],
       };
     }
     return { ok: true, issue, parent: null };

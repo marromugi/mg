@@ -161,8 +161,8 @@ export const createRunQueue = <TInput, TOutcome>(
   return {
     enqueue,
     wrapUp,
-    hold: holdController.hold,
-    release: holdController.release,
+    hold: () => holdController.hold(),
+    release: () => holdController.release(),
     close,
   };
 };

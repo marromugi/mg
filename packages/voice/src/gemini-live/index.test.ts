@@ -422,6 +422,100 @@ describe("createGeminiTranscriber", () => {
     expect(sockets[0].closed).toBe(true);
   });
 
+  describe("after the signal has fired", () => {
+    const start = (
+      Ctor: typeof WebSocket,
+      signal: AbortSignal,
+      languages?: string[],
+    ) => {
+      const source = audioSource();
+      const transcriber = createGeminiTranscriber({
+        apiKey: "k",
+        WebSocket: Ctor,
+      });
+      const iterator = transcriber
+        .transcribe(source.audio, { signal, languages })
+        [Symbol.asyncIterator]();
+      return { source, iterator };
+    };
+
+    const takePartial = async (
+      sockets: FakeSocket[],
+      call: ReturnType<typeof start>,
+    ) => {
+      const first = call.iterator.next();
+      call.source.push(mono16k());
+      await vi.waitFor(() => expect(sockets.length).toBe(1));
+      await acknowledgeSetup(() => sockets[0]);
+      sockets[0].serverSend(interim("明日の"));
+      expect(await first).toEqual({
+        done: false,
+        value: { type: "partial", text: "明日の" },
+      });
+    };
+
+    test("throws the reason before checking language codes when the signal fired before the call", async () => {
+      const { sockets, Ctor } = fakeWebSocket();
+      const controller = new AbortController();
+      const reason = { why: "user" };
+      controller.abort(reason);
+      const call = start(Ctor, controller.signal, ["not a tag!!"]);
+      await expect(call.iterator.next()).rejects.toBe(reason);
+      expect(sockets.length).toBe(0);
+    });
+
+    test("drops a queued final and the end, throws the reason, and closes the session", async () => {
+      const { sockets, Ctor } = fakeWebSocket();
+      const controller = new AbortController();
+      const call = start(Ctor, controller.signal);
+      await takePartial(sockets, call);
+      sockets[0].serverSend(completed("明日の会議"));
+      sockets[0].serverSend(generationComplete);
+      const reason = { why: "user" };
+      controller.abort(reason);
+      await expect(call.iterator.next()).rejects.toBe(reason);
+      expect(sockets[0].closed).toBe(true);
+    });
+
+    test("drops a queued partial and throws the reason", async () => {
+      const { sockets, Ctor } = fakeWebSocket();
+      const controller = new AbortController();
+      const call = start(Ctor, controller.signal);
+      await takePartial(sockets, call);
+      sockets[0].serverSend(interim("明日の会議"));
+      const reason = { why: "user" };
+      controller.abort(reason);
+      await expect(call.iterator.next()).rejects.toBe(reason);
+    });
+
+    test("throws the reason at once, yielding nothing, when stopped before any connection opened", async () => {
+      const { sockets, Ctor } = fakeWebSocket();
+      const controller = new AbortController();
+      const call = start(Ctor, controller.signal);
+      const pending = call.iterator.next();
+      await flush();
+      const reason = { why: "user" };
+      controller.abort(reason);
+      await expect(pending).rejects.toBe(reason);
+      expect(sockets.length).toBe(0);
+    });
+
+    test("throws an error queued before the stop as that error", async () => {
+      const { sockets, Ctor } = fakeWebSocket();
+      const controller = new AbortController();
+      const call = start(Ctor, controller.signal);
+      await takePartial(sockets, call);
+      sockets[0].serverClose(1011, "internal");
+      controller.abort({ why: "user" });
+      const error = (await call.iterator.next().then(
+        () => undefined,
+        (e: unknown) => e,
+      )) as Error;
+      expect(error.name).toBe("GeminiTranscriptionTransportError");
+      expect(error.message).toContain("1011");
+    });
+  });
+
   test("throws the audio stream's error unchanged and closes the session", async () => {
     const { sockets, Ctor } = fakeWebSocket();
     const call = run({ WebSocket: Ctor });

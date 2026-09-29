@@ -6,6 +6,7 @@ import { createLlmGate, createRulesGate } from "@mg/gate";
 import {
   createCdpConnector,
   createSshConnector,
+  createSshEndpoint,
   defineWorkspace,
 } from "@mg/workspace";
 import { outputPath } from "./outputs.ts";
@@ -24,34 +25,54 @@ const sshKeyPath = process.env.MG_SSH_KEY_PATH;
 if (sshKeyPath === undefined)
   throw new Error("MG_SSH_KEY_PATH is not set");
 
-const cdpUrl = process.env.MG_CDP_URL;
-if (cdpUrl === undefined) throw new Error("MG_CDP_URL is not set");
+const readPort = (name: string): number => {
+  const raw = process.env[name];
+  if (raw === undefined) throw new Error(`${name} is not set`);
+  if (!/^[0-9]+$/.test(raw) || Number(raw) < 1 || Number(raw) > 65535)
+    throw new Error(
+      `${name} must be an integer from 1 to 65535: ${JSON.stringify(raw)}`,
+    );
+  return Number(raw);
+};
 
-const cleanCdpUrl = process.env.MG_CLEAN_CDP_URL;
-if (cleanCdpUrl === undefined)
-  throw new Error("MG_CLEAN_CDP_URL is not set");
+const sshConnection = {
+  host: sshHost,
+  username: sshUser,
+  auth: { privateKey: readFileSync(sshKeyPath, "utf8") },
+};
+
+const cdpPort = readPort("MG_CDP_PORT");
+const cleanCdpPort = readPort("MG_CLEAN_CDP_PORT");
 
 const provider = createOpenRouterProvider({ apiKey });
 
 const buildMachine = defineWorkspace({
   name: "build-machine",
   connectors: [
-    createSshConnector({
-      host: sshHost,
-      username: sshUser,
-      auth: { privateKey: readFileSync(sshKeyPath, "utf8") },
+    createSshConnector(sshConnection),
+    createCdpConnector({
+      endpoint: createSshEndpoint({
+        ...sshConnection,
+        remotePort: cdpPort,
+      }),
     }),
-    createCdpConnector({ url: cdpUrl }),
   ],
 });
 
 const cleanBrowser = defineWorkspace({
   name: "clean-browser",
-  connectors: [createCdpConnector({ url: cleanCdpUrl })],
+  connectors: [
+    createCdpConnector({
+      endpoint: createSshEndpoint({
+        ...sshConnection,
+        remotePort: cleanCdpPort,
+      }),
+    }),
+  ],
 });
 
 export default defineRun({
-  name: "loop-subagent-deepseek",
+  name: "loop-subagent-deepseek-endpoint",
   provider,
   harness: {
     kind: "loop",

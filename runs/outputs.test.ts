@@ -64,8 +64,8 @@ describe("the six loop configs' trace destination", () => {
     process.env.MG_SSH_HOST = "placeholder";
     process.env.MG_SSH_USER = "placeholder";
     process.env.MG_SSH_KEY_PATH = sshKeyPath;
-    process.env.MG_CDP_URL = "ws://placeholder";
-    process.env.MG_CLEAN_CDP_URL = "ws://placeholder";
+    process.env.MG_CDP_PORT = "9333";
+    process.env.MG_CLEAN_CDP_PORT = "9334";
   });
 
   const configNames = [

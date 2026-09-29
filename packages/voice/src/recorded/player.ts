@@ -1,4 +1,5 @@
 import type { AudioChunk, AudioFormat } from "../audio.js";
+import { sleepUnlessAborted } from "../clock.js";
 import type { Clock } from "../clock.js";
 import type { PlaybackEnd, Player } from "../player.js";
 import { chunkDurationMs, encodeWav } from "./wav.js";
@@ -38,8 +39,10 @@ const newRound = (): Round => ({
   abort: new AbortController(),
 });
 
+const ENCODING = "pcm-s16le";
+
 const describeFormat = (format: AudioFormat): string =>
-  `${format.sampleRate} Hz, ${format.channels} channel${format.channels === 1 ? "" : "s"}`;
+  `${format.encoding}, ${format.sampleRate} Hz, ${format.channels} channel${format.channels === 1 ? "" : "s"}`;
 
 const STOPPED = Symbol("stopped");
 
@@ -68,21 +71,6 @@ const release = (iterator: AsyncIterator<AudioChunk>) => {
   } catch {
     // The source is already finished.
   }
-};
-
-// Sleeps the duration; false when the signal fired first.
-const play = async (
-  clock: Clock,
-  ms: number,
-  signal: AbortSignal,
-): Promise<boolean> => {
-  try {
-    await clock.sleep(ms, signal);
-  } catch (error) {
-    if (signal.aborted) return false;
-    throw error;
-  }
-  return !signal.aborted;
 };
 
 export const createRecordingPlayer = ({
@@ -139,6 +127,8 @@ export const createRecordingPlayer = ({
     const taken: Uint8Array[] = [];
     let format: AudioFormat | undefined;
     let played = true;
+    let start = 0;
+    let playedMs = 0;
     let failure: { error: unknown } | undefined;
     try {
       for (;;) {
@@ -149,9 +139,17 @@ export const createRecordingPlayer = ({
         }
         if (step.done) break;
         const next = step.value;
+        const encoding: string = next.format.encoding;
+        if (encoding !== ENCODING) {
+          throw new Error(
+            `cannot record encoding ${encoding}; it records ${ENCODING}`,
+          );
+        }
         if (format === undefined) {
+          start = clock.now();
           format = next.format;
         } else if (
+          next.format.encoding !== format.encoding ||
           next.format.sampleRate !== format.sampleRate ||
           next.format.channels !== format.channels
         ) {
@@ -159,7 +157,9 @@ export const createRecordingPlayer = ({
             `chunk format changed from ${describeFormat(format)} to ${describeFormat(next.format)}`,
           );
         }
-        if (!(await play(clock, chunkDurationMs(next), signal))) {
+        playedMs += chunkDurationMs(next);
+        const remaining = start + playedMs - clock.now();
+        if (!(await sleepUnlessAborted(clock, remaining, signal))) {
           played = false;
           break;
         }
@@ -171,7 +171,14 @@ export const createRecordingPlayer = ({
       release(iterator);
     }
     if (format !== undefined && taken.length > 0) {
-      await write(name, encodeWav(format, taken));
+      try {
+        await write(name, encodeWav(format, taken));
+      } catch (error) {
+        if (failure === undefined) throw error;
+        if (failure.error instanceof Error) {
+          failure.error.cause ??= error;
+        }
+      }
     }
     if (failure !== undefined) throw failure.error;
     return { played };

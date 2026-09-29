@@ -353,12 +353,14 @@ The index rules are those of `Player`.
 - Sentence `n` of text `t` is written as `<t>-<n>.wav`, both counted from 0.
   Each index 0 begins the next text number.
 - The file is a 16-bit PCM WAV in the format of the sentence's chunks.
-- `play` waits each chunk's duration and resolves `{ played: true }` after the audio's duration.
+- `play` waits until each chunk's end, measured from the start of the audio, and resolves `{ played: true }` after the audio's duration.
 - `stop()` resolves the running and every waiting `play` as not played.
-  The stopped sentence's file holds only the chunks taken before the stop.
+  The stopped sentence's file holds the chunks whose full duration had passed before the stop.
   A sentence that never started writes no file.
-- A chunk whose rate or channels differ from the first chunk's rejects the play, naming both formats.
-  The file holds the chunks taken before it.
+- A chunk whose encoding, rate or channels differ from the first chunk's rejects the play, naming both formats.
+  The file holds the chunks whose full duration had passed before it.
+  If that write fails too, the rejection stays the format error and carries the write error as its cause.
+- A chunk that is not `pcm-s16le` rejects the play, naming the encoding.
 - A play rejected before it takes a chunk writes no file.
 - A failed `write` rejects the play with the writer's error.
 

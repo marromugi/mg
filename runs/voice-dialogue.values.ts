@@ -14,14 +14,7 @@ export const triggerThreshold = 0.7;
 export const synthesizerVoice = "Kore";
 export const synthesizerLanguage = "ja-JP";
 
-export const talkerInstruction =
-  "あなたは声で会話する相手です。短く自然な話し言葉で答えます。" +
-  "作業は別の担当が進めています。各メッセージの先頭にある作業の状況を読んで、" +
-  "分かっていることだけを話します。";
-
-export const workerPolicy =
-  "Read-only commands are allowed. Deleting files or " +
-  "sending data outside the machine is not.";
+export { bashReadOnlyPolicy as workerPolicy } from "./bash-policy.ts";
 
 export const triggerQuestion =
   "直近のやり取りで、作業を頼まれていますか。";
@@ -80,7 +73,7 @@ const statusBlock = (status: WorkStatus): string => {
     lines.push(`依頼: ${status.request.text}${cut}`);
   }
   if (status.tools.length > 0) {
-    lines.push("最近の道具の使用:");
+    lines.push("最近のツールの使用:");
     for (const tool of status.tools) {
       lines.push(
         `- ${tool.name}(${tool.arguments}) → ${tool.result ?? "実行中"}`,

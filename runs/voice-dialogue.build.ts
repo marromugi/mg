@@ -1,9 +1,6 @@
 import type { Message } from "@mg/core";
 import { createOpenRouterProvider } from "@mg/core";
-import type {
-  ConversationEntry,
-  ConversationStore,
-} from "@mg/conversation";
+import type { ConversationStore } from "@mg/conversation";
 import { createMemoryConversationStore } from "@mg/conversation";
 import type {
   DialogueEvent,
@@ -51,7 +48,6 @@ import {
   judgeWording,
   synthesizerLanguage,
   synthesizerVoice,
-  talkerInstruction,
   triggerQuestion,
   triggerThreshold,
   workerPolicy,
@@ -125,6 +121,8 @@ export const createTalker = ({
               options.heard,
               options.signal,
             );
+            if (!added.some((m) => m.role === "assistant"))
+              return [...added];
             return keepDelivered(added, {
               kind: "until",
               turn: 0,
@@ -321,10 +319,6 @@ export const createDialogueCollaborators = async (keys: {
   const store = createMemoryConversationStore();
   await store.create(TALKER_ID);
   await store.create(WORK_ID);
-  const instruction: ConversationEntry = {
-    messages: [{ role: "system", content: talkerInstruction }],
-  };
-  await store.append(TALKER_ID, instruction, 0);
 
   return {
     transcriber: createGeminiTranscriber({ apiKey: keys.geminiApiKey }),

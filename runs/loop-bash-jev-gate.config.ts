@@ -4,6 +4,7 @@ import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createEstimatorGate } from "@mg/gate";
 import { createSampleJevEstimator } from "./jev-estimator.ts";
+import { bashReadOnlyPolicy } from "./bash-policy.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -16,10 +17,6 @@ if (jevApiKey === undefined)
 
 const provider = createOpenRouterProvider({ apiKey });
 
-const policy =
-  "Read-only commands are allowed. Deleting files or " +
-  "sending data outside the machine is not.";
-
 export default defineRun({
   name: "loop-bash-jev-gate-deepseek",
   provider,
@@ -31,7 +28,7 @@ export default defineRun({
   tools: [createBashTool({ cwd: process.cwd() })],
   gate: createEstimatorGate({
     estimator: createSampleJevEstimator({ apiKey: jevApiKey }),
-    policy,
+    policy: bashReadOnlyPolicy,
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

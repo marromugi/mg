@@ -131,6 +131,12 @@ if there is one. If there is none, the decision record goes here instead.>
 
 `To Implementer` does not list tests. The cases are the tests.
 
+A structural check that looks for a definition searches for the name, not
+for one way of writing it. `grep -n "buildRun("` finds
+`function buildRun(` but misses `const buildRun = (`; search for the bare
+name (`grep -nw buildRun`) or use an `ast-grep` pattern that covers every
+form the definition can take.
+
 `実物での確認` names the entries the behaviour constraints are confirmed
 through, not the burden of running them; the burden sits in the entry's own
 declaration. Item forms:

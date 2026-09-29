@@ -1,6 +1,6 @@
-import type { Estimator } from "@mg/core";
+import type { Estimator, Message } from "@mg/core";
 import { createMemoryStore } from "@mg/memory";
-import { createRecall } from "@mg/persona";
+import { createRecall, transcribe } from "@mg/persona";
 
 const PERSONA_ID = "measure";
 const CONVERSATION_ID = "measure";
@@ -53,7 +53,7 @@ export type KeepMeasureOptions = {
 export type PersonaScene = {
   previous: string;
   proposed: string;
-  conversation: string;
+  conversation: readonly Message[];
   expected: boolean;
 };
 
@@ -182,7 +182,7 @@ const measurePersonaOne = async (
     subject: {
       previous: scene.previous,
       proposed: scene.proposed,
-      conversation: scene.conversation,
+      conversation: transcribe(scene.conversation),
     },
     question: options.question,
   });

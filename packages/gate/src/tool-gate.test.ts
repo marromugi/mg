@@ -52,8 +52,8 @@ const call: ToolCall = {
 const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
 
 describe("toToolCallRequest", () => {
-  it("builds a tool-call request with name, description and arguments", () => {
-    const request = toToolCallRequest([weatherTool], call);
+  it("builds a tool-call request with name, description and arguments", async () => {
+    const request = await toToolCallRequest([weatherTool], call);
 
     expect(request.kind).toBe(TOOL_CALL_KIND);
     expect(request.description).toContain("Tool: weather");
@@ -74,7 +74,7 @@ describe("toToolCallRequest", () => {
     expect(payload.tool).not.toHaveProperty("execute");
   });
 
-  it("describes a tool without a description as (none)", () => {
+  it("describes a tool without a description as (none)", async () => {
     const tool: Tool = defineTool({
       reach: async () => ({ kind: "any-local" }),
       name: "weather",
@@ -82,13 +82,13 @@ describe("toToolCallRequest", () => {
       execute: async () => "sunny",
     });
 
-    const request = toToolCallRequest([tool], call);
+    const request = await toToolCallRequest([tool], call);
 
     expect(request.description).toContain("Description: (none)");
   });
 
-  it("describes an unknown tool as (unknown tool) with payload.tool undefined", () => {
-    const request = toToolCallRequest([], call);
+  it("describes an unknown tool as (unknown tool) with payload.tool undefined", async () => {
+    const request = await toToolCallRequest([], call);
 
     expect(request.description).toContain(
       "Description: (unknown tool)",

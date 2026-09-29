@@ -54,8 +54,11 @@ class RecordingSpan implements TraceSpan {
   }
 }
 
-const toolCallRequest = (call: ToolCall): GateRequest => {
-  const payload: ToolCallPayload = { call };
+const toolCallRequest = (
+  call: ToolCall,
+  reach: Reach = { kind: "any-local" },
+): GateRequest => {
+  const payload: ToolCallPayload = { call, reach };
   return {
     kind: TOOL_CALL_KIND,
     description: `Tool: ${call.name}`,
@@ -63,15 +66,22 @@ const toolCallRequest = (call: ToolCall): GateRequest => {
   };
 };
 
+const root = realpathSync(tmpdir());
+
 const call = (
   name: string,
   args: Record<string, unknown> = {},
 ): ToolCall => ({ id: "call-1", name, arguments: args });
 
+const files = (...paths: [string, "file" | "tree"][]): Reach => ({
+  kind: "paths",
+  paths: paths.map(([path, extent]) => ({ path, extent })),
+});
+
 describe("createRulesGate", () => {
   test("allows a request whose kind is not tool-call, without inspecting rules", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["write_file"], allowed: false }],
     });
 
@@ -88,7 +98,7 @@ describe("createRulesGate", () => {
 
   test("a tools-only rule denies the named tool regardless of path", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false, reason: "no shell" }],
     });
 
@@ -101,7 +111,7 @@ describe("createRulesGate", () => {
 
   test("a tools-only rule does not affect a call to a different tool", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false }],
     });
 
@@ -112,46 +122,38 @@ describe("createRulesGate", () => {
     expect(verdict.allowed).toBe(true);
   });
 
-  test("a paths-only rule denies a matching glob under any tool that supplies a path", async () => {
+  test("a paths-only rule denies a declared path matching the glob under any tool", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ paths: ["**/.env"], allowed: false }],
     });
 
     const verdict = await gate.judge(
-      toolCallRequest(call("write_file", { path: "sub/.env" })),
+      toolCallRequest(
+        call("write_file"),
+        files([`${root}/sub/.env`, "file"]),
+      ),
     );
 
     expect(verdict.allowed).toBe(false);
   });
 
-  test("a paths-only rule does not match a call without a path argument", async () => {
+  test("a paths-only rule does not match a call that declares no local path", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ paths: ["**/.env"], allowed: false }],
     });
 
     const verdict = await gate.judge(
-      toolCallRequest(call("bash", { command: "env" })),
+      toolCallRequest(call("bash", { command: "env" }), {
+        kind: "none",
+      }),
     );
 
     expect(verdict).toEqual({
       allowed: true,
       reason: "No rule matched.",
     });
-  });
-
-  test("normalizes '..' in the argument before matching", async () => {
-    const gate = createRulesGate({
-      root: "/repo",
-      rules: [{ paths: ["**/.env"], allowed: false }],
-    });
-
-    const verdict = await gate.judge(
-      toolCallRequest(call("write_file", { path: "sub/../.env" })),
-    );
-
-    expect(verdict.allowed).toBe(false);
   });
 
   test("the first matching rule wins over a later contradicting one", async () => {
@@ -163,7 +165,7 @@ describe("createRulesGate", () => {
         reason: "denied second",
       },
     ];
-    const gate = createRulesGate({ root: "/repo", rules });
+    const gate = createRulesGate({ root, rules });
 
     const verdict = await gate.judge(
       toolCallRequest(call("write_file", { path: "notes.md" })),
@@ -174,7 +176,7 @@ describe("createRulesGate", () => {
 
   test("allows when no rule matches", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false }],
     });
 
@@ -190,7 +192,7 @@ describe("createRulesGate", () => {
 
   test("a custom reason is returned verbatim", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [
         {
           paths: ["**/.env"],
@@ -201,7 +203,10 @@ describe("createRulesGate", () => {
     });
 
     const verdict = await gate.judge(
-      toolCallRequest(call("write_file", { path: ".env" })),
+      toolCallRequest(
+        call("write_file"),
+        files([`${root}/.env`, "file"]),
+      ),
     );
 
     expect(verdict.reason).toBe("secrets stay out of reach");
@@ -209,20 +214,23 @@ describe("createRulesGate", () => {
 
   test("the default reason names the tool and the relative path", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ paths: ["**/.env"], allowed: false }],
     });
 
     const verdict = await gate.judge(
-      toolCallRequest(call("write_file", { path: "sub/.env" })),
+      toolCallRequest(
+        call("write_file"),
+        files([`${root}/sub/.env`, "file"]),
+      ),
     );
 
     expect(verdict.reason).toBe("Rule 0 denied write_file on sub/.env");
   });
 
-  test("the default reason for a tools-only rule omits 'on <path>' when the call has no path argument", async () => {
+  test("the default reason for a tools-only rule omits 'on <path>'", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false }],
     });
 
@@ -234,7 +242,7 @@ describe("createRulesGate", () => {
   });
 
   test("throws GateError when the payload is missing call", async () => {
-    const gate = createRulesGate({ root: "/repo", rules: [] });
+    const gate = createRulesGate({ root, rules: [] });
 
     await expect(
       gate.judge({
@@ -247,16 +255,16 @@ describe("createRulesGate", () => {
 
   test("records exactly one mg.gate span with allowed and reason, and no child span", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false, reason: "no shell" }],
     });
-    const root = new RecordingSpan("root");
-    const context: GateContext = { trace: root };
+    const rootSpan = new RecordingSpan("root");
+    const context: GateContext = { trace: rootSpan };
 
     await gate.judge(toolCallRequest(call("bash", {})), context);
 
-    expect(root.children).toHaveLength(1);
-    const gateSpan = root.children[0];
+    expect(rootSpan.children).toHaveLength(1);
+    const gateSpan = rootSpan.children[0];
     expect(gateSpan.name).toBe(SPAN.gate);
     expect(gateSpan.mergedAttributes[ATTR.gateAllowed]).toBe(false);
     expect(gateSpan.mergedAttributes[ATTR.gateReason]).toBe("no shell");
@@ -265,7 +273,7 @@ describe("createRulesGate", () => {
 
   test("does not record a span when context has no trace", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false }],
     });
 
@@ -276,7 +284,7 @@ describe("createRulesGate", () => {
 
   test("rejects with AbortError without judging when the signal is already aborted", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root,
       rules: [{ tools: ["bash"], allowed: false }],
     });
     const controller = new AbortController();
@@ -300,11 +308,6 @@ const reachRequest = (
   kind: TOOL_CALL_KIND,
   description: `Tool: ${name}`,
   payload: { call: call(name, args), reach },
-});
-
-const files = (...paths: [string, "file" | "tree"][]): Reach => ({
-  kind: "paths",
-  paths: paths.map(([path, extent]) => ({ path, extent })),
 });
 
 describe("createRulesGate reading the declared reach", () => {

@@ -15,6 +15,7 @@ const connectionAnswering = (
     return {} as never;
   },
   end: () => ({}) as never,
+  once: () => ({}) as never,
 });
 
 describe("toSshForwarder", () => {

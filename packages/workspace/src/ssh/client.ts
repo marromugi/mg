@@ -262,7 +262,7 @@ const isRefused = (error: unknown): boolean =>
   (error as { reason?: unknown }).reason === 2;
 
 export const toSshForwarder = (
-  connection: Pick<Client, "forwardOut" | "end">,
+  connection: Pick<Client, "forwardOut" | "end" | "once">,
 ): SshForwarder => ({
   forwardOut: (dstHost, dstPort) =>
     new Promise((resolve, reject) => {
@@ -282,9 +282,11 @@ export const toSshForwarder = (
         },
       );
     }),
-  async end() {
-    connection.end();
-  },
+  end: () =>
+    new Promise((resolve) => {
+      connection.once("close", () => resolve());
+      connection.end();
+    }),
 });
 
 export const connectSshForwarder = async (

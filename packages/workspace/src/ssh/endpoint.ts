@@ -101,6 +101,8 @@ export const createSshEndpoint = (
         probe.stream.destroy();
         server = serve(forwarder, sockets);
         port = await listen(server);
+        server.on("error", () => {});
+        context?.signal?.throwIfAborted();
       } catch (error) {
         server?.close();
         try {

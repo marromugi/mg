@@ -449,6 +449,7 @@ The hold lasts across items until `release()`.
 
 `queue.close()` drops the waiting items without running them and finishes.
 The running item runs to the end, and `close()` resolves after waiting for it.
+A running item that is held counts too: `close()` waits until it is released or wrapped up.
 Items queued after closing are also dropped without running.
 
 ## How it works

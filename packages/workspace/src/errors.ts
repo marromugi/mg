@@ -68,11 +68,34 @@ export class ConnectorCloseError extends WorkspaceBaseError {
   }
 }
 
+export class NothingListeningError extends WorkspaceBaseError {
+  override readonly name = "NothingListeningError";
+  readonly host: string;
+  readonly port: number;
+  readonly sshHost: string;
+
+  constructor(
+    host: string,
+    port: number,
+    sshHost: string,
+    options: { cause: unknown },
+  ) {
+    super(
+      `nothing is listening on ${host}:${port} on ${sshHost}`,
+      options,
+    );
+    this.host = host;
+    this.port = port;
+    this.sshHost = sshHost;
+  }
+}
+
 export type WorkspaceError =
   | ConnectorOpenError
   | ConnectorCloseError
   | DuplicateToolNameError
-  | WorkspaceCloseError;
+  | WorkspaceCloseError
+  | NothingListeningError;
 
 export type WorkspaceErrorName = WorkspaceError["name"];
 

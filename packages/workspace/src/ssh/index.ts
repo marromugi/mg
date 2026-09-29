@@ -3,6 +3,8 @@ import { createShellTool } from "./tool.js";
 import type { Connector } from "../types.js";
 
 export type { SshConnectorOptions } from "./client.js";
+export { createSshEndpoint } from "./endpoint.js";
+export type { SshEndpointOptions } from "./endpoint.js";
 
 export const createSshConnector = (
   options: SshConnectorOptions,

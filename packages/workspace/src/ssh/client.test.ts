@@ -3,14 +3,16 @@ import { describe, expect, test } from "vitest";
 import { toSshForwarder } from "./client.js";
 
 type Connection = Parameters<typeof toSshForwarder>[0];
-type ForwardOutCallback = Parameters<Connection["forwardOut"]>[4];
+type ForwardOutCallback = NonNullable<
+  Parameters<Connection["forwardOut"]>[4]
+>;
 
 const connectionAnswering = (
   answer: (callback: ForwardOutCallback) => void,
 ): Connection => ({
   forwardOut: (_srcIP, _srcPort, _dstIP, _dstPort, callback) => {
-    answer(callback);
-    return true;
+    answer(callback as ForwardOutCallback);
+    return {} as never;
   },
   end: () => ({}) as never,
 });

@@ -207,13 +207,17 @@ describe("measurePersona", () => {
       {
         previous: "I am Jev.",
         proposed: "I am Jev, a dog person.",
-        conversation: "[user]\nalice: I got a dog",
+        conversation: [
+          { role: "user", author: "alice", content: "I got a dog" },
+        ],
         expected: true,
       },
       {
         previous: "I am Jev.",
         proposed: "I am Bob.",
-        conversation: "[user]\nhi",
+        conversation: [
+          { role: "user", author: "alice", content: "hi" },
+        ],
         expected: false,
       },
     ];
@@ -228,7 +232,7 @@ describe("measurePersona", () => {
       subject: {
         previous: "I am Jev.",
         proposed: "I am Jev, a dog person.",
-        conversation: "[user]\nalice: I got a dog",
+        conversation: '[user "alice"]\nI got a dog',
       },
       question: personaQuestion,
     });
@@ -236,7 +240,9 @@ describe("measurePersona", () => {
       {
         previous: "I am Jev.",
         proposed: "I am Jev, a dog person.",
-        conversation: "[user]\nalice: I got a dog",
+        conversation: [
+          { role: "user", author: "alice", content: "I got a dog" },
+        ],
         expected: true,
         probability: 0.9,
         accepted: true,
@@ -245,7 +251,9 @@ describe("measurePersona", () => {
       {
         previous: "I am Jev.",
         proposed: "I am Bob.",
-        conversation: "[user]\nhi",
+        conversation: [
+          { role: "user", author: "alice", content: "hi" },
+        ],
         expected: false,
         probability: 0.1,
         accepted: false,

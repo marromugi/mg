@@ -24,6 +24,7 @@ const schema: ToolSchema = {
 
 const fakeTool = (name: string): Tool =>
   defineTool({
+    reach: async () => ({ kind: "any-local" }),
     name,
     input: schema,
     execute: async () => "",

@@ -124,11 +124,13 @@ describe("createLoopHarness with subagents", () => {
       { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
     ]);
     const echo: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "echo",
       input: stubSchema(),
       execute: async () => "echoed",
     });
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       description: "Researches a topic",
       input: stubSchema(),
@@ -157,6 +159,7 @@ describe("createLoopHarness with subagents", () => {
     const controller = new AbortController();
     const received: { input?: unknown; context?: SubagentContext } = {};
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: promptSchema(),
       start: async (input, context) => {
@@ -211,6 +214,7 @@ describe("createLoopHarness with subagents", () => {
 
   test("a call to a name in neither the tool nor the subagent list produces the ToolNotFoundError message", async () => {
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start: async () => "unused",
@@ -245,6 +249,7 @@ describe("createLoopHarness with subagents", () => {
 
   test("when the start function throws a named error, the tool message carries that name and message and the run continues to a second turn ending in stop", async () => {
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start: async () => {
@@ -289,6 +294,7 @@ describe("createLoopHarness with subagents", () => {
   test("when the start function throws an AbortError, the harness rejects with that same error", async () => {
     const abortError = new DOMException("aborted", "AbortError");
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start: async () => {
@@ -325,6 +331,7 @@ describe("createLoopHarness with subagents", () => {
 
   test("invalid arguments for a subagent call produce a SubagentInputError message whose second line starts with a dash", async () => {
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: promptSchema(),
       start: async () => "unused",
@@ -363,11 +370,13 @@ describe("createLoopHarness with subagents", () => {
   test("a tool and a subagent sharing a name throws at harness creation", () => {
     const provider = stubProvider([]);
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       execute: async () => "x",
     });
     const subagent: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start: async () => "y",
@@ -389,11 +398,13 @@ describe("createLoopHarness with subagents", () => {
   test("two subagents sharing a name throws at harness creation with the same message", () => {
     const provider = stubProvider([]);
     const subagentA: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start: async () => "a",
     };
     const subagentB: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start: async () => "b",
@@ -414,6 +425,7 @@ describe("createLoopHarness with subagents", () => {
   test("a gate that denies a subagent call leaves the start function unrun and returns the same denial message as a tool", async () => {
     const start = vi.fn(async () => "found");
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start,
@@ -455,6 +467,7 @@ describe("createLoopHarness with subagents", () => {
   test("with a trace, the harness span has an mg.subagent child, and the start function's context span is the new root that child recorded", async () => {
     const received: { context?: SubagentContext } = {};
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: promptSchema(),
       start: async (_input, context) => {
@@ -503,6 +516,7 @@ describe("createLoopHarness with subagents", () => {
   test("without a trace, the start function's context span is undefined", async () => {
     const received: { context?: SubagentContext } = {};
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: promptSchema(),
       start: async (_input, context) => {
@@ -540,6 +554,7 @@ describe("createLoopHarness with subagents", () => {
   test("with a trace and a gate that denies, the harness span has no mg.subagent child and no fake span records a new root", async () => {
     const start = vi.fn(async () => "found");
     const researcher: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "researcher",
       input: stubSchema(),
       start,
@@ -609,6 +624,7 @@ describe("createLoopHarness routing a subagent call while wrapping up", () => {
       },
     );
     const helper: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
       name: "helper",
       input: promptSchema(),
       start,

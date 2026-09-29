@@ -34,6 +34,7 @@ const promptSchema = {
 const stubResearcher = (
   start: Subagent<typeof promptSchema>["start"],
 ): Subagent<typeof promptSchema> => ({
+  reach: async () => ({ kind: "any-local" }),
   name: "researcher",
   description: "looks things up",
   input: promptSchema,

@@ -48,6 +48,7 @@ const promptSchema = {
 const stubResearcher = (
   start: Subagent<typeof promptSchema>["start"],
 ): Subagent<typeof promptSchema> => ({
+  reach: async () => ({ kind: "any-local" }),
   name: "researcher",
   input: promptSchema,
   start: vi.fn(start),

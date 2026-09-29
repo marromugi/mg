@@ -18,6 +18,7 @@ export default {
     {
       name: "a",
       input: z.object({}),
+      reach: async () => ({ kind: "any-local" }),
       execute: async () => "a-result",
     },
   ],

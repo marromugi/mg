@@ -1,6 +1,6 @@
 import type {
+  Callee,
   ToolCall,
-  ToolDefinition,
   ToolInput,
   ToolMessage,
   ToolSchema,
@@ -19,7 +19,7 @@ export type SubagentContext = {
 };
 
 export type Subagent<TInput extends ToolSchema = ToolSchema> =
-  ToolDefinition<TInput> & {
+  Callee<TInput> & {
     // method syntax on purpose: keeps Subagent<Specific> assignable to Subagent
     start(
       input: ToolInput<TInput>,

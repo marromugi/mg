@@ -77,6 +77,7 @@ describe("traceRunToolCall", () => {
       },
     };
     const tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "weather",
       input: schema,
       execute: async (value) => JSON.stringify(value),

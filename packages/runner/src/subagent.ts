@@ -243,6 +243,9 @@ export const createSubagent = (
     name: config.name,
     description: config.description,
     input: inputSchema,
+    async reach() {
+      return { kind: "none" };
+    },
     async start(
       input: { prompt: string; workspace?: string },
       context: SubagentContext,

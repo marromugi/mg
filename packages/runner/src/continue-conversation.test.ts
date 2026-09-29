@@ -137,6 +137,7 @@ const countingReadStore = (
 };
 
 const echoTool: Tool = defineTool({
+  reach: async () => ({ kind: "any-local" }),
   name: "echo",
   input: z.object({ text: z.string() }),
   execute: async () => "pong",
@@ -144,6 +145,7 @@ const echoTool: Tool = defineTool({
 
 const stubTool = (name: string): Tool =>
   defineTool({
+    reach: async () => ({ kind: "any-local" }),
     name,
     input: z.object({}),
     execute: async () => `${name}-result`,
@@ -624,6 +626,7 @@ describe("createContinueConversation", () => {
     await store.create("t1");
     const controller = new AbortController();
     const askTool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "ask",
       input: z.object({}),
       execute: async () => "queued: w1",

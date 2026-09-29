@@ -59,6 +59,9 @@ export const createBashTool = (
       `Runs a shell command with ${shell} in the working directory ${cwd}. ` +
       "Returns stdout, stderr and the exit code as one text.",
     input: bashInput,
+    async reach() {
+      return { kind: "any-local" };
+    },
     async execute({ command }, context) {
       const { stdout, stderr, error } = await run(shell, command, {
         cwd,

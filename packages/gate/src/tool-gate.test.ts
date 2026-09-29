@@ -35,6 +35,7 @@ const schema: ToolSchema = {
 };
 
 const weatherTool: Tool = defineTool({
+  reach: async () => ({ kind: "any-local" }),
   name: "weather",
   description: "Reports the weather for a city.",
   input: schema,
@@ -74,6 +75,7 @@ describe("toToolCallRequest", () => {
 
   it("describes a tool without a description as (none)", () => {
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "weather",
       input: schema,
       execute: async () => "sunny",

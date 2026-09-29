@@ -30,7 +30,12 @@ const upperCity = (value: unknown) => ({
 const stubTool = (
   input: ToolSchema,
   execute: Tool["execute"] = async (value) => JSON.stringify(value),
-): Tool => ({ name: "weather", input, execute: vi.fn(execute) });
+): Tool => ({
+  reach: async () => ({ kind: "any-local" }),
+  name: "weather",
+  input,
+  execute: vi.fn(execute),
+});
 
 const call: ToolCall = {
   id: "call-1",

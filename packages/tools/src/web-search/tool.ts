@@ -52,6 +52,9 @@ export const createWebSearchTool = (
       "and short snippets, not full pages. Returns at most " +
       `${maxResults} results.`,
     input: webSearchInput,
+    async reach() {
+      return { kind: "outside" };
+    },
     async execute({ query }, context) {
       const results = await backend.search(
         { query, maxResults },

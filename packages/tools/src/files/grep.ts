@@ -1,10 +1,11 @@
 import { execFile, type ExecFileException } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { resolveExistingPath } from "./root.js";
+import { reachOfPath, resolveExistingPath } from "./root.js";
 import { isBinary } from "./text.js";
 
 export type GrepToolOptions = {
@@ -261,6 +262,11 @@ export const createGrepTool = (
       "binary files. At most " +
       `${maxResults} matches.`,
     input: grepInput,
+    async reach(args) {
+      const parsed = await validateToolInput(this.input, args);
+      if (!parsed.ok) return { kind: "any-local" };
+      return reachOfPath(root, parsed.value.path ?? ".");
+    },
     async execute(
       { pattern, path: inputPath, glob, ignoreCase },
       context,

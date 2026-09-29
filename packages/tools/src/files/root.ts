@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import type { Reach } from "@mg/core";
 import { FileToolError } from "./errors.js";
 
 export type ResolvedPath = { absolute: string; relative: string };
@@ -103,5 +104,58 @@ export const resolveWritablePath = async (
     }
     rest.unshift(path.basename(existing));
     existing = parent;
+  }
+};
+
+const anyLocal: Reach = { kind: "any-local" };
+
+const entryExists = async (target: string): Promise<boolean> => {
+  try {
+    await fs.lstat(target);
+    return true;
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+};
+
+const followedPath = async (
+  root: string,
+  input: string,
+): Promise<string> => {
+  const abs = path.resolve(await fs.realpath(root), input);
+
+  let existing = abs;
+  const rest: string[] = [];
+  for (;;) {
+    try {
+      const real = await fs.realpath(existing);
+      return rest.length > 0 ? path.join(real, ...rest) : real;
+    } catch (error) {
+      if (!isErrnoException(error) || error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+    if (await entryExists(existing)) {
+      throw new Error("dangling link");
+    }
+
+    const parent = path.dirname(existing);
+    if (parent === existing) throw new Error("no existing parent");
+    rest.unshift(path.basename(existing));
+    existing = parent;
+  }
+};
+
+export const reachOfPath = async (
+  root: string,
+  input: string,
+): Promise<Reach> => {
+  try {
+    return { kind: "paths", paths: [await followedPath(root, input)] };
+  } catch {
+    return anyLocal;
   }
 };

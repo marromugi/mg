@@ -359,6 +359,7 @@ describe("createLoopHarness", () => {
       arguments: {},
     };
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => "a-result",
@@ -437,6 +438,7 @@ describe("createLoopHarness", () => {
     };
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute,
@@ -511,6 +513,7 @@ describe("createLoopHarness", () => {
     const bDeferred = deferred<string>();
 
     const toolA: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => {
@@ -519,6 +522,7 @@ describe("createLoopHarness", () => {
       },
     });
     const toolB: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "b",
       input: stubSchema(),
       execute: async () => {
@@ -773,11 +777,13 @@ describe("createLoopHarness", () => {
     };
     const toolCalls: ToolCall[] = [toolCallA, toolCallB];
     const toolA: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => "a-result",
     });
     const toolB: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "b",
       input: stubSchema(),
       execute: async () => "b-result",
@@ -946,6 +952,7 @@ describe("createLoopHarness", () => {
 
   test("a failing tool call yields an error message and the loop continues", async () => {
     const toolA: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => {
@@ -953,6 +960,7 @@ describe("createLoopHarness", () => {
       },
     });
     const toolB: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "b",
       input: stubSchema(),
       execute: async () => "b-result",
@@ -1022,6 +1030,7 @@ describe("createLoopHarness", () => {
   test("an AbortError thrown by execute rejects the harness with the same error", async () => {
     const abortError = new DOMException("aborted", "AbortError");
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => {
@@ -1061,6 +1070,7 @@ describe("createLoopHarness", () => {
       arguments: {},
     };
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => "a-result",
@@ -1199,6 +1209,7 @@ describe("createLoopHarness", () => {
   test("a gate that denies leaves the tool unrun, appends the denial as the tool result, and the loop proceeds to the next turn", async () => {
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute,
@@ -1259,6 +1270,7 @@ describe("createLoopHarness", () => {
   test("a gate that allows runs the tool", async () => {
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute,
@@ -1300,6 +1312,7 @@ describe("createLoopHarness", () => {
   test("with a trace and a gate, mg.gate is a sibling of mg.tool under mg.harness, and a denied call produces no mg.tool span", async () => {
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute,
@@ -1402,6 +1415,7 @@ describe("createLoopHarness wrapping up", () => {
     ]);
     const execute = vi.fn(async () => "ls-result");
     const ls: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "ls",
       input: stubSchema(),
       execute,
@@ -1483,6 +1497,7 @@ describe("createLoopHarness wrapping up", () => {
     const controller = new AbortController();
     const execute = vi.fn(async () => "ls-result");
     const ls: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "ls",
       input: stubSchema(),
       execute,
@@ -1536,6 +1551,7 @@ describe("createLoopHarness wrapping up", () => {
       return { promise, resolve };
     })();
     const slow: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "slow",
       input: stubSchema(),
       execute: (_input, context) => {
@@ -1544,6 +1560,7 @@ describe("createLoopHarness wrapping up", () => {
       },
     });
     const fast: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "fast",
       input: stubSchema(),
       execute: async () => {
@@ -1597,6 +1614,7 @@ describe("createLoopHarness wrapping up", () => {
     const controller = new AbortController();
     const execute = vi.fn(async () => "ok");
     const ls: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "ls",
       input: stubSchema(),
       execute,
@@ -1826,6 +1844,7 @@ describe("createLoopHarness stop reason attribute", () => {
       arguments: {},
     };
     const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
       execute: async () => "a-result",

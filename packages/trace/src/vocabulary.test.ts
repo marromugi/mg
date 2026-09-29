@@ -8,7 +8,7 @@ describe("SPAN", () => {
     }
   });
 
-  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input, trigger, persona, recall, reflection and turn spans", () => {
+  it("has the harness, llm, tool, run, gate, workspace, subagent, thread, input, trigger, persona, recall, reflection, turn, dialogue and dialogue run spans", () => {
     expect(SPAN).toEqual({
       harness: "mg.harness",
       llm: "mg.llm",
@@ -24,6 +24,8 @@ describe("SPAN", () => {
       recall: "mg.recall",
       reflection: "mg.reflection",
       turn: "mg.turn",
+      dialogue: "mg.dialogue",
+      dialogueRun: "mg.dialogue.run",
     });
   });
 });
@@ -122,5 +124,6 @@ describe("ATTR", () => {
     expect(ATTR.turnModel).toBe("mg.turn.model");
     expect(ATTR.turnLabel).toBe("mg.turn.label");
     expect(ATTR.turnProbabilities).toBe("mg.turn.probabilities");
+    expect(ATTR.dialogueRole).toBe("mg.dialogue.role");
   });
 });

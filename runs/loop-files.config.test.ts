@@ -72,7 +72,9 @@ const failingProvider = () =>
 
 const judge = async (provider: Provider, call: ToolCall) => {
   const config = buildLoopFilesRun({ provider, root: process.cwd() });
-  return config.gate.judge(await toToolCallRequest(config.tools, call));
+  return config.gate.judge(
+    await toToolCallRequest(config.tools ?? [], call),
+  );
 };
 
 const denied = { allowed: false, reason: REASON };
@@ -183,8 +185,8 @@ describe("loop-files gate", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.model).toBe("deepseek/deepseek-v4-flash");
     const system = requests[0]?.messages[0];
-    expect(system?.role).toBe("system");
-    expect(system?.content).toContain(POLICY);
+    expect(system).toMatchObject({ role: "system" });
+    expect(JSON.stringify(system)).toContain(POLICY);
 
     answer = verdictResponse(true, "fake says yes");
     expect(await judge(provider, call)).toEqual({

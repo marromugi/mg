@@ -13,6 +13,7 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Defines the listener interface `Listener`.
 - Defines the player interface `Player`.
 - Holds `createGeminiTranscriber`, a transcriber built on Gemini's Live API.
+- Holds `createFfmpegPlayer`, a player that plays through ffmpeg's AudioToolbox output.
 - Holds `splitSentences`, a function that cuts text into sentences to read aloud.
 
 ## Usage
@@ -290,6 +291,40 @@ It prints each partial, the final text, and the time from the last chunk to the 
 
 ```
 node --env-file-if-exists=.env runs/gemini-stt.ts "<wav>" [language...]
+```
+
+### ffmpeg playback
+
+One implementation of `Player`.
+It plays each sentence through ffmpeg's AudioToolbox output.
+
+It is created from the function that starts a process.
+The function takes a command and its arguments.
+It returns the process's stdin, a promise of its exit code, and a way to kill it.
+The ffmpeg command line lives only inside this implementation.
+
+`play(index, audio)` starts one ffmpeg process for the sentence.
+The process reads raw 16-bit little-endian samples at the first chunk's rate and channel count.
+Every chunk's bytes are written to its stdin, which is closed when the audio ends.
+The index rules are those of `Player`.
+
+| Situation                           | `play`                                  |
+| ----------------------------------- | --------------------------------------- |
+| The process exits with code 0       | Resolves `{ played: true }`             |
+| `stop()` is called                  | Resolves `{ played: false }`            |
+| The process exits with another code | Rejects with the exit code              |
+| The process cannot start            | Rejects with the start error            |
+| A chunk's rate or channels differ   | Rejects naming both formats, kills it   |
+| The audio has no chunks             | Resolves `{ played: true }`, no process |
+
+`stop()` kills the running process and resolves every waiting `play` as not played.
+It never throws.
+
+To hear it, run the sample entry.
+It plays a one-second 440 Hz tone and prints `played: true`.
+
+```
+node runs/ffmpeg-player.ts
 ```
 
 ## Non-goals

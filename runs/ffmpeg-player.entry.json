@@ -1,0 +1,5 @@
+{
+  "command": "node runs/ffmpeg-player.ts",
+  "needs": [],
+  "burdens": []
+}

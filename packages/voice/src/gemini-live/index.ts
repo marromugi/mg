@@ -39,6 +39,8 @@ type Item =
   | { kind: "done" };
 
 // Items are read in the order they were put in; the first error or done ends it.
+// A stop drops queued events and a queued end, keeps a queued error, and
+// otherwise ends with the reason.
 const createMailbox = () => {
   const items: Item[] = [];
   let waiting: ((item: Item) => void) | undefined;
@@ -60,6 +62,13 @@ const createMailbox = () => {
     event: (event: TranscriptEvent) => put({ kind: "event", event }),
     fail: (error: unknown) => put({ kind: "error", error }),
     done: () => put({ kind: "done" }),
+    stop: (reason: unknown) => {
+      const kept = items.filter((item) => item.kind === "error");
+      items.length = 0;
+      items.push(...kept);
+      if (kept.length === 0) ended = false;
+      put({ kind: "error", error: reason });
+    },
     next: (): Promise<Item> => {
       const item = items.shift();
       if (item !== undefined) return Promise.resolve(item);
@@ -147,7 +156,11 @@ export const createGeminiTranscriber = (
         stopped.promise.then((): typeof STOP => STOP),
       ]);
 
-    const onAbort = () => mailbox.fail(signal?.reason);
+    const onAbort = () => {
+      mailbox.stop(signal?.reason);
+      stopped.resolve();
+      socket?.close();
+    };
     signal?.addEventListener("abort", onAbort, { once: true });
 
     const send = (message: unknown) => {
@@ -281,13 +294,7 @@ export const createGeminiTranscriber = (
 
     try {
       for (;;) {
-        let item = await mailbox.next();
-        // After a stop, queued events and the end are dropped; only an
-        // error queued before it, or the reason, is thrown.
-        if (signal?.aborted === true) {
-          while (item.kind === "event") item = await mailbox.next();
-          if (item.kind === "done") throw signal.reason;
-        }
+        const item = await mailbox.next();
         if (item.kind === "event") yield item.event;
         else if (item.kind === "error") throw item.error;
         else return;

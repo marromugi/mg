@@ -270,7 +270,11 @@ When Gemini signals that generation is complete, the call yields one final with 
 When no completed transcription came, the final is empty text.
 
 `options.languages` is passed as is to Gemini's language hint for input transcription.
+A signal that has already fired is checked before the language codes.
 When it is left out, no hint is sent and Gemini detects the language.
+
+After the abort signal has fired, the call drops what it had received but not yet yielded, including a final, and throws the signal's reason.
+An error it had received before the signal fired is thrown as that error.
 
 Failures end the call and close the session.
 

@@ -13,6 +13,17 @@ export interface Connection {
   close(): Promise<void>;
 }
 
+export interface Endpoint {
+  readonly exclusive: readonly string[];
+  open(context?: ConnectorContext): Promise<OpenEndpoint>;
+}
+
+export interface OpenEndpoint {
+  readonly host: string;
+  readonly port: number;
+  close(): Promise<void>;
+}
+
 export type Workspace = {
   name: string;
   connectors: readonly Connector[];

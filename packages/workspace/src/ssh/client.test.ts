@@ -47,6 +47,19 @@ describe("toSshForwarder", () => {
       .catch((e: unknown) => e);
     expect(thrown).toBe(other);
 
+    const openFailed = Object.assign(
+      new Error("(SSH) Channel open failure: open failed"),
+      { reason: 2 },
+    );
+    const thrownOpenFailed = await toSshForwarder(
+      connectionAnswering((callback) =>
+        callback(openFailed, undefined as never),
+      ),
+    )
+      .forwardOut("127.0.0.1", 9333)
+      .catch((e: unknown) => e);
+    expect(thrownOpenFailed).toBe(openFailed);
+
     const stream = new PassThrough();
     const opened = await toSshForwarder(
       connectionAnswering((callback) =>

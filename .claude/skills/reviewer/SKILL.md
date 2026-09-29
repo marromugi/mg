@@ -94,7 +94,7 @@ Read the diff:
 gh pr diff <PR>
 ```
 
-Compare it against the issue's 設計, 制約, ケース, and To Implementer, and
+Compare it against the issue's Design, Constraints, Cases, and To Implementer, and
 against the PR's own Cases and Deviations sections. Ask, concretely:
 
 **The design**
@@ -103,9 +103,9 @@ against the PR's own Cases and Deviations sections. Ask, concretely:
 - Did it make any decision the issue does not cover — a new interface, a
   new dependency, a changed data shape, a widened responsibility?
 - Did it touch anything listed as out of scope?
-- Does every 構造 constraint hold? Run the issue's structural checks against
+- Does every Structure constraint hold? Run the issue's structural checks against
   the PR branch rather than trusting the PR body.
-- Does every 向き constraint hold in the code as written?
+- Does every Direction constraint hold in the code as written?
 - Are outside specifications still behind their interface (principle 7)?
 - Anything in Deviations that the issue did not authorise?
 
@@ -136,7 +136,7 @@ design, and comments, test names, or documents that break principle 8 (No
 history in the code). The developer wants these handled, not reported.
 
 A departure from the issue that the agent did not argue for is also
-code-level: a broken 構造 or 向き constraint, an out-of-scope change, a
+code-level: a broken Structure or Direction constraint, an out-of-scope change, a
 different shape than the decided one. The design was already judged; the fix
 is to bring the code back to it.
 

@@ -59,11 +59,11 @@ names, not prose:
 - 変える: interfaces and behaviours whose shape changes, and to what.
 - 前提: what it uses or builds on that must already exist, by name.
 - 決定と見送った形: from the issue or its parent's decision record.
-- 順序: its parent and its place in the parent's `子 issue` list, and any
+- 順序: its parent and its place in the parent's `Child issues` list, and any
   issue it says it waits for.
 
 Take names from `To Implementer` (`Files / modules`, `Interfaces`,
-`Out of scope`) and from `設計` and `対応内容`. A note issue (背景 only, no
+`Out of scope`) and from `Design` and `Changes`. A note issue (Background only, no
 `To Implementer`) still gets a card: it records a known plan or defect,
 and a new issue can make it wrong.
 

@@ -18,7 +18,7 @@ An issue is small enough when all of these hold:
 
 - It carries one design decision, or none (pure follow-through).
 - It can be verified on its own, without the other issues done.
-- 対応内容 fits in a few bullets.
+- Changes fits in a few bullets.
 - It has a single clear owner module or boundary.
 
 If any fails, split further. Order the issues so each one builds on merged
@@ -34,51 +34,51 @@ One record per design. It goes in the parent issue when several issues share
 the design, and in the single issue otherwise.
 
 ```
-## 決定
+## Decision
 <the design, in a few sentences>
 
-## 変わる振る舞い
+## Behaviour changes
 - <each change in what the user of the software observes, stated as a
-  decision. `- なし` when nothing changes. What is not listed stays as it is.>
+  decision. `- None` when nothing changes. What is not listed stays as it is.>
 
-## 全体の中の位置
+## Place in the whole
 <the roles in the whole software that this touches, and where this piece
 stands among them. Name the interfaces this design cuts or relies on.>
 
-## 確かめたこと
-- <a question that only running something could answer>: <what was seen>。
-  <how it was run>。`- なし` when the design rests on no such question.
+## Confirmed facts
+- <a question that only running something could answer>: <what was seen>.
+  <how it was run>. `- None` when the design rests on no such question.
 
-## 理由
-- 原則 <n>: <how the design follows it>
+## Reasons
+- Principle <n>: <how the design follows it>
 
-## 見送った形
-- <shape>: 原則 <n> に照らして見送りました。<one sentence why>
+## Rejected shapes
+- <shape>: rejected under Principle <n>. <one sentence why>
 
-## 手放したもの
+## Trade-offs
 - <what this design knowingly does not do>
 ```
 
 Every reason and every rejection cites a principle of
 `software-design-theory` by number. A reason that cites none is a preference,
 and preferences belong to the developer: raise it as a question instead of
-writing it down as a reason. A reason may rest on an item in `確かめたこと`.
+writing it down as a reason. A reason may rest on an item in `Confirmed facts`.
 
 ## Constraints and cases
 
 ```
-## 制約
+## Constraints
 
-### 振る舞い
+### Behaviour
 - B1: <what the user of the piece observes>
 
-### 構造
+### Structure
 - S1: <dependencies, packages, types that stay as they are>
 
-### 向き
+### Direction
 - D1: <which way the design leans where the code could go either way>
 
-## ケース
+## Cases
 - C1 [B1]: <what is done, and what is seen. The pass condition, with literal values.>
 - C2 [B1, B2]: ...
 ```
@@ -89,35 +89,36 @@ writing it down as a reason. A reason may rest on an item in `確かめたこと
   in the parent, under the same headings, and are not repeated in children.
 - Every `B` is received by at least one case. Every case names the `B` ids it
   receives in brackets.
-- A subsection with nothing in it is written as `- なし`.
+- A subsection with nothing in it is written as `- None`.
 - Write cases from what the user of the piece sees
   (`software-design-theory`, Cases). A case that can only be stated in terms
   of the implementation's insides is a sign the constraint is not a behaviour.
 
 ## Issue body
 
-The Japanese sections follow `.claude/rules/writing.md` and carry no file
-names or function names. `To Implementer` is for the implementer agent and is
-as technical as needed.
+Issues are written in English: the title, every heading, and every section.
+The sections above `To Implementer` are for people. Write them in plain
+wording, one point per sentence, with no file names or function names.
+`To Implementer` is for the implementer agent and is as technical as needed.
 
 ```
-## 背景
+## Background
 <what problem this solves and why now — 2–4 sentences>
 
-## 設計
+## Design
 <the design this issue follows and the boundary it lives in. Link the parent
 if there is one. If there is none, the decision record goes here instead.>
 
-## 対応内容
+## Changes
 - <what changes, from the user's or developer's point of view>
 
-## 制約
+## Constraints
 ...
 
-## ケース
+## Cases
 ...
 
-## 実物での確認
+## Verification
 ...
 
 ## To Implementer
@@ -137,14 +138,14 @@ for one way of writing it. `grep -n "buildRun("` finds
 name (`grep -nw buildRun`) or use an `ast-grep` pattern that covers every
 form the definition can take.
 
-`実物での確認` names the entries the behaviour constraints are confirmed
+`Verification` names the entries the behaviour constraints are confirmed
 through, not the burden of running them; the burden sits in the entry's own
 declaration. Item forms:
 
-- `- なし` — only when 振る舞い is `- なし`.
-- `- なし: <理由>` — there are behaviour constraints, but no entry reaches
+- `- None` — only when Behaviour is `- None`.
+- `- None: <reason>` — there are behaviour constraints, but no entry reaches
   them.
-- `- V<n>: <entry, in backticks>。<手順>。<合格の条件、見える値はそのまま>`
+- `- V<n>: <entry, in backticks>. <steps>. <the pass condition, with the values seen as they are>`
 - `- V<n> [B<n>, ...]: ...` — the same, naming the behaviour constraints
   this entry confirms.
 
@@ -156,15 +157,15 @@ next to it.
 ```
 <decision record>
 
-## 制約
-<shared 構造 and 向き only>
+## Constraints
+<shared Structure and Direction only>
 
-## 子 issue
+## Child issues
 1. #<n> <title>
 2. ...
 ```
 
-Child issues link to the parent in their 設計 section.
+Child issues link to the parent in their Design section.
 
 ## Checking and creating
 
@@ -176,4 +177,4 @@ gh issue create --title "<title>" --body-file <body.md>
 ```
 
 The script prints one line per problem and exits non-zero. Fix every line
-before creating. Titles are short Japanese noun phrases that say what changes.
+before creating. Titles are short English noun phrases that say what changes.

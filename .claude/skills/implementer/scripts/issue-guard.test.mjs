@@ -12,9 +12,9 @@ const execFileAsync = promisify(execFile);
 const SCRIPT = fileURLToPath(new URL("./issue-guard.mjs", import.meta.url));
 
 const PARENT_BODY =
-  "## 設計\n\n決定の節です。\n\n## 子 issue\n\n1. #11 a\n2. #12 b（#11）\n3. #13 c\n";
-const CHILD_BODY = "## 設計\n\n親は #10 です。\n";
-const STANDALONE_BODY = "## 設計\n\nこれは独立の issue です。\n";
+  "## Design\n\nThe decision section.\n\n## Child issues\n\n1. #11 a\n2. #12 b (#11)\n3. #13 c\n";
+const CHILD_BODY = "## Design\n\nParent: #10.\n";
+const STANDALONE_BODY = "## Design\n\nThis issue stands alone.\n";
 
 function createFixture() {
   const issues = new Map([
@@ -62,10 +62,10 @@ function writeFakeGh(dir) {
       "#!/usr/bin/env node",
       "const args = process.argv.slice(2);",
       "const issues = {",
-      '  10: { number: 10, state: "OPEN", stateReason: null, body: "## 設計\\n\\n決定の節です。\\n\\n## 子 issue\\n\\n1. #11 a\\n2. #12 b\\n3. #13 c\\n" },',
-      '  11: { number: 11, state: "CLOSED", stateReason: "COMPLETED", body: "## 設計\\n\\n親は #10 です。\\n" },',
-      '  12: { number: 12, state: "OPEN", stateReason: null, body: "## 設計\\n\\n親は #10 です。\\n" },',
-      '  13: { number: 13, state: "OPEN", stateReason: null, body: "## 設計\\n\\n親は #10 です。\\n" },',
+      '  10: { number: 10, state: "OPEN", stateReason: null, body: "## Design\\n\\nThe decision section.\\n\\n## Child issues\\n\\n1. #11 a\\n2. #12 b\\n3. #13 c\\n" },',
+      '  11: { number: 11, state: "CLOSED", stateReason: "COMPLETED", body: "## Design\\n\\nParent: #10.\\n" },',
+      '  12: { number: 12, state: "OPEN", stateReason: null, body: "## Design\\n\\nParent: #10.\\n" },',
+      '  13: { number: 13, state: "OPEN", stateReason: null, body: "## Design\\n\\nParent: #10.\\n" },',
       "};",
       'if (args[0] === "issue" && args[1] === "view") {',
       "  process.stdout.write(JSON.stringify(issues[Number(args[2])]));",
@@ -130,7 +130,7 @@ test("refuses when more than one issue lists it as a child", async () => {
     number: 30,
     state: "OPEN",
     stateReason: null,
-    body: "## 子 issue\n\n1. #12 b\n",
+    body: "## Child issues\n\n1. #12 b\n",
   });
   const guard = createGuard({ gh });
 
@@ -151,7 +151,7 @@ test("refuses when its design section names a parent that lists it nowhere", asy
 
   assert.equal(result.ok, false);
   assert.deepEqual(result.lines, [
-    "refused: issue #13 mentions a parent but no issue lists it under 子 issue",
+    "refused: issue #13 mentions a parent but no issue lists it under Child issues",
   ]);
 });
 
@@ -264,7 +264,7 @@ test("refuses when the parent's body changed since the snapshot", async () => {
   const guard = createGuard({ gh });
   const dir = tempDir();
   await guard.snapshot(12, dir);
-  issues.get(10).body = PARENT_BODY.replace("決定の節です。", "決定の節を書き換えました。");
+  issues.get(10).body = PARENT_BODY.replace("The decision section.", "The decision section was rewritten.");
 
   const result = await guard.verify(12, dir);
 
@@ -375,7 +375,7 @@ test("re-checks on compare and refuses when the issue's parent no longer lists i
 
   assert.equal(result.ok, false);
   assert.deepEqual(result.lines, [
-    "refused: issue #13 mentions a parent but no issue lists it under 子 issue",
+    "refused: issue #13 mentions a parent but no issue lists it under Child issues",
   ]);
 });
 
@@ -388,7 +388,7 @@ test("re-checks on compare and refuses when more than one issue lists it as a ch
     number: 30,
     state: "OPEN",
     stateReason: null,
-    body: "## 子 issue\n\n1. #12 b\n",
+    body: "## Child issues\n\n1. #12 b\n",
   });
 
   const result = await guard.verify(12, dir);

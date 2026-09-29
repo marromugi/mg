@@ -31,7 +31,7 @@ not the code the design will ship — it skips everything the real
 implementation would need for correctness, review, or reuse. Keeping it
 around would leave a second, unreviewed implementation sitting next to the
 real one. Once the observation is made, the design keeps the fact and the
-question that produced it, in the decision record's `確かめたこと`; the
+question that produced it, in the decision record's `Confirmed facts`; the
 throwaway itself is discarded with the worktree that held it.
 
 ## Why it runs in its own worktree

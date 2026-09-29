@@ -146,7 +146,13 @@ const lines: Line[] = [
     summary: "止めて",
     run: (context) =>
       stopJudge
-        .judge({ utterance: "止めて" }, context)
+        .judge(
+          {
+            utterance: "止めて",
+            work: { request: "README の誤字を直して", tools: [] },
+          },
+          context,
+        )
         .then((answer) => answer.action),
   },
   {
@@ -154,7 +160,13 @@ const lines: Line[] = [
     summary: "ありがとう",
     run: (context) =>
       stopJudge
-        .judge({ utterance: "ありがとう" }, context)
+        .judge(
+          {
+            utterance: "ありがとう",
+            work: { request: "README の誤字を直して", tools: [] },
+          },
+          context,
+        )
         .then((answer) => answer.action),
   },
   {

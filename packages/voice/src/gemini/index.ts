@@ -29,6 +29,33 @@ const isAbortError = (cause: unknown): boolean =>
   cause !== null &&
   (cause as { name?: unknown }).name === "AbortError";
 
+// signal が中断すると、待っている promise の結果を待たずに、
+// 中断の理由で拒否します。signal がない呼び出しでは何もしません。
+const raceAbort = <T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> => {
+  if (signal === undefined) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(signal.reason);
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (cause: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(cause);
+      },
+    );
+  });
+};
+
 // signal が中断すると、読みかけの reader.read() を待たずに、
 // 中断の理由でストリームを終えます。読んでいる側には例外として届きます。
 const withAbort = (
@@ -229,15 +256,21 @@ export const createGeminiSynthesizer = (
     const signal = speechOptions?.signal;
     const doFetch = options.fetch ?? globalThis.fetch;
 
+    signal?.throwIfAborted();
+
     let response: Response;
     try {
-      response = await doFetch(url, {
-        method: "POST",
-        headers: buildHeaders(),
-        body: buildBody(text),
-        ...(signal !== undefined && { signal }),
-      });
+      response = await raceAbort(
+        doFetch(url, {
+          method: "POST",
+          headers: buildHeaders(),
+          body: buildBody(text),
+          ...(signal !== undefined && { signal }),
+        }),
+        signal,
+      );
     } catch (cause) {
+      if (signal?.aborted) throw signal.reason;
       if (isAbortError(cause)) throw cause;
       throw new GeminiSpeechTransportError(
         "Gemini speech request failed to send",
@@ -248,8 +281,15 @@ export const createGeminiSynthesizer = (
     if (!response.ok) {
       let bodyText: string;
       try {
-        bodyText = await response.text();
+        bodyText = await raceAbort(response.text(), signal);
       } catch (cause) {
+        if (signal?.aborted) {
+          throw new GeminiSpeechHttpError(
+            `Gemini speech request failed: ${response.status} (body not read: the call was stopped)`,
+            response.status,
+            "",
+          );
+        }
         if (isAbortError(cause)) throw cause;
         throw new GeminiSpeechTransportError(
           "Gemini speech response failed to read",
@@ -265,6 +305,7 @@ export const createGeminiSynthesizer = (
 
     const body = response.body;
     if (body === null) {
+      signal?.throwIfAborted();
       throw new GeminiSpeechHttpError(
         "Gemini speech response has no body",
         response.status,
@@ -280,9 +321,11 @@ export const createGeminiSynthesizer = (
       for await (const payload of readGeminiSseData(readableBody)) {
         const event = parseGeminiSpeechEvent(payload);
         if (event.chunk !== undefined) {
+          signal?.throwIfAborted();
           yield event.chunk;
           count++;
         }
+        signal?.throwIfAborted();
         if (event.finishReason === "STOP") {
           if (count === 0) {
             throw new GeminiSpeechResponseError(
@@ -298,6 +341,7 @@ export const createGeminiSynthesizer = (
         }
       }
     } catch (cause) {
+      if (signal?.aborted) throw signal.reason;
       if (isAbortError(cause)) throw cause;
       if (isGeminiSpeechError(cause)) throw cause;
       throw new GeminiSpeechTransportError(
@@ -306,6 +350,7 @@ export const createGeminiSynthesizer = (
       );
     }
 
+    signal?.throwIfAborted();
     if (count === 0) {
       throw new GeminiSpeechResponseError(
         "Gemini speech response ended without audio",

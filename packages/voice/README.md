@@ -211,7 +211,17 @@ When the finish reason is anything other than `STOP`, the audio in that event be
 After that, it fails with that reason.
 It fails whether or not there was audio.
 
-An abort signal received during synthesis is thrown as is.
+Once the abort signal has fired, the call yields no more audio, even audio it has already read.
+It throws the signal's reason, unchanged, whatever the reason is.
+A signal that has fired before the call sends no request.
+A call waiting for the response, or for its body, ends as soon as the signal fires.
+A failure met after the signal fired is thrown as the reason.
+
+The one exception is an HTTP failure status received before the signal fired.
+If the signal fires while its body is being read, the call throws `GeminiSpeechHttpError` with that status and an empty body.
+The message is `Gemini speech request failed: <status> (body not read: the call was stopped)`.
+
+An `AbortError` thrown by the replacement request function while the signal has not fired is thrown as is.
 Other failures come back as 3 dedicated error types.
 
 ### Gemini transcription

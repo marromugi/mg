@@ -37,8 +37,9 @@ const streamProvider = (
       throw new Error("generate is not scripted");
     }),
     stream: vi.fn((_request: GenerateRequest) => {
-      const events = turns[index] ?? [];
+      const events = turns[index];
       index++;
+      if (!events) throw new Error("no scripted turn left");
       return (async function* () {
         for (const event of events) yield event;
       })();
@@ -135,6 +136,9 @@ describe("createLoopHarness while held", () => {
         }
       }
     })();
+    await vi.waitFor(() =>
+      expect(events).toContainEqual({ type: "text-delta", delta: "b" }),
+    );
     await wait(20);
 
     expect(events).toContainEqual({ type: "text-delta", delta: "b" });
@@ -182,6 +186,9 @@ describe("createLoopHarness while held", () => {
     await started.promise;
     hold.hold();
     finishSlow.resolve("ok");
+    await vi.waitFor(() =>
+      expect(events.some((e) => e.type === "tool-result")).toBe(true),
+    );
     await wait(20);
 
     expect(events).toContainEqual({

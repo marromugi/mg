@@ -7,6 +7,7 @@ import type {
 } from "@mg/core";
 import { defineTool } from "@mg/core";
 import type { Gate, Verdict } from "@mg/gate";
+import { createHoldController } from "@mg/harness";
 import type { Connector, Workspace } from "@mg/workspace";
 import { defineWorkspace } from "@mg/workspace";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
@@ -420,5 +421,112 @@ describe("run with subagents in the config", () => {
     expect(names).toContain("mg.tool");
     expect(names).not.toContain("mg.subagent");
     expect(names).not.toContain("mg.thread");
+  });
+});
+
+describe("run with subagents and a hold", () => {
+  test("a subagent holds before its next turn when the parent's hold is on, and goes on after release", async () => {
+    const hold = createHoldController();
+    let noopStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      noopStarted = resolve;
+    });
+    let finishNoop!: () => void;
+    const finish = new Promise<void>((resolve) => {
+      finishNoop = resolve;
+    });
+    const noop = defineTool({
+      reach: async () => ({ kind: "any-local" }),
+      name: "noop",
+      input: stubSchema(),
+      execute: async () => {
+        noopStarted();
+        await finish;
+        return "ok";
+      },
+    });
+
+    let parentTurn = 0;
+    const parentProvider: Provider = {
+      generate: async () => {
+        parentTurn++;
+        if (parentTurn === 1) {
+          return {
+            parts: [
+              {
+                type: "tool-call",
+                id: "c1",
+                name: "researcher",
+                arguments: { prompt: "find x" },
+              },
+            ],
+            finishReason: "tool_calls",
+          };
+        }
+        return textResponse("done");
+      },
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    };
+    let childTurns = 0;
+    const childProvider: Provider = {
+      generate: async () => {
+        childTurns++;
+        if (childTurns === 1) {
+          return {
+            parts: [
+              {
+                type: "tool-call",
+                id: "n1",
+                name: "noop",
+                arguments: {},
+              },
+            ],
+            finishReason: "tool_calls",
+          };
+        }
+        return textResponse("sub done");
+      },
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    };
+    const config: RunConfig = {
+      name: "example",
+      provider: parentProvider,
+      harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
+      subagents: [
+        {
+          name: "researcher",
+          description: "Researches a topic",
+          provider: childProvider,
+          harness: {
+            kind: "loop",
+            model: "m",
+            maxTurns: 2,
+            stream: false,
+          },
+          gate: stubGate(),
+          tools: [noop],
+        },
+      ],
+    };
+
+    const running = run(config, [], { hold: hold.signal });
+    await started;
+    hold.hold();
+    finishNoop();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(childTurns).toBe(1);
+
+    hold.release();
+    const outcome = await running;
+    expect(childTurns).toBe(2);
+    expect(outcome.result.messages).toContainEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content: "sub done",
+    });
   });
 });

@@ -17,6 +17,8 @@ type Deferred = { promise: Promise<void>; resolve: () => void };
 
 const noop = () => {};
 
+const ENCODING = "pcm-s16le";
+
 const deferred = (): Deferred => {
   const holder: Deferred = {
     promise: undefined as never,
@@ -36,8 +38,7 @@ type Text = { lastIndex: number; tail: Promise<void>; pending: number };
 type Round = {
   text: Text | undefined;
   stopped: boolean;
-  stopSignal: Promise<void>;
-  end(): void;
+  listeners: Set<() => void>;
   current: SpawnedProcess | undefined;
 };
 
@@ -74,15 +75,41 @@ const kill = (process: SpawnedProcess | undefined) => {
   }
 };
 
-const newRound = (): Round => {
-  const stop = deferred();
-  return {
-    text: undefined,
-    stopped: false,
-    stopSignal: stop.promise,
-    end: stop.resolve,
-    current: undefined,
-  };
+const newRound = (): Round => ({
+  text: undefined,
+  stopped: false,
+  listeners: new Set(),
+  current: undefined,
+});
+
+const STOPPED = Symbol("stopped");
+
+// Settles with the promise, or with STOPPED when the round is stopped
+// first. The stop listener is removed once the race is decided.
+const raceStop = async <T>(
+  r: Round,
+  promise: Promise<T>,
+): Promise<T | typeof STOPPED> => {
+  if (r.stopped) return STOPPED;
+  let listener: () => void = noop;
+  const stop = new Promise<typeof STOPPED>((resolve) => {
+    listener = () => resolve(STOPPED);
+    r.listeners.add(listener);
+  });
+  try {
+    return await Promise.race([promise, stop]);
+  } finally {
+    r.listeners.delete(listener);
+  }
+};
+
+// Ends the iterator without waiting for a pending next().
+const release = (iterator: AsyncIterator<AudioChunk>) => {
+  try {
+    void Promise.resolve(iterator.return?.()).catch(noop);
+  } catch {
+    // The source is already finished.
+  }
 };
 
 // Accepts the index into the round's text, or throws the rule it breaks.
@@ -160,21 +187,33 @@ export const createFfmpegPlayer = ({
     const iterator = audio[Symbol.asyncIterator]();
     let started: ReturnType<typeof start> | undefined;
     let format: AudioFormat | undefined;
-    const stopped = r.stopSignal.then(() => "stopped" as const);
     try {
       for (;;) {
-        const step = await Promise.race([
-          iterator.next(),
-          stopped,
-          ...(started === undefined ? [] : [started.exited]),
-        ]);
-        if (r.stopped || step === "stopped") {
+        const step = await raceStop(
+          r,
+          Promise.race([
+            iterator.next(),
+            ...(started === undefined ? [] : [started.exited]),
+          ]),
+        );
+        if (r.stopped || step === STOPPED) {
           kill(started?.process);
           return { played: false };
         }
-        if ("code" in step || "error" in step) return finish(step);
+        if ("code" in step || "error" in step) {
+          finish(step);
+          throw new Error(
+            "ffmpeg ended before all the audio was written",
+          );
+        }
         if (step.done) break;
         const next = step.value;
+        const encoding: string = next.format.encoding;
+        if (encoding !== ENCODING) {
+          throw new Error(
+            `ffmpeg cannot play encoding ${encoding}; it plays ${ENCODING}`,
+          );
+        }
         if (format === undefined) {
           format = next.format;
         } else if (
@@ -190,8 +229,8 @@ export const createFfmpegPlayer = ({
       }
       if (started === undefined) return { played: true };
       started.process.stdin.end();
-      const outcome = await Promise.race([started.exited, stopped]);
-      if (r.stopped || outcome === "stopped") {
+      const outcome = await raceStop(r, started.exited);
+      if (r.stopped || outcome === STOPPED) {
         kill(started.process);
         return { played: false };
       }
@@ -200,7 +239,7 @@ export const createFfmpegPlayer = ({
       kill(started?.process);
       throw error;
     } finally {
-      await iterator.return?.().catch(() => undefined);
+      release(iterator);
     }
   };
 
@@ -213,7 +252,7 @@ export const createFfmpegPlayer = ({
       text.tail = ended.promise;
       text.pending += 1;
       try {
-        await Promise.race([previous, r.stopSignal]);
+        await raceStop(r, previous);
         if (r.stopped) return { played: false };
         return await run(r, audio);
       } finally {
@@ -226,7 +265,7 @@ export const createFfmpegPlayer = ({
       round = newRound();
       r.stopped = true;
       kill(r.current);
-      r.end();
+      for (const listener of r.listeners) listener();
     },
   };
 };

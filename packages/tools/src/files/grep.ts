@@ -5,7 +5,7 @@ import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { reachOfPath, resolveExistingPath } from "./root.js";
+import { reachOfSearchPath, resolveExistingPath } from "./root.js";
 import { isBinary } from "./text.js";
 
 export type GrepToolOptions = {
@@ -265,7 +265,7 @@ export const createGrepTool = (
     async reach(args) {
       const parsed = await validateToolInput(this.input, args);
       if (!parsed.ok) return { kind: "any-local" };
-      return reachOfPath(root, parsed.value.path ?? ".");
+      return reachOfSearchPath(root, parsed.value.path ?? ".");
     },
     async execute(
       { pattern, path: inputPath, glob, ignoreCase },

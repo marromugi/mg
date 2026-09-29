@@ -47,7 +47,11 @@ afterAll(() => {
 
 const paths = (...values: string[]) => ({
   kind: "paths",
-  paths: values,
+  paths: values.map((path) => ({ path, extent: "file" })),
+});
+const tree = (path: string) => ({
+  kind: "paths",
+  paths: [{ path, extent: "tree" }],
 });
 const anyLocal = { kind: "any-local" };
 
@@ -91,8 +95,21 @@ describe("file tools reach", () => {
     }
   });
 
-  test("declares the followed absolute path of an existing directory for grep", async () => {
+  test("declares the file extent for a directory path", async () => {
     const expected = paths(join(real, "sub"));
+
+    expect(await read().reach({ path: "sub" })).toEqual(expected);
+    expect(
+      await edit().reach({
+        path: "to-sub",
+        oldString: "x",
+        newString: "x",
+      }),
+    ).toEqual(expected);
+  });
+
+  test("declares the tree extent of the followed directory for grep", async () => {
+    const expected = tree(join(real, "sub"));
 
     expect(await grep().reach({ pattern: "x", path: "sub" })).toEqual(
       expected,
@@ -150,8 +167,40 @@ describe("file tools reach", () => {
     expect(await grep().reach({ path: "sub" })).toEqual(anyLocal);
   });
 
-  test("declares the followed root for grep without a path", async () => {
-    expect(await grep().reach({ pattern: "x" })).toEqual(paths(real));
+  test("declares the tree extent of the followed root for grep without a path", async () => {
+    expect(await grep().reach({ pattern: "x" })).toEqual(tree(real));
+    expect(await grep().reach({ pattern: "x", path: "." })).toEqual(
+      tree(real),
+    );
+  });
+
+  test("declares the file extent of the followed existing file for grep", async () => {
+    const expected = paths(join(real, "a.txt"));
+
+    expect(await grep().reach({ pattern: "x", path: "a.txt" })).toEqual(
+      expected,
+    );
+    expect(await grep().reach({ pattern: "x", path: "to-a" })).toEqual(
+      expected,
+    );
+  });
+
+  test("is any-local for grep on a path that does not exist yet", async () => {
+    expect(
+      await grep().reach({ pattern: "x", path: "missing" }),
+    ).toEqual(anyLocal);
+    expect(
+      await grep().reach({ pattern: "x", path: "sub/new" }),
+    ).toEqual(anyLocal);
+  });
+
+  test("is any-local for grep when the path cannot be followed", async () => {
+    expect(await grep().reach({ pattern: "x", path: "dead" })).toEqual(
+      anyLocal,
+    );
+    expect(await grep().reach({ pattern: "x", path: "loop1" })).toEqual(
+      anyLocal,
+    );
   });
 });
 

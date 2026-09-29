@@ -149,12 +149,37 @@ const followedPath = async (
   }
 };
 
-export const reachOfPath = async (
+export const reachOfFile = async (
   root: string,
   input: string,
 ): Promise<Reach> => {
   try {
-    return { kind: "paths", paths: [await followedPath(root, input)] };
+    const followed = await followedPath(root, input);
+    return {
+      kind: "paths",
+      paths: [{ path: followed, extent: "file" }],
+    };
+  } catch {
+    return anyLocal;
+  }
+};
+
+export const reachOfSearchPath = async (
+  root: string,
+  input: string,
+): Promise<Reach> => {
+  try {
+    const followed = await followedPath(root, input);
+    const stat = await fs.stat(followed);
+    return {
+      kind: "paths",
+      paths: [
+        {
+          path: followed,
+          extent: stat.isDirectory() ? "tree" : "file",
+        },
+      ],
+    };
   } catch {
     return anyLocal;
   }

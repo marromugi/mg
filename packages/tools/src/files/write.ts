@@ -4,7 +4,7 @@ import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { resolveWritablePath, reachOfPath } from "./root.js";
+import { resolveWritablePath, reachOfFile } from "./root.js";
 import { splitLines } from "./text.js";
 
 export type WriteFileToolOptions = { root: string };
@@ -37,7 +37,7 @@ export const createWriteFileTool = (
     async reach(args) {
       const parsed = await validateToolInput(this.input, args);
       if (!parsed.ok) return { kind: "any-local" };
-      return reachOfPath(root, parsed.value.path);
+      return reachOfFile(root, parsed.value.path);
     },
     async execute({ path: inputPath, content }, context) {
       context.signal?.throwIfAborted();

@@ -13,8 +13,10 @@ export type ToolInputIssue = StandardSchemaV1.Issue;
 
 export type ToolContext = { signal?: AbortSignal };
 
+export type ReachPath = { path: string; extent: "file" | "tree" };
+
 export type Reach =
-  | { kind: "paths"; paths: readonly string[] }
+  | { kind: "paths"; paths: readonly ReachPath[] }
   | { kind: "any-local" }
   | { kind: "outside" }
   | { kind: "none" };

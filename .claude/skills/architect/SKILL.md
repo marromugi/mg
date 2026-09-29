@@ -1,6 +1,6 @@
 ---
 name: architect
-description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small, start here rather than implementing. Makes the design from the picture of the whole software following software-design-theory, has it judged by software-design-review, writes the constraints and the test cases that hold the implementation to it, and creates minimal GitHub issues without asking. Stops for the developer only where the theory does not settle a question. Never writes implementation code; that is the implementer skill's job."
+description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small — a bug, a tweak, 「ここ直して」「ちょっと調整して」 — start here rather than implementing; requests that need no design decision take a light path that writes one short issue and hands it straight to implementer. Makes the design from the picture of the whole software following software-design-theory, has it judged by software-design-review, writes the constraints and the test cases that hold the implementation to it, and creates minimal GitHub issues without asking. Stops for the developer only where the theory does not settle a question. Never writes implementation code; that is the implementer skill's job."
 ---
 
 # Architect
@@ -33,6 +33,11 @@ Restate the request to yourself: the goal, what is in and out of scope, the
 constraints already known. The goal and the scope are the developer's. If
 either is unclear in a way that would change the design, ask, and wait. If
 they are clear, do not ask for confirmation; carry on.
+
+Then sort the request. Bring the checkout up to date and look at the code it
+touches first; the sort is read off the code, not off how the request is
+worded. When every test under "Light path" holds, leave this flow and follow
+that section. Otherwise carry on to step 2.
 
 ### 2. Design from the whole
 
@@ -195,6 +200,48 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
   for all of them.
 
 After the report, stop.
+
+## Light path
+
+Some requests need no design decision: a bug in code whose shape is already
+settled, a wording or value fix, a missed case in existing behaviour. The
+design reviews exist to judge decisions, so where there is none they cost
+rounds and find nothing. The issue still exists, because implementer,
+reviewer and verifier all measure the work against it.
+
+A request takes this path only when all of these hold. Size of the diff is
+not one of them (`software-design-theory`: a small diff is not a reason).
+
+- No role changes: nothing gains, loses, or moves a responsibility.
+- No interface changes: no exported signature, data shape, stored format,
+  or command-line or config surface is added, removed, or altered.
+- No dependency direction changes: no new import across a package or layer
+  boundary.
+- One way to do it: within the existing shape there is only one reasonable
+  fix, so nothing is chosen between.
+- It contradicts no open issue's design, and no shape under `## 見送った形`
+  in the record the code came from.
+
+When any of them is in doubt, take the full flow.
+
+Steps:
+
+1. Write one issue body in the format from `references/issue-format.md`.
+   `設計` says which existing design the fix follows — link the issue that
+   holds it when there is one — and states in one sentence that the fix
+   makes no design decision. 制約 and ケース are written as step 5 says;
+   a bug fix carries a case that reproduces the bug.
+2. Run `check-issue.mjs` on it until it prints no problems.
+3. Create it with `gh issue create`, without asking.
+4. Invoke `implementer` with the new issue number. When the implementation
+   agent stops on a design question, implementer sends it to "Redoing a
+   design", which draws the whole design as the full flow would; the light
+   path was the wrong sort, and that is the way back.
+5. Report in Japanese, following `.claude/rules/writing.md`: the issue and
+   the PR, which of the tests above made this a light-path request in one
+   line, and what `implementer` returned.
+
+Design review, case review and `reconciler` are skipped on this path.
 
 ## Redoing a design
 

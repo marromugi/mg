@@ -1,6 +1,6 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
-import { defineRun } from "@mg/runner";
-import { createOpenRouterProvider } from "@mg/core";
+import { defineRun, type RunConfig } from "@mg/runner";
+import { createOpenRouterProvider, type Provider } from "@mg/core";
 import {
   createBashTool,
   createReadFileTool,
@@ -8,41 +8,78 @@ import {
   createWriteFileTool,
   createEditFileTool,
 } from "@mg/tools";
-import { createRulesGate } from "@mg/gate";
+import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (apiKey === undefined)
   throw new Error("OPENROUTER_API_KEY is not set");
 
-const root = process.cwd();
+export type LoopFilesRunOptions = {
+  provider: Provider;
+  root: string;
+  trace?: RunConfig["trace"];
+};
 
-export default defineRun({
-  name: "loop-files-deepseek",
-  provider: createOpenRouterProvider({ apiKey }),
-  harness: {
-    kind: "loop",
-    model: "deepseek/deepseek-v4-flash",
-    maxTurns: 10,
-  },
-  tools: [
-    createBashTool({ cwd: root }),
-    createReadFileTool({ root }),
-    createGrepTool({ root }),
-    createWriteFileTool({ root }),
-    createEditFileTool({ root }),
-  ],
-  gate: createRulesGate({
-    root,
-    rules: [
-      {
-        tools: ["write_file", "edit_file"],
-        paths: ["**/.env", "**/.env.*", "**/*.lock", ".git/**"],
-        allowed: false,
-        reason:
-          "Secrets, lockfiles and .git are read-only for the agent.",
-      },
+export const buildLoopFilesRun = ({
+  provider,
+  root,
+  trace,
+}: LoopFilesRunOptions) =>
+  defineRun({
+    name: "loop-files-deepseek-composed",
+    provider,
+    harness: {
+      kind: "loop",
+      model: "deepseek/deepseek-v4-flash",
+      maxTurns: 10,
+    },
+    tools: [
+      createBashTool({ cwd: root }),
+      createReadFileTool({ root }),
+      createGrepTool({ root }),
+      createWriteFileTool({ root }),
+      createEditFileTool({ root }),
     ],
-  }),
+    gate: composeGates([
+      createRulesGate({
+        root,
+        rules: [
+          {
+            tools: [
+              "read_file",
+              "grep",
+              "write_file",
+              "edit_file",
+              "bash",
+            ],
+            paths: [
+              "**/.env",
+              "**/.env.*",
+              "**/*.lock",
+              ".git/**",
+              ".git",
+            ],
+            allowed: false,
+            reason:
+              "Secrets, lockfiles and .git are off limits for the agent.",
+          },
+        ],
+      }),
+      createLlmGate({
+        provider,
+        model: "deepseek/deepseek-v4-flash",
+        policy:
+          "Reading and editing project files is allowed. Reading or " +
+          "changing secrets (.env files), lockfiles or anything under " +
+          ".git is not. Running shell commands is not.",
+      }),
+    ]),
+    trace,
+  });
+
+export default buildLoopFilesRun({
+  provider: createOpenRouterProvider({ apiKey }),
+  root: process.cwd(),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

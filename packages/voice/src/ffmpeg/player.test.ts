@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { AudioChunk } from "../audio.js";
 import { createFfmpegPlayer } from "./player.js";
 import type { SpawnProcess } from "./player.js";
@@ -59,13 +59,15 @@ async function* audioOf(
   for (const c of chunks) yield c;
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 describe("createFfmpegPlayer", () => {
   test("starts ffmpeg for the chunk format and writes the bytes to its stdin, then closes it", async () => {
     const { processes, player } = setup();
     const done = player.play(0, audioOf(chunk([1, 2, 3, 4])));
-    await settle();
+    await vi.waitFor(() =>
+      expect(processes[0]?.stdinClosed).toBe(true),
+    );
 
     expect(processes).toHaveLength(1);
     expect(processes[0].command).toBe("ffmpeg");
@@ -98,12 +100,13 @@ describe("createFfmpegPlayer", () => {
     const { processes, player } = setup();
     const first = player.play(0, audioOf(chunk([1, 2])));
     const second = player.play(1, audioOf(chunk([3, 4])));
-    await settle();
+    await vi.waitFor(() => expect(processes).toHaveLength(1));
+    await flush();
     expect(processes).toHaveLength(1);
 
     processes[0].exit(0);
     await expect(first).resolves.toEqual({ played: true });
-    await settle();
+    await vi.waitFor(() => expect(processes).toHaveLength(2));
     expect(processes).toHaveLength(2);
 
     processes[1].exit(0);
@@ -114,13 +117,13 @@ describe("createFfmpegPlayer", () => {
     const { processes, player } = setup();
     const first = player.play(0, audioOf(chunk([1, 2])));
     const second = player.play(1, audioOf(chunk([3, 4])));
-    await settle();
+    await vi.waitFor(() => expect(processes).toHaveLength(1));
 
     player.stop();
 
     await expect(first).resolves.toEqual({ played: false });
     await expect(second).resolves.toEqual({ played: false });
-    await settle();
+    await flush();
     expect(processes).toHaveLength(1);
     expect(processes[0].killed).toBe(true);
   });
@@ -132,7 +135,7 @@ describe("createFfmpegPlayer", () => {
       () => undefined,
       (error: unknown) => error,
     );
-    await settle();
+    await vi.waitFor(() => expect(processes).toHaveLength(1));
     processes[0].exit(1);
     expect(String(await failure)).toContain("exit code 1");
   });

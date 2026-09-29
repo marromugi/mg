@@ -120,10 +120,24 @@ An interface that plays audio one sentence at a time.
 | -------- | ------------------------------------ | ------------------- |
 | `Player` | Sentence number and stream of chunks | Whether it finished |
 
-`play(index, audio)` plays one sentence at a time, in order of sentence number.
+`play(index, audio)` plays one sentence at a time.
 When it plays to the end, it resolves with `{ played: true }`.
 When stopped partway, it resolves with `{ played: false }`.
-When the device fails, it rejects with the thrown value.
+
+`index` is the sentence's position among the sentences of one text that the caller plays, counted from 0.
+A sentence the caller does not play takes no index.
+
+- Index 0 begins a new text.
+  It comes only when no sentence of an earlier text is still playing or waiting.
+- `stop()` ends the text it cut at once, so index 0 may follow it.
+- Within a text, the indices come in call order, each one more than the previous call's.
+  A sentence starts only after the one before it has ended.
+
+`play` rejects, saying which rule it broke, when the index breaks these rules.
+That is index 0 while an earlier text is playing or waiting, an index above 0 with no text begun, or an index that repeats or skips.
+It rejects, with the reason, when it cannot play the audio as given.
+Each implementation names what it cannot play.
+Otherwise it rejects only when the device fails, with the thrown value.
 
 `stop()` stops the sentence being played right away.
 It resolves every waiting `play` as not played.

@@ -315,6 +315,8 @@ The index rules are those of `Player`.
 | The process exits with another code | Rejects with the exit code              |
 | The process cannot start            | Rejects with the start error            |
 | A chunk's rate or channels differ   | Rejects naming both formats, kills it   |
+| A chunk is not `pcm-s16le`          | Rejects naming the encoding, kills it   |
+| It exits 0 before all audio is sent | Rejects with that reason                |
 | The audio has no chunks             | Resolves `{ played: true }`, no process |
 
 `stop()` kills the running process and resolves every waiting `play` as not played.
@@ -329,7 +331,8 @@ node runs/ffmpeg-player.ts
 
 ## Non-goals
 
-- It does not hold the device's microphone or speakers.
+- It does not open the device's microphone or speakers itself.
+  The ffmpeg player plays through them by way of a process that is passed in.
 - It does not put together voice conversations.
 - It does not decide whether something may run.
 - It does not decide when to speak.

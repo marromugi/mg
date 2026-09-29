@@ -16,6 +16,10 @@ LLM can judge it.
 - Whoever reviews a design judges it against the principles, and cites the
   principle behind each finding.
 - What the principles settle is not put to the developer.
+- A principle settles a question when it leans towards one option and no
+  principle leans against it. The maker takes that option and names it, with
+  the principle, in its report, where the developer can reopen it. The goal
+  and the scope stay the developer's even then.
 - What the principles do not settle is put to the developer, as a question
   with options.
 - A question that running something can answer is not a preference call. It
@@ -247,7 +251,7 @@ After the design is made:
 | Whole and position | The design starts from the picture of the whole and places the piece in it (1). Each interface takes and gives back what its role says, not what its first implementation needs (1). Dependencies point one way (3). |
 | Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named, and nothing of an outside specification — a default, a term — sits in shared code (7). |
 | Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided, shows as its role calls for, and no ambiguous input is given a reading (5). No behaviour changes that the record does not name (9). |
-| Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and assumes there is at least one. |
+| Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and returns pass when every call in the design is settled. |
 
 After the cases are written:
 
@@ -268,3 +272,10 @@ implementation.
 - Any action that cannot be undone.
 - Running the software under work, or an experiment, against a paid service
   or an outside machine. Asked right before it runs.
+
+What does not go:
+
+- A question the decision record of the work, or of its parent, already
+  answers. The answer there is followed and cited.
+- The order, batching, and pace of the work inside the agreed scope. The
+  one doing the work decides them and says what it chose.

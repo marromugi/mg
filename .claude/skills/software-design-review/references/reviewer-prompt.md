@@ -41,8 +41,10 @@ How to judge:
 Your findings are all `ask`. Look for decisions the artifact presents as
 settled that no principle in the theory actually settles: product behaviour,
 naming the user will see, what to leave out of scope, a choice between two
-shapes the theory treats as equal. Assume there is at least one. For each,
-state the question and the options the developer would choose between.
+shapes the theory treats as equal. A call that a principle leans on, with
+none leaning against it, is settled; leave it. If every call is settled,
+return pass. For each finding, state the question and the options the
+developer would choose between.
 </only>
 
 Return findings in exactly this form, nothing before or after:

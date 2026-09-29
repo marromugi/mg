@@ -80,8 +80,11 @@ with options, then the `fix` findings.
 
 - `fix` — the theory settles it. The finding cites the principle, and the
   maker corrects the artifact.
-- `ask` — the theory does not settle it. The finding states the question and
-  the options. Only the developer answers.
+- `ask` — the theory does not settle it: no principle leans either way,
+  principles lean against each other, or it is the goal or the scope. A
+  principle leaning one way with none against it settles it, as a `fix`.
+  The finding states the question and the options. Only the developer
+  answers.
 - A finding with `principle: none` is always `ask`. Without a principle behind
   it, a finding is a preference, and preferences are the developer's.
 

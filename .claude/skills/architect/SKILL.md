@@ -101,7 +101,13 @@ and pointers to the code.
 
 If there are no `ask` findings, skip this step.
 
-Otherwise stop here, once, with all of them. Put the questions with the
+Before asking, read the decision record of this work and of its parent, and
+the issues each question touches, fresh from GitHub. A question answered
+there is not asked; follow the answer and cite where it is written. Nor is
+the order or pace of the work asked — which item to design first, whether to
+carry on, whether to batch the questions. Decide it and say what you chose.
+
+Then stop here, once, with all that is left. Put the questions with the
 AskUserQuestion tool, one entry per question, each option's description
 saying what it gives up. What does not fit in the tool — a mechanism to
 explain, the principles that come close — goes in a short message before the
@@ -114,8 +120,10 @@ question:
   and for each option what its user would write. A mechanism told in words
   alone cannot be chosen between.
 - The options, and what each one gives up, in a table.
-- Which principles come close, why none of them settles it, and which option
-  they lean towards. Recommend that option and name the principle. A
+- Which principles come close and why none of them settles it. A question
+  reaches here with a principle leaning one way only when another leans the
+  other way, or when it is the goal or the scope. Recommend the option the
+  leaning principle favours and name the principle. A
   recommendation is argued the way a design is, from the theory: likeness to
   something that already exists, a smaller diff, and ease of backing out are
   reasons the theory rejects, so they cannot carry a recommendation either.

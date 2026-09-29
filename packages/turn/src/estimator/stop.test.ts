@@ -79,7 +79,15 @@ const createFakeEstimator = (
 const question = "作業を止めてほしいと言っていますか。";
 const stop = "止めてと言った";
 const continueLabel = "それ以外";
-const situation = { utterance: "止めて" };
+const situation = {
+  utterance: "止めて",
+  work: {
+    request: "README を直して",
+    tools: [
+      { name: "bash", arguments: '{"command":"ls"}', result: null },
+    ],
+  },
+};
 
 describe("createEstimatorStopJudge", () => {
   test("returns stop and sends the situation, question and labels unchanged", async () => {
@@ -102,7 +110,19 @@ describe("createEstimatorStopJudge", () => {
       action: "stop",
     });
     expect(calls[0][0]).toEqual({
-      subject: { utterance: "止めて" },
+      subject: {
+        utterance: "止めて",
+        work: {
+          request: "README を直して",
+          tools: [
+            {
+              name: "bash",
+              arguments: '{"command":"ls"}',
+              result: null,
+            },
+          ],
+        },
+      },
       question: "作業を止めてほしいと言っていますか。",
       labels: { stop: "止めてと言った", continue: "それ以外" },
     });

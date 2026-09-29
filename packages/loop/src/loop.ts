@@ -288,20 +288,21 @@ export const createLoopHarness = (
     const hold = input.hold;
 
     const waitWhileHeld = async (): Promise<void> => {
-      if (!hold?.held) return;
-      const aborted = input.signal
-        ? waitForAbort(input.signal)
-        : undefined;
-      const wrappedUp = wrapUp ? waitForAbort(wrapUp) : undefined;
-      try {
-        await Promise.race([
-          hold.released(),
-          ...(aborted ? [aborted.promise] : []),
-          ...(wrappedUp ? [wrappedUp.promise] : []),
-        ]);
-      } finally {
-        aborted?.cancel();
-        wrappedUp?.cancel();
+      if (!hold) return;
+      while (hold.held) {
+        const stopped = toolSignal
+          ? waitForAbort(toolSignal)
+          : undefined;
+        try {
+          await Promise.race([
+            hold.released(),
+            ...(stopped ? [stopped.promise] : []),
+          ]);
+        } finally {
+          stopped?.cancel();
+        }
+        input.signal?.throwIfAborted();
+        if (wrapUp?.aborted) return;
       }
     };
 
@@ -378,7 +379,6 @@ export const createLoopHarness = (
       for (let turn = 1; turn <= options.maxTurns; turn++) {
         input.signal?.throwIfAborted();
         await waitWhileHeld();
-        input.signal?.throwIfAborted();
 
         if (wrapUp?.aborted) {
           yield* wrappedUpDone();
@@ -436,7 +436,6 @@ export const createLoopHarness = (
 
         input.signal?.throwIfAborted();
         await waitWhileHeld();
-        input.signal?.throwIfAborted();
 
         if (wrapUp?.aborted) {
           yield* notRunAll(turnResult.toolCalls);

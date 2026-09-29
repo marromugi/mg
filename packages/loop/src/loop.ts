@@ -285,6 +285,26 @@ export const createLoopHarness = (
     const wrapUp = input.wrapUp;
     const toolSignal = toolSignalFor(input.signal, wrapUp);
 
+    const hold = input.hold;
+
+    const waitWhileHeld = async (): Promise<void> => {
+      if (!hold?.held) return;
+      const aborted = input.signal
+        ? waitForAbort(input.signal)
+        : undefined;
+      const wrappedUp = wrapUp ? waitForAbort(wrapUp) : undefined;
+      try {
+        await Promise.race([
+          hold.released(),
+          ...(aborted ? [aborted.promise] : []),
+          ...(wrappedUp ? [wrappedUp.promise] : []),
+        ]);
+      } finally {
+        aborted?.cancel();
+        wrappedUp?.cancel();
+      }
+    };
+
     const isSubagentCall = (call: ToolCall): boolean =>
       subagentNames.has(call.name);
 
@@ -293,7 +313,11 @@ export const createLoopHarness = (
       isSubagent: boolean,
     ): Promise<ToolMessage> => {
       const callResult = isSubagent
-        ? runSubagent(subagents, call, { signal: input.signal, wrapUp })
+        ? runSubagent(subagents, call, {
+            signal: input.signal,
+            wrapUp,
+            hold,
+          })
         : run(tools, call, { signal: toolSignal });
       return callResult.catch((error: unknown) => {
         if (error instanceof Error && error.name === "AbortError")
@@ -353,6 +377,8 @@ export const createLoopHarness = (
 
       for (let turn = 1; turn <= options.maxTurns; turn++) {
         input.signal?.throwIfAborted();
+        await waitWhileHeld();
+        input.signal?.throwIfAborted();
 
         if (wrapUp?.aborted) {
           yield* wrappedUpDone();
@@ -408,6 +434,8 @@ export const createLoopHarness = (
           return;
         }
 
+        input.signal?.throwIfAborted();
+        await waitWhileHeld();
         input.signal?.throwIfAborted();
 
         if (wrapUp?.aborted) {

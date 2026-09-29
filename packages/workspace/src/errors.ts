@@ -54,8 +54,25 @@ export class WorkspaceCloseError extends WorkspaceBaseError {
   }
 }
 
+export class ConnectorCloseError extends WorkspaceBaseError {
+  override readonly name = "ConnectorCloseError";
+  readonly kind: string;
+  readonly errors: readonly unknown[];
+
+  constructor(kind: string, errors: readonly unknown[]) {
+    super(`Failed to close connector "${kind}"`, {
+      cause: errors[0],
+    });
+    this.kind = kind;
+    this.errors = errors;
+  }
+}
+
 export type WorkspaceError =
-  ConnectorOpenError | DuplicateToolNameError | WorkspaceCloseError;
+  | ConnectorOpenError
+  | ConnectorCloseError
+  | DuplicateToolNameError
+  | WorkspaceCloseError;
 
 export type WorkspaceErrorName = WorkspaceError["name"];
 

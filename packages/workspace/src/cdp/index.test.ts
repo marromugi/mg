@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { createCdpConnector } from "./index.js";
 import type { BrowserPage, BrowserSession } from "./browser.js";
+import { ConnectorCloseError, ConnectorOpenError } from "../errors.js";
+import { exclusiveNamesOf } from "../exclusive.js";
+import { openWorkspace } from "../open.js";
+import type { Endpoint } from "../types.js";
 
 const options = { url: "http://localhost:9222" };
 
@@ -81,5 +85,236 @@ describe("createCdpConnector", () => {
     expect(() => createCdpConnector({ url: "not a url" })).toThrow(
       TypeError,
     );
+  });
+});
+
+type FakeEndpoint = Endpoint & {
+  opens: number;
+  closes: number;
+  signals: (AbortSignal | undefined)[];
+};
+
+const fakeEndpoint = (
+  behaviour: { openError?: Error; closeError?: Error } = {},
+  order: string[] = [],
+): FakeEndpoint => {
+  const endpoint: FakeEndpoint = {
+    opens: 0,
+    closes: 0,
+    signals: [],
+    exclusive: ["fake:a", "fake:b"],
+    async open(context) {
+      endpoint.opens += 1;
+      endpoint.signals.push(context?.signal);
+      if (behaviour.openError !== undefined) {
+        throw behaviour.openError;
+      }
+      return {
+        host: "127.0.0.1",
+        port: 45678,
+        async close() {
+          endpoint.closes += 1;
+          order.push("endpoint");
+          if (behaviour.closeError !== undefined) {
+            throw behaviour.closeError;
+          }
+        },
+      };
+    },
+  };
+  return endpoint;
+};
+
+const fakeSession = (
+  closeError?: Error,
+  order: string[] = [],
+): BrowserSession => ({
+  page: fakePage,
+  close: async () => {
+    order.push("session");
+    if (closeError !== undefined) {
+      throw closeError;
+    }
+  },
+});
+
+describe("createCdpConnector with an endpoint", () => {
+  test("opens the endpoint once with the same signal and connects to its host and port", async () => {
+    const endpoint = fakeEndpoint();
+    const urls: string[] = [];
+    const connector = createCdpConnector(
+      { endpoint },
+      {
+        connect: async (connectOptions) => {
+          urls.push(connectOptions.url);
+          return fakeSession();
+        },
+      },
+    );
+    const signal = new AbortController().signal;
+
+    const connection = await connector.open({ signal });
+
+    expect(endpoint.opens).toBe(1);
+    expect(endpoint.signals[0]).toBe(signal);
+    expect(urls).toEqual(["http://127.0.0.1:45678"]);
+    expect(connection.tools.map((tool) => tool.name)).toEqual([
+      "browser_navigate",
+      "browser_read",
+      "browser_click",
+      "browser_type",
+    ]);
+  });
+
+  test("throws the endpoint error as-is and does not connect when the endpoint fails to open", async () => {
+    const cause = new Error("endpoint down");
+    let connects = 0;
+    const connector = createCdpConnector(
+      { endpoint: fakeEndpoint({ openError: cause }) },
+      {
+        connect: async () => {
+          connects += 1;
+          return fakeSession();
+        },
+      },
+    );
+
+    await expect(connector.open()).rejects.toBe(cause);
+    expect(connects).toBe(0);
+
+    const error = await openWorkspace({
+      name: "w",
+      connectors: [connector],
+    }).catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(ConnectorOpenError);
+    expect((error as ConnectorOpenError).kind).toBe("cdp");
+    expect((error as ConnectorOpenError).index).toBe(0);
+    expect((error as ConnectorOpenError).cause).toBe(cause);
+  });
+
+  test("closes the endpoint once and throws the connect error when the browser refuses", async () => {
+    const cause = new Error("cdp refused");
+    const endpoint = fakeEndpoint();
+    const connector = createCdpConnector(
+      { endpoint },
+      {
+        connect: async () => {
+          throw cause;
+        },
+      },
+    );
+
+    await expect(connector.open()).rejects.toBe(cause);
+    expect(endpoint.closes).toBe(1);
+  });
+
+  test("still throws the connect error when closing the endpoint fails too", async () => {
+    const cause = new Error("cdp refused");
+    const endpoint = fakeEndpoint({
+      closeError: new Error("close failed"),
+    });
+    const connector = createCdpConnector(
+      { endpoint },
+      {
+        connect: async () => {
+          throw cause;
+        },
+      },
+    );
+
+    await expect(connector.open()).rejects.toBe(cause);
+    expect(endpoint.closes).toBe(1);
+  });
+
+  test("closes the session first and the endpoint second", async () => {
+    const order: string[] = [];
+    const endpoint = fakeEndpoint({}, order);
+    const connector = createCdpConnector(
+      { endpoint },
+      { connect: async () => fakeSession(undefined, order) },
+    );
+
+    const connection = await connector.open();
+    await connection.close();
+
+    expect(order).toEqual(["session", "endpoint"]);
+    expect(endpoint.closes).toBe(1);
+  });
+
+  test("closes the endpoint and throws the session error when only the session fails to close", async () => {
+    const cause = new Error("session close");
+    const endpoint = fakeEndpoint();
+    const connector = createCdpConnector(
+      { endpoint },
+      { connect: async () => fakeSession(cause) },
+    );
+
+    const connection = await connector.open();
+
+    await expect(connection.close()).rejects.toBe(cause);
+    expect(endpoint.closes).toBe(1);
+  });
+
+  test("throws the endpoint error when only the endpoint fails to close", async () => {
+    const cause = new Error("endpoint close");
+    const connector = createCdpConnector(
+      { endpoint: fakeEndpoint({ closeError: cause }) },
+      { connect: async () => fakeSession() },
+    );
+
+    const connection = await connector.open();
+
+    await expect(connection.close()).rejects.toBe(cause);
+  });
+
+  test("throws ConnectorCloseError with both errors in order when both fail to close", async () => {
+    const sessionError = new Error("session close");
+    const endpointError = new Error("endpoint close");
+    const connector = createCdpConnector(
+      { endpoint: fakeEndpoint({ closeError: endpointError }) },
+      { connect: async () => fakeSession(sessionError) },
+    );
+
+    const connection = await connector.open();
+    const error = await connection.close().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ConnectorCloseError);
+    expect((error as ConnectorCloseError).kind).toBe("cdp");
+    expect((error as ConnectorCloseError).errors).toEqual([
+      sessionError,
+      endpointError,
+    ]);
+    expect((error as ConnectorCloseError).message).toBe(
+      'Failed to close connector "cdp"',
+    );
+  });
+
+  test("declares the exclusive names of the endpoint", () => {
+    const connector = createCdpConnector({
+      endpoint: fakeEndpoint(),
+    });
+
+    expect(connector.exclusive).toEqual(["fake:a", "fake:b"]);
+    expect(
+      exclusiveNamesOf({ name: "w", connectors: [connector] }),
+    ).toEqual(["fake:a", "fake:b"]);
+  });
+
+  test("connects to the given URL and declares its own exclusive name when given a URL", async () => {
+    const urls: string[] = [];
+    const connector = createCdpConnector(
+      { url: "http://localhost:9222" },
+      {
+        connect: async (connectOptions) => {
+          urls.push(connectOptions.url);
+          return fakeSession();
+        },
+      },
+    );
+
+    await connector.open();
+
+    expect(connector.exclusive).toEqual(["cdp:localhost:9222"]);
+    expect(urls).toEqual(["http://localhost:9222"]);
   });
 });

@@ -1,8 +1,10 @@
 import { chromium, type Page } from "playwright-core";
-import type { ConnectorContext } from "../types.js";
+import type { ConnectorContext, Endpoint } from "../types.js";
 
-export type CdpConnectorOptions = {
-  url: string;
+export type CdpConnectorOptions = (
+  | { url: string; endpoint?: never }
+  | { endpoint: Endpoint; url?: never }
+) & {
   timeoutMs?: number;
   maxOutputBytes?: number;
 };
@@ -70,7 +72,7 @@ class PlaywrightPage implements BrowserPage {
 }
 
 export const connectCdp = async (
-  options: CdpConnectorOptions,
+  options: { url: string; timeoutMs?: number },
   context?: ConnectorContext,
 ): Promise<BrowserSession> => {
   context?.signal?.throwIfAborted();

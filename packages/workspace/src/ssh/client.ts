@@ -1,16 +1,30 @@
+import type { Duplex } from "node:stream";
 import { Client, type ConnectConfig } from "ssh2";
 import type { ConnectorContext } from "../types.js";
 
-export type SshConnectorOptions = {
+export type SshConnectionOptions = {
   host: string;
   port?: number;
   username: string;
   auth:
     { privateKey: string; passphrase?: string } | { password: string };
+};
+
+export type SshConnectorOptions = SshConnectionOptions & {
   cwd?: string;
   timeoutMs?: number;
   maxOutputBytes?: number;
 };
+
+export type ForwardResult =
+  | { kind: "open"; stream: Duplex }
+  | { kind: "refused"; cause: unknown };
+
+export interface SshForwarder {
+  // Resolves "refused" for a refused channel; rejects on any other failure.
+  forwardOut(dstHost: string, dstPort: number): Promise<ForwardResult>;
+  end(): Promise<void>;
+}
 
 export type SshExecResult = {
   stdout: string;
@@ -38,7 +52,7 @@ const abortError = (signal: AbortSignal): unknown =>
   new DOMException("The operation was aborted", "AbortError");
 
 const toConnectConfig = (
-  options: SshConnectorOptions,
+  options: SshConnectionOptions,
 ): ConnectConfig => {
   const base: ConnectConfig = {
     host: options.host,
@@ -199,10 +213,10 @@ class Ssh2Client implements SshClient {
   }
 }
 
-export const connectSsh = (
-  options: SshConnectorOptions,
+const openConnection = (
+  options: SshConnectionOptions,
   context?: ConnectorContext,
-): Promise<SshClient> => {
+): Promise<Client> => {
   context?.signal?.throwIfAborted();
 
   return new Promise((resolve, reject) => {
@@ -223,7 +237,7 @@ export const connectSsh = (
       if (settled) return;
       settled = true;
       context?.signal?.removeEventListener("abort", onAbort);
-      resolve(new Ssh2Client(connection));
+      resolve(connection);
     });
 
     connection.on("error", (error) => {
@@ -236,3 +250,48 @@ export const connectSsh = (
     connection.connect(toConnectConfig(options));
   });
 };
+
+export const connectSsh = async (
+  options: SshConnectorOptions,
+  context?: ConnectorContext,
+): Promise<SshClient> =>
+  new Ssh2Client(await openConnection(options, context));
+
+// ssh2 CHANNEL_OPEN_FAILURE.CONNECT_FAILED, worded "Connection refused"
+const isRefused = (error: Error): boolean =>
+  (error as { reason?: unknown }).reason === 2 &&
+  error.message.includes("Connection refused");
+
+export const toSshForwarder = (
+  connection: Pick<Client, "forwardOut" | "end" | "once">,
+): SshForwarder => ({
+  forwardOut: (dstHost, dstPort) =>
+    new Promise((resolve, reject) => {
+      connection.forwardOut(
+        "127.0.0.1",
+        0,
+        dstHost,
+        dstPort,
+        (error, stream) => {
+          if (error === undefined) {
+            resolve({ kind: "open", stream });
+          } else if (isRefused(error)) {
+            resolve({ kind: "refused", cause: error });
+          } else {
+            reject(error);
+          }
+        },
+      );
+    }),
+  end: () =>
+    new Promise((resolve) => {
+      connection.once("close", () => resolve());
+      connection.end();
+    }),
+});
+
+export const connectSshForwarder = async (
+  options: SshConnectionOptions,
+  context?: ConnectorContext,
+): Promise<SshForwarder> =>
+  toSshForwarder(await openConnection(options, context));

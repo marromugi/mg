@@ -134,8 +134,8 @@ export const createGeminiTranscriber = (
     callOptions: TranscribeOptions = {},
   ): AsyncGenerator<TranscriptEvent, void, undefined> {
     const { signal, languages } = callOptions;
-    for (const code of languages ?? []) Intl.getCanonicalLocales(code);
     signal?.throwIfAborted();
+    for (const code of languages ?? []) Intl.getCanonicalLocales(code);
 
     const mailbox = createMailbox();
     const iterator = audio[Symbol.asyncIterator]();
@@ -281,7 +281,13 @@ export const createGeminiTranscriber = (
 
     try {
       for (;;) {
-        const item = await mailbox.next();
+        let item = await mailbox.next();
+        // After a stop, queued events and the end are dropped; only an
+        // error queued before it, or the reason, is thrown.
+        if (signal?.aborted === true) {
+          while (item.kind === "event") item = await mailbox.next();
+          if (item.kind === "done") throw signal.reason;
+        }
         if (item.kind === "event") yield item.event;
         else if (item.kind === "error") throw item.error;
         else return;

@@ -433,9 +433,11 @@ describe("createGeminiTranscriber", () => {
         apiKey: "k",
         WebSocket: Ctor,
       });
-      const iterator = transcriber
-        .transcribe(source.audio, { signal, languages })
-        [Symbol.asyncIterator]();
+      const stream = transcriber.transcribe(source.audio, {
+        signal,
+        languages,
+      });
+      const iterator = stream[Symbol.asyncIterator]();
       return { source, iterator };
     };
 

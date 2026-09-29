@@ -63,6 +63,9 @@ An interface that turns text into a stream of audio chunks.
 `synthesize(text, options)` is called once per text.
 Each returned chunk carries its own format.
 
+Once `options.signal` has fired, the call yields no more chunks and throws `signal.reason` unchanged.
+A failure the call had already reached before that is thrown instead.
+
 ### `Transcriber`
 
 An interface that makes text from spoken audio.
@@ -72,7 +75,10 @@ An interface that makes text from spoken audio.
 | `Transcriber` | Stream of speech chunks | Stream of partial and final text |
 
 `transcribe(audio, options)` is called once per utterance.
-The audio stream ends when the speaker finishes talking.
+The call reads the end of the audio stream as the end of the utterance.
+A caller that may end the audio early, for example by stopping the listener, must stop the call through `options.signal` no later.
+Once `options.signal` has fired, the call yields no more events and throws `signal.reason` unchanged.
+A failure the call had already reached before that is thrown instead.
 It streams some partial text, then one piece of final text.
 
 Each partial holds the whole text heard so far.
@@ -98,6 +104,10 @@ An interface that delivers what the other person says.
 `listen(signal)` streams one `HeardUtterance` each time the other person starts talking.
 It is the same whether they start by voice or by push-to-talk.
 The audio of a `HeardUtterance` ends when the other person finishes talking.
+It ends earlier, cut, when listening is stopped through the signal.
+
+Once the signal has fired, the stream and the audio of every utterance yield nothing more and end without error.
+A failure the listener had already reached before that is thrown by the stream instead.
 
 When the stream ends, the listener is finished.
 When it throws, the listener has failed.

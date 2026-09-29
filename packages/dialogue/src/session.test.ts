@@ -1183,7 +1183,7 @@ describe("runDialogue", () => {
       replies: [
         async (_message, options) => {
           options.onText("一つ目。二つ目");
-          await settle();
+          await new Promise((resolve) => setTimeout(resolve, 0));
           throw new TalkerError("length");
         },
       ],

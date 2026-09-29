@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 import type { ToolCall, ToolSchema } from "@mg/core";
 import {
   runSubagentCall,
@@ -108,7 +110,7 @@ describe("gateRunToolCall with runSubagentCall", () => {
 
   it("denies a subagent call blocked by a name rule in the rules gate", async () => {
     const gate = createRulesGate({
-      root: "/repo",
+      root: realpathSync(tmpdir()),
       rules: [
         {
           tools: ["researcher"],

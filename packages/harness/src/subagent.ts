@@ -10,11 +10,13 @@ import {
   SubagentInputError,
   SubagentNotFoundError,
 } from "./subagent-errors.js";
+import type { HoldSignal } from "./hold.js";
 import type { TraceSpan } from "./trace.js";
 
 export type SubagentContext = {
   signal?: AbortSignal;
   wrapUp?: AbortSignal;
+  hold?: HoldSignal;
   trace?: TraceSpan;
 };
 

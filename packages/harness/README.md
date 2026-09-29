@@ -43,12 +43,29 @@ const result = await collect(harness({ messages: [] }));
 You pass the conversation history to a harness.
 You can also pass a signal (AbortSignal) to stop it midway.
 You can also pass a wrap-up signal (AbortSignal).
+You can also pass a hold signal (`HoldSignal`).
 You can pass a parent span too, or leave it out.
 
 Wrapping up is a different signal from aborting.
 Use it when you want the harness to stop while still returning the conversation so far as the result.
 Both can be left out.
 How a harness stops on wrap-up is up to the harness implementation.
+
+The hold signal is different again.
+Holding pauses a run and can be undone, while wrapping up ends it.
+The signal says whether it is held, and `released()` gives a promise that settles once it is released.
+It settles at once when nothing is held.
+
+You turn a hold on and off with a hold controller.
+It has the same split as an abort controller.
+The controller changes the state, and its signal only reads it.
+
+```ts
+const hold = createHoldController();
+hold.hold();
+hold.release();
+const input = { messages: [], hold: hold.signal };
+```
 
 A span can create child spans.
 It can also create a new root span in the same session.
@@ -107,10 +124,11 @@ The start function receives the validated input.
 It also receives a context (`SubagentContext`).
 It returns a string.
 
-The context has these three things.
+The context has these four things.
 
 - The abort signal (`AbortSignal`).
 - The wrap-up signal (`AbortSignal`).
+- The hold signal (`HoldSignal`).
 - The span.
 
 The wrap-up signal is a different signal from the abort signal.

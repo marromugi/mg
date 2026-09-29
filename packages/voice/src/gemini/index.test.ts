@@ -331,6 +331,218 @@ describe("createGeminiSynthesizer", () => {
     expect((error as Error).name).toBe("AbortError");
   });
 
+  describe("when the abort signal fires", () => {
+    const reason = { why: "user" };
+
+    const sseChunk = (...payloads: string[]) =>
+      encoder.encode(
+        payloads.map((payload) => `data: ${payload}\n\n`).join(""),
+      );
+
+    const oneChunkBody = (bytes: Uint8Array) =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(bytes);
+        },
+      });
+
+    const firstResult = (chunks: AsyncIterable<unknown>) =>
+      chunks[Symbol.asyncIterator]().next();
+
+    const settle = (promise: Promise<unknown>) =>
+      promise.then(
+        (result) => result,
+        (caught: unknown) => caught,
+      );
+
+    test("throws the reason itself, not a transport error, when stopped after the first chunk", async () => {
+      const { stream, send } = controlledSseBody();
+      const { fetchStub } = stubFetch(
+        () => new Response(stream, { status: 200 }),
+      );
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+      const chunks = synthesizer.synthesize("text", {
+        signal: controller.signal,
+      });
+      const iterator = chunks[Symbol.asyncIterator]();
+
+      send(audioEvent("AQ==", 24000));
+      await iterator.next();
+      controller.abort(reason);
+      const error = await settle(iterator.next());
+
+      expect(error).toBe(reason);
+      expect(error).not.toBeInstanceOf(GeminiSpeechTransportError);
+    });
+
+    test("throws the reason and sends no request when the signal fired before the call", async () => {
+      const { fetchStub, calls } = stubFetch(
+        () => new Response("", { status: 200 }),
+      );
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+      controller.abort(reason);
+
+      const error = await settle(
+        firstResult(
+          synthesizer.synthesize("text", { signal: controller.signal }),
+        ),
+      );
+
+      expect(error).toBe(reason);
+      expect(calls).toHaveLength(0);
+    });
+
+    test("throws the reason without waiting for a fetch that ignores the signal", async () => {
+      const fetchStub: typeof fetch = () => new Promise(() => {});
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+      const pending = settle(
+        firstResult(
+          synthesizer.synthesize("text", { signal: controller.signal }),
+        ),
+      );
+
+      controller.abort(reason);
+
+      expect(await pending).toBe(reason);
+    });
+
+    test("yields no audio already read and does not end on a buffered STOP", async () => {
+      const { fetchStub } = stubFetch(
+        () =>
+          new Response(
+            oneChunkBody(
+              sseChunk(
+                JSON.stringify(audioEvent("AQ==", 24000)),
+                JSON.stringify(audioEvent("Ag==", 24000, "STOP")),
+              ),
+            ),
+            { status: 200 },
+          ),
+      );
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+      const chunks = synthesizer.synthesize("text", {
+        signal: controller.signal,
+      });
+      const iterator = chunks[Symbol.asyncIterator]();
+
+      const first = await iterator.next();
+      controller.abort(reason);
+      const outcome = await settle(iterator.next());
+
+      expect(Array.from(first.value.data)).toEqual([1]);
+      expect(outcome).toBe(reason);
+    });
+
+    test("throws the reason, not a response error, for a malformed event read after the stop", async () => {
+      const { fetchStub } = stubFetch(
+        () =>
+          new Response(
+            oneChunkBody(
+              sseChunk(
+                JSON.stringify(audioEvent("AQ==", 24000)),
+                "not json",
+              ),
+            ),
+            { status: 200 },
+          ),
+      );
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+      const chunks = synthesizer.synthesize("text", {
+        signal: controller.signal,
+      });
+      const iterator = chunks[Symbol.asyncIterator]();
+
+      await iterator.next();
+      controller.abort(reason);
+      const error = await settle(iterator.next());
+
+      expect(error).toBe(reason);
+      expect(error).not.toBeInstanceOf(GeminiSpeechResponseError);
+    });
+
+    test("throws the http error with an empty body when stopped while reading a failure body", async () => {
+      let markPulled: () => void = () => {};
+      const pulled = new Promise<void>((resolve) => {
+        markPulled = resolve;
+      });
+      const body = new ReadableStream<Uint8Array>({
+        pull() {
+          markPulled();
+          return new Promise(() => {});
+        },
+      });
+      const { fetchStub } = stubFetch(
+        () => new Response(body, { status: 401 }),
+      );
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+      const pending = settle(
+        firstResult(
+          synthesizer.synthesize("text", { signal: controller.signal }),
+        ),
+      );
+
+      await pulled;
+      controller.abort({ why: "user" });
+      const error = await pending;
+
+      expect(error).toBeInstanceOf(GeminiSpeechHttpError);
+      expect((error as GeminiSpeechHttpError).status).toBe(401);
+      expect((error as GeminiSpeechHttpError).body).toBe("");
+      expect((error as Error).message).toBe(
+        "Gemini speech request failed: 401 (body not read: the call was stopped)",
+      );
+    });
+
+    test("passes an AbortError from fetch through as the same instance when the signal has not fired", async () => {
+      const abortError = new DOMException("aborted", "AbortError");
+      const { fetchStub } = throwingFetch(abortError);
+      const synthesizer = createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        fetch: fetchStub,
+      });
+      const controller = new AbortController();
+
+      const error = await settle(
+        firstResult(
+          synthesizer.synthesize("text", { signal: controller.signal }),
+        ),
+      );
+
+      expect(error).toBe(abortError);
+    });
+  });
+
   test("sends the api key header and the text and voice in the body", async () => {
     const { fetchStub, calls } = stubFetch(
       () => new Response("", { status: 200 }),

@@ -5,6 +5,7 @@ import { defineTool } from "@mg/core";
 import { createMemoryConversationStore } from "@mg/conversation";
 import type { ConversationStore } from "@mg/conversation";
 import type { Gate } from "@mg/gate";
+import { createHoldController } from "@mg/harness";
 import type {
   Persona,
   PersonaContext,
@@ -35,6 +36,7 @@ import type {
 import { createContinueAsPersona } from "./continue-as-persona.js";
 import { createContinueConversation } from "./continue-conversation.js";
 import { GateRequiredError } from "./errors.js";
+import { run } from "./run.js";
 // oxlint-disable-next-line import/no-duplicates
 import type { RunOptions } from "./run.js";
 import type { RunOutcome } from "./run.js";
@@ -956,5 +958,56 @@ describe("continueAsPersona with an ungated config that reached it untyped", () 
       expect(recallCalls).toHaveLength(0);
       expect(exporter.getFinishedSpans()).toHaveLength(0);
     }
+  });
+});
+
+describe("continueAsPersona with a hold", () => {
+  test("does not call the provider while held, and saves once released", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const calls: number[] = [];
+    const provider: Provider = {
+      generate: async () => {
+        calls.push(1);
+        return {
+          parts: [{ type: "text", text: "ok" }],
+          finishReason: "stop",
+        };
+      },
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    };
+    const { persona } = fakePersona({
+      remember: async () => ({
+        updated: true,
+        added: [],
+        personaChanged: false,
+        forgotten: [],
+      }),
+    });
+    const entrance = createContinueAsPersona({
+      continueConversation: createContinueConversation({ run }),
+    });
+    const hold = createHoldController();
+    hold.hold();
+
+    const running = entrance(
+      { ...runConfig(), provider },
+      conversationTarget(store),
+      {
+        persona,
+        counterparts: [{ id: "alice", name: "Alice" }],
+        input: "hi",
+        trace: { exporters: [new InMemorySpanExporter()] },
+      },
+      { hold: hold.signal },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toHaveLength(0);
+
+    hold.release();
+    const outcome = await running;
+    expect(outcome.saved).toBe(true);
   });
 });

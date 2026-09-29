@@ -18,6 +18,7 @@ import {
 } from "@mg/conversation";
 import type { Gate } from "@mg/gate";
 import type { HarnessEvent } from "@mg/harness";
+import { createHoldController } from "@mg/harness";
 import type { Connector, Workspace } from "@mg/workspace";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
@@ -1296,5 +1297,32 @@ describe("continueConversation with an ungated config that reached it untyped", 
     }
 
     expect(workspace.opens()).toBe(0);
+  });
+});
+
+describe("continueConversation with a hold", () => {
+  test("does not call the provider while held, and saves once released", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const { provider, calls } = fakeProvider();
+    const hold = createHoldController();
+    hold.hold();
+
+    const running = continueConversation(
+      runConfig(provider),
+      {
+        store,
+        id: "t1",
+        history: { kind: "all" },
+        messages: [{ role: "user", content: "hi" }],
+      },
+      { hold: hold.signal },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toHaveLength(0);
+
+    hold.release();
+    const outcome = await running;
+    expect(outcome.saved).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ import type {
 import { defineTool } from "@mg/core";
 import type { Gate, Verdict } from "@mg/gate";
 import type { HarnessEvent } from "@mg/harness";
+import { createHoldController } from "@mg/harness";
 import { TraceShutdownError } from "@mg/trace/otel";
 import type { Connector, Workspace } from "@mg/workspace";
 import { defineWorkspace, DuplicateToolNameError } from "@mg/workspace";
@@ -1188,5 +1189,46 @@ describe("run with an ungated config that reached it untyped", () => {
     expect((error as GateRequiredError).message).toBe(
       "gate is required when tools or workspace is set",
     );
+  });
+});
+
+describe("run with a hold", () => {
+  test("does not call the provider while held, and stops once released", async () => {
+    const calls: number[] = [];
+    const provider: Provider = {
+      generate: async () => {
+        calls.push(1);
+        return {
+          parts: [{ type: "text", text: "done" }],
+          finishReason: "stop",
+        };
+      },
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    };
+    const hold = createHoldController();
+    hold.hold();
+
+    const running = run(
+      {
+        name: "example",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 1,
+          stream: false,
+        },
+      },
+      [{ role: "user", content: "hi" }],
+      { hold: hold.signal },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toHaveLength(0);
+
+    hold.release();
+    const outcome = await running;
+    expect(outcome.result.reason).toBe("stop");
   });
 });

@@ -1,5 +1,9 @@
+import type { GenerateResponse, Provider, ToolSchema } from "@mg/core";
+import { defineTool } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
 import { describe, expect, test } from "vitest";
+import type { RunConfig } from "./config.js";
+import { run as runWithConfig } from "./run.js";
 import type { QueueRunOptions } from "./run-queue.js";
 import { createRunQueue } from "./run-queue.js";
 
@@ -284,5 +288,136 @@ describe("createRunQueue", () => {
     await a.ending;
 
     expect(caught).toBe(error);
+  });
+});
+
+const noopSchema = (): ToolSchema => ({
+  "~standard": {
+    version: 1,
+    vendor: "mg-test",
+    validate: (value: unknown) => ({ value }),
+    jsonSchema: {
+      input: () => ({ type: "object" }),
+      output: () => ({ type: "object" }),
+    },
+  },
+});
+
+const scriptedProvider = (
+  responses: readonly GenerateResponse[],
+): { provider: Provider; calls: () => number } => {
+  let index = 0;
+  return {
+    provider: {
+      generate: async () => {
+        const response = responses[index % responses.length];
+        index++;
+        if (!response) throw new Error("no scripted response");
+        return response;
+      },
+      stream: () => {
+        throw new Error("stream is not scripted");
+      },
+    },
+    calls: () => index,
+  };
+};
+
+const settle = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 20));
+
+describe("createRunQueue with a hold", () => {
+  test("holds a running item before its next turn, and the item finishes after release", async () => {
+    const { provider, calls } = scriptedProvider([
+      {
+        parts: [
+          {
+            type: "tool-call",
+            id: "c1",
+            name: "noop",
+            arguments: {},
+          },
+        ],
+        finishReason: "tool_calls",
+      },
+      {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
+      gate: { judge: async () => ({ allowed: true, reason: "ok" }) },
+      tools: [
+        defineTool({
+          reach: async () => ({ kind: "any-local" }),
+          name: "noop",
+          input: noopSchema(),
+          execute: async () => "ok",
+        }),
+      ],
+    };
+    const queue = createRunQueue<string, unknown>(
+      (input, options) =>
+        runWithConfig(
+          config,
+          [{ role: "user", content: input }],
+          options,
+        ),
+      {
+        onEvent: (_id, event) => {
+          if (event.type === "turn") queue.hold();
+        },
+      },
+    );
+
+    const item = queue.enqueue("go");
+    await settle();
+    expect(calls()).toBe(1);
+
+    queue.release();
+    expect((await item.ending).kind).toBe("finished");
+  });
+
+  test("holds items enqueued while held, across runs, until released", async () => {
+    const { provider, calls } = scriptedProvider([
+      {
+        parts: [{ type: "text", text: "done" }],
+        finishReason: "stop",
+      },
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+    };
+    const queue = createRunQueue<string, unknown>((input, options) =>
+      runWithConfig(
+        config,
+        [{ role: "user", content: input }],
+        options,
+      ),
+    );
+
+    queue.hold();
+    const first = queue.enqueue("a");
+    const second = queue.enqueue("b");
+    await settle();
+    expect(calls()).toBe(0);
+
+    queue.release();
+    expect((await first.ending).kind).toBe("finished");
+    expect((await second.ending).kind).toBe("finished");
+    expect(calls()).toBe(2);
+
+    queue.hold();
+    const third = queue.enqueue("c");
+    await settle();
+    expect(calls()).toBe(2);
+
+    queue.release();
+    expect((await third.ending).kind).toBe("finished");
   });
 });

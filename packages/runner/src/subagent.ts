@@ -272,6 +272,7 @@ export const createSubagent = (
             messages,
             signal: context.signal,
             wrapUp: context.wrapUp,
+            hold: context.hold,
             trace,
           }),
         );

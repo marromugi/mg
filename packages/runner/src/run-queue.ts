@@ -1,9 +1,11 @@
-import type { HarnessEvent } from "@mg/harness";
+import type { HarnessEvent, HoldSignal } from "@mg/harness";
+import { createHoldController } from "@mg/harness";
 import { nanoid } from "nanoid";
 
 export type QueueRunOptions = {
   sessionId: string;
   wrapUp: AbortSignal;
+  hold: HoldSignal;
   onEvent: (event: HarnessEvent) => void;
 };
 
@@ -28,6 +30,8 @@ export type RunQueue<TInput, TOutcome> = {
     options?: { first?: boolean },
   ): { id: string; ending: Promise<QueueEnding<TOutcome>> };
   wrapUp(): boolean;
+  hold(): void;
+  release(): void;
   close(): Promise<void>;
 };
 
@@ -51,6 +55,7 @@ export const createRunQueue = <TInput, TOutcome>(
   const waiting: WaitingItem<TInput, TOutcome>[] = [];
   let closed = false;
   let current: Running | undefined;
+  const holdController = createHoldController();
 
   const dropWaiting = (): void => {
     while (waiting.length > 0) {
@@ -80,6 +85,7 @@ export const createRunQueue = <TInput, TOutcome>(
       const outcome = await run(item.input, {
         sessionId: item.id,
         wrapUp: controller.signal,
+        hold: holdController.signal,
         onEvent: (event) => {
           if (ended) return;
           options?.onEvent?.(item.id, event);
@@ -152,5 +158,11 @@ export const createRunQueue = <TInput, TOutcome>(
     await current?.done;
   };
 
-  return { enqueue, wrapUp, close };
+  return {
+    enqueue,
+    wrapUp,
+    hold: () => holdController.hold(),
+    release: () => holdController.release(),
+    close,
+  };
 };

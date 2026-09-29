@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { noopSpan } from "@mg/harness";
 import { describe, expect, test, vi } from "vitest";
-import type { ScriptedCollaborators } from "./voice-dialogue-scripted.ts";
+import type { DialogueCollaborators } from "./voice-dialogue.build.ts";
 import { runScripted } from "./voice-dialogue-scripted.ts";
 
 const notCalled = (name: string) => () => {
@@ -11,8 +11,8 @@ const notCalled = (name: string) => () => {
 };
 
 const collaborators = (
-  request: ScriptedCollaborators["worker"]["request"],
-): ScriptedCollaborators => ({
+  request: DialogueCollaborators["worker"]["request"],
+): DialogueCollaborators => ({
   transcriber: {
     name: "fake",
     accepts: [],

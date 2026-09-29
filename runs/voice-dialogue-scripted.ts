@@ -23,14 +23,13 @@ import {
   printEvent,
 } from "./voice-dialogue.build.ts";
 import { outputPath } from "./outputs.ts";
+import { readWav } from "./wav-file.ts";
 import {
   exchangeCount,
   requestLimit,
   stopCheckMs,
   wording,
 } from "./voice-dialogue.values.ts";
-
-export type ScriptedCollaborators = DialogueCollaborators;
 
 const CHUNK_MS = 100;
 
@@ -40,57 +39,51 @@ const messageOf = (error: unknown): string =>
 const realClock: Clock = {
   now: () => performance.now(),
   sleep: (ms, signal) =>
-    sleep(ms, undefined, { signal }).then(() => undefined),
+    sleep(Math.max(0, ms), undefined, { signal }).then(() => undefined),
 };
 
-const readWav = (path: string, file: Buffer): AudioChunk[] => {
-  if (
-    file.toString("ascii", 0, 4) !== "RIFF" ||
-    file.toString("ascii", 8, 12) !== "WAVE"
-  ) {
-    throw new Error(`${path}: not a WAV file`);
+const sameFormat = (a: AudioFormat, b: AudioFormat): boolean =>
+  a.encoding === b.encoding &&
+  a.sampleRate === b.sampleRate &&
+  a.channels === b.channels;
+
+const describeFormat = (format: AudioFormat): string =>
+  `${format.encoding}, ${format.sampleRate} Hz, ${format.channels} channels`;
+
+const chunksOf = (
+  path: string,
+  file: Buffer,
+  accepts: readonly AudioFormat[],
+): AudioChunk[] => {
+  let wav: { format: AudioFormat; data: Buffer };
+  try {
+    wav = readWav(file);
+  } catch (error) {
+    throw new Error(`${path}: ${messageOf(error)}`, { cause: error });
   }
-  let format: AudioFormat | undefined;
-  let offset = 12;
-  while (offset + 8 <= file.length) {
-    const id = file.toString("ascii", offset, offset + 4);
-    const size = file.readUInt32LE(offset + 4);
-    const body = offset + 8;
-    if (id === "fmt ") {
-      const audioFormat = file.readUInt16LE(body);
-      const bits = file.readUInt16LE(body + 14);
-      if (audioFormat !== 1 || bits !== 16) {
-        throw new Error(`${path}: only 16-bit PCM WAV is supported`);
-      }
-      format = {
-        encoding: "pcm-s16le",
-        channels: file.readUInt16LE(body + 2),
-        sampleRate: file.readUInt32LE(body + 4),
-      };
-    } else if (id === "data") {
-      if (format === undefined) {
-        throw new Error(`${path}: data chunk before fmt chunk`);
-      }
-      const data = file.subarray(
-        body,
-        Math.min(body + size, file.length),
-      );
-      const bytesPerChunk =
-        Math.floor((format.sampleRate * CHUNK_MS) / 1000) *
-        format.channels *
-        2;
-      const chunks: AudioChunk[] = [];
-      for (let at = 0; at < data.length; at += bytesPerChunk) {
-        chunks.push({
-          format,
-          data: data.subarray(at, at + bytesPerChunk),
-        });
-      }
-      return chunks;
-    }
-    offset = body + size + (size % 2);
+  const { format, data } = wav;
+  if (!accepts.some((accepted) => sameFormat(accepted, format))) {
+    throw new Error(
+      `${path}: the transcriber does not accept ${describeFormat(format)}`,
+    );
   }
-  throw new Error(`${path}: no data chunk in WAV file`);
+  const bytesPerChunk =
+    Math.floor((format.sampleRate * CHUNK_MS) / 1000) *
+    format.channels *
+    2;
+  if (bytesPerChunk < 1) {
+    throw new Error(
+      `${path}: the format ${describeFormat(format)} gives empty chunks`,
+    );
+  }
+  const chunks: AudioChunk[] = [];
+  for (let at = 0; at < data.length; at += bytesPerChunk) {
+    chunks.push({
+      format,
+      data: data.subarray(at, at + bytesPerChunk),
+    });
+  }
+  return chunks;
 };
 
 type ScriptLine = { wav: string; at: number };
@@ -113,19 +106,20 @@ const parseScript = (text: string): ScriptLine[] => {
 
 const loadUtterances = async (
   scriptPath: string,
+  accepts: readonly AudioFormat[],
 ): Promise<RecordedUtterance[]> => {
   const lines = parseScript(await readFile(scriptPath, "utf8"));
   return Promise.all(
     lines.map(async ({ wav, at }) => ({
       at,
-      audio: readWav(wav, await readFile(wav)),
+      audio: chunksOf(wav, await readFile(wav), accepts),
     })),
   );
 };
 
 export const runScripted = async (options: {
   scriptPath: string;
-  collaborators: ScriptedCollaborators;
+  collaborators: DialogueCollaborators;
   trace: TraceWriter;
   outputDir: string;
   out: (line: string) => void;
@@ -137,38 +131,43 @@ export const runScripted = async (options: {
   const clock = options.clock ?? realClock;
   const signal = options.signal ?? new AbortController().signal;
 
-  let utterances: RecordedUtterance[];
-  try {
-    utterances = await loadUtterances(options.scriptPath);
-  } catch (error) {
-    err(`failed script: ${messageOf(error)}`);
-    return 1;
-  }
-  await mkdir(options.outputDir, { recursive: true });
-
   let code = 0;
+  let utterances: RecordedUtterance[] | undefined;
   try {
-    await runDialogue(
-      {
-        listener: createRecordedListener({ utterances, clock }),
-        player: createRecordingPlayer({
-          write: (name, bytes) =>
-            writeFile(join(options.outputDir, name), bytes),
-          clock,
-        }),
-        ...options.collaborators,
-        wording,
-        stopCheckMs,
-        exchangeCount,
-        requestLimit,
-      },
-      { signal, trace: trace.span, onEvent: printEvent(out, err) },
+    utterances = await loadUtterances(
+      options.scriptPath,
+      options.collaborators.transcriber.accepts,
     );
   } catch (error) {
-    if (signal.aborted) code = 130;
-    else {
-      err(`failed dialogue: ${messageOf(error)}`);
-      code = 1;
+    err(`failed script: ${messageOf(error)}`);
+    code = 1;
+  }
+
+  if (utterances !== undefined) {
+    try {
+      await mkdir(options.outputDir, { recursive: true });
+      await runDialogue(
+        {
+          listener: createRecordedListener({ utterances, clock }),
+          player: createRecordingPlayer({
+            write: (name, bytes) =>
+              writeFile(join(options.outputDir, name), bytes),
+            clock,
+          }),
+          ...options.collaborators,
+          wording,
+          stopCheckMs,
+          exchangeCount,
+          requestLimit,
+        },
+        { signal, trace: trace.span, onEvent: printEvent(out, err) },
+      );
+    } catch (error) {
+      if (signal.aborted) code = 130;
+      else {
+        err(`failed dialogue: ${messageOf(error)}`);
+        code = 1;
+      }
     }
   }
 

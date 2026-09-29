@@ -5,12 +5,14 @@ import type {
   ToolMessage,
   Usage,
 } from "@mg/core";
+import type { HoldSignal } from "./hold.js";
 import type { TraceSpan } from "./trace.js";
 
 export type HarnessInput = {
   messages: Message[];
   signal?: AbortSignal;
   wrapUp?: AbortSignal;
+  hold?: HoldSignal;
   trace?: TraceSpan;
 };
 

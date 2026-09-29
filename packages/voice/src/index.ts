@@ -6,3 +6,4 @@ export * from "./player.js";
 export * from "./sentences.js";
 export * from "./gemini/index.js";
 export * from "./gemini-live/index.js";
+export * from "./ffmpeg/player.js";

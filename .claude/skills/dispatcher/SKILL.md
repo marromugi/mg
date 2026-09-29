@@ -69,6 +69,14 @@ implementer plus an Opus review with its own subagents, so a long run is
 expensive in transcripts; that is the developer's call, not a reason to
 stop on your own.
 
+The caller may also hand over PRs that already went through implementer's
+chain in this session — `triager` does, for the PRs architect's light path
+opened. For each, the caller passes what step 3 gathers: the PR number, the
+Deviations section, reviewer's findings, CI, and the verifier result. Decide
+each with step 4 before step 1, so the queue is read from the merged state.
+The issue-guard snapshot implementer wrote in this session is the one step
+4 verifies against.
+
 ## Step 1: Find the ready issues
 
 List open issues. Run this every time this step starts, and again each time

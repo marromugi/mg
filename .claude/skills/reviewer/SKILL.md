@@ -135,6 +135,15 @@ finding is fixed by deleting the test. Ask it to run the tests and push.
 Wait for CI once more as in the implementer skill. One fix round; do not
 review again on your own.
 
+A fix agent spawned here leaves its worktree behind. Once its push is on
+the PR, remove the worktree and the `worktree-agent-<id>` branch the Agent
+tool made with it:
+
+```
+git worktree remove --force .claude/worktrees/agent-<id>
+git branch -d worktree-agent-<id>
+```
+
 After the push, reply on each fixed thread with the commit that fixed it:
 
 ```

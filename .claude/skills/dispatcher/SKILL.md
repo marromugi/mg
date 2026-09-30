@@ -289,8 +289,10 @@ that is the cheap mistake.
   for the same reason as the guard script's verify above: a push can land
   on the PR while review was still running.
 
-**Merge.** Remove the agent's worktree first, or the branch deletion fails
-because the branch is still checked out there:
+**Merge.** Follow this whenever a PR built by implementer is merged,
+including when the developer asks for the merge in chat. Remove the agent's
+worktree first, or the branch deletion fails because the branch is still
+checked out there:
 
 ```
 git worktree list --porcelain      # find the path whose branch is issue-<N>-…
@@ -298,7 +300,14 @@ git worktree remove --force <path>
 gh pr merge <PR> --merge --delete-branch
 git pull --ff-only origin main
 git worktree prune
+git branch -d worktree-agent-<id>  # <id> from the path, .claude/worktrees/agent-<id>
 ```
+
+The Agent tool creates a `worktree-agent-<id>` branch with each worktree,
+and the agent works on the issue branch it cuts from there. That first
+branch holds nothing once the PR is merged, so it goes too. `-d` refuses a
+branch holding commits main does not have; when it refuses, leave the
+branch and name it in the report.
 
 Merge commits, not squash: that is how every PR on main was merged so far,
 and the log reads as one line per issue. `--delete-branch` removes the

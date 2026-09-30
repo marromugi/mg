@@ -48,6 +48,7 @@ const harness = {
 };
 
 const answeringProvider = (): Provider => ({
+  toolForcing: true,
   generate: async (): Promise<GenerateResponse> => ({
     parts: [{ type: "text", text: "hi" }],
     finishReason: "stop",
@@ -62,6 +63,7 @@ const untypedSetup = (subagentMeans: Record<string, unknown>) => {
     throw new Error("should not be called");
   });
   const provider: Provider = {
+    toolForcing: true,
     generate,
     stream: () => {
       throw new Error("stream is not scripted");

@@ -1,6 +1,7 @@
 export default {
   name: "fixture-empty-tools-without-gate",
   provider: {
+    toolForcing: true,
     generate: async () => ({
       parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",

@@ -690,7 +690,9 @@ the workspace and the exclusive names, e.g. `workspace "build-machine" holds
 Picking a config by path instead of a static import, with `loadRun`. Because the loaded
 value skips the type check, `loadRun` rejects with `InvalidRunConfigError` when the
 config has `tools` or `workspace` (even an empty `tools` array) without a `gate`; the
-message is `<path>: gate is required when tools or workspace is set`:
+message is `<path>: gate is required when tools or workspace is set`. It also rejects
+a config whose `provider.toolForcing` is missing or not a boolean; the message is
+`<path>: provider.toolForcing must be a boolean`:
 
 ```ts
 import { loadRun, run } from "@mg/runner";

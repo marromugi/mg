@@ -44,6 +44,12 @@ const validate = (path: string, value: unknown): RunConfig => {
       "provider.name must be a string",
     );
   }
+  if (typeof value.provider.toolForcing !== "boolean") {
+    throw new InvalidRunConfigError(
+      path,
+      "provider.toolForcing must be a boolean",
+    );
+  }
 
   if (!isObject(value.harness)) {
     throw new InvalidRunConfigError(path, "harness must be an object");

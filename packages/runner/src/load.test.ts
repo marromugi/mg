@@ -57,6 +57,33 @@ describe("loadRun", () => {
     );
   });
 
+  test("rejects with the toolForcing message when provider.toolForcing is missing", async () => {
+    const error = await loadRun(
+      "src/__fixtures__/missing-tool-forcing.ts",
+    ).catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(InvalidRunConfigError);
+    expect((error as InvalidRunConfigError).message).toBe(
+      "src/__fixtures__/missing-tool-forcing.ts: provider.toolForcing must be a boolean",
+    );
+  });
+
+  test("rejects with the toolForcing message when provider.toolForcing is not a boolean", async () => {
+    await expect(
+      loadRun("src/__fixtures__/invalid-tool-forcing.ts"),
+    ).rejects.toThrow(
+      "src/__fixtures__/invalid-tool-forcing.ts: provider.toolForcing must be a boolean",
+    );
+  });
+
+  test("resolves a config whose provider states toolForcing false", async () => {
+    const config = await loadRun(
+      "src/__fixtures__/valid-no-tool-forcing.ts",
+    );
+
+    expect(config.name).toBe("fixture-valid-no-tool-forcing");
+  });
+
   test("rejects with InvalidRunConfigError naming the gate requirement when tools are set without a gate", async () => {
     const error = await loadRun(
       "src/__fixtures__/tools-without-gate.ts",

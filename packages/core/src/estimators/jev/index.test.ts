@@ -402,7 +402,10 @@ describe("createJevEstimator", () => {
 
   test("throws EstimatorRequestError with the rejection as cause and both texts equal when the transport function rejects", async () => {
     const original = new TypeError("fetch failed", {
-      cause: new Error("connect ECONNREFUSED 127.0.0.1:59999"),
+      cause: Object.assign(
+        new Error("connect ECONNREFUSED 127.0.0.1:59999"),
+        { code: "ECONNREFUSED" },
+      ),
     });
     const estimator = createJevEstimator({
       apiKey: "key",
@@ -426,6 +429,66 @@ describe("createJevEstimator", () => {
     expect(requestError.retryable).toBe(true);
     expect(requestError.retryAfterMs).toBeUndefined();
     expect(requestError.cause).toBe(original);
+  });
+
+  test("marks a send failure retryable only when its cause code is a connection or lookup failure", async () => {
+    const retryableOf = async (code: string): Promise<unknown> => {
+      const estimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(async () => {
+          throw new TypeError("fetch failed", {
+            cause: Object.assign(new Error(code), { code }),
+          });
+        }),
+      });
+      const error = (await estimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown)) as EstimatorRequestError;
+      expect(error.message).toBe(
+        `Jev request failed: fetch failed: ${code}`,
+      );
+      return error.retryable;
+    };
+
+    for (const code of [
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "EAI_AGAIN",
+      "UND_ERR_SOCKET",
+      "UND_ERR_CONNECT_TIMEOUT",
+    ]) {
+      expect(await retryableOf(code)).toBe(true);
+    }
+    for (const code of [
+      "ENOTFOUND",
+      "CERT_HAS_EXPIRED",
+      "ERR_INVALID_URL",
+      "UND_ERR_INVALID_ARG",
+    ]) {
+      expect(await retryableOf(code)).toBe(false);
+    }
+  });
+
+  test("marks 408 retryable with its Retry-After", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () =>
+          new Response("timed out", {
+            status: 408,
+            headers: { "Retry-After": "3" },
+          }),
+      ),
+    });
+
+    const error = (await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown)) as EstimatorRequestError;
+
+    expect(error.message).toBe("Jev request failed: 408: timed out");
+    expect(error.retryable).toBe(true);
+    expect(error.retryAfterMs).toBe(3000);
   });
 
   test("throws EstimatorResponseError when the response body is not JSON", async () => {

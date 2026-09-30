@@ -1,4 +1,8 @@
-import { readRetryAfterMs } from "../../http/retry-after.js";
+import {
+  isConnectionCut,
+  isRetryableSendFailure,
+  retryMarkForStatus,
+} from "../../http/retry.js";
 import {
   EstimatorRequestError,
   EstimatorResponseError,
@@ -55,10 +59,6 @@ const isAbortError = (error: unknown): boolean =>
   typeof error === "object" &&
   error !== null &&
   (error as { name?: unknown }).name === "AbortError";
-
-const isConnectionCut = (error: unknown): boolean =>
-  (error as { cause?: { code?: unknown } } | null)?.cause?.code ===
-  "UND_ERR_SOCKET";
 
 const isValidProbability = (value: unknown): value is number =>
   typeof value === "number" &&
@@ -180,7 +180,7 @@ export const createJevEstimator = (
       if (isAbortError(error)) throw error;
       throw new EstimatorRequestError("Jev request failed", {
         cause: error,
-        retryable: true,
+        retryable: isRetryableSendFailure(error),
       });
     }
 
@@ -192,23 +192,14 @@ export const createJevEstimator = (
         if (isAbortError(error)) throw error;
         // ignore: fall back to the status alone
       }
-      const isRetryable =
-        response.status === 429 ||
-        (response.status >= 500 && response.status <= 599);
       const cause = new JevHttpError(response.status, text);
-      const quotesService = text === "" ? undefined : true;
       throw new EstimatorRequestError(
         `Jev request failed: ${response.status}`,
-        isRetryable
-          ? {
-              cause,
-              causeQuotesService: quotesService,
-              retryable: true,
-              retryAfterMs: readRetryAfterMs(
-                response.headers.get("Retry-After"),
-              ),
-            }
-          : { cause, causeQuotesService: quotesService },
+        {
+          cause,
+          causeQuotesService: text === "" ? undefined : true,
+          ...retryMarkForStatus(response),
+        },
       );
     }
 

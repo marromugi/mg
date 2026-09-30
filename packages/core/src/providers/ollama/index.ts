@@ -19,7 +19,7 @@ import {
   sendFailureMark,
   statusMark,
   type RetryMark,
-} from "./retry.js";
+} from "../retry-mark.js";
 import { toStreamEvents } from "./stream.js";
 
 const DEFAULT_BASE_URL = "http://localhost:11434";

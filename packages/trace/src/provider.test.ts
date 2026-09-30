@@ -7,11 +7,12 @@ import {
   type Provider,
   type StreamEvent,
 } from "@mg/core";
-import { ATTR, SPAN } from "./vocabulary.js";
+import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 import {
   STREAM_INCOMPLETE_MESSAGE,
   traceProvider,
 } from "./provider.js";
+import { sentMessagesOf } from "./sent-messages.js";
 import { RecordingSpan } from "./recording-span.test-helper.js";
 
 const request: GenerateRequest = {
@@ -42,6 +43,7 @@ describe("traceProvider / generate", () => {
       [ATTR.llmModel]: "test-model",
       [ATTR.llmStream]: false,
       [ATTR.llmInputMessages]: JSON.stringify(request.messages),
+      [ATTR.llmSystemCount]: 0,
     });
   });
 
@@ -520,5 +522,120 @@ describe("traceProvider / provider name", () => {
     const span = root.children[0];
     expect(span?.attributes[ATTR.llmProvider]).toBeUndefined();
     expect(ATTR.llmProvider in (span?.attributes ?? {})).toBe(false);
+  });
+});
+
+describe("traceProvider / system messages", () => {
+  const messages: Message[] = [
+    { role: "system", content: "s0" },
+    { role: "user", content: "hi" },
+    { role: "system", content: "s2" },
+    { role: "user", content: "again" },
+  ];
+  const expectedEvents = [
+    {
+      name: EVENT.llmSystem,
+      attributes: {
+        [ATTR.llmSystemContent]: "s0",
+        [ATTR.llmSystemIndex]: 0,
+      },
+    },
+    {
+      name: EVENT.llmSystem,
+      attributes: {
+        [ATTR.llmSystemContent]: "s2",
+        [ATTR.llmSystemIndex]: 2,
+      },
+    },
+  ];
+  const expectedInput = JSON.stringify([
+    { role: "user", content: "hi" },
+    { role: "user", content: "again" },
+  ]);
+
+  type Seen = {
+    attributes: Record<string, unknown>;
+    events: { name: string; attributes?: Record<string, unknown> }[];
+  };
+  const snapshot = (span: RecordingSpan | undefined): Seen => ({
+    attributes: { ...span?.mergedAttributes },
+    events: [...(span?.events ?? [])],
+  });
+
+  it("generate records system messages as events before the provider is called", async () => {
+    const root = new RecordingSpan("root");
+    let seen: Seen | undefined;
+    const provider: Provider = {
+      generate: async () => {
+        seen = snapshot(root.children[0]);
+        return { parts: [], finishReason: "stop" };
+      },
+      stream: async function* () {},
+    };
+
+    await traceProvider(provider, root).generate({
+      model: "m",
+      messages,
+    });
+
+    expect(seen?.attributes[ATTR.llmInputMessages]).toBe(expectedInput);
+    expect(seen?.attributes[ATTR.llmSystemCount]).toBe(2);
+    expect(seen?.events).toEqual(expectedEvents);
+    expect(sentMessagesOf(seen as Seen)).toEqual({
+      kind: "messages",
+      messages,
+    });
+  });
+
+  it("records count 0 and no events when no system message is sent", async () => {
+    const root = new RecordingSpan("root");
+    let seen: Seen | undefined;
+    const provider: Provider = {
+      generate: async () => {
+        seen = snapshot(root.children[0]);
+        return { parts: [], finishReason: "stop" };
+      },
+      stream: async function* () {},
+    };
+
+    await traceProvider(provider, root).generate(request);
+
+    expect(seen?.attributes[ATTR.llmSystemCount]).toBe(0);
+    expect(seen?.events).toEqual([]);
+    expect(seen?.attributes[ATTR.llmInputMessages]).toBe(
+      JSON.stringify([{ role: "user", content: "hi" }]),
+    );
+  });
+
+  it("stream records the same system events and forwards events unchanged", async () => {
+    const root = new RecordingSpan("root");
+    let seen: Seen | undefined;
+    const streamEvents: StreamEvent[] = [
+      { type: "text-delta", delta: "a" },
+      { type: "finish", finishReason: "stop" },
+    ];
+    const provider: Provider = {
+      generate: async () => {
+        throw new Error("unused");
+      },
+      stream: async function* () {
+        seen = snapshot(root.children[0]);
+        for (const event of streamEvents) yield event;
+      },
+    };
+
+    const out: StreamEvent[] = [];
+    for await (const event of traceProvider(provider, root).stream({
+      model: "m",
+      messages,
+    })) {
+      out.push(event);
+    }
+
+    expect(out).toEqual(streamEvents);
+    expect(seen?.attributes[ATTR.llmStream]).toBe(true);
+    expect(seen?.attributes[ATTR.llmInputMessages]).toBe(expectedInput);
+    expect(seen?.attributes[ATTR.llmSystemCount]).toBe(2);
+    expect(seen?.events).toEqual(expectedEvents);
   });
 });

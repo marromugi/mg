@@ -213,6 +213,8 @@ The table shows it together with the service name.
 
 The record of an LLM call is written by a wrapper around the provider.
 That wrapper is `traceProvider`.
+It records system messages as `mg.llm.system` events on the `mg.llm` span, one per message, with its content and position.
+The span also holds their number in `mg.llm.system.count`, and `mg.llm.messages.input` holds the other messages.
 
 The record of a tool run is written by a wrapper around the run function.
 That wrapper is `traceRunToolCall`.

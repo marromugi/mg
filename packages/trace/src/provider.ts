@@ -18,7 +18,7 @@ import {
 } from "@mg/harness";
 import { jsonAttribute } from "./json.js";
 import { endSpan, setSpanAttributes } from "./span-guard.js";
-import { ATTR, SPAN } from "./vocabulary.js";
+import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 
 export const STREAM_INCOMPLETE_MESSAGE = "stream ended without finish";
 
@@ -39,7 +39,10 @@ const startLlmSpan = (
   stream: boolean,
 ): TraceSpan => {
   try {
-    return parent.startSpan(SPAN.llm, {
+    const systemMessages = request.messages.flatMap((message, index) =>
+      message.role === "system" ? [{ message, index }] : [],
+    );
+    const span = parent.startSpan(SPAN.llm, {
       [ATTR.op]: "llm",
       ...(typeof provider.name === "string" && provider.name !== ""
         ? { [ATTR.llmProvider]: provider.name }
@@ -47,9 +50,19 @@ const startLlmSpan = (
       [ATTR.llmModel]: request.model,
       [ATTR.llmStream]: stream,
       [ATTR.llmInputMessages]: jsonAttribute(
-        request.messages.map(stripCarryFromMessage),
+        request.messages
+          .filter((message) => message.role !== "system")
+          .map(stripCarryFromMessage),
       ),
+      [ATTR.llmSystemCount]: systemMessages.length,
     });
+    for (const { message, index } of systemMessages) {
+      span.addEvent(EVENT.llmSystem, {
+        [ATTR.llmSystemContent]: message.content,
+        [ATTR.llmSystemIndex]: index,
+      });
+    }
+    return span;
   } catch {
     return noopSpan;
   }

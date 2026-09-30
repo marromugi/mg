@@ -276,6 +276,12 @@ When closing, it disconnects from the browser, then closes the endpoint.
 If one fails, the other is still closed.
 If both fail, it fails with `ConnectorCloseError`.
 
+When the endpoint's `lost` has aborted, every browser tool fails with `lost.reason` itself, without touching the browser.
+When a browser call fails and `lost` has aborted by then, the tool fails with `lost.reason` instead of the browser's error.
+While `lost` has not aborted, the browser's error shows as it is.
+The connector knows nothing of how the endpoint works, and reads only `lost`.
+A connector given a URL has no such behaviour.
+
 When opened, it returns 4 tools.
 
 | Tool name          | What it does                                            |

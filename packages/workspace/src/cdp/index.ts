@@ -1,8 +1,10 @@
 import {
   connectCdp,
+  type BrowserPage,
   type BrowserSession,
   type CdpConnectorOptions,
 } from "./browser.js";
+import { failWithLoss } from "./lost-page.js";
 import { createBrowserTools } from "./tools.js";
 import { ConnectorCloseError } from "../errors.js";
 import type { Connection, Connector } from "../types.js";
@@ -26,10 +28,10 @@ export const createCdpConnector = (
   }
   const exclusive = [options.browser];
   const connectionOf = (
-    session: BrowserSession,
+    page: BrowserPage,
     close: () => Promise<void>,
   ): Connection => ({
-    tools: createBrowserTools(session.page, {
+    tools: createBrowserTools(page, {
       maxOutputBytes: options.maxOutputBytes,
     }),
     close,
@@ -42,7 +44,7 @@ export const createCdpConnector = (
       exclusive,
       async open(context) {
         const session = await connect({ url, timeoutMs }, context);
-        return connectionOf(session, () => session.close());
+        return connectionOf(session.page, () => session.close());
       },
     };
   }
@@ -67,25 +69,28 @@ export const createCdpConnector = (
         throw error;
       }
       const connected = session;
-      return connectionOf(connected, async () => {
-        const errors: unknown[] = [];
-        try {
-          await connected.close();
-        } catch (error) {
-          errors.push(error);
-        }
-        try {
-          await opened.close();
-        } catch (error) {
-          errors.push(error);
-        }
-        if (errors.length === 1) {
-          throw errors[0];
-        }
-        if (errors.length === 2) {
-          throw new ConnectorCloseError("cdp", errors);
-        }
-      });
+      return connectionOf(
+        failWithLoss(connected.page, opened.lost),
+        async () => {
+          const errors: unknown[] = [];
+          try {
+            await connected.close();
+          } catch (error) {
+            errors.push(error);
+          }
+          try {
+            await opened.close();
+          } catch (error) {
+            errors.push(error);
+          }
+          if (errors.length === 1) {
+            throw errors[0];
+          }
+          if (errors.length === 2) {
+            throw new ConnectorCloseError("cdp", errors);
+          }
+        },
+      );
     },
   };
 };

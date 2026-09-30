@@ -1,4 +1,11 @@
-import { describe, expect, test, vi } from "vitest";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import type { AddressInfo } from "node:net";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   EstimatorRequestError,
   EstimatorResponseError,
@@ -9,6 +16,7 @@ import type {
   EstimateRequest,
   ScoreRequest,
 } from "../types.js";
+import { createRetryingEstimator } from "../retry.js";
 import { createJevEstimator, JevHttpError } from "./index.js";
 
 const jsonResponse = (body: unknown, status = 200): Response =>
@@ -536,19 +544,6 @@ describe("createJevEstimator", () => {
     const fetchStub = stubFetch(async () => {
       throw abortError;
     });
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    await expect(estimator.estimate(request)).rejects.toBe(abortError);
-  });
-
-  test("lets an abort while reading the response body through unchanged", async () => {
-    const abortError = new DOMException("aborted", "AbortError");
-    const response = new Response(null, { status: 200 });
-    vi.spyOn(response, "json").mockRejectedValue(abortError);
-    const fetchStub = stubFetch(async () => response);
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: fetchStub,
@@ -1256,21 +1251,6 @@ describe("createJevEstimator classify", () => {
     );
   });
 
-  test("lets an abort while reading the response body through unchanged", async () => {
-    const abortError = new DOMException("aborted", "AbortError");
-    const response = new Response(null, { status: 200 });
-    vi.spyOn(response, "json").mockRejectedValue(abortError);
-    const fetchStub = stubFetch(async () => response);
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    await expect(estimator.classify(classifyRequest)).rejects.toBe(
-      abortError,
-    );
-  });
-
   test("rejects with the abort reason without calling fetch when the signal is already aborted", async () => {
     const fetchStub = stubFetch(async () =>
       jsonResponse(choiceAnswer("a", { a: 1 })),
@@ -1843,21 +1823,6 @@ describe("createJevEstimator score", () => {
     );
   });
 
-  test("lets an abort while reading the response body through unchanged", async () => {
-    const abortError = new DOMException("aborted", "AbortError");
-    const response = new Response(null, { status: 200 });
-    vi.spyOn(response, "json").mockRejectedValue(abortError);
-    const fetchStub = stubFetch(async () => response);
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    await expect(estimator.score(scoreRequest)).rejects.toBe(
-      abortError,
-    );
-  });
-
   test("rejects with the abort reason without calling fetch when the signal is already aborted", async () => {
     const fetchStub = stubFetch(async () =>
       jsonResponse(scoreAnswer(1, { "0": 0.5, "1": 0.5 })),
@@ -1902,5 +1867,296 @@ describe("createJevEstimator score", () => {
 
     expect(error).toBe("stop");
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+});
+
+describe("reading the response body", () => {
+  const servers: Server[] = [];
+
+  afterEach(async () => {
+    for (const server of servers.splice(0)) {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  const serve = async (
+    handler: (
+      req: IncomingMessage,
+      res: ServerResponse,
+      count: number,
+    ) => void,
+  ): Promise<{ baseUrl: string; requests: () => number }> => {
+    let count = 0;
+    const server = createServer((req, res) => {
+      count += 1;
+      req.resume();
+      req.on("end", () => handler(req, res, count));
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const { port } = server.address() as AddressInfo;
+    return {
+      baseUrl: `http://127.0.0.1:${port}`,
+      requests: () => count,
+    };
+  };
+
+  const cutAfterPartialBody = (res: ServerResponse): void => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.write('{"answers":');
+    setTimeout(() => res.socket?.destroy(), 20);
+  };
+
+  const rejection = (promise: Promise<unknown>): Promise<unknown> =>
+    promise.catch((thrown: unknown) => thrown);
+
+  test("retryable request error when the connection is cut while reading the body", async () => {
+    const { baseUrl } = await serve((_req, res) =>
+      cutAfterPartialBody(res),
+    );
+    const estimator = createJevEstimator({ apiKey: "key", baseUrl });
+
+    const error = (await rejection(
+      estimator.estimate(request),
+    )) as EstimatorRequestError;
+
+    expect(error).toBeInstanceOf(EstimatorRequestError);
+    expect(error.message).toBe(
+      "Jev response body could not be read: terminated: other side closed",
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev response body could not be read: terminated: other side closed",
+    );
+    expect(error.retryable).toBe(true);
+    expect(error.retryAfterMs).toBeUndefined();
+    const cause = error.cause as TypeError & {
+      cause: { code: string };
+    };
+    expect(cause).toBeInstanceOf(TypeError);
+    expect(cause.message).toBe("terminated");
+    expect(cause.cause.code).toBe("UND_ERR_SOCKET");
+  });
+
+  test("retrying estimator returns the next answer after a cut body", async () => {
+    const { baseUrl, requests } = await serve((_req, res, count) => {
+      if (count === 1) {
+        cutAfterPartialBody(res);
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end('{"answers":{"answer":{"type":"noul","noul":0.7}}}');
+    });
+    const estimator = createRetryingEstimator({
+      estimator: createJevEstimator({ apiKey: "key", baseUrl }),
+      maxAttempts: 2,
+      delaysMs: [0],
+      maxDelayMs: 0,
+    });
+
+    await expect(estimator.estimate(request)).resolves.toEqual({
+      probability: 0.7,
+    });
+    expect(requests()).toBe(2);
+  });
+
+  test("non-retryable response error when the body cannot be decoded", async () => {
+    const { baseUrl } = await serve((_req, res) => {
+      res.writeHead(200, { "Content-Encoding": "gzip" });
+      res.end("not gzip at all");
+    });
+    const estimator = createJevEstimator({ apiKey: "key", baseUrl });
+
+    const error = (await rejection(
+      estimator.estimate(request),
+    )) as EstimatorResponseError;
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect(error.retryable).toBe(false);
+    expect(error.message).toMatch(
+      /^Jev response body could not be read: /,
+    );
+    expect(error.messageWithoutServiceText).toBe(error.message);
+    expect((error.cause as TypeError).message).toBe("terminated");
+  });
+
+  test("non-retryable response error when the body stream errors", async () => {
+    const broken = new Error("broken");
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: async () =>
+        new Response(
+          new ReadableStream({
+            start: (controller) => controller.error(broken),
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const error = (await rejection(
+      estimator.estimate(request),
+    )) as EstimatorResponseError;
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect(error.message).toBe(
+      "Jev response body could not be read: broken",
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev response body could not be read: broken",
+    );
+    expect(error.retryable).toBe(false);
+    expect(error.cause).toBe(broken);
+  });
+
+  test("not-JSON error for a body that ends partway through a string", async () => {
+    const { baseUrl } = await serve((_req, res) => {
+      res.writeHead(200, { Connection: "close" });
+      res.write('{"a":"hel');
+      res.end();
+    });
+    const estimator = createJevEstimator({ apiKey: "key", baseUrl });
+
+    const error = (await rejection(
+      estimator.estimate(request),
+    )) as EstimatorResponseError;
+
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect(error.message).toBe(
+      "Jev response is not JSON: Unterminated string in JSON at position 9 (line 1 column 10)",
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev response is not JSON: (text from the service left out)",
+    );
+    expect(error.retryable).toBe(false);
+    expect(error.cause).toBeInstanceOf(SyntaxError);
+    expect((error.cause as SyntaxError).message).toBe(
+      "Unterminated string in JSON at position 9 (line 1 column 10)",
+    );
+  });
+
+  test("not-JSON error for an HTML body", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: async () =>
+        new Response("<html><body>hello</body></html>", {
+          status: 200,
+        }),
+    });
+
+    const error = (await rejection(
+      estimator.estimate(request),
+    )) as EstimatorResponseError;
+
+    const detail = `Unexpected token '<', "<html><bod"... is not valid JSON`;
+    expect(error).toBeInstanceOf(EstimatorResponseError);
+    expect(error.message).toBe(`Jev response is not JSON: ${detail}`);
+    expect(error.cause).toBeInstanceOf(SyntaxError);
+    expect((error.cause as SyntaxError).message).toBe(detail);
+  });
+
+  test("rejects with a non-Error abort reason when aborted during the body read", async () => {
+    const { baseUrl } = await serve((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.flushHeaders();
+    });
+    const controller = new AbortController();
+    const real = globalThis.fetch;
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      baseUrl,
+      fetch: async (url, init) => {
+        const response = await real(url, init);
+        controller.abort({ why: "user" });
+        return response;
+      },
+    });
+
+    const error = await rejection(
+      estimator.estimate(request, { signal: controller.signal }),
+    );
+
+    expect(error).toBe(controller.signal.reason);
+    expect(error).toEqual({ why: "user" });
+  });
+
+  test("rejects with a TimeoutError reason when aborted during the body read", async () => {
+    const { baseUrl } = await serve((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.flushHeaders();
+    });
+    const controller = new AbortController();
+    const timeout = new DOMException("timed out", "TimeoutError");
+    const real = globalThis.fetch;
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      baseUrl,
+      fetch: async (url, init) => {
+        const response = await real(url, init);
+        controller.abort(timeout);
+        return response;
+      },
+    });
+
+    const error = await rejection(
+      estimator.estimate(request, { signal: controller.signal }),
+    );
+
+    expect(error).toBe(timeout);
+    expect((error as DOMException).name).toBe("TimeoutError");
+  });
+
+  test("rejects with the signal reason when the body read fails after the signal fired", async () => {
+    const controller = new AbortController();
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: async () =>
+        new Response(
+          new ReadableStream({
+            pull: (stream) => {
+              controller.abort({ why: "user" });
+              stream.error(new Error("boom"));
+            },
+          }),
+          { status: 200 },
+        ),
+    });
+
+    const error = await rejection(
+      estimator.estimate(request, { signal: controller.signal }),
+    );
+
+    expect(error).toBe(controller.signal.reason);
+  });
+
+  test("passes an AbortError through when the signal has not fired", async () => {
+    const aborted = new DOMException("aborted", "AbortError");
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: async () =>
+        new Response(
+          new ReadableStream({
+            start: (controller) => controller.error(aborted),
+          }),
+          { status: 200 },
+        ),
+    });
+
+    await expect(estimator.estimate(request)).rejects.toBe(aborted);
+    await expect(
+      estimator.classify({
+        subject: "T",
+        question: "Q",
+        labels: { yes: "Yes", no: "No" },
+      }),
+    ).rejects.toBe(aborted);
+    await expect(
+      estimator.score({
+        subject: "T",
+        question: "Q",
+        levels: ["low", "high"],
+      }),
+    ).rejects.toBe(aborted);
   });
 });

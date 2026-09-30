@@ -55,6 +55,10 @@ const isAbortError = (error: unknown): boolean =>
   error !== null &&
   (error as { name?: unknown }).name === "AbortError";
 
+const isConnectionCut = (error: unknown): boolean =>
+  (error as { cause?: { code?: unknown } } | null)?.cause?.code ===
+  "UND_ERR_SOCKET";
+
 // RFC 9110 §5.6.7: recipients must accept IMF-fixdate, and should
 // accept the obsolete RFC 850 and asctime formats too.
 const IMF_FIXDATE_PATTERN =
@@ -239,10 +243,28 @@ export const createJevEstimator = (
       );
     }
 
+    let text: string;
     try {
-      return await response.json();
+      text = await response.text();
     } catch (error) {
+      if (signal?.aborted) throw signal.reason;
       if (isAbortError(error)) throw error;
+      // A cut connection got no answer, so it can be retried.
+      if (isConnectionCut(error)) {
+        throw new EstimatorRequestError(
+          "Jev response body could not be read",
+          { cause: error, retryable: true },
+        );
+      }
+      throw new EstimatorResponseError(
+        "Jev response body could not be read",
+        { cause: error },
+      );
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (error) {
       throw new EstimatorResponseError("Jev response is not JSON", {
         cause: error,
         causeQuotesService: true,

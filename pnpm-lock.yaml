@@ -50,6 +50,10 @@ importers:
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
+    devDependencies:
+      '@types/node':
+        specifier: 25.9.6
+        version: 25.9.6
 
   packages/dialogue:
     dependencies:

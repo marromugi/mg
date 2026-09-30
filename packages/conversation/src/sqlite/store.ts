@@ -88,6 +88,7 @@ export const openSqliteConversationStore = async (
     await migrate(db, { migrationsFolder });
   } catch (error) {
     client.close();
+    collectGarbage();
     throw error;
   }
 

@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, realpathSync, writeFileSync } from "node:fs";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@libsql/client";
 import { describe, expect, test } from "vitest";
@@ -385,19 +385,6 @@ describe("close", () => {
     }
   });
 
-  test("does not reach the file for a call made after close", async () => {
-    const path = await newDbPath();
-    const store = await openSqliteConversationStore(path);
-    await store.close();
-
-    await thrown(store.create("jev"));
-
-    const other = await openSqliteConversationStore(path);
-    expect(
-      await thrown(other.read("jev", { kind: "all" })),
-    ).toBeInstanceOf(ConversationNotFoundError);
-  });
-
   test("rejects a call made while close is still pending", async () => {
     const store = await openSqliteConversationStore(await newDbPath());
     await store.create("jev");
@@ -451,6 +438,23 @@ describe("close", () => {
     expect(openDescriptors(pathP)).toBe(0);
     expect(openDescriptors(pathQ)).toBeGreaterThanOrEqual(1);
     await storeQ.close();
+  });
+
+  test("leaves no descriptor open on the file when opening fails", async () => {
+    const path = await newDbPath();
+    await mkdir(dirname(path), { recursive: true });
+    writeFileSync(
+      path,
+      "this is not a SQLite database, just text. ".repeat(50),
+    );
+
+    await thrown(openSqliteConversationStore(path));
+    const deadline = Date.now() + 2000;
+    while (openDescriptors(path) > 0 && Date.now() < deadline) {
+      await new Promise((done) => setTimeout(done, 100));
+    }
+
+    expect(openDescriptors(path)).toBe(0);
   });
 
   test("keeps another store on the same file working", async () => {

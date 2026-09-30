@@ -14,6 +14,12 @@ import {
   toOllamaRequest,
   type OllamaRequestOptions,
 } from "./convert.js";
+import {
+  bodyReadFailureMark,
+  sendFailureMark,
+  statusMark,
+  type RetryMark,
+} from "./retry.js";
 import { toStreamEvents } from "./stream.js";
 
 const DEFAULT_BASE_URL = "http://localhost:11434";
@@ -23,10 +29,14 @@ const isAbortError = (cause: unknown): boolean =>
   cause !== null &&
   (cause as { name?: unknown }).name === "AbortError";
 
-const transportFailure = (cause: unknown, message: string): unknown =>
+const transportFailure = (
+  cause: unknown,
+  message: string,
+  mark: RetryMark,
+): unknown =>
   isAbortError(cause)
     ? cause
-    : new ProviderTransportError(message, { cause });
+    : new ProviderTransportError(message, { cause, ...mark });
 
 const HALTED = "halted" as const;
 
@@ -82,7 +92,11 @@ const readGenerateBody = async (
     try {
       return { text: await response.text() };
     } catch (cause) {
-      throw transportFailure(cause, "Ollama response failed to read");
+      throw transportFailure(
+        cause,
+        "Ollama response failed to read",
+        bodyReadFailureMark(cause),
+      );
     }
   }
 
@@ -114,7 +128,11 @@ const readGenerateBody = async (
     if (halted) {
       return HALTED;
     }
-    throw transportFailure(cause, "Ollama response failed to read");
+    throw transportFailure(
+      cause,
+      "Ollama response failed to read",
+      bodyReadFailureMark(cause),
+    );
   } finally {
     halt.removeEventListener("abort", onAbort);
     reader.releaseLock();
@@ -163,7 +181,11 @@ export const createOllamaProvider = (
       if (halt?.aborted === true && isAbortError(cause)) {
         return HALTED;
       }
-      throw transportFailure(cause, "Ollama request failed to send");
+      throw transportFailure(
+        cause,
+        "Ollama request failed to send",
+        sendFailureMark(cause),
+      );
     }
 
     if (!response.ok) {
@@ -171,12 +193,17 @@ export const createOllamaProvider = (
       try {
         text = await response.text();
       } catch (cause) {
-        throw transportFailure(cause, "Ollama response failed to read");
+        throw transportFailure(
+          cause,
+          "Ollama response failed to read",
+          statusMark(response),
+        );
       }
       throw new ProviderHttpError(
         `Ollama request failed: ${response.status}`,
         response.status,
         text,
+        statusMark(response),
       );
     }
 
@@ -225,7 +252,11 @@ export const createOllamaProvider = (
     try {
       yield* readNdjsonLines(body);
     } catch (cause) {
-      throw transportFailure(cause, "Ollama response failed to read");
+      throw transportFailure(
+        cause,
+        "Ollama response failed to read",
+        bodyReadFailureMark(cause),
+      );
     }
   }
 

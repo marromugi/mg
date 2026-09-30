@@ -147,7 +147,8 @@ may help, and `retryAfterMs`, the time to wait first in milliseconds.
 - `ProviderRetryExhaustedError` says the retries ran out. It holds the
   number of attempts and the last error as its cause. It is not
   retryable.
-- The OpenRouter implementation marks these failures as retryable:
+- The OpenRouter and Ollama implementations mark these failures as
+  retryable:
   - A failure to send whose cause code says the connection was
     refused, dropped or timed out, or a name lookup failed for now.
   - A connection cut while reading a body.
@@ -155,10 +156,12 @@ may help, and `retryAfterMs`, the time to wait first in milliseconds.
     be read.
 - If the response's Retry-After reads as a number of seconds or as an
   HTTP date, it is written to `retryAfterMs`. If not, it is left out.
-- Every other OpenRouter failure is not retryable. That includes an
-  invalid header value, a certificate failure, an unknown host, other
-  statuses, a body that fails for another reason, and a response with
-  no body, that is not JSON, or that has no choices.
+- Every other OpenRouter or Ollama failure is not retryable. That
+  includes an invalid header value, a certificate failure, an unknown
+  host, other statuses, a body that fails for another reason, and a
+  response with no body, that is not JSON, or that has no choices
+  (OpenRouter) or no message (Ollama). An Ollama stream line that is
+  not JSON or that carries an error field is not retryable either.
 
 ## How it works
 

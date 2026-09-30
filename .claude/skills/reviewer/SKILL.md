@@ -37,8 +37,8 @@ the linked issue from `Closes #N` in the body, then:
 gh issue view <N> --json title,body
 ```
 
-If the issue links a parent, read it for the decision record and the shared
-constraints. Also read `software-design-theory` — its principles and its
+If the issue declares a parent (`Parent: #<n>` in its Design section), read
+it for the decision record and the shared constraints. Also read `software-design-theory` — its principles and its
 Tests section are the yardstick for the design pass.
 
 Get the order of the commits as well; the design pass needs it:

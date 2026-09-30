@@ -182,7 +182,9 @@ the result in the report.
 
 Create the issues with `gh issue create` from the checked bodies, parent
 first if there is one, then fill the parent's `Child issues` list with the real
-numbers. A defect set aside under principle 9 becomes a note issue: Background and
+numbers. Put the real parent number in each child's `Parent: #<n>` line, run
+`check-issue.mjs` on each child body again, and create the child only when it
+prints no problems. A defect set aside under principle 9 becomes a note issue: Background and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
 Its title ends in "(note)"; that is how `triager` finds it later.
 
@@ -296,7 +298,9 @@ Two results:
    (5).
 7. Edit the parent and every child not yet merged with
    `gh issue edit <n> --body-file <file>`, each file passing
-   `check-issue.mjs` first. Where the new design contradicts work already
+   `check-issue.mjs` first. Every child body it edits carries the `Parent: #<n>`
+   line of the list that holds it; a child moved to another parent gets that
+   number, and a child dropped from every list keeps its line as it is. Where the new design contradicts work already
    merged, leave that work alone and open a new issue instead — principle 9
    settled that behaviour once, and a redo does not reopen it in place. Add
    every shape the redraw did not choose to `## Rejected shapes`, including ones

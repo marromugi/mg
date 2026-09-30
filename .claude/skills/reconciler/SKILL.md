@@ -59,8 +59,10 @@ names, not prose:
 - 変える: interfaces and behaviours whose shape changes, and to what.
 - 前提: what it uses or builds on that must already exist, by name.
 - 決定と見送った形: from the issue or its parent's decision record.
-- 順序: its parent and its place in the parent's `Child issues` list, and any
-  issue it says it waits for.
+- 順序: its parent and its place in the parent's `Child issues` list, the
+  parent it declares (`Parent: #<n>`), and any issue it says it waits for.
+  A child whose declared parent differs from the issue that lists it is a
+  conflict, resolved like the others.
 
 Take names from `To Implementer` (`Files / modules`, `Interfaces`,
 `Out of scope`) and from `Design` and `Changes`. A note issue (Background only, no

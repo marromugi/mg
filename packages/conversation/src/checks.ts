@@ -1,12 +1,17 @@
 import { EntryNotJsonError, EntryToolPairingError } from "./errors.js";
+import { MAX_JSON_DEPTH } from "./limits.js";
 import type { ConversationEntry } from "./types.js";
 
-type NonJsonFound = { kind: "not-json" | "cycle"; path: string };
+type NonJsonFound = {
+  kind: "not-json" | "cycle" | "too-deep";
+  path: string;
+};
 
 const findNonJsonPath = (
   value: unknown,
   path: string,
   onPath: Set<object>,
+  depth: number,
 ): NonJsonFound | undefined => {
   if (value === null) {
     return undefined;
@@ -23,6 +28,9 @@ const findNonJsonPath = (
   }
 
   if (Array.isArray(value)) {
+    if (depth > MAX_JSON_DEPTH) {
+      return { kind: "too-deep", path };
+    }
     if (onPath.has(value)) {
       return { kind: "cycle", path };
     }
@@ -32,6 +40,7 @@ const findNonJsonPath = (
         value[index],
         `${path}[${index}]`,
         onPath,
+        depth + 1,
       );
       if (found !== undefined) {
         onPath.delete(value);
@@ -45,6 +54,9 @@ const findNonJsonPath = (
   if (typeof value === "object") {
     const prototype = Object.getPrototypeOf(value);
     if (prototype === Object.prototype || prototype === null) {
+      if (depth > MAX_JSON_DEPTH) {
+        return { kind: "too-deep", path };
+      }
       if (onPath.has(value)) {
         return { kind: "cycle", path };
       }
@@ -54,6 +66,7 @@ const findNonJsonPath = (
           (value as Record<string, unknown>)[key],
           `${path}.${key}`,
           onPath,
+          depth + 1,
         );
         if (found !== undefined) {
           onPath.delete(value);
@@ -69,7 +82,12 @@ const findNonJsonPath = (
 };
 
 export const assertJsonEntry = (entry: ConversationEntry): void => {
-  const found = findNonJsonPath(entry.messages, "messages", new Set());
+  const found = findNonJsonPath(
+    entry.messages,
+    "messages",
+    new Set(),
+    1,
+  );
   if (found !== undefined) {
     throw new EntryNotJsonError(found.kind, found.path);
   }

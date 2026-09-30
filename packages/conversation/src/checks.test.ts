@@ -53,6 +53,14 @@ const entryWithArguments = (args: unknown): ConversationEntry =>
     toolResultMessage("c1"),
   ]);
 
+const nest = (levels: number): Record<string, unknown> => {
+  let value: Record<string, unknown> = {};
+  for (let index = 0; index < levels; index++) {
+    value = { a: value };
+  }
+  return value;
+};
+
 const entryWithoutCall = (): ConversationEntry =>
   entryWithMessages([
     userMessage(),
@@ -177,6 +185,49 @@ describe("assertJsonEntry", () => {
     expect((error as EntryNotJsonError).kind).toBe("cycle");
     expect((error as EntryNotJsonError).path).toBe(
       "messages[1].parts[0].arguments.list[1]",
+    );
+  });
+
+  test("passes an entry whose deepest container is at depth 128", () => {
+    expect(
+      assertJsonEntry(entryWithArguments(nest(123))),
+    ).toBeUndefined();
+  });
+
+  test("reports the first container past depth 128", () => {
+    const error = thrown(() =>
+      assertJsonEntry(entryWithArguments(nest(124))),
+    ) as EntryNotJsonError;
+
+    expect(error).toBeInstanceOf(EntryNotJsonError);
+    expect(error.kind).toBe("too-deep");
+    expect(error.path).toBe(
+      "messages[1].parts[0].arguments" + ".a".repeat(124),
+    );
+    expect(error.message).toContain("128");
+  });
+
+  test("reports a not-json value that comes before a too-deep container", () => {
+    const error = thrown(() =>
+      assertJsonEntry(
+        entryWithArguments({ x: new Date(0), y: nest(124) }),
+      ),
+    ) as EntryNotJsonError;
+
+    expect(error.kind).toBe("not-json");
+    expect(error.path).toBe("messages[1].parts[0].arguments.x");
+  });
+
+  test("reports a too-deep container that comes before a not-json value", () => {
+    const error = thrown(() =>
+      assertJsonEntry(
+        entryWithArguments({ y: nest(124), x: new Date(0) }),
+      ),
+    ) as EntryNotJsonError;
+
+    expect(error.kind).toBe("too-deep");
+    expect(error.path).toBe(
+      "messages[1].parts[0].arguments.y" + ".a".repeat(123),
     );
   });
 

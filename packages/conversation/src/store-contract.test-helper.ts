@@ -204,6 +204,39 @@ export const describeStoreContract = (
       expect(slice).toEqual({ entries: [], length: 0 });
     });
 
+    test("refuses to append an entry nested past 128 levels, and leaves the conversation untouched", async () => {
+      const store = await open();
+      await store.create("c");
+      let deep: Record<string, unknown> = {};
+      for (let index = 0; index < 124; index++) {
+        deep = { a: deep };
+      }
+      const tooDeepEntry: ConversationEntry = {
+        messages: [
+          { role: "user", content: "hi" },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-call",
+                id: "c1",
+                name: "echo",
+                arguments: deep,
+              },
+            ],
+          },
+          { role: "tool", toolCallId: "c1", content: "pong" },
+        ],
+      };
+
+      const error = await thrown(store.append("c", tooDeepEntry, 0));
+
+      expect(error).toBeInstanceOf(EntryNotJsonError);
+      expect((error as EntryNotJsonError).kind).toBe("too-deep");
+      const slice = await store.read("c", { kind: "all" });
+      expect(slice.length).toBe(0);
+    });
+
     test("refuses to append an entry whose tool result has no call before it, and leaves the conversation untouched", async () => {
       const store = await open();
       await store.create("jev");

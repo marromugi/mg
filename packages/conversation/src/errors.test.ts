@@ -90,6 +90,20 @@ describe("EntryNotJsonError", () => {
   });
 });
 
+describe("EntryNotJsonError too-deep", () => {
+  test("names the path and the limit", () => {
+    const error = new EntryNotJsonError(
+      "too-deep",
+      "messages[1].parts[0].arguments.a",
+    );
+
+    expect(error.kind).toBe("too-deep");
+    expect(error.message).toBe(
+      "The entry nests a value at messages[1].parts[0].arguments.a deeper than 128 levels.",
+    );
+  });
+});
+
 describe("EntryToolPairingError", () => {
   test("names the tool call that has no result after it", () => {
     const error = new EntryToolPairingError("unanswered-call", "c1");

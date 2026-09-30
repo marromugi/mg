@@ -114,7 +114,10 @@ const verdict = await gate.judge({
 // verdict is { allowed: boolean, reason: string }
 ```
 
-If the decision itself fails, it throws `GateError`.
+If the estimator fails, the decision throws `GateError`.
+Its `message` is `Gate judgement failed: ` followed by the estimator error's `message`.
+Its `callerMessage` is the same, but with the estimator error's `messageWithoutServiceText`, so text the service sent is left out.
+The estimator error is kept in `cause`.
 Only an abort signal is passed through as it is, without wrapping.
 
 Pass a finite number from 0 to 1 as the threshold.
@@ -325,6 +328,7 @@ If the decision is "yes", it calls the original run function as it is.
 If "no", it does not run the tool and returns the reason as the tool result.
 When the decision itself fails, it also does not run the tool,
 and returns the failure as the tool result.
+The failure text after `The policy check failed:` is `callerMessage` when the gate threw `GateError`, and the error's `message` otherwise.
 Only an abort signal (AbortSignal) is thrown again as it is, without wrapping.
 If the signal you passed is already aborted, it is thrown again whatever the kind of failure.
 

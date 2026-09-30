@@ -10,4 +10,14 @@ describe("GateError", () => {
     expect(error.name).toBe("GateError");
     expect(error.cause).toBe(cause);
   });
+
+  test("callerMessage equals message when none is given", () => {
+    const error = new GateError(
+      "Provider did not call the verdict tool",
+    );
+
+    expect(error.callerMessage).toBe(
+      "Provider did not call the verdict tool",
+    );
+  });
 });

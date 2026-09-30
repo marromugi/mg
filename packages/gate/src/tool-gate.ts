@@ -11,6 +11,7 @@ import {
 import type { TraceSpan } from "@mg/harness";
 import type { RunToolCall } from "@mg/trace";
 import { isAbortError } from "./abort.js";
+import { GateError } from "./errors.js";
 import type { Gate, GateRequest, Verdict } from "./types.js";
 
 export const TOOL_CALL_KIND = "tool-call";
@@ -73,7 +74,11 @@ const failedMessage = (message: string): string =>
   `[denied] Not executed. The policy check failed: ${message}`;
 
 const toErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+  error instanceof GateError
+    ? error.callerMessage
+    : error instanceof Error
+      ? error.message
+      : String(error);
 
 type RunCallee<TCallee extends Callee, TContext> = (
   callees: readonly TCallee[],

@@ -129,6 +129,7 @@ export type OpenRouterOptions = {
   baseUrl?: string;
   headers?: Record<string, string>;
   fetch?: typeof fetch;
+  newToolCallId?: () => string;
 };
 
 export const createOpenRouterProvider = (
@@ -139,6 +140,8 @@ export const createOpenRouterProvider = (
     "",
   );
   const url = `${baseUrl}/chat/completions`;
+  const newToolCallId =
+    options.newToolCallId ?? (() => globalThis.crypto.randomUUID());
 
   const buildHeaders = (): Headers => {
     const headers = new Headers(options.headers);
@@ -198,10 +201,11 @@ export const createOpenRouterProvider = (
       return { parts: [], finishReason: "halted" };
     }
 
-    const sent = await send(
-      JSON.stringify(toOpenRouterRequest(request, false)),
-      request.halt,
+    const { body: requestBody, omitted } = toOpenRouterRequest(
+      request,
+      false,
     );
+    const sent = await send(JSON.stringify(requestBody), request.halt);
     if (sent === HALTED) {
       return { parts: [], finishReason: "halted" };
     }
@@ -224,7 +228,8 @@ export const createOpenRouterProvider = (
       );
     }
 
-    return fromOpenRouterResponse(body);
+    const generated = fromOpenRouterResponse(body, newToolCallId);
+    return omitted.length === 0 ? generated : { ...generated, omitted };
   };
 
   async function* readPayloads(
@@ -248,10 +253,11 @@ export const createOpenRouterProvider = (
       return;
     }
 
-    const sent = await send(
-      JSON.stringify(toOpenRouterRequest(request, true)),
-      request.halt,
+    const { body: requestBody, omitted } = toOpenRouterRequest(
+      request,
+      true,
     );
+    const sent = await send(JSON.stringify(requestBody), request.halt);
     if (sent === HALTED) {
       yield { type: "finish", finishReason: "halted" };
       return;
@@ -270,7 +276,15 @@ export const createOpenRouterProvider = (
     const readableBody =
       request.halt === undefined ? body : withHalt(body, request.halt);
 
-    yield* toStreamEvents(readPayloads(readableBody), request.halt);
+    for await (const event of toStreamEvents(
+      readPayloads(readableBody),
+      newToolCallId,
+      request.halt,
+    )) {
+      yield event.type === "finish" && omitted.length > 0
+        ? { ...event, omitted }
+        : event;
+    }
   }
 
   const stream = (

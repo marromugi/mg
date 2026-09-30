@@ -143,6 +143,31 @@ Streaming returns events, such as pieces of text, in order.
 Talking to OpenRouter stays inside that implementation.
 The API key is taken when the provider is created.
 
+A function that makes tool-call ids can also be passed.
+Every tool call from OpenRouter gets an id the provider makes.
+The id is a UUID, unless a function is passed when the provider is created.
+The function is called once per tool call, in the order of the response.
+
+The id OpenRouter gave is kept in the tool call's carry,
+with the provider name `openrouter`, when it is not empty.
+A call with no id, or an empty one, has no carry.
+
+When the history is sent back, a call and its result use the id in that
+carry. Without such a carry they use the call's own id.
+If two or more calls in one request carry the same id, none of them is
+sent with it.
+They and their results use their own ids.
+The response, or the finish event of a stream, lists those calls in an
+`outside-tool-call-id` omission.
+
+These inputs stop the provider.
+
+- A tool message whose call is not in the request throws
+  `ProviderUnsupportedError` with the feature `tool-message-without-call`.
+  Nothing is sent.
+- A streamed tool call whose fragments carry two different ids throws
+  `ProviderHttpError` with status 200.
+
 Talking to ollama is a separate implementation.
 ollama does not check API keys, so it takes no API key.
 

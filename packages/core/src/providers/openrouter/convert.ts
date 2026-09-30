@@ -1,5 +1,6 @@
 import {
   ProviderHttpError,
+  ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
@@ -11,7 +12,10 @@ import type {
   GenerateRequest,
   GenerateResponse,
   Message,
+  Omission,
   ToolCall,
+  ToolCallCarry,
+  ToolCallPart,
   ToolChoice,
   ToolDefinition,
   Usage,
@@ -52,7 +56,7 @@ type OpenRouterToolChoice =
   | { type: "function"; function: { name: string } };
 
 type OpenRouterResponseToolCall = {
-  id: string;
+  id?: string | null;
   type?: string;
   function?: { name?: string; arguments?: unknown };
 };
@@ -89,9 +93,63 @@ const openRouterReasoningFields = (
   return text === "" ? {} : { reasoning: text };
 };
 
+const vendorIdOf = (part: ToolCallPart): string | undefined => {
+  const { carry } = part;
+  if (carry?.provider !== PROVIDER_NAME) {
+    return undefined;
+  }
+  const data = carry.data;
+  if (typeof data !== "object" || data === null) {
+    return undefined;
+  }
+  const id = (data as { id?: unknown }).id;
+  return typeof id === "string" && id !== "" ? id : undefined;
+};
+
+type ToolCallIds = {
+  // a call's own id -> the id sent for it and for its result
+  sent: Map<string, string>;
+  // own ids of the calls whose vendor id is shared and so not sent
+  omitted: string[];
+};
+
+const resolveToolCallIds = (messages: Message[]): ToolCallIds => {
+  const calls = messages.flatMap((message) =>
+    message.role === "assistant"
+      ? partsOf(message).filter(
+          (part): part is ToolCallPart => part.type === "tool-call",
+        )
+      : [],
+  );
+
+  const vendorCounts = new Map<string, number>();
+  for (const call of calls) {
+    const vendorId = vendorIdOf(call);
+    if (vendorId !== undefined) {
+      vendorCounts.set(vendorId, (vendorCounts.get(vendorId) ?? 0) + 1);
+    }
+  }
+
+  const sent = new Map<string, string>();
+  const omitted: string[] = [];
+  for (const call of calls) {
+    const vendorId = vendorIdOf(call);
+    if (vendorId === undefined) {
+      sent.set(call.id, call.id);
+    } else if (vendorCounts.get(vendorId) === 1) {
+      sent.set(call.id, vendorId);
+    } else {
+      sent.set(call.id, call.id);
+      omitted.push(call.id);
+    }
+  }
+  return { sent, omitted };
+};
+
 const toMessage = (
   message: Message,
   sendReasoning: boolean,
+  sentIds: Map<string, string>,
 ): OpenRouterMessage => {
   switch (message.role) {
     case "system":
@@ -112,7 +170,7 @@ const toMessage = (
         role: "assistant",
         content,
         tool_calls: toolCalls.map((toolCall) => ({
-          id: toolCall.id,
+          id: sentIds.get(toolCall.id) ?? toolCall.id,
           type: "function",
           function: {
             name: toolCall.name,
@@ -122,12 +180,20 @@ const toMessage = (
         ...reasoning,
       };
     }
-    case "tool":
+    case "tool": {
+      const toolCallId = sentIds.get(message.toolCallId);
+      if (toolCallId === undefined) {
+        throw new ProviderUnsupportedError(
+          `OpenRouter could not find the tool call ${message.toolCallId} for this tool message`,
+          "tool-message-without-call",
+        );
+      }
       return {
         role: "tool",
-        tool_call_id: message.toolCallId,
+        tool_call_id: toolCallId,
         content: message.content,
       };
+    }
   }
 };
 
@@ -156,10 +222,16 @@ const toToolChoice = (toolChoice: ToolChoice): OpenRouterToolChoice =>
     ? toolChoice
     : { type: "function", function: { name: toolChoice.name } };
 
+export type OpenRouterRequest = {
+  body: object;
+  omitted: Omission[];
+};
+
 export const toOpenRouterRequest = (
   request: GenerateRequest,
   stream: boolean,
-): object => {
+): OpenRouterRequest => {
+  const ids = resolveToolCallIds(request.messages);
   const lastUserIndex = request.messages.reduce(
     (last, message, index) => (message.role === "user" ? index : last),
     -1,
@@ -168,7 +240,7 @@ export const toOpenRouterRequest = (
   const body: Record<string, unknown> = {
     model: request.model,
     messages: request.messages.map((message, index) =>
-      toMessage(message, index > lastUserIndex),
+      toMessage(message, index > lastUserIndex, ids.sent),
     ),
     stream,
   };
@@ -189,7 +261,13 @@ export const toOpenRouterRequest = (
     body.max_tokens = request.maxTokens;
   }
 
-  return body;
+  return {
+    body,
+    omitted:
+      ids.omitted.length === 0
+        ? []
+        : [{ kind: "outside-tool-call-id", toolCallIds: ids.omitted }],
+  };
 };
 
 export const toFinishReason = (
@@ -216,28 +294,37 @@ export const toUsage = (usage: {
 });
 
 export const toToolCall = (
-  toolCall: OpenRouterResponseToolCall,
+  raw: { function?: { name?: string; arguments?: unknown } },
+  id: string,
 ): ToolCall => {
-  const name = toolCall.function?.name ?? "";
-  const raw = toolCall.function?.arguments;
+  const name = raw.function?.name ?? "";
+  const args = raw.function?.arguments;
 
-  if (typeof raw !== "string") {
-    throw new ToolArgumentsError(toolCall.id, name, String(raw));
+  if (typeof args !== "string") {
+    throw new ToolArgumentsError(id, name, String(args));
   }
 
-  if (raw.trim() === "") {
-    return { id: toolCall.id, name, arguments: {} };
+  if (args.trim() === "") {
+    return { id, name, arguments: {} };
   }
 
   try {
-    return { id: toolCall.id, name, arguments: JSON.parse(raw) };
+    return { id, name, arguments: JSON.parse(args) };
   } catch (cause) {
-    throw new ToolArgumentsError(toolCall.id, name, raw, { cause });
+    throw new ToolArgumentsError(id, name, args, { cause });
   }
 };
 
+export const toToolCallCarry = (
+  vendorId: string | null | undefined,
+): { carry?: ToolCallCarry } =>
+  typeof vendorId !== "string" || vendorId === ""
+    ? {}
+    : { carry: { provider: PROVIDER_NAME, data: { id: vendorId } } };
+
 export const fromOpenRouterResponse = (
   body: unknown,
+  newToolCallId: () => string,
 ): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
     throw new ProviderHttpError(
@@ -282,8 +369,12 @@ export const fromOpenRouterResponse = (
   if (content !== "") {
     parts.push({ type: "text", text: content });
   }
-  for (const toolCall of (message.tool_calls ?? []).map(toToolCall)) {
-    parts.push({ type: "tool-call", ...toolCall });
+  for (const raw of message.tool_calls ?? []) {
+    parts.push({
+      type: "tool-call",
+      ...toToolCall(raw, newToolCallId()),
+      ...toToolCallCarry(raw.id),
+    });
   }
 
   const response: GenerateResponse = {

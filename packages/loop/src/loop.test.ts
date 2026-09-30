@@ -20,7 +20,8 @@ import type {
 } from "@mg/harness";
 import { traceProvider, traceRunToolCall } from "@mg/trace";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { StreamIncompleteError } from "./errors.js";
+import { GateRequiredError, StreamIncompleteError } from "./errors.js";
+import type { LoopHarnessOptions } from "./loop.js";
 import { createLoopHarness } from "./loop.js";
 
 vi.mock("@mg/trace", { spy: true });
@@ -114,6 +115,11 @@ const deferred = <T>() => {
 };
 
 const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
+
+const allowAll = stubGate(async (): Promise<Verdict> => ({
+  allowed: true,
+  reason: "ok",
+}));
 
 const flushMicrotasks = async (): Promise<void> => {
   for (let i = 0; i < 20; i++) {
@@ -379,6 +385,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 1,
       stream: false,
     });
@@ -445,6 +452,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 1,
     });
 
@@ -528,6 +536,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 2,
       stream: false,
     });
@@ -630,6 +639,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [toolA, toolB],
+      gate: allowAll,
       maxTurns: 5,
       stream: false,
     });
@@ -886,6 +896,7 @@ describe("createLoopHarness", () => {
       provider: streamProvider,
       model: "m",
       tools: [toolA, toolB],
+      gate: allowAll,
       maxTurns: 1,
     });
     const streamEvents: HarnessEvent[] = [];
@@ -909,6 +920,7 @@ describe("createLoopHarness", () => {
       provider: batchProvider,
       model: "m",
       tools: [toolA, toolB],
+      gate: allowAll,
       maxTurns: 1,
       stream: false,
     });
@@ -1079,6 +1091,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [toolA, toolB],
+      gate: allowAll,
       maxTurns: 5,
       stream: false,
     });
@@ -1148,6 +1161,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 2,
       stream: false,
     });
@@ -1189,6 +1203,7 @@ describe("createLoopHarness", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 2,
       stream: false,
     });
@@ -1474,10 +1489,6 @@ describe("createLoopHarness", () => {
 });
 
 describe("createLoopHarness tool list in the request", () => {
-  const allowAll = stubGate(async (): Promise<Verdict> => ({
-    allowed: true,
-    reason: "ok",
-  }));
   const oneTurn = (): Provider =>
     stubProvider([
       {
@@ -1487,7 +1498,11 @@ describe("createLoopHarness tool list in the request", () => {
     ]);
   const firstRequest = async (
     provider: Provider,
-    options: Partial<Parameters<typeof createLoopHarness>[0]>,
+    options: Pick<LoopHarnessOptions, "subagents"> &
+      (
+        | { gate: Gate; tools?: readonly Tool[] }
+        | { gate?: undefined; tools?: undefined }
+      ),
   ): Promise<GenerateRequest> => {
     const harness = createLoopHarness({
       provider,
@@ -1621,6 +1636,7 @@ describe("createLoopHarness wrapping up", () => {
     const harness = createLoopHarness({
       provider,
       tools: [ls],
+      gate: allowAll,
       model: "m",
       maxTurns: 1,
     });
@@ -1720,6 +1736,7 @@ describe("createLoopHarness wrapping up", () => {
     const harness = createLoopHarness({
       provider,
       tools: [ls],
+      gate: allowAll,
       model: "m",
       maxTurns: 2,
       stream: false,
@@ -1790,6 +1807,7 @@ describe("createLoopHarness wrapping up", () => {
     const harness = createLoopHarness({
       provider,
       tools: [slow, fast],
+      gate: allowAll,
       model: "m",
       maxTurns: 2,
       stream: false,
@@ -1845,6 +1863,7 @@ describe("createLoopHarness wrapping up", () => {
     const harness = createLoopHarness({
       provider,
       tools: [ls],
+      gate: allowAll,
       model: "m",
       maxTurns: 2,
       stream: false,
@@ -2077,6 +2096,7 @@ describe("createLoopHarness stop reason attribute", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 1,
       stream: false,
     });
@@ -2287,5 +2307,58 @@ describe("createLoopHarness stop reason attribute", () => {
       ],
       usage: { inputTokens: 3, outputTokens: 1 },
     });
+  });
+});
+
+describe("createLoopHarness with tools and no gate", () => {
+  const namedTool = (name: string): Tool =>
+    defineTool({
+      name,
+      input: stubSchema(),
+      async prepare() {
+        return { reach: { kind: "any-local" }, run: async () => "x" };
+      },
+    });
+  const build = (extra: object): unknown =>
+    createLoopHarness({
+      provider: stubProvider([]),
+      model: "m",
+      maxTurns: 1,
+      ...extra,
+    });
+
+  test("throws GateRequiredError when tools are set", () => {
+    expect(() => build({ tools: [namedTool("a")] })).toThrow(
+      GateRequiredError,
+    );
+    expect(() => build({ tools: [namedTool("a")] })).toThrow(
+      "gate is required when tools are set",
+    );
+  });
+
+  test("throws GateRequiredError when tools is an empty list", () => {
+    expect(() => build({ tools: [] })).toThrow(GateRequiredError);
+    expect(() => build({ tools: [] })).toThrow(
+      "gate is required when tools are set",
+    );
+  });
+
+  test("throws the turn-limit error when maxTurns is also invalid", () => {
+    expect(() =>
+      build({ tools: [namedTool("a")], maxTurns: 0 }),
+    ).toThrow(new RangeError("maxTurns must be >= 1, got 0"));
+  });
+
+  test("throws GateRequiredError, not the duplicate-name error, when names also collide", () => {
+    const subagent: Subagent = {
+      name: "a",
+      input: stubSchema(),
+      async prepare() {
+        return { reach: { kind: "any-local" }, run: async () => "y" };
+      },
+    };
+    expect(() =>
+      build({ tools: [namedTool("a")], subagents: [subagent] }),
+    ).toThrow(GateRequiredError);
   });
 });

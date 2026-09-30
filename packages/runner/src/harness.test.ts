@@ -10,6 +10,7 @@ import type {
 import { defineTool } from "@mg/core";
 import type { Gate, Verdict } from "@mg/gate";
 import { collect } from "@mg/harness";
+import { GateRequiredError } from "@mg/loop";
 import { describe, expect, test, vi } from "vitest";
 import type { RunConfig } from "./config.js";
 import { createHarness } from "./harness.js";
@@ -152,6 +153,31 @@ describe("createHarness", () => {
         content: expect.stringContaining("[denied]"),
       }),
     );
+  });
+
+  test("tools without a gate throw the loop's GateRequiredError", () => {
+    const tool: Tool = defineTool({
+      name: "a",
+      input: stubSchema(),
+      async prepare() {
+        return { reach: { kind: "any-local" }, run: async () => "x" };
+      },
+    });
+    const config: RunConfig = {
+      name: "example",
+      provider: stubProvider([]),
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+    };
+    const parts = { tools: [tool] } as unknown as Parameters<
+      typeof createHarness
+    >[2];
+
+    expect(() =>
+      createHarness(config.harness, config.provider, parts),
+    ).toThrow(GateRequiredError);
+    expect(() =>
+      createHarness(config.harness, config.provider, parts),
+    ).toThrow("gate is required when tools are set");
   });
 
   test("unknown harness kind throws RangeError", () => {

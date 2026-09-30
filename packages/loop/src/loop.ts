@@ -46,19 +46,31 @@ import {
 } from "@mg/trace";
 import {
   DuplicateCallableNameError,
+  GateRequiredError,
   StreamIncompleteError,
 } from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
 
-export type LoopHarnessOptions = {
+type LoopHarnessBase = {
   provider: Provider;
   model: string;
-  tools?: readonly Tool[];
   subagents?: readonly Subagent[];
   maxTurns: number;
   stream?: boolean;
-  gate?: Gate;
 };
+
+export type GatedLoopHarnessOptions = LoopHarnessBase & {
+  gate: Gate;
+  tools?: readonly Tool[];
+};
+
+export type UngatedLoopHarnessOptions = LoopHarnessBase & {
+  gate?: undefined;
+  tools?: undefined;
+};
+
+export type LoopHarnessOptions =
+  GatedLoopHarnessOptions | UngatedLoopHarnessOptions;
 
 type TurnResult = {
   assistantMessage: AssistantMessage;
@@ -213,6 +225,10 @@ export const createLoopHarness = (
     throw new RangeError(
       `maxTurns must be >= 1, got ${options.maxTurns}`,
     );
+  }
+
+  if (options.gate === undefined && options.tools !== undefined) {
+    throw new GateRequiredError();
   }
 
   const tools = options.tools ?? [];

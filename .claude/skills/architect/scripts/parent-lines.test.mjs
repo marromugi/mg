@@ -125,3 +125,28 @@ test("stops at the first body that cannot be written", async () => {
   );
   assert.deepEqual(fs.readdirSync(dir), ["issue-12.md"]);
 });
+
+test("keeps CRLF endings and recognises a correct Parent line in a CRLF body", async () => {
+  const issues = [
+    { number: 10, state: "OPEN", body: list(["#11 a", "#12 b"]) },
+    {
+      number: 11,
+      state: "OPEN",
+      body: "## Design\r\n\r\nParent: #10\r\n\r\nFollows.\r\n",
+    },
+    { number: 12, state: "OPEN", body: "## Design\r\n\r\nFollows.\r\n" },
+  ];
+  const gh = async (args) =>
+    JSON.stringify(args[0] === "issue" ? issues : []);
+  const dir = tmp();
+  const result = await createPlanner({ gh }).plan(dir);
+  assert.deepEqual(result.lines, [
+    "write #12: Parent: #10",
+    "ok: 1 to write, 0 skipped",
+  ]);
+  assert.deepEqual(fs.readdirSync(dir), ["issue-12.md"]);
+  assert.equal(
+    fs.readFileSync(path.join(dir, "issue-12.md"), "utf8"),
+    "## Design\r\n\r\nParent: #10\r\n\r\nFollows.\r\n",
+  );
+});

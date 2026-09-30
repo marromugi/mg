@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -47,7 +46,7 @@ function section(lines, heading) {
 }
 
 function childrenOf(body) {
-  const lines = body.split("\n");
+  const lines = body.split(/\r?\n/);
   const range = section(lines, "## Child issues");
   if (!range) return [];
   const numbers = [];
@@ -72,7 +71,7 @@ function parentLines(lines, range) {
   return found;
 }
 
-function withParentLine(lines, range, parent) {
+function withParentLine(lines, range, parent, eol) {
   const out = [...lines];
   let at = -1;
   for (let i = range.start + 1; i < range.end; i++) {
@@ -86,7 +85,7 @@ function withParentLine(lines, range, parent) {
     at = range.start + 2;
   }
   out.splice(at, 0, `Parent: #${parent}`, "");
-  return out.join("\n");
+  return out.join(eol);
 }
 
 export function createPlanner({ gh }) {
@@ -135,7 +134,7 @@ export function createPlanner({ gh }) {
         continue;
       }
       const [parent] = parents;
-      const bodyLines = (issue.body ?? "").split("\n");
+      const bodyLines = (issue.body ?? "").split(/\r?\n/);
       const design = section(bodyLines, "## Design");
       if (!design) {
         lines.push(`skip #${n}: no Design section`);
@@ -153,12 +152,17 @@ export function createPlanner({ gh }) {
         lines.push(`skip #${n}: open PR #${closedByPr.get(n)}`);
         continue;
       }
-      writes.push({ n, parent, body: withParentLine(bodyLines, design, parent) });
+      const eol = (issue.body ?? "").includes("\r\n") ? "\r\n" : "\n";
+      writes.push({
+        n,
+        parent,
+        body: withParentLine(bodyLines, design, parent, eol),
+      });
     }
 
     const skipped = lines.length;
     for (const { n, parent, body } of writes) {
-      const file = path.join(dir, `issue-${n}.md`);
+      const file = `${dir}${dir.endsWith("/") ? "" : "/"}issue-${n}.md`;
       try {
         await fs.writeFile(file, body);
       } catch (error) {

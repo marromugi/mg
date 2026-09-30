@@ -4,6 +4,7 @@ import {
   DuplicateToolNameError,
   WorkspaceCloseError,
 } from "./errors.js";
+import { exclusiveNamesOf } from "./exclusive.js";
 import type {
   Connection,
   ConnectorContext,
@@ -32,6 +33,8 @@ export const openWorkspace = async (
   workspace: Workspace,
   context?: ConnectorContext,
 ): Promise<OpenWorkspace> => {
+  exclusiveNamesOf(workspace);
+
   const connections: Connection[] = [];
 
   for (const [index, connector] of workspace.connectors.entries()) {

@@ -12,7 +12,7 @@ import type {
   ToolChoice,
   ToolDefinition,
 } from "../types.js";
-import { textOf, toolCallsOf } from "../parts.js";
+import { textOf } from "../parts.js";
 import {
   fromOllamaResponse,
   toFinishReason,
@@ -543,82 +543,48 @@ describe("toUsage", () => {
   });
 });
 
+const sequentialIds = (): (() => string) => {
+  let count = 0;
+  return () => {
+    count += 1;
+    return `u${count}`;
+  };
+};
+
 describe("toToolCall", () => {
-  test("keeps the given id", () => {
+  test("uses the given id", () => {
     expect(
       toToolCall(
-        { id: "call-1", function: { name: "weather", arguments: {} } },
-        0,
+        { function: { name: "weather", arguments: {} } },
+        "u1",
       ),
-    ).toEqual({ id: "call-1", name: "weather", arguments: {} });
+    ).toEqual({ id: "u1", name: "weather", arguments: {} });
   });
 
-  test("falls back to call_<index> when the id is missing", () => {
-    expect(
-      toToolCall({ function: { name: "weather", arguments: {} } }, 2),
-    ).toEqual({ id: "call_2", name: "weather", arguments: {} });
-  });
+  test.each<[string, unknown, string]>([
+    ["not an object", "Tokyo", "Tokyo"],
+    ["null", null, "null"],
+    ["an array", ["Tokyo"], "Tokyo"],
+  ])(
+    "throws a ToolArgumentsError with the given id when arguments are %s",
+    (_label, args, raw) => {
+      let error: unknown;
+      try {
+        toToolCall(
+          { function: { name: "weather", arguments: args } },
+          "u1",
+        );
+      } catch (caught) {
+        error = caught;
+      }
 
-  test("throws a ToolArgumentsError when arguments are not an object", () => {
-    let error: unknown;
-    try {
-      toToolCall(
-        {
-          id: "call-1",
-          function: { name: "weather", arguments: "Tokyo" },
-        },
-        0,
-      );
-    } catch (caught) {
-      error = caught;
-    }
-
-    expect(error).toBeInstanceOf(ToolArgumentsError);
-    const toolArgumentsError = error as ToolArgumentsError;
-    expect(toolArgumentsError.toolCallId).toBe("call-1");
-    expect(toolArgumentsError.toolName).toBe("weather");
-    expect(toolArgumentsError.raw).toBe("Tokyo");
-  });
-
-  test("throws a ToolArgumentsError when arguments are null", () => {
-    let error: unknown;
-    try {
-      toToolCall(
-        {
-          id: "call-1",
-          function: { name: "weather", arguments: null },
-        },
-        0,
-      );
-    } catch (caught) {
-      error = caught;
-    }
-
-    expect(error).toBeInstanceOf(ToolArgumentsError);
-    const toolArgumentsError = error as ToolArgumentsError;
-    expect(toolArgumentsError.raw).toBe("null");
-  });
-
-  test("throws a ToolArgumentsError when arguments are an array", () => {
-    let error: unknown;
-    try {
-      toToolCall(
-        {
-          id: "call-1",
-          function: { name: "weather", arguments: ["Tokyo"] },
-        },
-        0,
-      );
-    } catch (caught) {
-      error = caught;
-    }
-
-    expect(error).toBeInstanceOf(ToolArgumentsError);
-    const toolArgumentsError = error as ToolArgumentsError;
-    expect(toolArgumentsError.toolCallId).toBe("call-1");
-    expect(toolArgumentsError.toolName).toBe("weather");
-    expect(toolArgumentsError.raw).toBe("Tokyo");
-  });
+      expect(error).toBeInstanceOf(ToolArgumentsError);
+      const toolArgumentsError = error as ToolArgumentsError;
+      expect(toolArgumentsError.toolCallId).toBe("u1");
+      expect(toolArgumentsError.toolName).toBe("weather");
+      expect(toolArgumentsError.raw).toBe(raw);
+    },
+  );
 });
 
 const responseBody = (
@@ -631,22 +597,23 @@ const responseBody = (
   ...extra,
 });
 
+const fromBody = (body: unknown) =>
+  fromOllamaResponse(body, sequentialIds());
+
 describe("fromOllamaResponse", () => {
   test("maps a text-only answer", () => {
-    expect(
-      fromOllamaResponse(responseBody({ content: "24 degrees" })),
-    ).toEqual({
+    expect(fromBody(responseBody({ content: "24 degrees" }))).toEqual({
       parts: [{ type: "text", text: "24 degrees" }],
       finishReason: "stop",
     });
   });
 
   test("falls back to an empty string when the content is missing", () => {
-    expect(textOf(fromOllamaResponse(responseBody({})))).toBe("");
+    expect(textOf(fromBody(responseBody({})))).toBe("");
   });
 
   test("maps the model's thinking text into a reasoning part before the text part", () => {
-    const response = fromOllamaResponse(
+    const response = fromBody(
       responseBody({ content: "24 degrees", thinking: "let me think" }),
     );
 
@@ -658,49 +625,58 @@ describe("fromOllamaResponse", () => {
 
   test("omits the reasoning part when thinking is empty or missing", () => {
     expect(
-      fromOllamaResponse(
-        responseBody({ content: "24 degrees", thinking: "" }),
-      ).parts,
+      fromBody(responseBody({ content: "24 degrees", thinking: "" }))
+        .parts,
     ).toEqual([{ type: "text", text: "24 degrees" }]);
     expect(
-      fromOllamaResponse(responseBody({ content: "24 degrees" })).parts,
+      fromBody(responseBody({ content: "24 degrees" })).parts,
     ).toEqual([{ type: "text", text: "24 degrees" }]);
   });
 
-  test("maps two tool calls, keeping arguments as objects", () => {
-    const response = fromOllamaResponse(
+  test("gives each tool call the next generated id, whether or not the body had one", () => {
+    const response = fromBody(
       responseBody({
         content: "",
         tool_calls: [
           {
-            id: "call-1",
+            id: "call_ab12cd34",
             function: { name: "weather", arguments: { city: "Tokyo" } },
           },
           {
-            id: "call-2",
-            function: { name: "weather", arguments: { city: "Osaka" } },
+            function: { name: "weather", arguments: { city: "Paris" } },
           },
         ],
       }),
     );
 
-    expect(toolCallsOf(response)).toEqual([
-      { id: "call-1", name: "weather", arguments: { city: "Tokyo" } },
-      { id: "call-2", name: "weather", arguments: { city: "Osaka" } },
+    expect(response.parts).toEqual([
+      {
+        type: "tool-call",
+        id: "u1",
+        name: "weather",
+        arguments: { city: "Tokyo" },
+      },
+      {
+        type: "tool-call",
+        id: "u2",
+        name: "weather",
+        arguments: { city: "Paris" },
+      },
     ]);
+    expect(Object.keys(response.parts[0] ?? {})).not.toContain("carry");
   });
 
   test("emits the text part before the tool-call parts", () => {
-    const response = fromOllamaResponse(
+    const response = fromBody(
       responseBody({
         content: "checking the weather",
         tool_calls: [
           {
-            id: "call-1",
+            id: "u1",
             function: { name: "weather", arguments: {} },
           },
           {
-            id: "call-2",
+            id: "u2",
             function: { name: "weather", arguments: {} },
           },
         ],
@@ -711,13 +687,13 @@ describe("fromOllamaResponse", () => {
       { type: "text", text: "checking the weather" },
       {
         type: "tool-call",
-        id: "call-1",
+        id: "u1",
         name: "weather",
         arguments: {},
       },
       {
         type: "tool-call",
-        id: "call-2",
+        id: "u2",
         name: "weather",
         arguments: {},
       },
@@ -725,7 +701,7 @@ describe("fromOllamaResponse", () => {
   });
 
   test("returns tool_calls as the finish reason even though done_reason stays stop", () => {
-    const response = fromOllamaResponse(
+    const response = fromBody(
       responseBody(
         {
           content: "",
@@ -743,19 +719,6 @@ describe("fromOllamaResponse", () => {
     expect(response.finishReason).toBe("tool_calls");
   });
 
-  test("falls back to call_<index> when a tool call has no id", () => {
-    const response = fromOllamaResponse(
-      responseBody({
-        content: "",
-        tool_calls: [{ function: { name: "weather", arguments: {} } }],
-      }),
-    );
-
-    expect(toolCallsOf(response)).toEqual([
-      { id: "call_0", name: "weather", arguments: {} },
-    ]);
-  });
-
   test.each<[string | null | undefined, FinishReason]>([
     ["stop", "stop"],
     ["length", "length"],
@@ -763,7 +726,7 @@ describe("fromOllamaResponse", () => {
     [null, "other"],
     [undefined, "other"],
   ])("maps the finish reason %j", (doneReason, expected) => {
-    const response = fromOllamaResponse(
+    const response = fromBody(
       responseBody({ content: "" }, { done_reason: doneReason }),
     );
 
@@ -771,7 +734,7 @@ describe("fromOllamaResponse", () => {
   });
 
   test("maps the usage when both counts are present", () => {
-    const response = fromOllamaResponse(
+    const response = fromBody(
       responseBody(
         { content: "hi" },
         { prompt_eval_count: 12, eval_count: 34 },
@@ -785,15 +748,13 @@ describe("fromOllamaResponse", () => {
   });
 
   test("omits the usage when it is absent", () => {
-    const response = fromOllamaResponse(
-      responseBody({ content: "hi" }),
-    );
+    const response = fromBody(responseBody({ content: "hi" }));
 
     expect(Object.hasOwn(response, "usage")).toBe(false);
   });
 
   test("omits the usage when only one count is present", () => {
-    const response = fromOllamaResponse(
+    const response = fromBody(
       responseBody({ content: "hi" }, { prompt_eval_count: 12 }),
     );
 
@@ -803,7 +764,7 @@ describe("fromOllamaResponse", () => {
   test("throws when a tool call has non-object arguments", () => {
     let error: unknown;
     try {
-      fromOllamaResponse(
+      fromBody(
         responseBody({
           content: "",
           tool_calls: [
@@ -823,7 +784,7 @@ describe("fromOllamaResponse", () => {
 
   const thrownBy = (body: unknown): unknown => {
     try {
-      fromOllamaResponse(body);
+      fromBody(body);
     } catch (error) {
       return error;
     }

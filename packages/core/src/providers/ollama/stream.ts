@@ -3,7 +3,6 @@ import type { StreamEvent } from "../types.js";
 import { toFinishReason, toToolCall, toUsage } from "./convert.js";
 
 type OllamaStreamToolCall = {
-  id?: string;
   function?: { name?: string; arguments?: unknown };
 };
 
@@ -57,9 +56,9 @@ const parseLine = (line: string): OllamaStreamChunk => {
 
 export async function* toStreamEvents(
   lines: AsyncIterable<string>,
+  newToolCallId: () => string,
   halt?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
-  let toolCallCount = 0;
   let sawToolCall = false;
 
   for await (const line of lines) {
@@ -82,9 +81,8 @@ export async function* toStreamEvents(
       sawToolCall = true;
       yield {
         type: "tool-call",
-        toolCall: toToolCall(toolCall, toolCallCount),
+        toolCall: toToolCall(toolCall, newToolCallId()),
       };
-      toolCallCount += 1;
     }
 
     if (chunk.done === true) {

@@ -2,23 +2,31 @@ import type { Reach, Tool, ToolSchema } from "./types.js";
 
 declare const input: ToolSchema;
 
-const withoutReach = {
-  name: "t",
-  input,
-  execute: async () => "done",
-};
+const prepare = async () => ({
+  reach: { kind: "any-local" as const },
+  run: async () => "done",
+});
 
-const withReach = {
+export const toolWithPrepare: Tool = { name: "t", input, prepare };
+
+// @ts-expect-error a tool needs a prepare
+export const toolWithoutPrepare: Tool = { name: "t", input };
+
+export const toolWithReach: Tool = {
   name: "t",
   input,
+  prepare,
+  // @ts-expect-error a tool declares its reach through prepare, not itself
   reach: async () => ({ kind: "any-local" as const }),
-  execute: async () => "done",
 };
 
-// @ts-expect-error a tool needs a reach declaration
-export const toolWithoutReach: Tool = withoutReach;
-
-export const toolWithReach: Tool = withReach;
+export const toolWithExecute: Tool = {
+  name: "t",
+  input,
+  prepare,
+  // @ts-expect-error a tool acts through prepare, not execute
+  execute: async () => "done",
+};
 
 export const pathWithoutExtent: Reach = {
   kind: "paths",

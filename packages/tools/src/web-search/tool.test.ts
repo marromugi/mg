@@ -43,7 +43,7 @@ describe("createWebSearchTool", () => {
     const backend = createFakeBackend([]);
     const tool = createWebSearchTool({ backend });
 
-    await tool.execute({ query: "cats" }, {});
+    await (await tool.prepare({ query: "cats" })).run({});
 
     expect(backend.requests).toEqual([
       { query: "cats", maxResults: 5 },
@@ -54,7 +54,7 @@ describe("createWebSearchTool", () => {
     const backend = createFakeBackend([]);
     const tool = createWebSearchTool({ backend, maxResults: 2 });
 
-    await tool.execute({ query: "cats" }, {});
+    await (await tool.prepare({ query: "cats" })).run({});
 
     expect(backend.requests).toEqual([
       { query: "cats", maxResults: 2 },
@@ -66,10 +66,9 @@ describe("createWebSearchTool", () => {
     const tool = createWebSearchTool({ backend });
     const controller = new AbortController();
 
-    await tool.execute(
-      { query: "cats" },
-      { signal: controller.signal },
-    );
+    await (
+      await tool.prepare({ query: "cats" })
+    ).run({ signal: controller.signal });
 
     expect(backend.contexts).toEqual([{ signal: controller.signal }]);
   });
@@ -89,7 +88,9 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend });
 
-    const result = await tool.execute({ query: "pets" }, {});
+    const result = await (
+      await tool.prepare({ query: "pets" })
+    ).run({});
 
     expect(result).toBe(
       "1. Cats 101\n" +
@@ -108,7 +109,7 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend, maxSnippetChars: 5 });
 
-    const result = await tool.execute({ query: "q" }, {});
+    const result = await (await tool.prepare({ query: "q" })).run({});
 
     expect(result).toBe("1. T\n   https://a.example\n   01234…");
   });
@@ -119,7 +120,7 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend, maxSnippetChars: 5 });
 
-    const result = await tool.execute({ query: "q" }, {});
+    const result = await (await tool.prepare({ query: "q" })).run({});
 
     expect(result).toBe("1. T\n   https://a.example\n   01234");
   });
@@ -134,7 +135,9 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend });
 
-    const result = await tool.execute({ query: "cats" }, {});
+    const result = await (
+      await tool.prepare({ query: "cats" })
+    ).run({});
 
     expect(result).toBe(
       "1. Cats 101 are great\n   https://a.example/1\n   About cats.",
@@ -147,7 +150,7 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend, maxSnippetChars: 2 });
 
-    const result = await tool.execute({ query: "q" }, {});
+    const result = await (await tool.prepare({ query: "q" })).run({});
 
     expect(result).toBe("1. T\n   https://a.example\n   😀😀…");
   });
@@ -158,7 +161,7 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend, maxSnippetChars: 2 });
 
-    const result = await tool.execute({ query: "q" }, {});
+    const result = await (await tool.prepare({ query: "q" })).run({});
 
     expect(result).toBe("1. T\n   https://a.example\n   😀😀");
   });
@@ -173,7 +176,7 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend });
 
-    const result = await tool.execute({ query: "q" }, {});
+    const result = await (await tool.prepare({ query: "q" })).run({});
 
     expect(result).toBe(
       "1. T\n   https://a.example\n   line one line two line three",
@@ -188,7 +191,7 @@ describe("createWebSearchTool", () => {
     ]);
     const tool = createWebSearchTool({ backend, maxResults: 2 });
 
-    const result = await tool.execute({ query: "q" }, {});
+    const result = await (await tool.prepare({ query: "q" })).run({});
 
     expect(result).not.toContain("Three");
     expect(result.split("\n\n")).toHaveLength(2);
@@ -199,7 +202,7 @@ describe("createWebSearchTool", () => {
     const tool = createWebSearchTool({ backend });
 
     await expect(
-      tool.execute({ query: "nothing here" }, {}),
+      (await tool.prepare({ query: "nothing here" })).run({}),
     ).resolves.toBe('No results for "nothing here".');
   });
 
@@ -215,7 +218,9 @@ describe("createWebSearchTool", () => {
     };
     const tool = createWebSearchTool({ backend });
 
-    await expect(tool.execute({ query: "q" }, {})).rejects.toBe(error);
+    await expect(
+      (await tool.prepare({ query: "q" })).run({}),
+    ).rejects.toBe(error);
   });
 
   test("rejects with the same AbortError instance thrown by the backend", async () => {
@@ -230,7 +235,9 @@ describe("createWebSearchTool", () => {
     const tool = createWebSearchTool({ backend });
 
     await expect(
-      tool.execute({ query: "q" }, { signal: controller.signal }),
+      (await tool.prepare({ query: "q" })).run({
+        signal: controller.signal,
+      }),
     ).rejects.toBe(error);
   });
 });

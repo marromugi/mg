@@ -1,5 +1,4 @@
 import { promises as fs } from "node:fs";
-import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
@@ -44,69 +43,72 @@ export const createReadFileTool = (
       "points, start inclusive, end exclusive; a bare line means the " +
       "whole line). Positions are the ones grep reports.",
     input: readFileInput,
-    async reach(args) {
-      const parsed = await validateToolInput(this.input, args);
-      if (!parsed.ok) return { kind: "any-local" };
-      return reachOfFile(root, parsed.value.path);
-    },
-    async execute({ path: inputPath, range }, context) {
-      context.signal?.throwIfAborted();
+    async prepare({ path: inputPath, range }) {
+      return {
+        reach: await reachOfFile(root, inputPath),
+        run: async (context) => {
+          context.signal?.throwIfAborted();
 
-      const resolved = await resolveExistingPath(root, inputPath);
-      const stat = await fs.stat(resolved.absolute);
-      if (!stat.isFile()) {
-        throw new FileToolError(`not a file: ${resolved.relative}`);
-      }
+          const resolved = await resolveExistingPath(root, inputPath);
+          const stat = await fs.stat(resolved.absolute);
+          if (!stat.isFile()) {
+            throw new FileToolError(`not a file: ${resolved.relative}`);
+          }
 
-      const content = await fs.readFile(resolved.absolute, {
-        encoding: "utf-8",
-        signal: context.signal,
-      });
+          const content = await fs.readFile(resolved.absolute, {
+            encoding: "utf-8",
+            signal: context.signal,
+          });
 
-      if (isBinary(content)) {
-        throw new FileToolError(`binary file: ${resolved.relative}`);
-      }
+          if (isBinary(content)) {
+            throw new FileToolError(
+              `binary file: ${resolved.relative}`,
+            );
+          }
 
-      const lines = splitLines(content);
-      if (lines.length === 0) return "(empty file)";
+          const lines = splitLines(content);
+          if (lines.length === 0) return "(empty file)";
 
-      const startLine = range?.start.line ?? 1;
-      const hasEnd = range?.end !== undefined;
-      const endLine = range?.end?.line ?? lines.length;
+          const startLine = range?.start.line ?? 1;
+          const hasEnd = range?.end !== undefined;
+          const endLine = range?.end?.line ?? lines.length;
 
-      if (hasEnd && endLine < startLine) {
-        throw new FileToolError(
-          `range end (line ${endLine}) is before start (line ${startLine})`,
-        );
-      }
-      if (startLine > lines.length) {
-        throw new FileToolError(
-          `line ${startLine} is beyond the end of the file (${lines.length} lines)`,
-        );
-      }
-      if (hasEnd && endLine > lines.length) {
-        throw new FileToolError(
-          `line ${endLine} is beyond the end of the file (${lines.length} lines)`,
-        );
-      }
+          if (hasEnd && endLine < startLine) {
+            throw new FileToolError(
+              `range end (line ${endLine}) is before start (line ${startLine})`,
+            );
+          }
+          if (startLine > lines.length) {
+            throw new FileToolError(
+              `line ${startLine} is beyond the end of the file (${lines.length} lines)`,
+            );
+          }
+          if (hasEnd && endLine > lines.length) {
+            throw new FileToolError(
+              `line ${endLine} is beyond the end of the file (${lines.length} lines)`,
+            );
+          }
 
-      const selected = lines.slice(startLine - 1, endLine);
-      const lastIndex = selected.length - 1;
-      const formatted = selected
-        .map((line, index) => {
-          const lineNumber = startLine + index;
-          const startCol = index === 0 ? range?.start.col : undefined;
-          const endCol =
-            index === lastIndex ? range?.end?.col : undefined;
-          const text =
-            startCol !== undefined || endCol !== undefined
-              ? sliceCodePoints(line, startCol ?? 1, endCol)
-              : line;
-          return `${lineNumber}\t${text}`;
-        })
-        .join("\n");
+          const selected = lines.slice(startLine - 1, endLine);
+          const lastIndex = selected.length - 1;
+          const formatted = selected
+            .map((line, index) => {
+              const lineNumber = startLine + index;
+              const startCol =
+                index === 0 ? range?.start.col : undefined;
+              const endCol =
+                index === lastIndex ? range?.end?.col : undefined;
+              const text =
+                startCol !== undefined || endCol !== undefined
+                  ? sliceCodePoints(line, startCol ?? 1, endCol)
+                  : line;
+              return `${lineNumber}\t${text}`;
+            })
+            .join("\n");
 
-      return truncate(formatted, maxOutputChars);
+          return truncate(formatted, maxOutputChars);
+        },
+      };
     },
   };
 };

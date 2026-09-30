@@ -1,5 +1,4 @@
 import { promises as fs } from "node:fs";
-import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
@@ -79,96 +78,104 @@ export const createEditFileTool = (
       "lines to disambiguate) unless replaceAll is true; fails " +
       "without changing the file otherwise.",
     input: editFileInput,
-    async reach(args) {
-      const parsed = await validateToolInput(this.input, args);
-      if (!parsed.ok) return { kind: "any-local" };
-      return reachOfFile(root, parsed.value.path);
-    },
-    async execute(
-      { path: inputPath, oldString, newString, replaceAll },
-      context,
-    ) {
-      context.signal?.throwIfAborted();
+    async prepare({
+      path: inputPath,
+      oldString,
+      newString,
+      replaceAll,
+    }) {
+      return {
+        reach: await reachOfFile(root, inputPath),
+        run: async (context) => {
+          context.signal?.throwIfAborted();
 
-      const resolved = await resolveExistingPath(root, inputPath);
-      const stat = await fs.stat(resolved.absolute);
-      if (!stat.isFile()) {
-        throw new FileToolError(`not a file: ${resolved.relative}`);
-      }
+          const resolved = await resolveExistingPath(root, inputPath);
+          const stat = await fs.stat(resolved.absolute);
+          if (!stat.isFile()) {
+            throw new FileToolError(`not a file: ${resolved.relative}`);
+          }
 
-      const buffer = await fs.readFile(resolved.absolute, {
-        signal: context.signal,
-      });
+          const buffer = await fs.readFile(resolved.absolute, {
+            signal: context.signal,
+          });
 
-      let content: string;
-      try {
-        content = new TextDecoder("utf-8", { fatal: true }).decode(
-          buffer,
-        );
-      } catch {
-        throw new FileToolError(
-          `not valid UTF-8: ${resolved.relative}`,
-        );
-      }
+          let content: string;
+          try {
+            content = new TextDecoder("utf-8", { fatal: true }).decode(
+              buffer,
+            );
+          } catch {
+            throw new FileToolError(
+              `not valid UTF-8: ${resolved.relative}`,
+            );
+          }
 
-      if (isBinary(content)) {
-        throw new FileToolError(`binary file: ${resolved.relative}`);
-      }
+          if (isBinary(content)) {
+            throw new FileToolError(
+              `binary file: ${resolved.relative}`,
+            );
+          }
 
-      if (oldString === newString) {
-        throw new FileToolError(
-          "oldString and newString are identical",
-        );
-      }
+          if (oldString === newString) {
+            throw new FileToolError(
+              "oldString and newString are identical",
+            );
+          }
 
-      const indices = findOccurrenceIndices(content, oldString);
+          const indices = findOccurrenceIndices(content, oldString);
 
-      if (indices.length === 0) {
-        throw new FileToolError(
-          `oldString not found in ${resolved.relative}`,
-        );
-      }
+          if (indices.length === 0) {
+            throw new FileToolError(
+              `oldString not found in ${resolved.relative}`,
+            );
+          }
 
-      if (indices.length >= 2 && !replaceAll) {
-        const lines = indices.map((index) => lineOf(content, index));
-        throw new FileToolError(
-          `oldString matches ${indices.length} times in ${resolved.relative} ` +
-            `(lines ${formatLineList(lines)}). Include more surrounding ` +
-            "text to make it unique, or set replaceAll.",
-        );
-      }
+          if (indices.length >= 2 && !replaceAll) {
+            const lines = indices.map((index) =>
+              lineOf(content, index),
+            );
+            throw new FileToolError(
+              `oldString matches ${indices.length} times in ${resolved.relative} ` +
+                `(lines ${formatLineList(lines)}). Include more surrounding ` +
+                "text to make it unique, or set replaceAll.",
+            );
+          }
 
-      const targetIndices = replaceAll ? indices : indices.slice(0, 1);
-      const updated = spliceContent(
-        content,
-        targetIndices,
-        oldString,
-        newString,
-      );
+          const targetIndices = replaceAll
+            ? indices
+            : indices.slice(0, 1);
+          const updated = spliceContent(
+            content,
+            targetIndices,
+            oldString,
+            newString,
+          );
 
-      try {
-        await fs.writeFile(resolved.absolute, updated, {
-          encoding: "utf8",
-          signal: context.signal,
-        });
-      } catch (error) {
-        if (isAbortError(error)) throw error;
-        throw new FileToolError(
-          `cannot write file: ${resolved.relative}`,
-          { cause: error },
-        );
-      }
+          try {
+            await fs.writeFile(resolved.absolute, updated, {
+              encoding: "utf8",
+              signal: context.signal,
+            });
+          } catch (error) {
+            if (isAbortError(error)) throw error;
+            throw new FileToolError(
+              `cannot write file: ${resolved.relative}`,
+              { cause: error },
+            );
+          }
 
-      const lines = targetIndices.map((index) =>
-        lineOf(content, index),
-      );
-      const count = targetIndices.length;
-      const noun = count === 1 ? "occurrence" : "occurrences";
-      const lineWord = count === 1 ? "line" : "lines";
-      return (
-        `Replaced ${count} ${noun} in ${resolved.relative} ` +
-        `(${lineWord} ${formatLineList(lines)}).`
-      );
+          const lines = targetIndices.map((index) =>
+            lineOf(content, index),
+          );
+          const count = targetIndices.length;
+          const noun = count === 1 ? "occurrence" : "occurrences";
+          const lineWord = count === 1 ? "line" : "lines";
+          return (
+            `Replaced ${count} ${noun} in ${resolved.relative} ` +
+            `(${lineWord} ${formatLineList(lines)}).`
+          );
+        },
+      };
     },
   };
 };

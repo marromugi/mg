@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   defineTool,
+  type PrepareToolCall,
   type ToolCall,
-  type ToolMessage,
   type ToolSchema,
 } from "@mg/core";
 import { ATTR, SPAN } from "./vocabulary.js";
@@ -20,20 +20,22 @@ const call: ToolCall = {
 describe("traceRunToolCall", () => {
   it("records name, call id and arguments before running, and the result after", async () => {
     const root = new RecordingSpan("root");
-    const message: ToolMessage = {
+    let startedBefore: RecordingSpan | undefined;
+    const prepare: PrepareToolCall = async () => ({
+      reach: { kind: "none" },
+      run: async () => {
+        startedBefore = root.children[0];
+        return "sunny";
+      },
+    });
+
+    const result = await traceRunToolCall(root, prepare)([], call);
+
+    expect(result).toEqual({
       role: "tool",
       toolCallId: "call-1",
       content: "sunny",
-    };
-    let startedBefore: RecordingSpan | undefined;
-    const run = async () => {
-      startedBefore = root.children[0];
-      return message;
-    };
-
-    const result = await traceRunToolCall(root, run)([], call);
-
-    expect(result).toBe(message);
+    });
     expect(startedBefore?.name).toBe(SPAN.tool);
     expect(startedBefore?.attributes).toEqual({
       [ATTR.op]: "tool",
@@ -47,22 +49,25 @@ describe("traceRunToolCall", () => {
     expect(span?.endCalls).toEqual([undefined]);
   });
 
-  it("ends the span with the error and rethrows it unchanged when run rejects", async () => {
+  it("ends the span with the error and rethrows it unchanged when the prepared call rejects", async () => {
     const root = new RecordingSpan("root");
     const error = new Error("boom");
-    const run = async (): Promise<ToolMessage> => {
-      throw error;
-    };
+    const prepare: PrepareToolCall = async () => ({
+      reach: { kind: "none" },
+      run: async () => {
+        throw error;
+      },
+    });
 
-    await expect(traceRunToolCall(root, run)([], call)).rejects.toBe(
-      error,
-    );
+    await expect(
+      traceRunToolCall(root, prepare)([], call),
+    ).rejects.toBe(error);
 
     const span = root.children[0];
     expect(span?.endCalls).toEqual([error]);
   });
 
-  it("uses core's runToolCall by default and records its result", async () => {
+  it("uses core's prepareToolCall by default and records its result", async () => {
     const root = new RecordingSpan("root");
     const validate: Validate = (value) => ({ value });
     const schema: ToolSchema = {
@@ -77,10 +82,14 @@ describe("traceRunToolCall", () => {
       },
     };
     const tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "weather",
       input: schema,
-      execute: async (value) => JSON.stringify(value),
+      async prepare(value) {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => JSON.stringify(value),
+        };
+      },
     });
 
     const message = await traceRunToolCall(root)([tool], call);

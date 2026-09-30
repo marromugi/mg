@@ -14,12 +14,17 @@ import {
   assistantMessage,
   createPartsAccumulator,
   partsOf,
+  prepareToolCall,
   runToolCall,
   toolCallsOf,
 } from "@mg/core";
 import type { Gate } from "@mg/gate";
 import { gateRunToolCall } from "@mg/gate";
-import { noopSpan, runSubagentCall } from "@mg/harness";
+import {
+  noopSpan,
+  prepareSubagentCall,
+  runSubagentCall,
+} from "@mg/harness";
 import type {
   Harness,
   HarnessEvent,
@@ -36,6 +41,8 @@ import {
   traceProvider,
   traceRunSubagentCall,
   traceRunToolCall,
+  tracePrepareSubagentCall,
+  tracePrepareToolCall,
 } from "@mg/trace";
 import {
   DuplicateCallableNameError,
@@ -240,11 +247,11 @@ export const createLoopHarness = (
       run =
         options.gate === undefined
           ? runToolCall
-          : gateRunToolCall(options.gate, runToolCall);
+          : gateRunToolCall(options.gate, prepareToolCall);
       runSubagent =
         options.gate === undefined
           ? runSubagentCall
-          : gateRunToolCall(options.gate, runSubagentCall);
+          : gateRunToolCall(options.gate, prepareSubagentCall);
     } else {
       try {
         span = input.trace.startSpan(SPAN.harness, {
@@ -258,13 +265,17 @@ export const createLoopHarness = (
       run =
         options.gate === undefined
           ? traceRunToolCall(span)
-          : gateRunToolCall(options.gate, traceRunToolCall(span), span);
+          : gateRunToolCall(
+              options.gate,
+              tracePrepareToolCall(span),
+              span,
+            );
       runSubagent =
         options.gate === undefined
           ? traceRunSubagentCall(span)
           : gateRunToolCall(
               options.gate,
-              traceRunSubagentCall(span),
+              tracePrepareSubagentCall(span),
               span,
             );
     }

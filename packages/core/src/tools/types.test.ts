@@ -63,27 +63,30 @@ const jsonOnlySchema = {
 } as const satisfies StandardJSONSchemaV1;
 
 const weather = defineTool({
-  reach: async () => ({ kind: "any-local" }),
   name: "weather",
   description: "Looks up the weather",
   input: weatherSchema,
-  execute: async (input, context) => {
-    expectTypeOf(input).toEqualTypeOf<WeatherOutput>();
-    expectTypeOf(context).toEqualTypeOf<ToolContext>();
-    return `${input.city}:${input.units}`;
+  async prepare(input) {
+    return {
+      reach: { kind: "any-local" },
+      run: async (context) => {
+        expectTypeOf(input).toEqualTypeOf<WeatherOutput>();
+        expectTypeOf(context).toEqualTypeOf<ToolContext>();
+        return `${input.city}:${input.units}`;
+      },
+    };
   },
 });
 
 describe("defineTool", () => {
-  test("infers the execute input from the schema output type", async () => {
+  test("infers the prepare input from the schema output type", async () => {
     expectTypeOf(weather).toEqualTypeOf<Tool<typeof weatherSchema>>();
-    expectTypeOf(weather.execute)
-      .parameter(0)
-      .toEqualTypeOf<WeatherOutput>();
+    const prepared = await weather.prepare({
+      city: "Tokyo",
+      units: "f",
+    });
 
-    await expect(
-      weather.execute({ city: "Tokyo", units: "f" }, {}),
-    ).resolves.toBe("Tokyo:f");
+    await expect(prepared.run({})).resolves.toBe("Tokyo:f");
   });
 
   test("returns a tool that fits ToolDefinition and Tool", () => {

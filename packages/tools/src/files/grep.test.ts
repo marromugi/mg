@@ -53,24 +53,24 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
   });
 
   test("finds matches across files as path:line:col: text with / separators", async () => {
-    const result = await grep.execute({ pattern: "hello" }, {});
+    const result = await (
+      await grep.prepare({ pattern: "hello" })
+    ).run({});
     expect(result).toContain("a.txt:1:1: hello world");
     expect(result).toContain("sub/b.txt:1:8: préfix hello");
   });
 
   test("column counts code points, not bytes, after a multi-byte character", async () => {
-    const result = await grep.execute(
-      { pattern: "hello", path: "sub/b.txt" },
-      {},
-    );
+    const result = await (
+      await grep.prepare({ pattern: "hello", path: "sub/b.txt" })
+    ).run({});
     expect(result.split("\n")[0]).toBe("sub/b.txt:1:8: préfix hello");
   });
 
   test("two matches on one line yield two lines", async () => {
-    const result = await grep.execute(
-      { pattern: "hello", path: "sub/b.txt" },
-      {},
-    );
+    const result = await (
+      await grep.prepare({ pattern: "hello", path: "sub/b.txt" })
+    ).run({});
     const secondLineMatches = result
       .split("\n")
       .filter((line) => line.startsWith("sub/b.txt:2:"));
@@ -81,65 +81,67 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
   });
 
   test("glob restricts which files are searched", async () => {
-    const result = await grep.execute(
-      { pattern: "hello", glob: "a.*" },
-      {},
-    );
+    const result = await (
+      await grep.prepare({ pattern: "hello", glob: "a.*" })
+    ).run({});
     expect(result).toBe("a.txt:1:1: hello world");
   });
 
   test("ignoreCase widens matches", async () => {
-    const caseSensitive = await grep.execute(
-      { pattern: "hello", path: "case.txt" },
-      {},
-    );
+    const caseSensitive = await (
+      await grep.prepare({ pattern: "hello", path: "case.txt" })
+    ).run({});
     expect(caseSensitive).toMatch(/^No matches/);
 
-    const caseInsensitive = await grep.execute(
-      { pattern: "hello", path: "case.txt", ignoreCase: true },
-      {},
-    );
+    const caseInsensitive = await (
+      await grep.prepare({
+        pattern: "hello",
+        path: "case.txt",
+        ignoreCase: true,
+      })
+    ).run({});
     expect(caseInsensitive).toBe("case.txt:1:1: HELLO");
   });
 
   test("path narrows the search to a subdirectory", async () => {
-    const result = await grep.execute(
-      { pattern: "hello", path: "sub" },
-      {},
-    );
+    const result = await (
+      await grep.prepare({ pattern: "hello", path: "sub" })
+    ).run({});
     expect(result).toContain("sub/b.txt");
     expect(result).not.toContain("a.txt:");
   });
 
   test("a file ignored per .gitignore is not searched", async () => {
-    const result = await grep.execute({ pattern: "hello" }, {});
+    const result = await (
+      await grep.prepare({ pattern: "hello" })
+    ).run({});
     expect(result).not.toContain("ignored.txt");
   });
 
   test("no match returns a sentence instead of throwing", async () => {
     await expect(
-      grep.execute({ pattern: "zzzznotfound" }, {}),
+      (await grep.prepare({ pattern: "zzzznotfound" })).run({}),
     ).resolves.toBe("No matches for /zzzznotfound/ in the root.");
 
     await expect(
-      grep.execute({ pattern: "zzzznotfound", path: "sub" }, {}),
+      (
+        await grep.prepare({ pattern: "zzzznotfound", path: "sub" })
+      ).run({}),
     ).resolves.toBe("No matches for /zzzznotfound/ in sub.");
   });
 
   test("a trailing CRLF is dropped from the line text", async () => {
-    const result = await grep.execute(
-      { pattern: "hello", path: "crlf.txt" },
-      {},
-    );
+    const result = await (
+      await grep.prepare({ pattern: "hello", path: "crlf.txt" })
+    ).run({});
     expect(result).toBe("crlf.txt:1:1: hello crlf");
   });
 
   test("maxResults truncation appends a marker", async () => {
     const small = createGrepTool({ root, maxResults: 3 });
-    const result = await small.execute(
-      { pattern: "hello", path: "many.txt" },
-      {},
-    );
+    const result = await (
+      await small.prepare({ pattern: "hello", path: "many.txt" })
+    ).run({});
     const lines = result.split("\n");
     expect(lines).toEqual([
       "many.txt:1:1: hello",
@@ -151,25 +153,23 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
 
   test("maxResults of 0 truncates to just the marker", async () => {
     const none = createGrepTool({ root, maxResults: 0 });
-    const result = await none.execute(
-      { pattern: "hello", path: "many.txt" },
-      {},
-    );
+    const result = await (
+      await none.prepare({ pattern: "hello", path: "many.txt" })
+    ).run({});
     expect(result).toBe("[results truncated]");
   });
 
   test("maxLineChars cuts long lines", async () => {
     const small = createGrepTool({ root, maxLineChars: 10 });
-    const result = await small.execute(
-      { pattern: "hello", path: "long.txt" },
-      {},
-    );
+    const result = await (
+      await small.prepare({ pattern: "hello", path: "long.txt" })
+    ).run({});
     expect(result).toBe(`long.txt:1:401: ${"x".repeat(10)}…`);
   });
 
   test("an invalid regex rejects with FileToolError", async () => {
     await expect(
-      grep.execute({ pattern: "(" }, {}),
+      (await grep.prepare({ pattern: "(" })).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -179,7 +179,7 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
       rgPath: "/nonexistent/rg-binary",
     });
     await expect(
-      missing.execute({ pattern: "hello" }, {}),
+      (await missing.prepare({ pattern: "hello" })).run({}),
     ).rejects.toMatchObject({
       name: "FileToolError",
       message: "ripgrep (rg) is not installed or not on PATH",
@@ -189,7 +189,7 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
   test("an rgPath pointing to a directory rejects with the underlying error code", async () => {
     const invalid = createGrepTool({ root, rgPath: root });
     await expect(
-      invalid.execute({ pattern: "hello" }, {}),
+      (await invalid.prepare({ pattern: "hello" })).run({}),
     ).rejects.toMatchObject({
       name: "FileToolError",
       message: "ripgrep failed: EACCES",
@@ -198,7 +198,9 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
 
   test("a path outside the root rejects with FileToolError", async () => {
     await expect(
-      grep.execute({ pattern: "hello", path: "../outside" }, {}),
+      (
+        await grep.prepare({ pattern: "hello", path: "../outside" })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -207,7 +209,9 @@ describe.skipIf(!hasRg)("createGrepTool", () => {
     controller.abort();
 
     await expect(
-      grep.execute({ pattern: "hello" }, { signal: controller.signal }),
+      (await grep.prepare({ pattern: "hello" })).run({
+        signal: controller.signal,
+      }),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });
@@ -233,23 +237,29 @@ describe.skipIf(!hasRg)("hidden files", () => {
   const grep = createGrepTool({ root: hiddenRoot });
 
   test("a match inside a hidden directory is returned", async () => {
-    const result = await grep.execute({ pattern: "hidden" }, {});
+    const result = await (
+      await grep.prepare({ pattern: "hidden" })
+    ).run({});
     expect(result).toContain(".github/ci.yml:1:7: hello hidden");
   });
 
   test("a match inside a hidden file at the root is returned", async () => {
-    const result = await grep.execute({ pattern: "TOKEN" }, {});
+    const result = await (
+      await grep.prepare({ pattern: "TOKEN" })
+    ).run({});
     expect(result).toContain(".env.sample:1:1: TOKEN=abc");
   });
 
   test("a match inside .git is returned", async () => {
-    const result = await grep.execute({ pattern: "needle-in-git" }, {});
+    const result = await (
+      await grep.prepare({ pattern: "needle-in-git" })
+    ).run({});
     expect(result).toContain(".git/mg-note.txt:1:1: needle-in-git");
   });
 
   test("a hidden file listed in .gitignore is still not searched", async () => {
     await expect(
-      grep.execute({ pattern: "needle-secret" }, {}),
+      (await grep.prepare({ pattern: "needle-secret" })).run({}),
     ).resolves.toBe("No matches for /needle-secret/ in the root.");
   });
 });
@@ -336,26 +346,23 @@ describe.skipIf(!hasRg)(
     const grep = createGrepTool({ root: notesRoot });
 
     test("a match on a line that is not valid UTF-8 becomes a skip count", async () => {
-      const result = await grep.execute(
-        { pattern: "needle-l", path: "latin.txt" },
-        {},
-      );
+      const result = await (
+        await grep.prepare({ pattern: "needle-l", path: "latin.txt" })
+      ).run({});
       expect(result).toBe("[skipped 1 matches: not valid UTF-8]");
     });
 
     test("two matches on the same non-UTF-8 line are both counted", async () => {
-      const result = await grep.execute(
-        { pattern: "needle-m", path: "twice.txt" },
-        {},
-      );
+      const result = await (
+        await grep.prepare({ pattern: "needle-m", path: "twice.txt" })
+      ).run({});
       expect(result).toBe("[skipped 2 matches: not valid UTF-8]");
     });
 
     test("a valid match and a non-UTF-8 skip count both come back, match first", async () => {
-      const result = await grep.execute(
-        { pattern: "needle-x", path: "mix" },
-        {},
-      );
+      const result = await (
+        await grep.prepare({ pattern: "needle-x", path: "mix" })
+      ).run({});
       expect(result).toBe(
         "mix/good.txt:1:1: needle-x ok\n[skipped 1 matches: not valid UTF-8]",
       );
@@ -364,28 +371,25 @@ describe.skipIf(!hasRg)(
     test.skipIf(!canCreateRawName)(
       "a match in a file whose name is not valid UTF-8 becomes a skip count",
       async () => {
-        const result = await grep.execute(
-          { pattern: "needle-n", path: "rawname" },
-          {},
-        );
+        const result = await (
+          await grep.prepare({ pattern: "needle-n", path: "rawname" })
+        ).run({});
         expect(result).toBe("[skipped 1 matches: not valid UTF-8]");
       },
     );
 
     test("a match in a file ripgrep judges binary becomes a skip count", async () => {
-      const result = await grep.execute(
-        { pattern: "needle-b", path: "bin" },
-        {},
-      );
+      const result = await (
+        await grep.prepare({ pattern: "needle-b", path: "bin" })
+      ).run({});
       expect(result).toBe("[skipped 1 matches: binary file]");
     });
 
     test("a binary skip does not consume the results cap", async () => {
       const capped = createGrepTool({ root: notesRoot, maxResults: 1 });
-      const result = await capped.execute(
-        { pattern: "needle-k", path: "cap" },
-        {},
-      );
+      const result = await (
+        await capped.prepare({ pattern: "needle-k", path: "cap" })
+      ).run({});
       expect(result).toBe(
         "cap/ok.txt:1:1: needle-k ok\n[skipped 1 matches: binary file]",
       );
@@ -396,10 +400,9 @@ describe.skipIf(!hasRg)(
         root: notesRoot,
         maxOutputBytes: 4096,
       });
-      const result = await small.execute(
-        { pattern: "needle-c", path: "cut" },
-        {},
-      );
+      const result = await (
+        await small.prepare({ pattern: "needle-c", path: "cut" })
+      ).run({});
       expect(result).toBe("[results truncated]");
     });
 
@@ -449,7 +452,9 @@ process.exit(0);
         rgPath,
         maxResults: 1,
       });
-      const result = await grep.execute({ pattern: "needle-o" }, {});
+      const result = await (
+        await grep.prepare({ pattern: "needle-o" })
+      ).run({});
       expect(result).toBe(
         "order/a.txt:1:1: needle-o one\n" +
           "[results truncated]\n" +
@@ -479,7 +484,9 @@ process.exit(0);
         rgPath,
         maxOutputBytes: 4096,
       });
-      const result = await grep.execute({ pattern: "x" }, {});
+      const result = await (
+        await grep.prepare({ pattern: "x" })
+      ).run({});
       expect(result).toBe(
         "[results truncated]\n" +
           "[skipped 1 matches: not valid UTF-8]\n" +
@@ -512,10 +519,9 @@ describe.skipIf(!hasRg)(
     test.skipIf(process.getuid?.() === 0)(
       "a match from a readable file returns alongside a note naming the unreadable one",
       async () => {
-        const result = await grep.execute(
-          { pattern: "needle-p", path: "perm" },
-          {},
-        );
+        const result = await (
+          await grep.prepare({ pattern: "needle-p", path: "perm" })
+        ).run({});
         expect(result).toBe(
           "perm/ok.txt:1:1: needle-p ok\n" +
             "[search incomplete: ripgrep reported errors]\n" +
@@ -527,10 +533,9 @@ describe.skipIf(!hasRg)(
     test.skipIf(process.getuid?.() === 0)(
       "no matches plus an unreadable file returns the no-match sentence and the note",
       async () => {
-        const result = await grep.execute(
-          { pattern: "zzz-p", path: "perm" },
-          {},
-        );
+        const result = await (
+          await grep.prepare({ pattern: "zzz-p", path: "perm" })
+        ).run({});
         expect(result).toBe(
           "No matches for /zzz-p/ in perm.\n" +
             "[search incomplete: ripgrep reported errors]\n" +
@@ -567,10 +572,9 @@ describe.skipIf(!hasRg)(
     test.skipIf(process.getuid?.() === 0)(
       "the note lists at most five reasons and sums the rest into one line",
       async () => {
-        const result = await grep.execute(
-          { pattern: "x", path: "locked7" },
-          {},
-        );
+        const result = await (
+          await grep.prepare({ pattern: "x", path: "locked7" })
+        ).run({});
         const lines = result.split("\n");
         expect(lines).toHaveLength(8);
         expect(lines[0]).toBe("No matches for /x/ in locked7.");
@@ -617,7 +621,9 @@ process.exit(2);
       );
 
       const grep = createGrepTool({ root: fakeRoot, rgPath });
-      const result = await grep.execute({ pattern: "x" }, {});
+      const result = await (
+        await grep.prepare({ pattern: "x" })
+      ).run({});
       expect(result).toBe(
         "No matches for /x/ in the root.\n" +
           "[search incomplete: ripgrep reported errors]\n" +
@@ -636,7 +642,7 @@ process.exit(2);
 
       const grep = createGrepTool({ root: fakeRoot, rgPath });
       await expect(
-        grep.execute({ pattern: "x" }, {}),
+        (await grep.prepare({ pattern: "x" })).run({}),
       ).rejects.toMatchObject({
         name: "FileToolError",
         message: "ripgrep failed: rg: boom",
@@ -660,7 +666,9 @@ for (let i = 0; i < 5000; i++) {
         rgPath,
         maxOutputBytes: 4096,
       });
-      const result = await grep.execute({ pattern: "x" }, {});
+      const result = await (
+        await grep.prepare({ pattern: "x" })
+      ).run({});
       expect(result).toBe(
         "[results truncated]\n" +
           "[search incomplete: ripgrep reported errors]\n" +
@@ -701,7 +709,9 @@ describe.skipIf(!hasRg)(
 
     test("a match in a file named directly is refused as binary", async () => {
       await expect(
-        grep.execute({ pattern: "needle-d", path: "small.bin" }, {}),
+        (
+          await grep.prepare({ pattern: "needle-d", path: "small.bin" })
+        ).run({}),
       ).rejects.toMatchObject({
         name: "FileToolError",
         message: "binary file: small.bin",
@@ -710,7 +720,9 @@ describe.skipIf(!hasRg)(
 
     test("a directly named binary file is refused the same way when there is no match", async () => {
       await expect(
-        grep.execute({ pattern: "zzz-d", path: "small.bin" }, {}),
+        (
+          await grep.prepare({ pattern: "zzz-d", path: "small.bin" })
+        ).run({}),
       ).rejects.toMatchObject({
         name: "FileToolError",
         message: "binary file: small.bin",
@@ -719,7 +731,9 @@ describe.skipIf(!hasRg)(
 
     test("a directly named file is refused as binary even when the NUL is far into it", async () => {
       await expect(
-        grep.execute({ pattern: "needle-e", path: "late.bin" }, {}),
+        (
+          await grep.prepare({ pattern: "needle-e", path: "late.bin" })
+        ).run({}),
       ).rejects.toMatchObject({
         name: "FileToolError",
         message: "binary file: late.bin",
@@ -749,10 +763,12 @@ describe.skipIf(!hasRg)(
     test.skipIf(process.getuid?.() === 0)(
       "the binary check is skipped and ripgrep's own permission error comes back",
       async () => {
-        const result = await grep.execute(
-          { pattern: "x", path: "locked-direct.txt" },
-          {},
-        );
+        const result = await (
+          await grep.prepare({
+            pattern: "x",
+            path: "locked-direct.txt",
+          })
+        ).run({});
         expect(result).toBe(
           "No matches for /x/ in locked-direct.txt.\n" +
             "[search incomplete: ripgrep reported errors]\n" +
@@ -790,10 +806,9 @@ describe.skipIf(!hasRg)(
     test.skipIf(process.getuid?.() === 0)(
       "the UTF-8 skip note and the incomplete note both follow the match, incomplete last",
       async () => {
-        const result = await grep.execute(
-          { pattern: "needle-q", path: "perm2" },
-          {},
-        );
+        const result = await (
+          await grep.prepare({ pattern: "needle-q", path: "perm2" })
+        ).run({});
         expect(result).toBe(
           "perm2/ok.txt:1:1: needle-q ok\n" +
             "[skipped 1 matches: not valid UTF-8]\n" +

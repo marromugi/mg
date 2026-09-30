@@ -112,10 +112,14 @@ describe("createLoopHarness while held", () => {
     ]);
     const echo = vi.fn(async () => "echoed");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "echo",
       input: schema(),
-      execute: echo,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => echo(),
+        };
+      },
     });
     const hold = createHoldController();
     const harness = createLoopHarness({
@@ -159,12 +163,16 @@ describe("createLoopHarness while held", () => {
     const started = deferred<void>();
     const finishSlow = deferred<string>();
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "slow",
       input: schema(),
-      execute: async () => {
-        started.resolve();
-        return finishSlow.promise;
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            started.resolve();
+            return finishSlow.promise;
+          },
+        };
       },
     });
     const hold = createHoldController();
@@ -212,12 +220,16 @@ describe("createLoopHarness while held", () => {
     const hold = createHoldController();
     const wrapUp = new AbortController();
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "t",
       input: schema(),
-      execute: async () => {
-        hold.hold();
-        return "ok";
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            hold.hold();
+            return "ok";
+          },
+        };
       },
     });
     const harness = createLoopHarness({
@@ -250,12 +262,16 @@ describe("createLoopHarness while held", () => {
     const hold = createHoldController();
     const abort = new AbortController();
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "t",
       input: schema(),
-      execute: async () => {
-        hold.hold();
-        return "ok";
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            hold.hold();
+            return "ok";
+          },
+        };
       },
     });
     const harness = createLoopHarness({
@@ -290,12 +306,16 @@ describe("createLoopHarness while held", () => {
     ]);
     const received: { current?: SubagentContext["hold"] } = {};
     const helper: Subagent = {
-      reach: async () => ({ kind: "any-local" }),
       name: "helper",
       input: schema(),
-      start: async (_input, context) => {
-        received.current = context.hold;
-        return "helped";
+      async prepare(_input) {
+        return {
+          reach: { kind: "any-local" },
+          run: async (context) => {
+            received.current = context.hold;
+            return "helped";
+          },
+        };
       },
     };
     const hold = createHoldController();

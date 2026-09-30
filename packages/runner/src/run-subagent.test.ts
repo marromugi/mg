@@ -29,10 +29,14 @@ const stubSchema = (): ToolSchema => ({
 
 const stubTool = (name: string): Tool =>
   defineTool({
-    reach: async () => ({ kind: "any-local" }),
     name,
     input: stubSchema(),
-    execute: async () => `${name}-result`,
+    async prepare() {
+      return {
+        reach: { kind: "any-local" },
+        run: async () => `${name}-result`,
+      };
+    },
   });
 
 const stubGate = (): Gate => ({
@@ -445,13 +449,17 @@ describe("run with subagents and a hold", () => {
       finishNoop = resolve;
     });
     const noop = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "noop",
       input: stubSchema(),
-      execute: async () => {
-        noopStarted();
-        await finish;
-        return "ok";
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            noopStarted();
+            await finish;
+            return "ok";
+          },
+        };
       },
     });
 

@@ -49,7 +49,7 @@ describe("createShellTool", () => {
     const tool = createShellTool(client, {});
 
     expect(tool.name).toBe("shell");
-    await tool.execute({ command: "echo hi" }, {});
+    await (await tool.prepare({ command: "echo hi" })).run({});
 
     expect(client.calls).toHaveLength(1);
     expect(client.calls[0].command).toBe("echo hi");
@@ -59,7 +59,7 @@ describe("createShellTool", () => {
     const client = createFakeClient(okResult());
     const tool = createShellTool(client, { cwd: "/it's/a dir" });
 
-    await tool.execute({ command: "echo hi" }, {});
+    await (await tool.prepare({ command: "echo hi" })).run({});
 
     expect(client.calls[0].command).toBe(
       "cd '/it'\\''s/a dir' && echo hi",
@@ -73,7 +73,7 @@ describe("createShellTool", () => {
       maxOutputBytes: 10,
     });
 
-    await tool.execute({ command: "echo hi" }, {});
+    await (await tool.prepare({ command: "echo hi" })).run({});
 
     expect(client.calls[0].options.timeoutMs).toBe(1_000);
     expect(client.calls[0].options.maxOutputBytes).toBe(10);
@@ -85,7 +85,9 @@ describe("createShellTool", () => {
     );
     const tool = createShellTool(client, {});
 
-    const result = await tool.execute({ command: "cmd" }, {});
+    const result = await (
+      await tool.prepare({ command: "cmd" })
+    ).run({});
 
     expect(result).toBe("out\n[stderr]\nerr\n[exit code: 3]");
   });
@@ -96,9 +98,9 @@ describe("createShellTool", () => {
     );
     const tool = createShellTool(client, {});
 
-    await expect(tool.execute({ command: "cmd" }, {})).resolves.toBe(
-      "out",
-    );
+    await expect(
+      (await tool.prepare({ command: "cmd" })).run({}),
+    ).resolves.toBe("out");
   });
 
   test("marks a killing signal", async () => {
@@ -107,18 +109,18 @@ describe("createShellTool", () => {
     );
     const tool = createShellTool(client, {});
 
-    await expect(tool.execute({ command: "cmd" }, {})).resolves.toBe(
-      "out\n[killed by SIGKILL]",
-    );
+    await expect(
+      (await tool.prepare({ command: "cmd" })).run({}),
+    ).resolves.toBe("out\n[killed by SIGKILL]");
   });
 
   test("marks a timeout", async () => {
     const client = createFakeClient(okResult({ timedOut: true }));
     const tool = createShellTool(client, { timeoutMs: 5_000 });
 
-    await expect(tool.execute({ command: "cmd" }, {})).resolves.toBe(
-      "[timed out after 5000 ms]",
-    );
+    await expect(
+      (await tool.prepare({ command: "cmd" })).run({}),
+    ).resolves.toBe("[timed out after 5000 ms]");
   });
 
   test("marks truncated output", async () => {
@@ -127,9 +129,9 @@ describe("createShellTool", () => {
     );
     const tool = createShellTool(client, {});
 
-    await expect(tool.execute({ command: "cmd" }, {})).resolves.toBe(
-      "out\n[output truncated]",
-    );
+    await expect(
+      (await tool.prepare({ command: "cmd" })).run({}),
+    ).resolves.toBe("out\n[output truncated]");
   });
 
   test("lets an AbortError from an already-aborted signal through", async () => {
@@ -139,7 +141,9 @@ describe("createShellTool", () => {
     controller.abort();
 
     await expect(
-      tool.execute({ command: "cmd" }, { signal: controller.signal }),
+      (await tool.prepare({ command: "cmd" })).run({
+        signal: controller.signal,
+      }),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });

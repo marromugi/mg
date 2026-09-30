@@ -1,7 +1,8 @@
-import type { ToolCall, ToolMessage } from "@mg/core";
+import type { PreparedCall, ToolCall, ToolMessage } from "@mg/core";
 import {
   noopSpan,
-  runSubagentCall,
+  prepareSubagentCall,
+  type PrepareSubagentCall,
   type RunSubagentCall,
   type Subagent,
   type SubagentContext,
@@ -44,66 +45,97 @@ const startThreadSpan = (
   }
 };
 
+// Wraps each subagent's preparation so its prepared call runs under a
+// thread span. An unknown name or invalid input never reaches a
+// subagent, so it gets no thread.
 const withThread = (
   subagent: Subagent,
-  callSpan: TraceSpan,
+  callSpan: () => TraceSpan,
   newThreadId: () => string,
 ): Subagent => ({
   ...subagent,
-  start: async (input, context: SubagentContext) => {
-    const threadId = newThreadId();
-    setSpanAttributes(callSpan, { [ATTR.threadId]: threadId });
-    const thread = startThreadSpan(callSpan, threadId, subagent.name);
+  prepare: async (input) => {
+    const prepared = await subagent.prepare(input);
+    return {
+      reach: prepared.reach,
+      run: async (context: SubagentContext) => {
+        const threadId = newThreadId();
+        const parent = callSpan();
+        setSpanAttributes(parent, { [ATTR.threadId]: threadId });
+        const thread = startThreadSpan(parent, threadId, subagent.name);
 
-    try {
-      const result = await subagent.start(input, {
-        ...context,
-        trace: thread,
-      });
-      endSpan(thread);
-      return result;
-    } catch (error) {
-      endSpan(thread, error);
-      throw error;
-    }
+        try {
+          const result = await prepared.run({
+            ...context,
+            trace: thread,
+          });
+          endSpan(thread);
+          return result;
+        } catch (error) {
+          endSpan(thread, error);
+          throw error;
+        }
+      },
+    };
   },
 });
 
-const setResultAttribute = (
-  span: TraceSpan,
-  message: ToolMessage,
-): void => {
-  setSpanAttributes(span, { [ATTR.subagentResult]: message.content });
+const setResultAttribute = (span: TraceSpan, content: string): void => {
+  setSpanAttributes(span, { [ATTR.subagentResult]: content });
+};
+
+type TraceSubagentOptions = {
+  prepare?: PrepareSubagentCall;
+  newThreadId?: () => string;
+};
+
+export const tracePrepareSubagentCall = (
+  parent: TraceSpan,
+  options?: TraceSubagentOptions,
+): PrepareSubagentCall => {
+  const prepare = options?.prepare ?? prepareSubagentCall;
+  const newThreadId = options?.newThreadId ?? nanoid;
+
+  return async (
+    subagents: readonly Subagent[],
+    call: ToolCall,
+  ): Promise<PreparedCall<SubagentContext>> => {
+    let callSpan: TraceSpan = noopSpan;
+    const wrapped = subagents.map((subagent) =>
+      withThread(subagent, () => callSpan, newThreadId),
+    );
+    const prepared = await prepare(wrapped, call);
+    return {
+      reach: prepared.reach,
+      run: async (context) => {
+        callSpan = startCallSpan(parent, call);
+        try {
+          const content = await prepared.run(context);
+          setResultAttribute(callSpan, content);
+          endSpan(callSpan);
+          return content;
+        } catch (error) {
+          endSpan(callSpan, error);
+          throw error;
+        }
+      },
+    };
+  };
 };
 
 export const traceRunSubagentCall = (
   parent: TraceSpan,
-  options?: {
-    run?: RunSubagentCall;
-    newThreadId?: () => string;
-  },
+  options?: TraceSubagentOptions,
 ): RunSubagentCall => {
-  const run = options?.run ?? runSubagentCall;
-  const newThreadId = options?.newThreadId ?? nanoid;
+  const prepare = tracePrepareSubagentCall(parent, options);
 
   return async (
     subagents: readonly Subagent[],
     call: ToolCall,
     context?: SubagentContext,
   ): Promise<ToolMessage> => {
-    const callSpan = startCallSpan(parent, call);
-    const wrapped = subagents.map((subagent) =>
-      withThread(subagent, callSpan, newThreadId),
-    );
-
-    try {
-      const message = await run(wrapped, call, context);
-      setResultAttribute(callSpan, message);
-      endSpan(callSpan);
-      return message;
-    } catch (error) {
-      endSpan(callSpan, error);
-      throw error;
-    }
+    const prepared = await prepare(subagents, call);
+    const content = await prepared.run(context ?? {});
+    return { role: "tool", toolCallId: call.id, content };
   };
 };

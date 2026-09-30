@@ -34,10 +34,13 @@ describe("createEditFileTool", () => {
     await write("single.txt", "one\ntwo\nthree");
 
     await expect(
-      editFile.execute(
-        { path: "single.txt", oldString: "two", newString: "TWO" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "single.txt",
+          oldString: "two",
+          newString: "TWO",
+        })
+      ).run({}),
     ).resolves.toBe("Replaced 1 occurrence in single.txt (line 2).");
 
     expect(read("single.txt")).toBe("one\nTWO\nthree");
@@ -46,10 +49,13 @@ describe("createEditFileTool", () => {
   test("leaves the rest of the file untouched", async () => {
     await write("rest.txt", "alpha\nbeta\ngamma\ndelta");
 
-    await editFile.execute(
-      { path: "rest.txt", oldString: "gamma", newString: "GAMMA" },
-      {},
-    );
+    await (
+      await editFile.prepare({
+        path: "rest.txt",
+        oldString: "gamma",
+        newString: "GAMMA",
+      })
+    ).run({});
 
     expect(read("rest.txt")).toBe("alpha\nbeta\nGAMMA\ndelta");
   });
@@ -58,14 +64,13 @@ describe("createEditFileTool", () => {
     await write("multi.txt", "one\ntwo\nthree\nfour");
 
     await expect(
-      editFile.execute(
-        {
+      (
+        await editFile.prepare({
           path: "multi.txt",
           oldString: "two\nthree",
           newString: "TWO\nTHREE",
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).resolves.toBe("Replaced 1 occurrence in multi.txt (line 2).");
 
     expect(read("multi.txt")).toBe("one\nTWO\nTHREE\nfour");
@@ -75,10 +80,13 @@ describe("createEditFileTool", () => {
     await write("missing.txt", "one\ntwo\nthree");
 
     await expect(
-      editFile.execute(
-        { path: "missing.txt", oldString: "nope", newString: "NOPE" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "missing.txt",
+          oldString: "nope",
+          newString: "NOPE",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
 
     expect(read("missing.txt")).toBe("one\ntwo\nthree");
@@ -87,11 +95,14 @@ describe("createEditFileTool", () => {
   test("rejects two matches without replaceAll, naming the count and lines", async () => {
     await write("dupe.txt", "dup\nx\ndup\ny\nz");
 
-    const error: unknown = await editFile
-      .execute(
-        { path: "dupe.txt", oldString: "dup", newString: "DUP" },
-        {},
-      )
+    const error: unknown = await (
+      await editFile.prepare({
+        path: "dupe.txt",
+        oldString: "dup",
+        newString: "DUP",
+      })
+    )
+      .run({})
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(FileToolError);
@@ -105,15 +116,14 @@ describe("createEditFileTool", () => {
     await write("all.txt", "dup\nx\ndup\ny\ndup");
 
     await expect(
-      editFile.execute(
-        {
+      (
+        await editFile.prepare({
           path: "all.txt",
           oldString: "dup",
           newString: "DUP",
           replaceAll: true,
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).resolves.toBe(
       "Replaced 3 occurrences in all.txt (lines 1, 3, 5).",
     );
@@ -124,10 +134,13 @@ describe("createEditFileTool", () => {
   test("inserts newString containing $& literally", async () => {
     await write("dollar.txt", "one\ntwo\nthree");
 
-    await editFile.execute(
-      { path: "dollar.txt", oldString: "two", newString: "$&$&" },
-      {},
-    );
+    await (
+      await editFile.prepare({
+        path: "dollar.txt",
+        oldString: "two",
+        newString: "$&$&",
+      })
+    ).run({});
 
     expect(read("dollar.txt")).toBe("one\n$&$&\nthree");
   });
@@ -136,10 +149,13 @@ describe("createEditFileTool", () => {
     await write("same.txt", "one\ntwo\nthree");
 
     await expect(
-      editFile.execute(
-        { path: "same.txt", oldString: "two", newString: "two" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "same.txt",
+          oldString: "two",
+          newString: "two",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
 
     expect(read("same.txt")).toBe("one\ntwo\nthree");
@@ -148,10 +164,13 @@ describe("createEditFileTool", () => {
   test("keeps CRLF line endings after an edit", async () => {
     await write("crlf.txt", "one\r\ntwo\r\nthree");
 
-    await editFile.execute(
-      { path: "crlf.txt", oldString: "two", newString: "TWO" },
-      {},
-    );
+    await (
+      await editFile.prepare({
+        path: "crlf.txt",
+        oldString: "two",
+        newString: "TWO",
+      })
+    ).run({});
 
     expect(read("crlf.txt")).toBe("one\r\nTWO\r\nthree");
   });
@@ -163,15 +182,14 @@ describe("createEditFileTool", () => {
     const outsidePath = join(outsideDir, "outside-target.txt");
     await writeFile(outsidePath, "content");
 
-    const error: unknown = await editFile
-      .execute(
-        {
-          path: outsidePath,
-          oldString: "content",
-          newString: "changed",
-        },
-        {},
-      )
+    const error: unknown = await (
+      await editFile.prepare({
+        path: outsidePath,
+        oldString: "content",
+        newString: "changed",
+      })
+    )
+      .run({})
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(FileToolError);
@@ -183,10 +201,13 @@ describe("createEditFileTool", () => {
 
   test("rejects a missing file", async () => {
     await expect(
-      editFile.execute(
-        { path: "does-not-exist.txt", oldString: "a", newString: "b" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "does-not-exist.txt",
+          oldString: "a",
+          newString: "b",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -194,10 +215,13 @@ describe("createEditFileTool", () => {
     await mkdir(join(root, "adir"), { recursive: true });
 
     await expect(
-      editFile.execute(
-        { path: "adir", oldString: "a", newString: "b" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "adir",
+          oldString: "a",
+          newString: "b",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -205,10 +229,13 @@ describe("createEditFileTool", () => {
     await write("binary.txt", "one\0two");
 
     await expect(
-      editFile.execute(
-        { path: "binary.txt", oldString: "one", newString: "ONE" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "binary.txt",
+          oldString: "one",
+          newString: "ONE",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -217,10 +244,13 @@ describe("createEditFileTool", () => {
     await writeFile(join(root, "invalid-utf8.txt"), invalidBytes);
 
     await expect(
-      editFile.execute(
-        { path: "invalid-utf8.txt", oldString: "a", newString: "b" },
-        {},
-      ),
+      (
+        await editFile.prepare({
+          path: "invalid-utf8.txt",
+          oldString: "a",
+          newString: "b",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
 
     expect(readFileSync(join(root, "invalid-utf8.txt"))).toEqual(
@@ -234,10 +264,13 @@ describe("createEditFileTool", () => {
     controller.abort();
 
     await expect(
-      editFile.execute(
-        { path: "aborted.txt", oldString: "two", newString: "TWO" },
-        { signal: controller.signal },
-      ),
+      (
+        await editFile.prepare({
+          path: "aborted.txt",
+          oldString: "two",
+          newString: "TWO",
+        })
+      ).run({ signal: controller.signal }),
     ).rejects.toMatchObject({ name: "AbortError" });
 
     expect(read("aborted.txt")).toBe("one\ntwo\nthree");

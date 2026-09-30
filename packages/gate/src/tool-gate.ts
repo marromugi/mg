@@ -1,6 +1,7 @@
 import {
-  runToolCall,
+  prepareToolCall,
   type Callee,
+  type PreparedCall,
   type Reach,
   type Tool,
   type ToolCall,
@@ -9,7 +10,6 @@ import {
   type ToolMessage,
 } from "@mg/core";
 import type { TraceSpan } from "@mg/harness";
-import type { RunToolCall } from "@mg/trace";
 import { isAbortError } from "./abort.js";
 import { GateError } from "./errors.js";
 import type { Gate, GateRequest, Verdict } from "./types.js";
@@ -44,17 +44,14 @@ const describeToolCall = (
   ].join("\n");
 };
 
-export const toToolCallRequest = async (
-  callees: readonly Callee[],
+export const toToolCallRequest = (
+  callees: readonly ToolDefinition[],
   call: ToolCall,
-): Promise<GateRequest> => {
+  reach: Reach,
+): GateRequest => {
   const callee = callees.find(
     (candidate) => candidate.name === call.name,
   );
-  const reach: Reach =
-    callee === undefined
-      ? { kind: "any-local" }
-      : await callee.reach(call.arguments);
   const payload: ToolCallPayload = {
     call,
     tool: callee === undefined ? undefined : toToolDefinition(callee),
@@ -80,6 +77,11 @@ const toErrorMessage = (error: unknown): string =>
       ? error.message
       : String(error);
 
+type PrepareCallee<TCallee extends Callee, TContext> = (
+  callees: readonly TCallee[],
+  call: ToolCall,
+) => Promise<PreparedCall<TContext>>;
+
 type RunCallee<TCallee extends Callee, TContext> = (
   callees: readonly TCallee[],
   call: ToolCall,
@@ -88,15 +90,15 @@ type RunCallee<TCallee extends Callee, TContext> = (
 
 export function gateRunToolCall(
   gate: Gate,
-  run?: RunToolCall,
+  prepare?: undefined,
   parent?: TraceSpan,
-): RunToolCall;
+): RunCallee<Tool, ToolContext>;
 export function gateRunToolCall<
   TCallee extends Callee,
   TContext extends { signal?: AbortSignal },
 >(
   gate: Gate,
-  run: RunCallee<TCallee, TContext>,
+  prepare: PrepareCallee<TCallee, TContext>,
   parent?: TraceSpan,
 ): RunCallee<TCallee, TContext>;
 export function gateRunToolCall<
@@ -104,10 +106,7 @@ export function gateRunToolCall<
   TContext extends { signal?: AbortSignal } = ToolContext,
 >(
   gate: Gate,
-  run: RunCallee<
-    TCallee,
-    TContext
-  > = runToolCall as unknown as RunCallee<TCallee, TContext>,
+  prepare: PrepareCallee<TCallee, TContext> = prepareToolCall,
   parent?: TraceSpan,
 ): RunCallee<TCallee, TContext> {
   return async (
@@ -115,9 +114,11 @@ export function gateRunToolCall<
     call: ToolCall,
     context?: TContext,
   ): Promise<ToolMessage> => {
+    let prepared: PreparedCall<TContext>;
     let verdict: Verdict;
     try {
-      const request = await toToolCallRequest(callees, call);
+      prepared = await prepare(callees, call);
+      const request = toToolCallRequest(callees, call, prepared.reach);
       verdict = await gate.judge(request, {
         signal: context?.signal,
         ...(parent === undefined ? {} : { trace: parent }),
@@ -141,6 +142,7 @@ export function gateRunToolCall<
       };
     }
 
-    return run(callees, call, context);
+    const content = await prepared.run(context ?? ({} as TContext));
+    return { role: "tool", toolCallId: call.id, content };
   };
 }

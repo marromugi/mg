@@ -3,6 +3,7 @@ import {
   SubagentInputError,
   SubagentNotFoundError,
   type Subagent,
+  type SubagentContext,
   type TraceSpan,
 } from "@mg/harness";
 import { describe, expect, it } from "vitest";
@@ -31,14 +32,23 @@ const promptSchema = {
   },
 } as const satisfies ToolSchema;
 
+type Start = (
+  input: unknown,
+  context: SubagentContext,
+) => Promise<string>;
+
 const stubResearcher = (
-  start: Subagent<typeof promptSchema>["start"],
+  start: Start,
 ): Subagent<typeof promptSchema> => ({
-  reach: async () => ({ kind: "any-local" }),
   name: "researcher",
   description: "looks things up",
   input: promptSchema,
-  start,
+  async prepare(input) {
+    return {
+      reach: { kind: "any-local" },
+      run: async (context) => start(input, context),
+    };
+  },
 });
 
 const call: ToolCall = {

@@ -1,6 +1,20 @@
-import type { EstimateRequest, Estimator, Provider } from "@mg/core";
+import {
+  prepareToolCall,
+  type EstimateRequest,
+  type Estimator,
+  type Provider,
+  type Tool,
+  type ToolCall,
+} from "@mg/core";
 import { toToolCallRequest } from "@mg/gate";
 import { describe, expect, it } from "vitest";
+
+const requestOf = async (tools: readonly Tool[], call: ToolCall) =>
+  toToolCallRequest(
+    tools,
+    call,
+    (await prepareToolCall(tools, call)).reach,
+  );
 
 process.env.OPENROUTER_API_KEY = "test";
 process.env.TYPESAFE_API_KEY = "test";
@@ -33,7 +47,7 @@ describe("loop-bash-jev-gate gate", () => {
     const config = buildLoopBashJevGateRun({ provider, estimator });
 
     await config.gate.judge(
-      await toToolCallRequest(config.tools ?? [], {
+      await requestOf(config.tools ?? [], {
         id: "c1",
         name: "bash",
         arguments: { command: "ls" },

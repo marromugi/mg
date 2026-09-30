@@ -360,10 +360,14 @@ describe("createLoopHarness", () => {
       arguments: {},
     };
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => "a-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "a-result",
+        };
+      },
     });
     const provider = stubProvider([
       {
@@ -414,10 +418,14 @@ describe("createLoopHarness", () => {
 
   test("a streamed tool call shows bare in the harness event and carries in the assistant message", async () => {
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "echo",
       input: stubSchema(),
-      execute: async () => "pong",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "pong",
+        };
+      },
     });
     const provider = stubStreamProvider([
       [
@@ -494,10 +502,14 @@ describe("createLoopHarness", () => {
     };
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
 
     const generate = vi.fn(async () => {
@@ -569,21 +581,29 @@ describe("createLoopHarness", () => {
     const bDeferred = deferred<string>();
 
     const toolA: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => {
-        started.push("a");
-        return aDeferred.promise;
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            started.push("a");
+            return aDeferred.promise;
+          },
+        };
       },
     });
     const toolB: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "b",
       input: stubSchema(),
-      execute: async () => {
-        started.push("b");
-        return bDeferred.promise;
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            started.push("b");
+            return bDeferred.promise;
+          },
+        };
       },
     });
 
@@ -833,16 +853,24 @@ describe("createLoopHarness", () => {
     };
     const toolCalls: ToolCall[] = [toolCallA, toolCallB];
     const toolA: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => "a-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "a-result",
+        };
+      },
     });
     const toolB: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "b",
       input: stubSchema(),
-      execute: async () => "b-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "b-result",
+        };
+      },
     });
 
     const streamProvider = stubStreamProvider([
@@ -1008,18 +1036,26 @@ describe("createLoopHarness", () => {
 
   test("a failing tool call yields an error message and the loop continues", async () => {
     const toolA: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => {
-        throw new Error("boom");
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            throw new Error("boom");
+          },
+        };
       },
     });
     const toolB: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "b",
       input: stubSchema(),
-      execute: async () => "b-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "b-result",
+        };
+      },
     });
 
     const toolCalls: ToolCall[] = [
@@ -1086,11 +1122,15 @@ describe("createLoopHarness", () => {
   test("an AbortError thrown by execute rejects the harness with the same error", async () => {
     const abortError = new DOMException("aborted", "AbortError");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => {
-        throw abortError;
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            throw abortError;
+          },
+        };
       },
     });
     const toolCall: ToolCall = {
@@ -1126,10 +1166,14 @@ describe("createLoopHarness", () => {
       arguments: {},
     };
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => "a-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "a-result",
+        };
+      },
     });
     const provider = stubProvider([
       {
@@ -1265,10 +1309,14 @@ describe("createLoopHarness", () => {
   test("a gate that denies leaves the tool unrun, appends the denial as the tool result, and the loop proceeds to the next turn", async () => {
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const toolCall: ToolCall = {
       id: "call-1",
@@ -1326,10 +1374,14 @@ describe("createLoopHarness", () => {
   test("a gate that allows runs the tool", async () => {
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const toolCall: ToolCall = {
       id: "call-1",
@@ -1368,10 +1420,14 @@ describe("createLoopHarness", () => {
   test("with a trace and a gate, mg.gate is a sibling of mg.tool under mg.harness, and a denied call produces no mg.tool span", async () => {
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const toolCall: ToolCall = {
       id: "call-1",
@@ -1463,16 +1519,24 @@ describe("createLoopHarness tool list in the request", () => {
 
   test("lists the tools first, then the subagents", async () => {
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => "a-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "a-result",
+        };
+      },
     });
     const helper: Subagent = {
-      reach: async () => ({ kind: "any-local" }),
       name: "helper",
       input: stubSchema(),
-      start: async () => "helped",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "helped",
+        };
+      },
     };
 
     const request = await firstRequest(oneTurn(), {
@@ -1545,10 +1609,14 @@ describe("createLoopHarness wrapping up", () => {
     ]);
     const execute = vi.fn(async () => "ls-result");
     const ls: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ls",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const harness = createLoopHarness({
       provider,
@@ -1627,10 +1695,14 @@ describe("createLoopHarness wrapping up", () => {
     const controller = new AbortController();
     const execute = vi.fn(async () => "ls-result");
     const ls: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ls",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const generate = vi.fn(async (): Promise<GenerateResponse> => {
       controller.abort();
@@ -1681,21 +1753,29 @@ describe("createLoopHarness wrapping up", () => {
       return { promise, resolve };
     })();
     const slow: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "slow",
       input: stubSchema(),
-      execute: (_input, context) => {
-        slowContext.signal = context.signal;
-        return new Promise<string>(() => {});
+      async prepare(_input) {
+        return {
+          reach: { kind: "any-local" },
+          run: async (context) => {
+            slowContext.signal = context.signal;
+            return new Promise<string>(() => {});
+          },
+        };
       },
     });
     const fast: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "fast",
       input: stubSchema(),
-      execute: async () => {
-        fastDeferred.resolve();
-        return "ok";
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => {
+            fastDeferred.resolve();
+            return "ok";
+          },
+        };
       },
     });
     const provider = stubProvider([
@@ -1744,10 +1824,14 @@ describe("createLoopHarness wrapping up", () => {
     const controller = new AbortController();
     const execute = vi.fn(async () => "ok");
     const ls: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ls",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const provider = stubProvider([
       {
@@ -1974,10 +2058,14 @@ describe("createLoopHarness stop reason attribute", () => {
       arguments: {},
     };
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => "a-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "a-result",
+        };
+      },
     });
     const provider = stubProvider([
       {

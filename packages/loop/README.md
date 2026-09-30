@@ -135,7 +135,7 @@ First it opens an `mg.harness` span.
 Its `mg.harness.name` is `loop`.
 
 The provider is wrapped with `traceProvider`.
-Tool execution is wrapped with `traceRunToolCall`.
+Tool preparation is wrapped with `tracePrepareToolCall`.
 
 As a result, `mg.llm` and `mg.tool` spans appear underneath.
 Without a parent span, none of this happens.

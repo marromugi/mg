@@ -198,10 +198,14 @@ const stubSchema = (): ToolSchema => ({
 
 const stubTool = (name: string): Tool =>
   defineTool({
-    reach: async () => ({ kind: "any-local" }),
     name,
     input: stubSchema(),
-    execute: async () => `${name}-result`,
+    async prepare() {
+      return {
+        reach: { kind: "any-local" },
+        run: async () => `${name}-result`,
+      };
+    },
   });
 
 type FakeConnectorHooks = {
@@ -994,10 +998,14 @@ describe("run with call-only tools", () => {
     const workspaceTool = stubTool("b");
     const askExecute = vi.fn(async () => "queued: w1");
     const askTool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ask",
       input: stubSchema(),
-      execute: askExecute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => askExecute(),
+        };
+      },
     });
     const { provider, requests } = trackingProvider([
       {
@@ -1110,10 +1118,14 @@ describe("run with call-only tools", () => {
   test("the config's gate judges a call to a call-only tool and blocks it when it denies", async () => {
     const askExecute = vi.fn(async () => "should not run");
     const askTool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ask",
       input: stubSchema(),
-      execute: askExecute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => askExecute(),
+        };
+      },
     });
     const provider = stubProvider([
       {

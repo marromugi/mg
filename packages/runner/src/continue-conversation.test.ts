@@ -140,18 +140,23 @@ const countingReadStore = (
 };
 
 const echoTool: Tool = defineTool({
-  reach: async () => ({ kind: "any-local" }),
   name: "echo",
   input: z.object({ text: z.string() }),
-  execute: async () => "pong",
+  async prepare() {
+    return { reach: { kind: "any-local" }, run: async () => "pong" };
+  },
 });
 
 const stubTool = (name: string): Tool =>
   defineTool({
-    reach: async () => ({ kind: "any-local" }),
     name,
     input: z.object({}),
-    execute: async () => `${name}-result`,
+    async prepare() {
+      return {
+        reach: { kind: "any-local" },
+        run: async () => `${name}-result`,
+      };
+    },
   });
 
 const countingOpenWorkspace = (): {
@@ -631,10 +636,14 @@ describe("createContinueConversation", () => {
     await store.create("t1");
     const controller = new AbortController();
     const askTool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ask",
       input: z.object({}),
-      execute: async () => "queued: w1",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "queued: w1",
+        };
+      },
     });
     const optionsSeen: (RunOptions | undefined)[] = [];
     const fakeRun = async (

@@ -48,13 +48,15 @@ export const createBrowserTools = (
       "Navigates the browser to a URL. Returns the resulting page title " +
       "and URL as text.",
     input: navigateInput,
-    async reach() {
-      return { kind: "outside" };
-    },
-    async execute({ url }, context) {
-      context.signal?.throwIfAborted();
-      const result = await page.navigate(url);
-      return `${result.title}\n${result.url}`;
+    async prepare({ url }) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          context.signal?.throwIfAborted();
+          const result = await page.navigate(url);
+          return `${result.title}\n${result.url}`;
+        },
+      };
     },
   };
 
@@ -64,16 +66,18 @@ export const createBrowserTools = (
       "Returns the current page's content as an accessibility tree of " +
       "roles and names.",
     input: readInput,
-    async reach() {
-      return { kind: "outside" };
-    },
-    async execute(_input, context) {
-      context.signal?.throwIfAborted();
-      const snapshot = await page.snapshot();
-      const truncated = truncateToBytes(snapshot, maxOutputBytes);
-      return truncated === snapshot
-        ? snapshot
-        : `${truncated}\n[output truncated]`;
+    async prepare(_input) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          context.signal?.throwIfAborted();
+          const snapshot = await page.snapshot();
+          const truncated = truncateToBytes(snapshot, maxOutputBytes);
+          return truncated === snapshot
+            ? snapshot
+            : `${truncated}\n[output truncated]`;
+        },
+      };
     },
   };
 
@@ -82,13 +86,15 @@ export const createBrowserTools = (
     description:
       "Clicks the element with the given accessibility role and name.",
     input: clickInput,
-    async reach() {
-      return { kind: "outside" };
-    },
-    async execute({ role, name }, context) {
-      context.signal?.throwIfAborted();
-      await page.click(role, name);
-      return "clicked";
+    async prepare({ role, name }) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          context.signal?.throwIfAborted();
+          await page.click(role, name);
+          return "clicked";
+        },
+      };
     },
   };
 
@@ -98,13 +104,15 @@ export const createBrowserTools = (
       "Types text into the element with the given accessibility role " +
       "and name, optionally submitting with Enter.",
     input: typeInput,
-    async reach() {
-      return { kind: "outside" };
-    },
-    async execute({ role, name, text, submit }, context) {
-      context.signal?.throwIfAborted();
-      await page.type(role, name, text, submit ?? false);
-      return "typed";
+    async prepare({ role, name, text, submit }) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          context.signal?.throwIfAborted();
+          await page.type(role, name, text, submit ?? false);
+          return "typed";
+        },
+      };
     },
   };
 

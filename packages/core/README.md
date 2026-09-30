@@ -30,11 +30,11 @@ const echo = defineTool({
   name: "echo",
   description: "Returns the text as is.",
   input: z.object({ text: z.string() }),
-  async reach() {
-    return { kind: "none" };
-  },
-  async execute({ text }) {
-    return text;
+  async prepare({ text }) {
+    return {
+      reach: { kind: "none" },
+      run: async () => text,
+    };
   },
 });
 
@@ -373,8 +373,12 @@ tool is created.
 
 ### Reach
 
-A tool declares what a call touches as a `reach`.
-It has one of four kinds.
+A tool prepares a call from valid input.
+Preparing gives back a prepared call (`PreparedCall`).
+It holds the `reach` the call declares and the `run` action bound to that reach.
+A tool has no other way to act.
+
+The `reach` has one of four kinds.
 
 - `paths` is a list of local paths.
   Each entry has an extent of `file` (that path only) or `tree` (everything under it).
@@ -384,10 +388,15 @@ It has one of four kinds.
 
 Each `paths` entry names an absolute path with links followed.
 
-### Run function
+### Prepare function and run function
 
-The run function takes a list of tools and a call request.
-It finds the tool by name, validates the arguments, then runs it.
+The prepare function (`prepareToolCall`) takes a list of tools and a call request.
+It finds the tool by name, validates the arguments, then prepares the call.
+It gives back a prepared call for every call.
+For an unknown name or invalid input, the prepared call declares `any-local`,
+and its `run` throws the not-found or input error.
+
+The run function (`runToolCall`) prepares the call and runs it.
 The result comes back as a message carrying the tool's result.
 
 ### Layout
@@ -400,7 +409,7 @@ src/
 ├── http/       reader for the Retry-After header, internal to core
 ├── providers/  provider types, errors, and the OpenRouter and ollama implementations
 ├── retry/      the retry schedule that the retries share
-└── tools/      runnable tool types, the run function, and its errors
+└── tools/      runnable tool types, the prepare and run functions, and their errors
 ```
 
 The main names are listed by folder.
@@ -432,7 +441,9 @@ tools/
   Tool, defineTool          type of runnable tools, and a helper for defining them
   ToolInput, ToolInputIssue type of validated input, and type of one issue
   validateToolInput         validates input against the schema
-  runToolCall               validates and runs one call
+  Callee, PreparedCall      type of what the model can call, and type of one prepared call
+  prepareToolCall           finds the tool, validates the input and prepares one call
+  runToolCall               prepares and runs one call
 ```
 
 ## Non-goals

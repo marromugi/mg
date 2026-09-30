@@ -1,5 +1,12 @@
 import type { ToolCall, ToolSchema } from "@mg/core";
-import { describe, expect, expectTypeOf, test, vi } from "vitest";
+import {
+  describe,
+  expect,
+  expectTypeOf,
+  test,
+  vi,
+  type Mock,
+} from "vitest";
 import {
   runSubagentCall,
   type Subagent,
@@ -45,14 +52,27 @@ const promptSchema = {
   },
 } as const satisfies ToolSchema;
 
+type Start = (
+  input: { prompt: string },
+  context: SubagentContext,
+) => Promise<string>;
+
 const stubResearcher = (
-  start: Subagent<typeof promptSchema>["start"],
-): Subagent<typeof promptSchema> => ({
-  reach: async () => ({ kind: "any-local" }),
-  name: "researcher",
-  input: promptSchema,
-  start: vi.fn(start),
-});
+  run: Start,
+): Subagent<typeof promptSchema> & { start: Mock<Start> } => {
+  const start = vi.fn(run);
+  return {
+    name: "researcher",
+    input: promptSchema,
+    async prepare(input) {
+      return {
+        reach: { kind: "any-local" },
+        run: (context) => start(input, context),
+      };
+    },
+    start,
+  };
+};
 
 describe("SubagentContext", () => {
   test("wrapUp is an optional AbortSignal separate from signal", () => {

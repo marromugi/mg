@@ -27,7 +27,12 @@ describe("createWriteFileTool", () => {
 
   test("creates a new file", async () => {
     await expect(
-      writeFile.execute({ path: "new.txt", content: "one\ntwo" }, {}),
+      (
+        await writeFile.prepare({
+          path: "new.txt",
+          content: "one\ntwo",
+        })
+      ).run({}),
     ).resolves.toBe("Wrote new.txt (2 lines).");
 
     expect(readFileSync(join(root, "new.txt"), "utf8")).toBe(
@@ -37,10 +42,12 @@ describe("createWriteFileTool", () => {
 
   test("creates missing parent directories", async () => {
     await expect(
-      writeFile.execute(
-        { path: "nested/dir/new.txt", content: "hi" },
-        {},
-      ),
+      (
+        await writeFile.prepare({
+          path: "nested/dir/new.txt",
+          content: "hi",
+        })
+      ).run({}),
     ).resolves.toBe("Wrote nested/dir/new.txt (1 lines).");
 
     expect(
@@ -49,13 +56,20 @@ describe("createWriteFileTool", () => {
   });
 
   test("overwrites an existing file completely", async () => {
-    await writeFile.execute(
-      { path: "existing.txt", content: "old content\nmore old" },
-      {},
-    );
+    await (
+      await writeFile.prepare({
+        path: "existing.txt",
+        content: "old content\nmore old",
+      })
+    ).run({});
 
     await expect(
-      writeFile.execute({ path: "existing.txt", content: "new" }, {}),
+      (
+        await writeFile.prepare({
+          path: "existing.txt",
+          content: "new",
+        })
+      ).run({}),
     ).resolves.toBe("Wrote existing.txt (1 lines).");
 
     expect(readFileSync(join(root, "existing.txt"), "utf8")).toBe(
@@ -65,7 +79,9 @@ describe("createWriteFileTool", () => {
 
   test("empty content reports 0 lines", async () => {
     await expect(
-      writeFile.execute({ path: "empty.txt", content: "" }, {}),
+      (await writeFile.prepare({ path: "empty.txt", content: "" })).run(
+        {},
+      ),
     ).resolves.toBe("Wrote empty.txt (0 lines).");
 
     expect(readFileSync(join(root, "empty.txt"), "utf8")).toBe("");
@@ -73,10 +89,12 @@ describe("createWriteFileTool", () => {
 
   test("rejects a path outside the root and writes nothing", async () => {
     await expect(
-      writeFile.execute(
-        { path: "../outside.txt", content: "nope" },
-        {},
-      ),
+      (
+        await writeFile.prepare({
+          path: "../outside.txt",
+          content: "nope",
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
 
     const outsidePath = join(root, "..", "outside.txt");
@@ -87,7 +105,9 @@ describe("createWriteFileTool", () => {
     await mkdir(join(root, "adir"), { recursive: true });
 
     await expect(
-      writeFile.execute({ path: "adir", content: "nope" }, {}),
+      (await writeFile.prepare({ path: "adir", content: "nope" })).run(
+        {},
+      ),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -100,7 +120,9 @@ describe("createWriteFileTool", () => {
     }
 
     await expect(
-      writeFile.execute({ path: "pipe.fifo", content: "nope" }, {}),
+      (
+        await writeFile.prepare({ path: "pipe.fifo", content: "nope" })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -109,10 +131,12 @@ describe("createWriteFileTool", () => {
     controller.abort();
 
     await expect(
-      writeFile.execute(
-        { path: "aborted.txt", content: "content" },
-        { signal: controller.signal },
-      ),
+      (
+        await writeFile.prepare({
+          path: "aborted.txt",
+          content: "content",
+        })
+      ).run({ signal: controller.signal }),
     ).rejects.toMatchObject({ name: "AbortError" });
 
     expect(() =>

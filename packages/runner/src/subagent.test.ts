@@ -5,6 +5,7 @@ import type {
   Provider,
   StreamEvent,
   Tool,
+  ToolContext,
   ToolSchema,
 } from "@mg/core";
 import { defineTool } from "@mg/core";
@@ -64,13 +65,20 @@ const stubSchema = (): ToolSchema => ({
 
 const stubTool = (
   name: string,
-  execute: Tool["execute"] = async () => `${name}-result`,
+  execute: (
+    input: unknown,
+    context: ToolContext,
+  ) => Promise<string> = async () => `${name}-result`,
 ): Tool =>
   defineTool({
-    reach: async () => ({ kind: "any-local" }),
     name,
     input: stubSchema(),
-    execute,
+    async prepare(input) {
+      return {
+        reach: { kind: "any-local" },
+        run: async (context) => execute(input, context),
+      };
+    },
   });
 
 const scriptedProvider = (
@@ -346,7 +354,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe("answer");
     expect(requests[0]).toEqual([
@@ -377,7 +387,7 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    await subagent.start({ prompt: "find x" }, {});
+    await (await subagent.prepare({ prompt: "find x" })).run({});
 
     expect(requests[0]).toEqual([{ role: "user", content: "find x" }]);
   });
@@ -401,7 +411,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe(
       "[empty] The subagent finished without a final message.",
@@ -438,7 +450,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe(
       "[incomplete] The subagent reached its turn limit of 1 before finishing. No final answer was produced. Its last message before the limit follows:\nthinking",
@@ -474,7 +488,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe(
       "[incomplete] The subagent reached its turn limit of 1 before finishing. No final answer was produced. Its last message before the limit was empty.",
@@ -503,7 +519,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe(
       "[incomplete] The subagent's output was cut off at the model's length limit. The cut-off text follows:\npartial ans",
@@ -529,7 +547,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe(
       "[incomplete] The subagent's output was cut off at the model's length limit. The cut-off text was empty.",
@@ -554,7 +574,7 @@ describe("createSubagent", () => {
     );
 
     await expect(
-      subagent.start({ prompt: "find x" }, {}),
+      (await subagent.prepare({ prompt: "find x" })).run({}),
     ).rejects.toThrow(error);
   });
 
@@ -597,7 +617,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(execute).not.toHaveBeenCalled();
     expect(result).toBe("ok");
@@ -626,7 +648,9 @@ describe("createSubagent", () => {
     );
     const t = new RecordingSpan("t");
 
-    await subagent.start({ prompt: "find x" }, { trace: t });
+    await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({ trace: t });
 
     expect(t.children.map((child) => child.name)).toEqual([
       "mg.harness",
@@ -662,10 +686,9 @@ describe("createSubagent", () => {
     controller.abort();
 
     await expect(
-      subagent.start(
-        { prompt: "find x" },
-        { signal: controller.signal },
-      ),
+      (await subagent.prepare({ prompt: "find x" })).run({
+        signal: controller.signal,
+      }),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(generate).not.toHaveBeenCalled();
   });
@@ -688,10 +711,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start(
-      { prompt: "go" },
-      { wrapUp: controller.signal },
-    );
+    const result = await (
+      await subagent.prepare({ prompt: "go" })
+    ).run({ wrapUp: controller.signal });
 
     expect(result).toBe(
       "[incomplete] The subagent was wrapped up by its caller before finishing. The text it had written by then follows:\nHalf",
@@ -717,10 +739,9 @@ describe("createSubagent", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start(
-      { prompt: "go" },
-      { wrapUp: controller.signal },
-    );
+    const result = await (
+      await subagent.prepare({ prompt: "go" })
+    ).run({ wrapUp: controller.signal });
 
     expect(result).toBe(
       "[incomplete] The subagent was wrapped up by its caller before finishing. The text it had written by then was empty.",
@@ -790,7 +811,9 @@ describe("createSubagent with a workspace", () => {
       environmentFor(),
     );
 
-    const result = await subagent.start({ prompt: "find x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({});
 
     expect(result).toBe("ok");
     expect(requests[0]?.tools?.map((tool) => tool.name)).toEqual([
@@ -800,7 +823,7 @@ describe("createSubagent with a workspace", () => {
     expect(opens).toBe(1);
     expect(closes).toBe(1);
 
-    await subagent.start({ prompt: "find x" }, {});
+    await (await subagent.prepare({ prompt: "find x" })).run({});
 
     expect(opens).toBe(2);
     expect(closes).toBe(2);
@@ -835,7 +858,7 @@ describe("createSubagent with a workspace", () => {
       environmentFor({ parent }),
     );
 
-    await subagent.start({ prompt: "find x" }, {});
+    await (await subagent.prepare({ prompt: "find x" })).run({});
 
     expect(requests[0]?.tools?.map((tool) => tool.name)).toContain(
       "shared",
@@ -948,7 +971,9 @@ describe("createSubagent with a workspace", () => {
       ),
     ).toBe(true);
 
-    const result = await subagent.start({ prompt: "x" }, {});
+    const result = await (
+      await subagent.prepare({ prompt: "x" })
+    ).run({});
 
     expect(result).toBe("ok");
     expect(requests[0]?.tools?.map((tool) => tool.name)).toEqual([
@@ -1056,18 +1081,22 @@ describe("createSubagent with a workspace", () => {
       environmentFor({ parent }),
     );
 
-    await subagent.start(
-      { prompt: "x", workspace: "clean-browser" },
-      {},
-    );
+    await (
+      await subagent.prepare({
+        prompt: "x",
+        workspace: "clean-browser",
+      })
+    ).run({});
 
     expect(ownOpens).toBe(1);
     expect(ownCloses).toBe(1);
 
-    await subagent.start(
-      { prompt: "x", workspace: "build-machine" },
-      {},
-    );
+    await (
+      await subagent.prepare({
+        prompt: "x",
+        workspace: "build-machine",
+      })
+    ).run({});
 
     expect(ownOpens).toBe(1);
     expect(requests[1]?.tools?.map((tool) => tool.name)).toContain(
@@ -1112,7 +1141,7 @@ describe("createSubagent with a workspace", () => {
     );
 
     await expect(
-      subagent.start({ prompt: "find x" }, {}),
+      (await subagent.prepare({ prompt: "find x" })).run({}),
     ).rejects.toMatchObject({ name: "ConnectorOpenError" });
     expect(generate).not.toHaveBeenCalled();
   });
@@ -1160,7 +1189,7 @@ describe("createSubagent with a workspace", () => {
     );
 
     await expect(
-      subagent.start({ prompt: "find x" }, {}),
+      (await subagent.prepare({ prompt: "find x" })).run({}),
     ).rejects.toMatchObject({ name: "DuplicateToolNameError" });
     expect(closes).toBe(1);
     expect(generate).not.toHaveBeenCalled();
@@ -1199,7 +1228,7 @@ describe("createSubagent with a workspace", () => {
     );
 
     await expect(
-      subagent.start({ prompt: "find x" }, {}),
+      (await subagent.prepare({ prompt: "find x" })).run({}),
     ).rejects.toThrow(error);
     expect(closes).toBe(1);
 
@@ -1229,7 +1258,7 @@ describe("createSubagent with a workspace", () => {
     );
 
     await expect(
-      subagent2.start({ prompt: "find x" }, {}),
+      (await subagent2.prepare({ prompt: "find x" })).run({}),
     ).rejects.toThrow(error);
   });
 
@@ -1268,7 +1297,7 @@ describe("createSubagent with a workspace", () => {
 
     let caught: unknown;
     try {
-      await subagent.start({ prompt: "find x" }, {});
+      await (await subagent.prepare({ prompt: "find x" })).run({});
     } catch (error) {
       caught = error;
     }
@@ -1388,7 +1417,9 @@ describe("createSubagent with a workspace", () => {
     );
     const t = new RecordingSpan("t");
 
-    await subagent.start({ prompt: "find x" }, { trace: t });
+    await (
+      await subagent.prepare({ prompt: "find x" })
+    ).run({ trace: t });
 
     expect(t.children.map((child) => child.name).sort()).toEqual([
       "mg.harness",
@@ -1505,8 +1536,8 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
       environmentFor({ exclusive }),
     );
 
-    const runA = subagentA.start({ prompt: "x" }, {});
-    const runB = subagentB.start({ prompt: "x" }, {});
+    const runA = (await subagentA.prepare({ prompt: "x" })).run({});
+    const runB = (await subagentB.prepare({ prompt: "x" })).run({});
     await flushMicrotasks();
 
     first.resolve("a-done");
@@ -1572,8 +1603,8 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
       environmentFor({ exclusive }),
     );
 
-    const runA = subagentA.start({ prompt: "x" }, {});
-    const runB = subagentB.start({ prompt: "x" }, {});
+    const runA = (await subagentA.prepare({ prompt: "x" })).run({});
+    const runB = (await subagentB.prepare({ prompt: "x" })).run({});
     await flushMicrotasks();
 
     expect(log).toEqual(["open", "open"]);
@@ -1639,8 +1670,8 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
       environmentFor({ exclusive }),
     );
 
-    const runA = subagentA.start({ prompt: "x" }, {});
-    const runB = subagentB.start({ prompt: "x" }, {});
+    const runA = (await subagentA.prepare({ prompt: "x" })).run({});
+    const runB = (await subagentB.prepare({ prompt: "x" })).run({});
     await flushMicrotasks();
 
     first.resolve("a-done");

@@ -281,7 +281,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
         if (over) return undefined;
         const heardText = text.slice(0, outcome.heard);
         emit({ type: "reply", text: heardText });
-        if (record.cut) {
+        if (record.cut && heardText.length < text.length) {
           emit({ type: "reply-cut", heard: outcome.heard });
           return { kind: "cut", heard: heardText };
         }

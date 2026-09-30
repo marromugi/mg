@@ -2,29 +2,8 @@
 import fs from "node:fs";
 import process from "node:process";
 
-const CHILD_H2 = [
-  "Background",
-  "Design",
-  "Changes",
-  "Constraints",
-  "Cases",
-  "Verification",
-  "To Implementer",
-];
-const RECORD_H2 = [
-  "Decision",
-  "Behaviour changes",
-  "Place in the whole",
-  "Confirmed facts",
-  "Reasons",
-  "Rejected shapes",
-  "Trade-offs",
-];
-const KINDS = [
-  ["Behaviour", "B"],
-  ["Structure", "S"],
-  ["Direction", "D"],
-];
+const CHILD_H2 = ["Request", "Design", "Decided", "Verification", "To Implementer"];
+const PARENT_H2 = ["Request", "Design", "Decided", "Child issues"];
 const NONE = "None";
 
 const file = process.argv[2];
@@ -69,15 +48,13 @@ const requireInOrder = (titles) => {
 };
 
 const isChild = Boolean(find("To Implementer"));
-const hasRecord = Boolean(find("Decision"));
-const isParent = hasRecord && !isChild;
+const isParent = Boolean(find("Child issues"));
 
-if (!isChild && !hasRecord) {
-  fail(1, 'neither "## To Implementer" nor "## Decision": not an architect issue');
-}
-if (isChild) requireInOrder(CHILD_H2);
-if (hasRecord) requireInOrder(RECORD_H2);
-if (isParent && !find("Child issues")) fail(1, 'missing section "## Child issues"');
+if (isChild && isParent) {
+  fail(find("Child issues").n, 'a body with "## To Implementer" has no "## Child issues"');
+} else if (isChild) requireInOrder(CHILD_H2);
+else if (isParent) requireInOrder(PARENT_H2);
+else fail(1, 'neither "## To Implementer" nor "## Child issues": not an architect issue');
 
 const parentAttempts = (find("Design")?.lines ?? []).filter(({ text }) =>
   /^\s*parent\s*:/i.test(text),
@@ -85,116 +62,33 @@ const parentAttempts = (find("Design")?.lines ?? []).filter(({ text }) =>
 parentAttempts.forEach(({ n, text }, i) => {
   if (!/^Parent: #\d+$/.test(text)) fail(n, 'Parent line is not "Parent: #<n>"');
   if (i > 0) fail(n, 'more than one Parent line in "## Design"');
-  if (hasRecord) fail(n, "a Parent line in a body that holds its own decision record");
+  if (isParent) fail(n, "a Parent line in a parent issue");
 });
 
-for (const title of ["Reasons", "Rejected shapes"]) {
-  for (const { n, item } of bullets(find(title)?.lines ?? [])) {
-    if (item !== NONE && !/Principle ?\d/.test(item)) {
-      fail(n, `"${title}" item cites no principle`);
-    }
-  }
+const decided = find("Decided");
+if (decided && bullets(decided.lines).length === 0) {
+  fail(decided.n, '"Decided" needs items, or "- None"');
 }
 
-const ids = new Map();
-const declare = (id, n) => {
-  if (ids.has(id)) fail(n, `${id} is already used on line ${ids.get(id)}`);
-  else ids.set(id, n);
-};
-
-const constraints = find("Constraints");
-if (constraints) {
-  let prefix = null;
-  const seen = new Set();
-  for (const { n, text } of constraints.lines) {
-    const h3 = /^### (.+?)\s*$/.exec(text);
-    if (h3) {
-      const kind = KINDS.find(([name]) => name === h3[1]);
-      if (!kind) fail(n, `unknown constraint kind "${h3[1]}"`);
-      prefix = kind?.[1] ?? null;
-      if (kind) seen.add(kind[0]);
-      continue;
-    }
-    const item = /^- (.*)$/.exec(text)?.[1];
-    if (item === undefined || item === NONE) continue;
-    const m = /^([BSD]\d+): \S/.exec(item);
-    if (!m) fail(n, 'constraint is not "<id>: <text>"');
-    else if (prefix === null) fail(n, `${m[1]} is outside a "###" kind`);
-    else if (m[1][0] !== prefix) fail(n, `${m[1]} is under the wrong kind`);
-    else if (isParent && prefix === "B") {
-      fail(n, `${m[1]}: a behaviour constraint belongs to the child that implements it`);
-    } else declare(m[1], n);
-  }
-  for (const [name] of KINDS) {
-    if (!seen.has(name)) fail(constraints.n, `missing "### ${name}"`);
-  }
-}
-
-const received = new Set();
-const cases = find("Cases");
-if (cases) {
-  for (const { n, item } of bullets(cases.lines)) {
-    if (item === NONE) continue;
-    const m = /^(C\d+) \[([^\]]*)\]: \S/.exec(item);
-    if (!m) {
-      fail(n, 'case is not "C<n> [B<n>, ...]: <text>"');
-      continue;
-    }
-    declare(m[1], n);
-    const refs = m[2].split(",").map((r) => r.trim()).filter(Boolean);
-    if (refs.length === 0) fail(n, `${m[1]} receives no constraint`);
-    for (const ref of refs) {
-      if (!/^B\d+$/.test(ref)) fail(n, `${m[1]} receives ${ref}: only B ids are received by cases`);
-      else if (!ids.has(ref)) fail(n, `${m[1]} receives ${ref}, which is not declared`);
-      else received.add(ref);
-    }
-  }
-}
-
-for (const [id, n] of ids) {
-  if (id.startsWith("B") && !received.has(id)) fail(n, `${id} is received by no case`);
-}
-
-const hasBehaviourConstraints = [...ids.keys()].some((id) => id.startsWith("B"));
 const checks = find("Verification");
 if (checks) {
   const items = bullets(checks.lines);
-  const isBareNone = items.length === 1 && items[0].item === NONE;
+  const used = new Map();
+  if (items.length === 0) fail(checks.n, '"Verification" needs items, or "- None"');
 
   for (const { n, item } of items) {
     if (item === NONE || /^None: \S/.test(item)) {
-      if (items.length > 1) {
-        fail(n, '"None" must be the only item in "Verification"');
-      }
+      if (items.length > 1) fail(n, '"None" must be the only item in "Verification"');
       continue;
     }
-    const m = /^V(\d+)(?: \[([^\]]*)\])?: (\S.*)$/.exec(item);
+    const m = /^(V\d+): (\S.*)$/.exec(item);
     if (!m) {
       fail(n, 'check is not "V<n>: <entry> ..." or "None: <reason>"');
       continue;
     }
-    const vId = `V${m[1]}`;
-    const refs = m[2]
-      ?.split(",")
-      .map((r) => r.trim())
-      .filter(Boolean);
-    if (!/`[^`]+`/.test(m[3])) fail(n, `${vId} names no entry in backticks`);
-    for (const ref of refs ?? []) {
-      if (!/^B\d+$/.test(ref)) fail(n, `${vId} names ${ref}: only B ids are named by checks`);
-      else if (!ids.has(ref)) fail(n, `${vId} names ${ref}, which is not declared`);
-    }
-    declare(vId, n);
-  }
-
-  if (!hasBehaviourConstraints) {
-    if (!isBareNone) {
-      fail(checks.n, '"Verification" must be "- None" when there are no behaviour constraints');
-    }
-  } else if (isBareNone || items.length === 0) {
-    fail(
-      checks.n,
-      '"Verification" needs "V<n>" items or "None: <reason>" when there are behaviour constraints',
-    );
+    if (!/`[^`]+`/.test(m[2])) fail(n, `${m[1]} names no entry in backticks`);
+    if (used.has(m[1])) fail(n, `${m[1]} is already used on line ${used.get(m[1])}`);
+    else used.set(m[1], n);
   }
 }
 

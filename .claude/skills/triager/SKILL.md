@@ -1,6 +1,6 @@
 ---
 name: triager
-description: "Take stock of the notes that pile up between design rounds — note issues (titles ending in 「（メモ）」 or \"(note)\", a Background and a handling section, no To Implementer) and any observations or feedback the developer lists in chat — and move each one forward: close what the code no longer has, fix what needs no design decision through architect's light path, design what software-design-theory settles through architect's full flow, and bring only the calls the theory leaves open to the developer. Ends by handing the resulting issues and PRs to dispatcher. Use this whenever the developer wants the notes or small findings dealt with in bulk — 「メモの issue を棚卸しして」「メモを片づけて」「溜まった気づきを整理して」「メモを消化して」「このフィードバックたちを処理して」「小さいのはやって、大きいのは方針を決めたい」 — even when they do not say \"note\". For one named request with no note behind it use architect; for issues already carrying To Implementer use dispatcher."
+description: "Take stock of the notes that pile up between design rounds — note issues (titles ending in 「（メモ）」 or \"(note)\", a Background and a handling section, no To Implementer) and any observations or feedback the developer lists in chat — and move each one forward: close what the code no longer has, send the rest to architect to build, and bring to the developer only what software-design-theory sends to them — what to build when unclear, and anything that spends money, cannot be undone, or reaches outside this machine. Ends by handing the resulting issues and PRs to dispatcher. Use this whenever the developer wants the notes or small findings dealt with in bulk — 「メモの issue を棚卸しして」「メモを片づけて」「溜まった気づきを整理して」「メモを消化して」「このフィードバックたちを処理して」「小さいのはやって、大きいのは方針を決めたい」 — even when they do not say \"note\". For one named request with no note behind it use architect; for issues already carrying To Implementer use dispatcher."
 ---
 
 # Triager
@@ -13,12 +13,12 @@ down as a note issue. The developer notices something while using the
 software and says it in passing. None of these has a design yet, so
 dispatcher leaves them alone, and they pile up.
 
-Most of them are small. Read against today's code, a note is often already
-gone, or is a fix with one reasonable shape, or is a question the theory
-answers. Only a few touch the base of the design, where a call the theory
-does not settle remains. This skill sorts them by reading the code, moves
-the first kinds on without the developer, and brings the last kind to the
-developer together.
+Read against today's code, a note is often already gone. Most of the rest
+can simply be built: the maker decides the calls the note leaves open. Only
+a few need the developer, because what to build is unclear or building it
+would cost them something. This skill sorts them by reading the code, moves
+the rest on without the developer, and brings those few to the developer
+together.
 
 It does not design anything itself. Every design goes through architect,
 every merge decision through dispatcher; this skill decides only what to
@@ -65,12 +65,9 @@ lines it read. It does not propose a design.
    `present` with where it lives.
 2. Does it wait on something? A note that says it waits for another issue
    or a design round (「その回で決めます」) waits while that issue is open.
-3. For a `present` note: which of architect's light-path tests hold, read
-   off the code (architect, "Light path"). Name the test that fails when
-   one does.
-4. Which roles and interfaces it touches, as file paths and exported
+3. Which roles and interfaces it touches, as file paths and exported
    names. Step 3 groups notes by these.
-5. The questions the note itself leaves open, quoted.
+4. The questions the note itself leaves open, quoted.
 
 ## Step 3: Sort
 
@@ -85,28 +82,18 @@ Then put every item in exactly one bin.
 | --- | --- | --- |
 | Gone | `gone` or `covered` | Close in step 4 |
 | Waiting | waits on an open issue | Left open, reported |
-| Light | every light-path test holds | architect, light path |
-| Theory | a design decision, and the theory settles it | architect, full flow |
-| Developer | a call the theory sends to the developer | asked in step 5 |
+| Developer | what to build is unclear, or building it costs money, cannot be undone, or reaches outside this machine | Asked in step 5 |
+| Build | everything else | architect |
 
-Sort Theory against Developer the way architect step 3 sorts `ask`
-findings. Hold each open question against the principles. Where one names
-the decision, it is Theory; say which principle. What is left is Developer
-only when `software-design-theory` (What still goes to the developer) lists
-it: goal or scope, a product or preference call, a collision between
-principles the file does not settle. A question that running something
-would settle is neither; it goes to architect, which sends it to
-`prototyper`.
+An open question in a note is not a reason for the Developer bin. Names,
+values, the shape of a fix, and how a defect is handled are the maker's
+(`software-design-theory`, What goes to the developer); architect decides
+them and lists them under `Decided`.
 
 Whether a note is worth fixing at all is not asked. A note records a defect
-principle 9 set aside, and fixing it is the work it was set aside for. Ask
-only when fixing it would change behaviour someone relies on, which is a
-scope call.
-
-When unsure between two bins, take the heavier one. A Light item that
-needed a design is caught by implementer and sent to "Redoing a design";
-a Theory item that needed the developer is caught by architect's own
-review. Both cost a round, and neither lets a guess through.
+set aside, and fixing it is the work it was set aside for. Ask only when
+fixing it would change behaviour someone relies on, which is a call about
+what to build.
 
 ## Step 4: Close what is gone
 
@@ -123,9 +110,8 @@ gh issue close <N> --comment "<消えた根拠: コミットかコード、ま�
 Skip this step when the Developer bin is empty.
 
 Otherwise ask every Developer item at once, with the AskUserQuestion tool,
-the way architect step 4 puts its questions: what is decided, shown on the
-code it rests on; the options and what each gives up; the principles that
-come close and why none settles it; a recommendation only where one leans.
+each reading on its own following `.claude/rules/questions.md`: what is
+decided, and the options with what each gives up.
 More than four questions go in several calls in a row, without work in
 between. Write in Japanese following `.claude/rules/writing.md`.
 
@@ -133,26 +119,16 @@ Always offer leaving the note as it is, as one option. That keeps the note
 open, with the question and its options added to it as a comment, so the
 next run starts from them.
 
-Each answer turns its item into a Theory item with that decision attached,
-or leaves it open as above. Do not sort the answer into the theory here;
-architect does that when it records the decision.
+Each answer turns its item into a Build item with that decision attached,
+or leaves it open as above.
 
 ## Step 6: Hand to architect
 
-Run architect once per item, one at a time, Light items first: they need
-no stop, and the Theory items that follow are designed from a main that
-already has them.
-
-Pass the note's text and its number, what step 2 found, and for an item
-that came from step 5 the developer's answer as a decision already made.
-Say which bin the item came from; architect still sorts it itself, from
-the code.
-
-- Light: architect takes its light path, which creates the issue and runs
-  `implementer` on it. Keep the PR number.
-- Theory: architect takes its full flow and creates the issues. It may
-  still stop to ask where its own review finds a call this skill missed;
-  let it, and carry on with the next item once it is answered.
+Run architect once per Build item, one at a time, so each is designed from
+a main that already has the ones before it. Pass the note's text and its
+number, what step 2 found, and for an item that came from step 5 the
+developer's answer as a decision already made. Tell architect the work gets
+issues, so dispatcher can build them.
 
 When architect has created the issues for an item, close each note the
 item came from, with a comment that links them.
@@ -163,10 +139,8 @@ gh issue close <N> --comment "<引き継いだ issue の番号>"
 
 ## Step 7: Hand to dispatcher
 
-Invoke `dispatcher` with the issues step 6 created as its scope, and the
-PRs the light path opened as PRs to decide. dispatcher builds the issues,
-and decides merge or leave open for every PR, the same way it would for
-its own.
+Invoke `dispatcher` with the issues step 6 created as its scope. It builds
+them and decides merge or leave open for every PR.
 
 ## Step 8: Report
 
@@ -176,8 +150,7 @@ Report in one message, Japanese, following `.claude/rules/writing.md`:
 2. A table of every note: number, title, bin, and what became of it — the
    evidence it was closed on, the issue it waits for, or the issue and PR
    it went to.
-3. For each Theory item, the principle that settled it. For each
-   Developer item, the decision and who made it.
+3. For each Developer item, the decision the developer made.
 4. What dispatcher reported, as it returned it.
 5. Notes left open, with the reason each is still open.
 

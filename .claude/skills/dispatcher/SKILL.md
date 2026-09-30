@@ -1,6 +1,6 @@
 ---
 name: dispatcher
-description: "Work through the backlog of GitHub issues that are ready to build: pick the issues whose design is already decided, run the implementer and reviewer skills on them (in parallel when they are certainly independent), merge each PR when nothing needs a design call from the developer, and move on. Use this whenever the developer wants several issues handled in a row without sitting on each one — 「できる issue を進めて」「次々やって」「issue を消化して」「順番に実装してマージして」「#111 の子を全部進めて」「まとめて進めて」「残りをやって」, or any phrasing that means 'keep going through the issues'. For a single named issue use implementer instead; for work that has no issue yet use architect."
+description: "Work through the backlog of GitHub issues that are ready to build: pick the issues whose design is already decided, run the implementer and reviewer skills on them (in parallel when they are certainly independent), merge each PR when nothing is left for the developer, and move on. Use this whenever the developer wants several issues handled in a row without sitting on each one — 「できる issue を進めて」「次々やって」「issue を消化して」「順番に実装してマージして」「#111 の子を全部進めて」「まとめて進めて」「残りをやって」, or any phrasing that means 'keep going through the issues'. For a single named issue use implementer instead; for work that has no issue yet use architect."
 ---
 
 # Dispatcher
@@ -17,8 +17,11 @@ can be built, runs implementer (which chains into reviewer and, after that,
 verifier), and then makes the one call the other skills leave to the
 developer: merge, or leave the PR open. reviewer stays a reviewer; verifier
 stays a verifier; the merge decision lives here. The rule for it is narrow
-on purpose. Merge only when nothing in the run asked for a decision.
-Everything else stays open, and the PR itself is the record of why. A PR
+on purpose. Merge when the PR passed review and confirmation and nothing
+in the run is waiting on the developer. Design changes the implementation
+agent made, and choices listed under `Decided`, do not hold a merge; they
+are reported so the developer can overturn them afterwards. Everything else
+stays open, and the PR itself is the record of why. A PR
 left open costs one look; a wrongly merged one costs a revert plus whatever
 was built on top of it.
 
@@ -65,17 +68,17 @@ Then settle the scope. The developer may have said a parent issue (「#111 の
 issue. There is no cap by default: the loop runs until the queue is empty,
 including issues that become ready because of merges made during the run.
 The developer can name a number to stop earlier. Each issue runs a Sonnet
-implementer plus an Opus review with its own subagents, so a long run is
+implementer plus a two-model review with its own subagents, so a long run is
 expensive in transcripts; that is the developer's call, not a reason to
 stop on your own.
 
 The caller may also hand over PRs that already went through implementer's
-chain in this session — `triager` does, for the PRs architect's light path
-opened. For each, the caller passes what step 3 gathers: the PR number, the
-Deviations section, reviewer's findings, CI, and the verifier result. Decide
-each with step 4 before step 1, so the queue is read from the merged state.
-The issue-guard snapshot implementer wrote in this session is the one step
-4 verifies against.
+chain in this session — `architect` and `triager` do, for work with no
+issue. For each, the caller passes what step 3 gathers: the PR number, the
+Design changes section, reviewer's report, CI, and the verifier result.
+Decide each with step 4 before step 1, so the queue is read from the merged
+state. A PR with no issue has no issue-guard snapshot, and step 4 skips the
+guard's verify for it.
 
 ## Step 1: Find the ready issues
 
@@ -93,8 +96,8 @@ body; they are structural, not keyword matches.
 
 - The body has a `## To Implementer` section. Without it, the issue did not
   come through architect. Leave it alone; it is not work to build.
-- It is not a parent. A parent has a `## Decision` section and a `## Child issues`
-  list; it holds the record, not work.
+- It is not a parent. A parent has a `## Child issues` list; it holds the
+  shared design, not work.
 - No open PR already closes it. A PR that is still open after a run is the
   developer's to look at, and the reason is on the PR. Check with:
 
@@ -202,49 +205,28 @@ the next review starts. Do not shortcut either skill or do their work
 inline; the point of this loop is that each issue gets the same treatment
 it would get alone.
 
-Running implementer on an issue ends one of four ways:
+Running implementer on an issue ends one of three ways:
 
 - A PR was opened. Continue with CI, reviewer, and verifier, and gather
   below.
-- implementer returned `stopped` from architect's "Redoing a design" — an
-  implementation agent's design question, or reviewer's design-level
-  findings, went there and came back with the question still unresolved. A
-  PR from before the question stays open if there was one; there is nothing
-  else to continue. Quote the question in full in the report (step 5).
-- implementer returned `redone`, the list of issue numbers architect's
-  "Redoing a design" edited and created — the same question, but this time
-  it was settled. implementer itself already restarted at its own step 1
-  on the redrawn issue and ran its whole chain again from there, so that
-  run ends in one of the other outcomes on this list: a PR through CI,
-  reviewer, and verifier; `stopped` on a further question; or not started.
-  Say which one it was, and handle it exactly as that outcome says here.
-  For every *other* issue in the returned list that has a run in flight
-  elsewhere in this batch, close its PR the same way implementer does (keep
-  the branch), drop its issue-guard snapshot, and put it back into this
-  run's queue — the redrawn issue, not the one that run started from, is
-  what the rest of the run builds. Continue with the rest of the batch.
+- implementer stopped on a question the developer declined to answer. A PR
+  stays open if there was one. Quote the question in the report (step 5).
 - implementer stopped before spawning an agent (step 1 of the implementer
-  skill), for any of several reasons: its own snapshot of the issue was
-  refused, a predecessor under "When an issue can start" was still open,
-  the body had no `To Implementer` section, or `check-issue.mjs` found the
-  body's shape wrong. There is no PR and no agent was spawned; add the
-  issue's number and the reason implementer gave — the guard script's lines
-  when there are any — to the not-started list from step 1, and continue
-  with the rest of the batch. An issue whose only reason was an open
-  predecessor goes back to not ready instead, per step 1.
+  skill): its own snapshot of the issue was refused, a predecessor under
+  "When an issue can start" was still open, or the body had no
+  `To Implementer` section. There is no PR; add the issue's number and the
+  reason implementer gave — the guard script's lines when there are any —
+  to the not-started list from step 1, and continue with the rest of the
+  batch. An issue whose only reason was an open predecessor goes back to
+  not ready instead, per step 1.
 
 When implementer's chain for an issue — reviewer, then verifier — is in,
 gather from the run:
 
-- The PR number and the Deviations section.
-- reviewer's design-level findings (the `[design]` ones), and whether the
-  code-level fixes were pushed.
-- Findings, from either pass, that ask for something the issue or its
-  parent already decided against: a different return shape than the
-  issue's interface, a fallback the issue prescribed, a trade-off listed
-  under Trade-offs. These are not defects in the PR. Reply on
-  the thread with the issue or parent section that decides it, do not fix,
-  and keep them for the report as questions the developer may reopen.
+- The PR number, and the `Decided` and `Design changes` sections of its
+  body.
+- reviewer's report: what was fixed, what was dismissed, and any harm the
+  developer declined.
 - Whether CI ran, and its final result.
 - The verifier result implementer's step 6 reported — pass, fail,
   not-needed, or unverifiable — and its reason.
@@ -258,20 +240,9 @@ Merge only when every line below is true. One false line means the PR
 stays open. When something does not fit either way cleanly, leave it open;
 that is the cheap mistake.
 
-- implementer opened a PR (it did not stop on a design question).
-- Deviations is `none`, or every deviation listed is a mechanics detail
-  that the issue's own constraints or the tooling forced (a config key the
-  tool spells differently, a lint rule that rejects the issue's literal
-  snippet, a cast the type definitions need) and that changes no
-  interface, dependency, scope, or behaviour the issue specifies. Say in
-  the report which deviations you read that way. A deviation that picks
-  an option, adds or drops a dependency, widens scope, or changes what the
-  developer would see is a design change, and the PR stays open.
-- reviewer posted zero design-level findings that need the developer.
-  A finding answered on its thread with the issue section that already
-  decides it (step 3) does not count; a finding that the issue is silent
-  on does.
-- Every code-level finding is fixed and pushed, or there were none.
+- implementer opened a PR, and nothing in its run is waiting on the
+  developer.
+- reviewer left no harm finding open, and every `fix` finding was pushed.
 - The final head is verified. If the repo has CI checks, they are green on
   that head. If `gh pr checks` reports no checks configured, run the checks
   yourself in the PR's worktree, in this order, and all must pass:
@@ -292,7 +263,8 @@ that is the cheap mistake.
   `CONFLICTING` or `DIRTY` is not: the independence call was wrong. Leave
   the PR open and say so in the report. `headRefOid` from this same call is
   the commit to read the verifier status from below.
-- The guard script's verify operation passes. Run it last, immediately
+- For a PR built from an issue, the guard script's verify operation
+  passes. Run it last, immediately
   before the merge commands below, not earlier while the other conditions
   were still being checked — review can take time, and the issue or its
   parent can change again in that gap:
@@ -334,12 +306,22 @@ remote and local branches; the repo does not delete branches on merge by
 itself. The pull is what makes the next worktree start from the merged
 state.
 
+When the PR's `Design changes` is not `none` and the PR closed an issue,
+leave the same text on that issue now, after the merge:
+
+```
+gh issue comment <N> --body "<Design changes, and the PR number>"
+```
+
+It goes after the merge because the guard counts comments on the issue
+while the work is open, and a comment of our own would stop the merge.
+
 **Leave open.** Do nothing to the PR or the worktree. The developer may
 continue the agent, and reviewer's comments on the PR already say what
-needs deciding. No extra comment is needed. On the next run the open PR
+is left. No extra comment is needed. On the next run the open PR
 keeps the issue out of the queue (step 1).
 
-Two cases end with no PR: a design question from implementer, and an issue
+Two cases end with no PR: a question the developer declined, and an issue
 that did not start (step 1 or step 3). Neither is recorded on GitHub, so
 both appear only in the report, and the issue will look ready again on the
 next run. Say this in the report so the developer edits the issue, or
@@ -360,7 +342,7 @@ one comment listing each child and the PR that closed it:
 gh issue close <parent> --comment "$(printf '子 issue がすべて閉じました。\n\n- #<child> → PR #<pr>\n...')"
 ```
 
-The parent holds the decision record; closing it does not change that,
+The parent holds the shared design; closing it does not change that,
 the record stays readable. Do this whenever a merge completes a parent,
 not only at the end, so the queue reads true while the loop runs. Do not
 close a parent whose children are only partly done, or one that is a
@@ -387,29 +369,20 @@ Japanese, following `.claude/rules/writing.md`. Order:
 1. One line: how many merged, how many left open, and why the loop stopped
    (queue empty, the developer's number, or a stop condition).
 2. Merged: issue number, PR number, whether verifier's result was pass or
-   not-needed, one line each. Name any deviation you read as mechanics
-   (step 4) so the developer can disagree.
-3. Left open: issue number, PR number if any, the reason in a few words —
-   when the reason is verifier, say fail or unverifiable and its reason —
-   and what the developer decides. Point at the PR comments rather than
-   repeating them. A design question with no PR is quoted here in full.
-4. Not started: each issue on the not-started list, the reason, and what
+   not-needed, one line each.
+3. Choices the developer may overturn: every `Decided` item and every
+   `Design changes` entry of the merged PRs, and the findings reviewer
+   dismissed, one line each with the PR number.
+4. Left open: issue number, PR number if any, the reason in a few words —
+   when the reason is verifier, say fail or unverifiable and its reason.
+   Point at the PR comments rather than repeating them. A question with no
+   PR is quoted here in full.
+5. Not started: each issue on the not-started list, the reason, and what
    the developer needs to repair — usually the parent's `Child issues` list.
-   Keep these separate from item 3; there is no PR to point at.
-5. Questions the developer may reopen: the findings answered on their
-   threads because the issue already decided them (step 3), one line each
-   with the PR number. These merged; they are listed so the developer can
-   change the design if the reviewer had a point.
+   Keep these separate from item 4; there is no PR to point at.
 6. Parents closed during the run, and what is ready next if anything
    remains.
 
-After the report, put each decision item 3 leaves with the developer as a
-question, one entry per decision, put the way `architect` step 4 puts its
-questions: the AskUserQuestion tool, the code the options rest on, and a
-recommendation only where a principle leans. Item 5 is not asked; it is there
-to be read.
-
-Then stop. If the developer answers the questions in item 5, those answers
-are new design decisions with no issue yet: take them through `architect`,
-which records them and creates the issues, and then run dispatcher again.
-Do not implement an answer straight from the chat.
+Nothing in the report is asked. Then stop. If the developer wants a choice
+from item 3 changed, that is new work: take it through `architect`, then
+run dispatcher again. Do not implement it straight from the chat.

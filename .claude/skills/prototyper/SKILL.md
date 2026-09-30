@@ -1,6 +1,6 @@
 ---
 name: prototyper
-description: "Answer a factual design question by building a throwaway and observing what it does, then report exactly what was seen. Use it when `architect` needs a fact — behaviour, output, timing, or whether an outside system accepts something — that only running code can settle, before that question would otherwise go to the developer. Runs in its own disposable git worktree, never the main checkout, and returns observations only; it never recommends an option or chooses a shape. Not for reviewing a design (`software-design-review`), building the real implementation (`implementer`), or confirming a PR's behaviour (`verifier`)."
+description: "Answer a factual design question by building a throwaway and observing what it does, then report exactly what was seen. Use it when `architect` needs a fact — behaviour, output, timing, or whether an outside system accepts something — that only running code can settle, before that question would otherwise go to the developer. Runs in its own disposable git worktree, never the main checkout, and returns observations only; it never recommends an option or chooses a shape. Not for building the real implementation (`implementer`), or confirming a PR's behaviour (`verifier`)."
 ---
 
 # Prototyper
@@ -31,7 +31,7 @@ not the code the design will ship — it skips everything the real
 implementation would need for correctness, review, or reuse. Keeping it
 around would leave a second, unreviewed implementation sitting next to the
 real one. Once the observation is made, the design keeps the fact and the
-question that produced it, in the decision record's `Confirmed facts`; the
+question that produced it, under the issue's `Decided`; the
 throwaway itself is discarded with the worktree that held it.
 
 ## Why it runs in its own worktree

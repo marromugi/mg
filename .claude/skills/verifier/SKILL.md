@@ -1,6 +1,6 @@
 ---
 name: verifier
-description: "Run a pull request's actual behaviour and post a verdict on its head commit. Use after the reviewer skill finishes with a PR, whenever a child issue carries a behaviour constraint. Reads the issue's Verification section, runs each declared entry point in a disposable worktree, judges it with a fresh agent that neither wrote nor reviewed the code, and posts pass, fail, not-needed, or unverifiable to GitHub with the reason and evidence on the PR."
+description: "Run a pull request's actual behaviour and post a verdict on its head commit. Use after the reviewer skill finishes with a PR, whenever the work changes behaviour. Reads the Verification section of its issue, or of the body file for work with no issue, runs each declared entry point in a disposable worktree, judges it with a fresh agent that neither wrote nor reviewed the code, and posts pass, fail, not-needed, or unverifiable to GitHub with the reason and evidence on the PR."
 ---
 
 # Verifier
@@ -52,8 +52,10 @@ run's `git worktree add`.
 ## Input
 
 - The PR number.
-- The issue snapshot file the `implementer` skill already produced, at
-  `<scratchpad>/issue-guard/issue-<N>.json`.
+- The body to read `Verification` from: the issue snapshot file the
+  `implementer` skill already produced, at
+  `<scratchpad>/issue-guard/issue-<N>.json`, or, for work with no issue,
+  the body file architect wrote.
 - The path to the developer's main checkout, where an optional `.env` may
   be.
 
@@ -66,9 +68,9 @@ step 5.
 
 ### 1. Read the confirmation section
 
-Read `## Verification` from the snapshot's `body`.
+Read `## Verification` from the snapshot's `body`, or from the body file.
 
-- `- None` alone: this issue has no entry points to check. Note the result as
+- `- None` alone: this work has no entry points to check. Note the result as
   not-needed, with no reason, and go to step 5.
 - `- None: <reason>`: note the result as not-needed, with that reason, and go
   to step 5.

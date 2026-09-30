@@ -1,179 +1,99 @@
 # Issue format
 
-The issue is the interface between architect and everything after it. The
-implementer agent builds from it, the reviewer judges the PR against it, and a
-script checks its shape. Keep the headings exactly as written here; other
-skills and the script find sections by heading.
-
-## Why issues are small
-
-The developer meets the issues in the report, as a title and one line each,
-and does not read each body. The
-design was judged by `software-design-review`, and the issue has to carry
-that design without loss. Small issues keep the one-line summary honest and
-keep each one checkable: one narrow design, a handful of constraints, the
-cases that receive them.
-
-An issue is small enough when all of these hold:
-
-- It carries one design decision, or none (pure follow-through).
-- It can be verified on its own, without the other issues done.
-- Changes fits in a few bullets.
-- It has a single clear owner module or boundary.
-
-If any fails, split further. Order the issues so each one builds on merged
-work; note the order in the parent.
-
-Work that only cuts interfaces is a valid issue. It has no behaviour
-constraints and no cases; the type check is its verification
-(`software-design-theory`, Tests).
-
-## Decision record
-
-One record per design. It goes in the parent issue when several issues share
-the design, and in the single issue otherwise.
-
-```
-## Decision
-<the design, in a few sentences>
-
-## Behaviour changes
-- <each change in what the user of the software observes, stated as a
-  decision. `- None` when nothing changes. What is not listed stays as it is.>
-
-## Place in the whole
-<the roles in the whole software that this touches, and where this piece
-stands among them. Name the interfaces this design cuts or relies on.>
-
-## Confirmed facts
-- <a question that only running something could answer>: <what was seen>.
-  <how it was run>. `- None` when the design rests on no such question.
-
-## Reasons
-- Principle <n>: <how the design follows it>
-
-## Rejected shapes
-- <shape>: rejected under Principle <n>. <one sentence why>
-
-## Trade-offs
-- <what this design knowingly does not do>
-```
-
-Every reason and every rejection cites a principle of
-`software-design-theory` by number. A reason that cites none is a preference,
-and preferences belong to the developer: raise it as a question instead of
-writing it down as a reason. A reason may rest on an item in `Confirmed facts`.
-
-## Constraints and cases
-
-```
-## Constraints
-
-### Behaviour
-- B1: <what the user of the piece observes>
-
-### Structure
-- S1: <dependencies, packages, types that stay as they are>
-
-### Direction
-- D1: <which way the design leans where the code could go either way>
-
-## Cases
-- C1 [B1]: <what is done, and what is seen. The pass condition, with literal values.>
-- C2 [B1, B2]: ...
-```
-
-- Ids are `B`, `S`, `D`, `C` followed by a number, unique within the issue.
-- A behaviour constraint lives in the issue that implements it, never in a
-  parent. Structure and direction constraints that hold for every child live
-  in the parent, under the same headings, and are not repeated in children.
-- Every `B` is received by at least one case. Every case names the `B` ids it
-  receives in brackets.
-- A subsection with nothing in it is written as `- None`.
-- Write cases from what the user of the piece sees
-  (`software-design-theory`, Cases). A case that can only be stated in terms
-  of the implementation's insides is a sign the constraint is not a behaviour.
-
-## Issue body
+The issue is the queue entry dispatcher picks up, and the record the later
+steps read: implementer builds from it, reviewer checks the PR against its
+`Request`, verifier runs its `Verification`. Keep the headings exactly as
+written here; scripts find `Design`, `Verification`, `Child issues`, and the
+`Parent:` line by heading.
 
 Issues are written in English: the title, every heading, and every section.
-The sections above `To Implementer` are for people. Write them in plain
-wording, one point per sentence, with no file names or function names.
-`To Implementer` is for the implementer agent and is as technical as needed.
+Everything above `To Implementer` is for people, in plain wording with no
+file names or function names. `To Implementer` is for the implementing agent
+and is as technical as needed.
+
+## When a task gets an issue
+
+- Work that dispatcher will pick up later, or that splits into several
+  pieces, gets issues.
+- Work finished inside the current session skips the issue. Its body, in
+  the single-issue form below, is written to a scratchpad file and handed to
+  implementer, which puts it in the PR body.
+
+## Splitting
+
+Split only where the pieces can be built and run on their own. One issue per
+piece that a person could try by itself. Order the pieces so each builds on
+merged work, and list the order in the parent.
+
+## Single issue, or child of a parent
 
 ```
-## Background
-<what problem this solves and why now — 2–4 sentences>
+## Request
+<what should become possible, from the point of view of whoever uses it.
+2–4 sentences. A bug fix says what is seen now and what should be seen.>
 
 ## Design
-<the design this issue follows and the boundary it lives in. A child of a
-parent says so with one line `Parent: #<n>`. If there is no parent, the
-decision record goes here instead.>
+<a child's first line is `Parent: #<n>`, alone. Then the shape in a few
+sentences: which role this piece plays and the interfaces it relies on or
+adds.>
 
-## Changes
-- <what changes, from the user's or developer's point of view>
-
-## Constraints
-...
-
-## Cases
-...
+## Decided
+- <a name, value, format, or wording the maker chose>: <the choice>
+- <a fact settled by running something>: <what was seen, and how it was run>
 
 ## Verification
-...
+- V1: `<entry>`. <steps>. <the pass condition, with the values seen as they are>
 
 ## To Implementer
 - Files / modules: ...
 - Interfaces (signatures, data shapes): ...
 - Behaviour on failure: ...
-- Structural checks: <the command that shows each S holds>
 - Out of scope (do not touch): ...
-- Acceptance: every case passes, every structural check passes, plus <...>
 ```
 
-`To Implementer` does not list tests. The cases are the tests.
-
-A structural check that looks for a definition searches for the name, not
-for one way of writing it. `grep -n "buildRun("` finds
-`function buildRun(` but misses `const buildRun = (`; search for the bare
-name (`grep -nw buildRun`) or use an `ast-grep` pattern that covers every
-form the definition can take.
-
-`Verification` names the entries the behaviour constraints are confirmed
-through, not the burden of running them; the burden sits in the entry's own
-declaration. Item forms:
-
-- `- None` — only when Behaviour is `- None`.
-- `- None: <reason>` — there are behaviour constraints, but no entry reaches
-  them.
-- `- V<n>: <entry, in backticks>. <steps>. <the pass condition, with the values seen as they are>`
-- `- V<n> [B<n>, ...]: ...` — the same, naming the behaviour constraints
-  this entry confirms.
-
-The entry is a path from the repo root, given with the entry's declaration
-next to it.
+- `Decided` is `- None` when the maker chose nothing the developer might
+  want to overturn.
+- `Verification` items take one of these forms:
+  - `- None` — the work changes no behaviour.
+  - `- None: <reason>` — it changes behaviour, but no entry reaches it.
+  - `- V<n>: ...` — one runnable check. The entry is a path from the repo
+    root, with the entry's declaration next to it. Run
+    `node .claude/scripts/entries.mjs show <entry>` and put the declared
+    command in the item. When this work adds the entry, `To Implementer`
+    says to add its declaration.
+- Tests are not listed. implementer writes them for the behaviour in
+  `Request` (`software-design-theory`, Tests).
 
 ## Parent issue
 
 ```
-<decision record>
+## Request
+<the whole of what should become possible>
 
-## Constraints
-<shared Structure and Direction only>
+## Design
+<the shape shared by every child, in a few sentences>
+
+## Decided
+- ...
 
 ## Child issues
 1. #<n> <title>
 2. ...
 ```
 
-A child of a parent has exactly one line `Parent: #<n>` in its Design
-section, on its own and outside code fences. An issue without a parent, and a
-body with its own decision record, have none. A line that starts with
-`Parent:` in any other form is an error. Fenced lines never count.
+A child has exactly one line `Parent: #<n>` in its `Design`, on its own and
+outside code fences. A line that starts with `Parent:` in any other form is
+an error. Fenced lines never count.
+
+## Note issue
+
+A defect or idea set aside for later. Its title ends in "(note)", and it has
+`## Background` and `## Handling` and no `To Implementer`, so dispatcher
+leaves it alone and `triager` finds it.
 
 ## Checking and creating
 
-Write each body to a file in the scratchpad, check it, then create:
+Write each body to a scratchpad file, check it, then create:
 
 ```
 node .claude/skills/architect/scripts/check-issue.mjs <body.md>
@@ -181,4 +101,9 @@ gh issue create --title "<title>" --body-file <body.md>
 ```
 
 The script prints one line per problem and exits non-zero. Fix every line
-before creating. Titles are short English noun phrases that say what changes.
+before creating. Titles are short English noun phrases that say what
+changes.
+
+Issues written in the earlier format — with `Background`, `Changes`,
+`Constraints`, `Cases`, or a decision record — are still built as they are.
+Their `Cases` are read as behaviour the request asks for.

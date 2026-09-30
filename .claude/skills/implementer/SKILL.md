@@ -1,17 +1,18 @@
 ---
 name: implementer
-description: "Implement one GitHub issue that the architect skill produced. Use whenever the developer points at an issue and wants it built — \"#12 をやって\", \"issue 3 を実装して\", \"implement #7\", an issue URL, or \"start on the next issue\". Hands the issue to a Sonnet agent in an isolated git worktree, gets a PR opened, waits for CI, then hands the PR to the reviewer skill. Do not use for work that has no issue yet; send that to architect first."
+description: "Build one piece of work that the architect skill wrote up — a GitHub issue, or, for work finished in this session, a body file with no issue. Use whenever the developer points at an issue and wants it built — \"#12 をやって\", \"issue 3 を実装して\", \"implement #7\", an issue URL, or \"start on the next issue\". Hands the work to a Sonnet agent in an isolated git worktree that may redraw the design on the spot when it does not hold, gets a PR opened, waits for CI, then hands the PR to reviewer and verifier. Do not use for work nobody has written up yet; send that to architect first."
 ---
 
 # Implementer
 
 ## Why it works this way
 
-The design was agreed in the issue. The implementation is deliberately handed
-to a separate agent so that the main session stays the developer's
-conversation partner and does not drift into making design calls while coding.
-The agent works in its own worktree so the developer's checkout is untouched
-and several issues can be in flight.
+The implementation is handed to a separate agent so that the main session
+stays the developer's conversation partner. The agent works in its own
+worktree so the developer's checkout is untouched and several pieces of work
+can be in flight. The agent owns the design while it builds: when the
+design in the issue does not hold, it redraws it and says what changed,
+rather than stopping (`software-design-theory`, principle 9).
 
 The issue can be rewritten or withdrawn while the agent works — the developer
 or another session may edit it, close it, or change the parent it belongs to.
@@ -39,13 +40,14 @@ not done means this issue is not ready yet.
 An issue with no parent (`parent` is `null` in the snapshot) has no
 predecessors to check.
 
+
 ## Steps
 
-### 1. Read the issue
+### 1. Read the work
 
-Run the guard script's snapshot operation before anything else, including
-before checking whether the issue is ready to start. The script does not
-create its output folder, so make it first:
+**From an issue.** Run the guard script's snapshot operation before anything
+else, including before checking whether the issue is ready to start. The
+script does not create its output folder, so make it first:
 
 ```
 mkdir -p <scratchpad>/issue-guard
@@ -57,27 +59,20 @@ as printed; do not spawn the agent.
 
 On success, the snapshot is at `<scratchpad>/issue-guard/issue-<N>.json`.
 Its `body` field is the issue text, and, when the issue has a parent, the
-`parent.body` field is the parent's decision record. These are the copies
-to use from here on; do not fetch either with `gh issue view` again.
+`parent.body` field is the parent's text. These are the copies to use from
+here on; do not fetch either with `gh issue view` again.
 
 Apply the rule under "When an issue can start" above. If a predecessor
 blocks it, stop and tell the developer which predecessor is still open.
 
 Check that the body has a `To Implementer` section. If it does not, the
-issue did not come through architect; stop and tell the developer to run
-architect for it.
+issue was not written up by architect; stop and tell the developer to run
+architect for it. Issues in the earlier format are built as they are
+(`architect/references/issue-format.md`, last paragraph).
 
-Save the `body` field to a scratchpad file and check its shape:
-
-```
-node .claude/skills/architect/scripts/check-issue.mjs <body.md>
-```
-
-If the check reports problems, the issue cannot hold the implementation to
-the design. Stop and show the developer the output; repairing the issue is
-architect's job. The one exception is an issue with no `## Cases` section at
-all: build it from its `To Implementer` section as written, and say in the
-handoff that it carried no cases.
+**From a body file.** architect hands over a scratchpad file in the issue
+format when the work has no issue. There is no snapshot and no guard; the
+file is the copy to use.
 
 ### 2. Spawn the implementation agent
 
@@ -87,45 +82,42 @@ Use the Agent tool with:
 - `model`: `sonnet`
 - `isolation`: `worktree`
 
-The prompt must contain the full issue body (and the parent's decision record
-if any), plus these instructions, in this spirit:
+The prompt must contain the full body (and the parent's text if any), plus
+these instructions, in this spirit:
 
 ```
-You are implementing GitHub issue #<N> in this repository. The design has
-already been decided by the developer; your job is to follow it, not to
-improve on it.
+You are building the work below in this repository.
 
-<issue body>
-<parent decision record, if any>
+<body>
+<parent text, if any>
 
 Rules:
-- Implement only what Changes and To Implementer describe. Nothing listed
-  under "Out of scope" changes.
-- Every line under Constraints binds you, in this issue and in the parent. If you
-  find that the design as written cannot work, or you would need to make a
-  design decision the issue does not cover, stop, do not choose, and report
-  the question in your final message.
-- Read the Tests section and principle 8 (No history in the code) of
-  .claude/skills/software-design-theory/SKILL.md before writing any code.
-  Principle 8 governs comments, test names, and documents.
-- Tests come first. Turn every case under Cases into a test, run them, and
-  confirm each fails because the behaviour is missing, not because of a typo
-  or a missing import that the implementation would not fix. Commit the tests
-  alone. Then implement, and commit the implementation on top. If the issue
-  has no cases, there is no test commit; the type check is the verification.
-- A test asserts what the case says is seen, with the literal values from the
-  case. Do not add tests the cases do not call for. If you believe a case is
-  missing, say so in Deviations; do not invent it.
-- Test names and descriptions say what is observed. No case ids.
-- Run every command under "Structural checks", and the project's test, type
-  check, and lint commands. Do not open a PR with failures you know about.
-- Commit on a branch named issue-<N>-<short-slug>, push it, and open a PR
-  with `gh pr create`. The PR body starts with `Closes #<N>`, then a short
-  summary, then a section "Cases" with a table of case id, test file, and
-  test name, one row per test, then a section "Deviations" listing anything
-  you did differently from the issue and why (write "none" if none).
+- Build what Request asks for, in the shape Design describes. Nothing
+  listed under "Out of scope" changes.
+- Read .claude/skills/software-design-theory/SKILL.md before writing code:
+  the principles, Tests, and principle 8 (No history in the code).
+- If building shows the design does not hold, redraw it by the principles
+  and carry on. Do not stop to ask. Write what changed and why in the PR
+  body under "Design changes".
+- Names, values, and formats the body leaves open are yours to decide.
+  List the ones the developer might want to change under "Decided" in the
+  PR body.
+- Stop and report instead of acting only when the next step would spend
+  money, cannot be undone, or reaches outside this machine, or when what
+  to build is unclear in a way that changes the result.
+- Write tests only for the behaviour Request asks for, called the way its
+  users call it, with literal expected values. A bug fix gets one test that
+  reproduces the bug. Do not add tests for anything else.
+- Test names and descriptions say what is observed.
+- Run the project's test, type check, and lint commands. Do not open a PR
+  with failures you know about.
+- Commit on a branch named <issue-N or task>-<short-slug>, push it, and
+  open a PR with `gh pr create`. The PR body starts with `Closes #<N>` when
+  there is an issue; with no issue it starts with the body above, verbatim.
+  Then a short summary, then "Decided", then "Design changes" (write "none"
+  if none).
 - End your final message with: the PR number, the branch name, and the
-  Deviations section verbatim.
+  Design changes section verbatim.
 ```
 
 Wait for the agent to finish. Do not implement in the main session while
@@ -133,21 +125,12 @@ waiting.
 
 ### 3. Handle the agent's report
 
-- If the agent stopped on a design question: call architect's "Redoing a
-  design" with this issue's number, the facts the agent found, and the
-  question.
-  - `redone`: if a PR exists, close it with
-    `gh pr close <PR> --comment "設計をやり直しました。#<N> を見てください。"`,
-    naming the issue from the returned list the work continues under.
-    Remove the agent's worktree with `git worktree remove --force <path>`;
-    never delete the branch, since it may still hold work the developer
-    wants. Start again at step 1 with a fresh snapshot of that issue. Pass
-    the returned list on to whoever called this skill.
-  - `stopped`: leave the PR open if one exists, and leave the worktree as
-    it is — there is nothing new to build on yet. Do not restart. Report
-    the question to the developer, and stop.
-- If a PR was opened: note the PR number and the Deviations section. Any
-  deviation goes into the reviewer's report later, so keep it.
+- If the agent stopped on something the developer must answer: ask it with
+  the AskUserQuestion tool, following `.claude/rules/questions.md`, in
+  Japanese following `.claude/rules/writing.md`. Send the answer back to
+  the same agent with SendMessage and wait again. If the developer declines,
+  leave any PR open and report.
+- If a PR was opened: note the PR number and the Design changes section.
 
 ### 4. Wait for CI
 
@@ -166,14 +149,14 @@ leaving out any entry named `verifier`. Three outcomes:
 
 - **No checks configured**: continue to review, and say so in the handoff.
 - **Green**: continue to review.
-- **Red**: CI failure is below the bar for review. Send the failing check
-  names and log excerpt back to the same agent with SendMessage and ask it to
-  fix and push. Wait again. If it is still red after that one retry, stop and
-  show the developer the failure; do not loop.
+- **Red**: send the failing check names and log excerpt back to the same
+  agent with SendMessage and ask it to fix and push. Wait again. If it is
+  still red after that one retry, stop and show the developer the failure;
+  do not loop.
 
 ### 5. Hand off to review
 
-Run the guard script's verify operation first:
+With an issue, run the guard script's verify operation first:
 
 ```
 node .claude/skills/implementer/scripts/issue-guard.mjs verify <N> --dir <scratchpad>/issue-guard
@@ -182,23 +165,20 @@ node .claude/skills/implementer/scripts/issue-guard.mjs verify <N> --dir <scratc
 On a non-zero exit, do not invoke `reviewer`. Leave the PR open and report
 the script's lines to the developer exactly as printed.
 
-On success, invoke the `reviewer` skill with the PR number. Pass along the
-Deviations section and whether CI ran. When `reviewer` returns design-level
-findings, call architect's "Redoing a design" with this issue's number, the
-findings as facts, and the open question, and handle `redone` and `stopped`
-exactly as step 3 does.
+Then invoke the `reviewer` skill with the PR number, and, when the
+implementation agent is still available, its agent id so reviewer can send
+fixes to it.
 
 ### 6. Verify
 
-Invoke the `verifier` skill with the PR number, the snapshot file at
-`<scratchpad>/issue-guard/issue-<N>.json`, and the path to the developer's
-main checkout.
+Invoke the `verifier` skill with the PR number, the body to read
+`Verification` from — the snapshot file at
+`<scratchpad>/issue-guard/issue-<N>.json`, or the body file — and the path
+to the developer's main checkout.
 
-- **pass** or **not-needed**: done. Pass the result on to the developer.
+- **pass** or **not-needed**: done. Pass the result on to the caller.
 - **fail**: send verifier's PR comment to the same implementation agent with
   SendMessage, and ask it to fix and push. Once. Then repeat step 4 (CI),
-  step 5 (issue-guard verify, then reviewer), and this step, from the start.
-  If the agent answers the fix request with a design question, handle it as
-  step 3 handles one.
+  step 5 (guard verify, then reviewer), and this step, from the start.
 - Still **fail** after that one retry, or **unverifiable**: leave the PR
   open and report the reason.

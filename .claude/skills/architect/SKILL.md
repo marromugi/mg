@@ -1,188 +1,95 @@
 ---
 name: architect
-description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix that touches structure, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", \"I want to add…\". Even when the request sounds small — a bug, a tweak, 「ここ直して」「ちょっと調整して」 — start here rather than implementing; requests that need no design decision take a light path that writes one short issue and hands it straight to implementer. Makes the design from the picture of the whole software following software-design-theory, has it judged by software-design-review, writes the constraints and the test cases that hold the implementation to it, and creates minimal GitHub issues without asking. Stops for the developer only where the theory does not settle a question. Never writes implementation code; that is the implementer skill's job."
+description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix, a refactor, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", 「ここ直して」「ちょっと調整して」, \"I want to add…\". Draws the design from the picture of the whole software following software-design-theory, decides the calls the theory leaves open on its own, and either creates thin GitHub issues for dispatcher or hands work finished in this session straight to implementer. Asks the developer only what to build when that is unclear, and anything that spends money, cannot be undone, or reaches outside this machine. Never writes implementation code; that is the implementer skill's job."
 ---
 
 # Architect
 
 ## Why this skill exists
 
-The developer owns the design intent, and that intent is written down in
-`software-design-theory`. Claude makes the design from it, and other Claudes
-judge it against it. The developer is asked only what the theory cannot
-answer. An answer that states a general rule of design goes back into the
-theory so it is not asked again; an answer about this product stays in the
-decision record.
+The work runs as a fast loop: build, run it, find what is wrong, fix it.
+This skill makes the first move of that loop. It draws a design good enough
+to build from, writes down what should become possible and how to run it,
+and gets out of the way. Nothing reviews the design before code exists;
+the PR review and the run on the real software judge the result.
 
-Work passes through a chain of copies: request, design, constraints, cases,
-tests, code. Each copy can lose or bend something. This skill makes the first
-three copies and has each judged by someone other than itself, so that what
-reaches the implementer is the design and nothing less.
+The developer is asked only what `software-design-theory` sends them
+(What goes to the developer). Every other call is made here, and the ones
+the developer might want to overturn are listed under `Decided`.
 
 Read `software-design-theory` in full before step 2. Read
-`references/issue-format.md` before step 5.
+`references/issue-format.md` before step 4.
 
 ## Flow
 
-The flow runs without stopping unless a step says to stop. Silence from the
-developer is not an answer; where a step stops, wait.
-
 ### 1. Intake
 
-Restate the request to yourself: the goal, what is in and out of scope, the
-constraints already known. The goal and the scope are the developer's. If
-either is unclear in a way that would change the design, ask, and wait. If
-they are clear, do not ask for confirmation; carry on.
+Restate the request to yourself: what should become possible, and what is
+out of scope. Bring the checkout up to date (`git fetch`, then fast-forward
+the default branch) and look at the code it touches.
 
-Then sort the request. Bring the checkout up to date and look at the code it
-touches first; the sort is read off the code, not off how the request is
-worded. When every test under "Light path" holds, leave this flow and follow
-that section. Otherwise carry on to step 2.
+If what to build is unclear in a way that changes the result, ask, and
+wait. Otherwise do not ask for confirmation; carry on.
+
+Then decide whether the work gets issues (`references/issue-format.md`, When
+a task gets an issue). Work the developer wants done now, in this session,
+skips the issue.
 
 ### 2. Design from the whole
 
-Look at the codebase before designing anything. Bring the checkout up to date
-first (`git fetch`, then fast-forward the default branch); a design drawn from
-a stale tree is drawn from a picture that no longer exists. Run
-`ast-grep outline` on the areas the work touches.
-
-Then follow principle 1 in order:
+Run `ast-grep outline` on the areas the work touches. Then follow principle
+1 in order:
 
 - Draw the picture of the whole software as it is: the roles, and the
-  interfaces between them. Include roles the request does not mention if the
-  new piece will stand next to them.
+  interfaces between them.
 - Place the new piece in the picture. Say which role it plays, or which new
   role the picture now needs.
 - Name the interfaces the picture calls for, each cut from its role's one
   sentence. Check whether they already exist.
 - Only then decide the concrete implementations.
 
-Before choosing, sort any fact the choice rests on: a question that running
-something would settle in one reading — behaviour, output, timing, whether
-an outside system accepts something — goes to `prototyper`, not to a guess.
-Write its answer into `Confirmed facts` and let it settle the choice.
+Consider at least two whole shapes, not two variations of one, and choose
+by the principles. The rejected shapes are not written down.
 
-Consider at least two whole shapes, not two variations of one. Choose by the
-principles, and keep the rejected shapes with the principle that rejected
-each.
+A fact that running something would settle — behaviour, output, timing,
+whether an outside system accepts something — goes to `prototyper`. When
+that run spends money, `prototyper` asks right before it runs. Put what it
+saw under `Decided`.
 
-If the request turns out to be infeasible, or the picture shows it needs a
-different shape than the developer described, say so now and stop. Do not
-quietly redesign the request.
+If the request turns out to be infeasible, say so and stop.
 
 If the work touches UI, read `phrasing` and `composer` as well.
 
-Write the decision record to a scratchpad file in the format from
-`references/issue-format.md`.
+### 3. Decide what is left
 
-### 3. Design review
+Names, values, formats, wording, and how failures show are decided here,
+not asked. Choose by the principles where one leans; otherwise choose what
+reads plainest to whoever uses it. List every choice the developer might
+want to change under `Decided`.
 
-Invoke `software-design-review` with stage `design`, the record, the request,
-and pointers to the code.
+Ask the developer only what the theory sends to them. Put those questions
+with the AskUserQuestion tool, all at once, each reading on its own
+following `.claude/rules/questions.md`, in Japanese following
+`.claude/rules/writing.md`. Wait for the answers.
 
-- `ask` findings: hold each against the theory first. What a principle
-  settles is not the developer's to answer, so where you can name the
-  principle and the decision it makes, follow "When the maker disagrees" in
-  that skill. Then sort what is left: a question that running something
-  would settle in one reading — behaviour, output, timing, whether an
-  outside system accepts something — goes to `prototyper`, not to step 4.
-  Write its answer into `Confirmed facts` and let the decision rest on it, with
-  the principle that now settles it. Take what is still `ask` to step 4
-  before revising anything: questions the theory sends to the developer, and
-  questions whose observation came back open to more than one reading, or
-  that could not be made at all — with the observation attached. The
-  answers change the record, and a second round on a record that is about
-  to change is wasted.
-- `fix` findings: revise the record. If you think a finding is mistaken,
-  follow "When the maker disagrees" in that skill; do not drop it.
-- Run the review again on the revised record, as its Rounds section says.
+### 4. Write the bodies
 
-### 4. Questions to the developer
-
-If there are no `ask` findings, skip this step.
-
-Before asking, read the decision record of this work and of its parent, and
-the issues each question touches, fresh from GitHub. A question answered
-there is not asked; follow the answer and cite where it is written. Nor is
-the order or pace of the work asked — which item to design first, whether to
-carry on, whether to batch the questions. Decide it and say what you chose.
-
-Then stop here, once, with all that is left. Put the questions with the
-AskUserQuestion tool, one entry per question, each option's description
-saying what it gives up. Each question reads on its own, following
-`.claude/rules/questions.md`: the mechanism and the code go in each option's
-preview, and a message before the call only adds to what the dialog holds.
-Write in Japanese following `.claude/rules/writing.md`. For each question:
-
-- What is being decided, in plain words. When the options are shapes of
-  code — an entry point, an interface, the wiring between pieces — show
-  them on the code in each option's preview: the existing code the question
-  rests on, with its path, and what the option's user would write. A
-  mechanism told in words alone cannot be chosen between.
-- The options, and what each one gives up, in each option's description.
-- Which principles come close and why none of them settles it. A question
-  reaches here with a principle leaning one way only when another leans the
-  other way, or when it is the goal or the scope. Recommend the option the
-  leaning principle favours and name the principle. A
-  recommendation is argued the way a design is, from the theory: likeness to
-  something that already exists, a smaller diff, and ease of backing out are
-  reasons the theory rejects, so they cannot carry a recommendation either.
-  When no principle leans either way, say so and recommend nothing.
-
-Wait for the answers. Then:
-
-- Revise the record, for the answers and for the `fix` findings together, and
-  return to step 3 for the next round.
-- Sort each answer before writing it anywhere, by the rule in
-  `software-design-theory` (How to use this). A general rule goes into the
-  theory: sharpen the principle it belongs to, or add one if it fits none,
-  and state what holds now without recording that it was asked or when. An
-  answer about this product stays in the decision record and nowhere else.
-  When unsure which it is, leave the theory alone and say so in the report.
-
-### 5. Constraints, cases, issues
-
-Split the work into issues by the criteria in `references/issue-format.md`.
-An issue that only cuts interfaces comes before the issues that implement
-them.
-
-For each issue, write what the design demands of the implementation, sorted
-into the three kinds (`software-design-theory`, Three kinds of constraint).
-Go through the decision record sentence by sentence; every sentence that
-binds the implementation becomes a constraint, and a sentence that binds
-nothing is asked why it is there.
-
-Then write the cases for the behaviour constraints
-(`software-design-theory`, Cases).
-
-Then write `## Verification` as `references/issue-format.md` describes. For
-every entry a V item names that already exists, run
-`node .claude/scripts/entries.mjs show <entry>` and put its declared command
-in the item, so the item names the command the entry actually declares, not
-one written from memory. When the issue itself adds the entry, its
-`To Implementer` says to add the declaration instead.
-
-Write each issue body to a scratchpad file and run the check until it prints
-no problems:
+Write each body in the format from `references/issue-format.md` to a
+scratchpad file, and run the check until it prints no problems:
 
 ```
 node .claude/skills/architect/scripts/check-issue.mjs <body.md>
 ```
 
-### 6. Case review
+`Verification` names what to run and what counts as a pass. For every
+entry an item names that already exists, run
+`node .claude/scripts/entries.mjs show <entry>` and put its declared command
+in the item.
 
-Invoke `software-design-review` with stage `cases` and the issue body files.
-Handle findings as in steps 3 and 4. An `ask` at this stage stops the flow
-the same way.
+### 5. Hand over
 
-### 7. Create and report
-
-Do not ask before creating. Both reviews have passed, and the developer reads
-the result in the report.
-
-Create the issues with `gh issue create` from the checked bodies. Child
-bodies from step 5 carry no `Parent:` line, because the parent has no number
-yet and a placeholder fails the check. In this order:
+**With issues.** Create them without asking. Child bodies carry no `Parent:`
+line yet, because the parent has no number:
 
 1. Create the parent, if there is one.
 2. Write the parent's number into each child's `Parent: #<n>` line.
@@ -190,141 +97,52 @@ yet and a placeholder fails the check. In this order:
 4. Create each child only when it prints no problems.
 5. Fill the parent's `Child issues` list with the real numbers.
 
-A defect set aside under principle 9 becomes a note issue: Background and
-how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
-Its title ends in "(note)"; that is how `triager` finds it later.
+Then invoke `reconciler` with the numbers just created.
 
-Then invoke `reconciler` with the numbers of the issues just created, so
-they are checked against every other open issue. It may stop to ask the
-developer and may redo issues through "Redoing a design".
+**Without an issue.** Invoke `implementer` with the body file. It builds
+from it and puts it in the PR body. When implementer returns, hand the PR
+to `dispatcher` as a PR to decide.
 
-Report in one message, Japanese, following `.claude/rules/writing.md`:
+A defect found along the way that the work does not need fixed becomes a
+note issue (`references/issue-format.md`, Note issue).
 
-- The decision, in a few lines, with a link to the issue that holds the
-  record.
-- What the reviews found and how it was settled, briefly. Name each `ask`
-  that was decided without the developer, with the decision and its
-  principle. List apart anything changed after the last review round, since
-  no reviewer has seen it. Include
-  anything added to `software-design-theory`, and say that the edit is
-  uncommitted.
-- How the split was arrived at, in a few lines.
-- What `reconciler` found against the other open issues, as it returned it.
-- The issues in the order they should be done: number, title, one line each.
-  The build order as a figure when issues depend on one another, and which
-  could run in parallel.
-- That they can start with `implementer` and an issue number, or `dispatcher`
-  for all of them.
+### 6. Report
+
+One message, Japanese, following `.claude/rules/writing.md`:
+
+- What will become possible, in a few lines.
+- The shape chosen, in a few lines.
+- Everything under `Decided`, so the developer can overturn it.
+- With issues: each issue in build order, number and title, one line each,
+  and what `reconciler` found. They can start with `implementer` and an
+  issue number, or `dispatcher` for all of them.
+- Without an issue: what `implementer` and `dispatcher` returned.
 
 After the report, stop.
 
-## Light path
-
-Some requests need no design decision: a bug in code whose shape is already
-settled, a wording or value fix, a missed case in existing behaviour. The
-design reviews exist to judge decisions, so where there is none they cost
-rounds and find nothing. The issue still exists, because implementer,
-reviewer and verifier all measure the work against it.
-
-A request takes this path only when all of these hold. Size of the diff is
-not one of them (`software-design-theory`: a small diff is not a reason).
-
-- No role changes: nothing gains, loses, or moves a responsibility.
-- No interface changes: no exported signature, data shape, stored format,
-  or command-line or config surface is added, removed, or altered.
-- No dependency direction changes: no new import across a package or layer
-  boundary.
-- One way to do it: within the existing shape there is only one reasonable
-  fix, so nothing is chosen between.
-- It contradicts no open issue's design, and no shape under `## Rejected shapes`
-  in the record the code came from.
-
-When any of them is in doubt, take the full flow.
-
-Steps:
-
-1. Write one issue body in the format from `references/issue-format.md`.
-   `Design` says which existing design the fix follows — link the issue that
-   holds it when there is one — and states in one sentence that the fix
-   makes no design decision. Constraints and Cases are written as step 5 says;
-   a bug fix carries a case that reproduces the bug.
-2. Run `check-issue.mjs` on it until it prints no problems.
-3. Create it with `gh issue create`, without asking.
-4. Invoke `implementer` with the new issue number. When the implementation
-   agent stops on a design question, implementer sends it to "Redoing a
-   design", which draws the whole design as the full flow would; the light
-   path was the wrong sort, and that is the way back.
-5. Report in Japanese, following `.claude/rules/writing.md`: the issue and
-   the PR, which of the tests above made this a light-path request in one
-   line, and what `implementer` returned.
-
-Design review, case review and `reconciler` are skipped on this path.
-
 ## Redoing a design
 
-The one entry other skills use when work already under way finds the design
-does not hold. `implementer` calls it with an implementation agent's design
-question, or with `reviewer`'s design-level findings; `dispatcher` reads its
-result the same way `implementer` does. Principle 1 puts design decisions
-here, so no other skill repeats these steps or decides one on its own.
+The entry `reconciler` uses when two open issues contradict each other and
+their bodies must change. A design problem found while building does not
+come here; implementer redraws it on the spot (`software-design-theory`,
+principle 9).
 
-Input: the issue number, the facts implementation or review found, and the
-question left open.
+Input: the issue numbers, and each resolution as a decision already made.
 
-Two results:
+1. Read the issues and their parents from GitHub fresh.
+2. Run step 2 over them with the resolutions applied, keeping each issue's
+   `Request`.
+3. Rewrite the bodies as step 4 says. A child keeps its `Parent: #<n>`
+   line, or takes the new parent's number when it moved.
+4. Edit each with `gh issue edit <n> --body-file <file>`. Where the new
+   design contradicts work already merged, leave that work alone and open a
+   new issue instead.
 
-- `redone`, with the list of edited and created issue numbers.
-- `stopped`, with the question, unresolved. Nothing is edited, so the issue
-  is left as it was and any PR stays open; the question is the report.
-
-1. Read the issue and its parent's decision record from GitHub fresh — the
-   snapshot the caller built from is exactly what surfaced the question, so
-   it cannot be trusted to still describe the design.
-2. Run step 2 (Design from the whole) over the existing record as if
-   drawing it from the start, keeping the original request and scope. The
-   facts passed in are read the same way a `prototyper` answer is: they
-   settle whatever they settle, and go into `Confirmed facts`.
-3. Run step 3 (Design review) on the redrawn record, with the same Rounds.
-4. Run step 4 only for what the theory still sends to the developer, plus
-   one more case: when the shape the redraw settles on is one already
-   listed under `## Rejected shapes`, stop and ask instead of choosing it again —
-   it was rejected once already, so choosing it again is not this skill's
-   call. Ask with the AskUserQuestion tool the way step 4 does. When the
-   developer answers, revise the record for it and carry on to step 5. When
-   they decline to answer, or ask to stop here, return `stopped` with the
-   question as it stands. Skip this step, and carry on without asking, when
-   there is nothing left to ask.
-5. Run steps 5 and 6 (Constraints, cases, issues; Case review) again, but
-   only for the children whose record actually changed.
-6. If step 5 left every constraint, case, and child exactly as it already
-   was, the redraw changed nothing. Return `stopped` with
-   "設計を組み直しても変わりませんでした" and the original question — running
-   step 7 and restarting the caller would only repeat the failure that
-   asked for the redo, and no principle says which way to guess past that
-   (5).
-7. Edit the parent and every child not yet merged with
-   `gh issue edit <n> --body-file <file>`, each file passing
-   `check-issue.mjs` first. Every child body it edits carries the `Parent: #<n>`
-   line of the list that holds it; a child moved to another parent gets that
-   number, and a child dropped from every list keeps its line as it is. Where the new design contradicts work already
-   merged, leave that work alone and open a new issue instead — principle 9
-   settled that behaviour once, and a redo does not reopen it in place. Add
-   every shape the redraw did not choose to `## Rejected shapes`, including ones
-   already listed there.
-
-Return `redone` with the list of edited and created issue numbers. This is
-not a report to the developer: when the call came from another skill, that
-skill reports what happened as its own step says to; called directly,
-report the same list plainly.
+Return the list of edited and created issue numbers.
 
 ## Things to keep in mind
 
-- Issues are written in English, headings included
-  (`references/issue-format.md`). Reports to the developer stay Japanese
-  and follow `.claude/rules/writing.md`. `To Implementer` is the one place
-  in an issue that file names and signatures belong.
-- If the developer asks you to "just do it", remind them once that this repo
-  works design-first, then follow their call — but still write the issue so
-  the decision and its cases are recorded.
-- A reason that cites no principle is a preference. Do not write preferences
-  into the record as reasons; ask.
+- Issues are written in English, headings included. Reports to the
+  developer stay Japanese and follow `.claude/rules/writing.md`.
+- `To Implementer` is the one place in an issue that file names and
+  signatures belong.

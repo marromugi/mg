@@ -117,10 +117,10 @@ skill loaded is plain conversation; its cause can only be in the theory.
 
 | Cause | What it looks like | What changes |
 |---|---|---|
-| Not applied | A principle covers it, and the agent did not follow it. | The flow: the step or review lens that should have caught it. |
+| Not applied | A principle covers it, and the agent did not follow it. | The flow: the step where it should have been applied, or the PR review that should have caught it. |
 | Misread | A principle covers it, but its wording allows the agent's reading. | The wording of that principle, if step 5 lets it in. |
 | Not covered | No principle speaks to it. | The theory, at the principle nearest to the reason, if step 5 lets it in. |
-| Developer's call | A product or preference call, or context only the developer had. | Nothing. |
+| Developer's call | What to build, or context only the developer had. | Nothing. |
 
 Then check whether it is already dealt with:
 
@@ -155,8 +155,9 @@ goes on to step 6 only when it passes all three:
    decides a design, with what it decides in each. If none can be named, or
    any reasonable design would reach the same result without it, it adds
    nothing.
-3. A review lens can be named that would check it. A viewpoint no lens can
-   check will not be applied.
+3. Something can be named that would catch it on a PR or on the running
+   software: a kind of finding in the PR review, a test, or a check. A rule
+   nothing catches will not be applied.
 
 A finding that fails is the developer's call. The report says which check it
 failed.
@@ -187,9 +188,9 @@ written had this been understood from the start.
 - Keep incidents out of the text. No turn ids, no dates, no "after the
   developer pointed out". An example is fine when it teaches the principle;
   it is written as an example, not as history.
-- Carry the change through: the review lenses in the same file, the architect
-  flow, the issue format, the reviewer's design pass, the reviewer prompts.
-  A principle no lens checks will not be applied.
+- Carry the change through: the Pull request review section in the same
+  file, the architect flow, the issue format, the implementer prompt, and
+  the reviewer prompt. A principle nothing catches will not be applied.
 - For a "not applied" finding, draft the change to the flow skill at the step
   where the principle should have bitten, with the same care: reshape the
   step, do not bolt a reminder onto it.

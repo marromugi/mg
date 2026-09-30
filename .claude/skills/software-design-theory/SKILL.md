@@ -1,35 +1,31 @@
 ---
 name: software-design-theory
-description: "The yardstick for every design judgment in this repo: the principles a design must follow, what tests are for and how to spot a hollow one, the lenses a review is split into, and which questions still go to the developer. Other skills read this instead of holding their own copy — architect when it shapes a design, the design review when it judges one, implementer and reviewer when they write and check tests. Use it whenever a design is being proposed, compared, reviewed, or defended, and whenever someone asks whether a test earns its place."
+description: "The yardstick for every design judgment in this repo: the principles a design follows, which calls the maker decides alone and which go to the developer, what tests are for and how to spot one that guards nothing, and how a pull request is reviewed. Other skills read this instead of holding their own copy — architect when it shapes a design, implementer when it builds and when it changes a design on the way, reviewer when it judges a PR and its tests. Use it whenever a design is being proposed, compared, or defended, and whenever someone asks whether a test earns its place."
 ---
 
 # Software design theory
 
-This is the written form of the developer's design intent. A design used to be
-judged against what the developer had in mind, so the developer had to be the
-judge. With the intent written down, an LLM can make the design and a different
-LLM can judge it.
+This is the written form of the developer's design intent. The maker of a
+design follows it, and whoever reviews a pull request judges against it.
+
+The work runs as a fast loop: build, run what was built, find what is
+wrong, fix it. Judgment is spent on the running result, not on the design
+before any code exists.
 
 ## How to use this
 
-- Whoever makes a design follows the principles.
-- Whoever reviews a design judges it against the principles, and cites the
-  principle behind each finding.
-- What the principles settle is not put to the developer.
-- A principle settles a question when it leans towards one option and no
-  principle leans against it. The maker takes that option and names it, with
-  the principle, in its report, where the developer can reopen it. The goal
-  and the scope stay the developer's even then.
-- What the principles do not settle is put to the developer, as a question
-  with options.
-- A question that running something can answer is not a preference call. It
-  is settled by running it, and only what the run cannot settle goes to the
-  developer.
-- This file is a general theory of software design. An answer enters it only
-  when it states a rule that would hold in any codebase, and then as the
-  wording of the principle it belongs to, so that question is not asked
-  again. An answer about one product — a name, a value, a wording, the shape
-  of one entry point — lives in the decision record of the work that asked.
+- Whoever makes a design follows the principles and decides the calls they
+  leave open. Names, values, formats, and how a small defect is handled are
+  the maker's. The maker lists them in the issue's `Decided` section, or in
+  the PR body when there is no issue, where the developer can overturn them.
+- A question that running something can answer is settled by running it.
+- Only what the section "What goes to the developer" names is asked.
+  Everything else proceeds, and the result is shown afterwards.
+- This file is a general theory of software design. An answer enters it
+  only when it states a rule that would hold in any codebase, and then as
+  the wording of the principle it belongs to. An answer about one product —
+  a name, a value, a wording, the shape of one entry point — lives in the
+  issue or PR of the work that asked.
 
 ## Principles
 
@@ -94,8 +90,10 @@ LLM can judge it.
   against it.
 - A small diff is not a reason to pick an option.
 - Ease of backing out is not a reason to pick an option.
-- When the right shape is not known, make a proposal and put it through design
-  review.
+- When the right shape is not known, build the likeliest one, run it, and
+  let what is seen decide. Friction that keeps coming back in the same
+  form while building is the sign the shape is wrong; redraw it rather
+  than patching around it.
 
 ### 5. Defined failure, no guessing
 
@@ -168,114 +166,107 @@ LLM can judge it.
 - Test names and descriptions carry no history and no issue numbers.
 - Documents that describe the code change in the same work as the code.
 
-### 9. Every change in behaviour is a named decision
+
+### 9. Every change in behaviour is named
 
 - Behaviour is what the user of the software observes: default values, the
   text that comes back, pass or fail, the way a failure shows.
-- Every change in behaviour is written in the decision record as a decision.
-- Behaviour the record does not name stays as it is. A design does not
-  improve things in passing.
-- A defect found along the way that the work does not need fixed is left out
-  of the work and becomes its own issue.
-- Decisions are made when the design is made. A review finds what is wrong
-  with a design; it does not add decisions to it.
-- For work that changes structure only, the existing tests passing unchanged
-  is the evidence that it is correct.
+- Every change in behaviour is named where the work is recorded: the
+  issue's `Request` or `Decided`, or the PR body when there is no issue.
+- Behaviour that is not named stays as it is. Work does not improve things
+  in passing.
+- A defect found along the way that the work does not need fixed is left
+  out of the work and becomes its own note issue.
+- When building shows the design does not hold, the one building redraws
+  it on the spot and names what changed and why in the PR body. After the
+  merge, the same is left as a comment on the issue.
+- For work that changes structure only, the existing tests passing
+  unchanged is the evidence that it is correct.
 
 ## Tests
 
-Tests exist to keep the implementation from drifting away from the design.
+Tests keep the behaviour the developer asked for from breaking while the
+code keeps changing. A test that guards nothing asked for is a cost, not a
+safety: it slows every later change and says nothing when it passes.
 
-### Three kinds of constraint
+### What gets a test
 
-A design constrains the implementation in three ways, and each is held by a
-different means. Write them apart.
+- The behaviour named in the request, checked the way its caller uses it.
+- A fixed bug, with one test that reproduces it.
+- Nothing else. The count of tests is not a measure of anything.
 
-| Kind | Example | Held by |
-|---|---|---|
-| Behaviour | Zero results is not an error; the tool returns a sentence saying so | A test |
-| Structure | The package's dependencies stay core and zod | A mechanical check |
-| Direction | The tool sees only the interface | A review lens |
+### How a test is written
 
-- Every constraint has an id.
-- Every behaviour constraint is received by at least one case.
-- Every case names the ids it receives.
-- An id with no receiver is found by a machine, not by rereading.
-- Work that carries no implementation, such as cutting interfaces, has no
-  behaviour constraints. Passing the type check shows it is consistent as
-  design, and that is its verification.
-
-### Cases
-
-- A case is written from what the user of the piece sees.
-- A case states its pass condition.
+- It calls the code the way its users do, and checks what they see.
 - Expected values are literal.
-- Tests are committed before the implementation, and the implementation is
-  committed on top. A reviewer confirms the order from the history.
-
-### Hollow tests
-
-- If the test still passes when every function it calls returns nothing, it
-  guards nothing.
-- A test that only asserts a fake was called is hollow.
-- A test that mirrors the inside of the implementation is hollow.
-- A piece that sits above an interface is tested by handing it a fake of that
-  interface. Faking what lies beyond the interface, such as the network, is a
-  sign the test has left the design.
+- A piece that sits above an interface is tested by handing it a fake of
+  that interface. Faking what lies beyond the interface, such as the
+  network, is a sign the test has left the design.
 - The implementation of an interface is the one place that fakes what lies
   beyond it.
 
+### Tests that guard nothing
+
+A test is deleted when any of these holds:
+
+- It still passes when every function it calls returns nothing.
+- It only checks that a fake was called.
+- It checks the inside of the implementation, not what a caller sees.
+- Another test already checks the same behaviour.
+- It checks behaviour the request did not ask for.
+
 ### Confirmation on the running software
 
-- A child issue with behaviour constraints gets a confirmation on the running
-  software, by someone who did not write or review the code, before the work
-  lands.
-- What to run and what counts as a pass is decided with the design and
-  written in the issue. It is never worked out from the diff.
-- A child with no behaviour constraints gets no such confirmation; the
-  existing tests are the evidence (9).
-- A child whose behaviour no runnable entry reaches says why.
-- Each entry an implementation can be run from declares how it runs and what
-  it costs, next to itself (7).
+- Work that changes behaviour gets a confirmation on the running software,
+  by an agent that did not write or review the code, before it lands.
+- What to run and what counts as a pass is written with the design, in
+  `Verification`. It is never worked out from the diff.
+- Work that changes no behaviour gets no such confirmation; the existing
+  tests are the evidence (9).
+- Work whose behaviour no runnable entry reaches says why.
+- Each entry an implementation can be run from declares how it runs and
+  what it costs, next to itself (7).
 - A confirmation that could not be done is not a pass.
 
-## Review lenses
+## Pull request review
 
-A review is split by lens, and each reviewer holds few lenses so that none is
-skimmed. A reviewer is never the one who made the thing under review.
+There is no review before code. Each PR gets one review, from two reviewers
+who did not write it, on different models, given the same prompt. Model
+diversity is the point; they are not split by lens. Two reviewers raising
+the same finding is the strongest signal.
 
-After the design is made:
+A reviewer reports only these kinds, each tied to a concrete scenario:
 
-| Reviewer | Lenses |
+| Kind | What it is |
 |---|---|
-| Whole and position | The design starts from the picture of the whole and places the piece in it (1). Each interface takes and gives back what its role says, not what its first implementation needs (1). Dependencies point one way (3). |
-| Fit with what exists | No design already in the repo contradicts this one. The design works on the real code and under the real outside constraints. Code shared across outside specifications has the agreement behind it named, and nothing of an outside specification — a default, a term — sits in shared code (7). |
-| Right shape | The design is not a stopgap: it is what would have been built had the requirement been there from the start (4). Every failure is decided, shows as its role calls for, and no ambiguous input is given a reading (5). No behaviour changes that the record does not name (9). |
-| Calls that are not ours | Some decision in the design is a product or preference call that no principle settles. This reviewer looks only for those, and returns pass when every call in the design is settled. |
+| mismatch | It does not do what the request asked |
+| bug | A concrete input or state gives a wrong result or a crash |
+| harm | It costs the developer money, cannot be undone, or reaches outside this machine unasked |
+| test | A test that guards nothing, by the list above |
 
-After the cases are written:
+A reviewer does not report another way it would have built it, naming,
+formatting, style, abstractions the code does not need yet, or anything it
+cannot tie to a concrete scenario.
 
-| Reviewer | Lenses |
-|---|---|
-| Coverage and intent | Every behaviour constraint is received. Each case follows the intent of the design it guards. Every child with behaviour constraints either names what to run and what passes, or says why nothing reaches it. |
-| Hollow tests | No case is hollow, and none is there only to add to the count. |
+The maker triages every finding. It fixes what holds, and dismisses what
+does not with a one-line reason: the scenario cannot happen, or the finding
+is a preference. Dismissed findings stay on the PR, so the developer can
+overturn them. Only harm goes to the developer.
 
-On the pull request, the reviewer skill repeats the two case lenses against the
-test code, and confirms from the history that tests came before the
-implementation.
+## What goes to the developer
 
-## What still goes to the developer
-
-- The goal and the scope of the work.
-- A product or preference call that no principle settles.
-- A collision between principles that this file does not settle.
+- What to build, when the request leaves it unclear in a way that changes
+  the result.
+- Anything that spends money: running the software, an experiment, or a
+  check against a paid service. Asked right before it runs.
 - Any action that cannot be undone.
-- Running the software under work, or an experiment, against a paid service
-  or an outside machine. Asked right before it runs.
+- Any effect outside this machine that the request did not ask for.
 
 What does not go:
 
-- A question the decision record of the work, or of its parent, already
-  answers. The answer there is followed and cited.
-- The order, batching, and pace of the work inside the agreed scope. The
-  one doing the work decides them and says what it chose.
+- Names, values, formats, and wording. The maker decides and lists them.
+- How a defect found in review is handled.
+- A design change found while building. It is made and recorded (9).
+- The order, batching, and pace of the work, and whether to merge work
+  that passed review and confirmation.
+- Anything the issue or PR of the work, or of its parent, already answers.

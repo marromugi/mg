@@ -1,218 +1,166 @@
 ---
 name: reviewer
-description: "Review a pull request against the design agreed in its GitHub issue. Use after the implementer skill opens a PR, and whenever the developer asks to review a PR — \"PR #14 をレビューして\", \"review the PR\", a PR URL, \"check what the agent built\". Runs the code-review skill on an Opus agent for bugs, then checks the diff against the issue's design and constraints. Posts every finding as an inline comment on the PR. Fixes code-level findings on its own; returns design-level findings to the caller as redo requests for architect instead of deciding or asking the developer."
+description: "Review a pull request against what its request asked for. Use after the implementer skill opens a PR, and whenever the developer asks to review a PR — \"PR #14 をレビューして\", \"review the PR\", a PR URL, \"check what the agent built\". Sends the same prompt to two reviewers on different models (Opus and Fable), who report only mismatches with the request, concrete bugs, harm to the developer, and tests that guard nothing. Triages every finding itself — fix, or dismiss with a reason — posts all of them on the PR, gets the fixes pushed, and asks the developer only about harm."
 ---
 
 # Reviewer
 
-## Why two passes
+## Why it works this way
 
-The code-review skill finds bugs and cleanups. It does not know what was
-agreed, so it cannot tell that the implementation quietly took the convenient
-option instead of the chosen one. That drift is the thing the developer most
-wants caught, so it gets its own pass, checked against the issue.
+Two reviewers on different models get the same prompt. They are not split
+by lens: the point is that two differently trained readers look at the
+same thing, and a finding both raise is the strongest signal there is.
 
-## Why the target is a URL
+Reviewers who must find something inflate nits into findings. So the
+prompt says what not to report, lets them answer `pass`, and asks for a
+concrete scenario behind every finding. The reviewer skill itself is the
+lead: it has the context the two readers lack, and it decides each finding
+rather than passing them all on. Dismissed findings stay visible on the PR
+so the developer can overturn the call.
 
-The code-review skill accepts a PR number, but its own instructions tell the
-model to diff the working tree first and only then mention arguments. A bare
-number is easy to lose at that point, and when the main checkout has
-uncommitted edits, the skill reviews those instead of the PR and nobody
-notices until the run ends. A full PR URL is impossible to misread, and it
-carries the owner, repo, and number that inline commenting needs. Always pass
-the URL, and always check afterwards that the review looked at the PR's files.
+The rules this skill applies are in `software-design-theory` (Tests, Pull
+request review, What goes to the developer). Read them before step 3.
 
 ## Steps
 
 ### 1. Collect context
 
 ```
-gh pr view <PR> --json number,title,body,url,headRefName,headRefOid,files,additions,deletions
+gh pr view <PR> --json number,title,body,url,headRefName,headRefOid,files
 ```
 
-Keep `url`, `headRefOid`, and the file list; the later steps need them. Find
-the linked issue from `Closes #N` in the body, then:
+Keep `url`, `headRefOid`, `headRefName`, and the file list. Find the
+request:
+
+- With `Closes #N` in the body: `gh issue view <N> --json title,body`, and
+  the parent's body too when the issue has a `Parent: #<n>` line.
+- Without: the PR body starts with the body architect wrote.
+
+From these, take `Request` (or, for an issue in the earlier format,
+`Background`, `Changes`, and `Cases`), and `Verification`. From the PR
+body, take `Decided` and `Design changes`.
+
+### 2. Spawn the two reviewers
+
+Two Agent calls in one message:
+
+- `subagent_type`: `general-purpose`, `model`: `opus`
+- `subagent_type`: `general-purpose`, `model`: `fable`
+
+If the Fable seat is rejected, run it on `opus` and say so in the report.
+
+Both get the same prompt, with the slots filled:
 
 ```
-gh issue view <N> --json title,body
+You are reviewing a pull request in this repository. You did not write it.
+
+What the developer asked for: <Request>
+PR: <url>
+Design changes the author made while building: <Design changes, or "none">
+How it is run: <Verification items>
+
+Read the diff with `gh pr diff <number>`, and the code around it as far as
+you need. Read .claude/skills/software-design-theory/SKILL.md, sections
+Tests and Pull request review.
+
+Report only these four kinds:
+- mismatch: it does not do what was asked. Name the input and what the
+  developer would see instead.
+- bug: a concrete input or state that gives a wrong result or a crash.
+  Trace the call site; a value no caller can pass is not a bug.
+- harm: something that costs the developer money, cannot be undone, or
+  reaches outside this machine without being asked for.
+- test: a test in this PR that guards nothing, by the list in "Tests that
+  guard nothing".
+
+Do not report:
+- another way you would have built it
+- naming, formatting, or style
+- abstractions the code does not need yet
+- anything you cannot tie to a concrete scenario
+
+Do not edit files. Do not run anything that calls a paid API.
+
+Return findings in this form, or the single line "pass":
+
+- kind: mismatch | bug | harm | test
+  where: <path:line>
+  scenario: <input or state -> what happens>
+  evidence: <quoted code or command output>
 ```
 
-If the issue declares a parent (`Parent: #<n>` in its Design section), read
-it for the decision record and the shared constraints. Also read `software-design-theory` — its principles and its
-Tests section are the yardstick for the design pass.
+### 3. Triage
 
-Get the order of the commits as well; the design pass needs it:
+Put both lists together. A finding both raised is one finding naming both.
+Decide each:
 
-```
-gh pr view <PR> --json commits --jq '.commits[] | "\(.oid[0:7]) \(.messageHeadline)"'
-```
+- **fix** — the scenario can happen, or the test does guard nothing. Both
+  reviewers raising it is reason to fix unless the code proves otherwise.
+- **dismiss** — the scenario cannot happen (trace the caller), or the
+  finding is a preference in disguise. Write the reason in one line.
+- **ask** — kind `harm` that holds. It goes to the developer in step 6.
 
-Run `git status --short` in the main checkout. Do not stash or commit
-anything; just remember whether tracked files are modified. If the scope
-check in step 2 fails, this is the first suspect and belongs in the report.
+A finding that points at a choice listed under `Decided` or `Design
+changes` is not reopened here; dismiss it with that pointer. The developer
+can overturn those choices from the report.
 
-### 2. Bug pass (code-review on Opus)
+### 4. Post every finding on the PR
 
-Pick the effort level. Higher levels report more, and the extra findings
-are mostly nits the developer does not want on the PR, so start low and go
-up only where bugs can actually hide:
+Post each finding before anything is fixed, so each comment anchors to the
+commit that was reviewed. The body starts with the kind and the decision,
+such as `[bug / fix]` or `[test / dismiss]`, then the scenario, then which
+reviewer raised it, then the reason for a dismissal. Write in Japanese
+following `.claude/rules/writing.md`.
 
-- `medium` — default.
-- `low` — scaffold or config-only PRs, docs, or diffs under roughly 150
-  lines excluding lockfiles.
-- `high` — only when the diff touches concurrency, auth, money, data
-  migration, or another place where a missed bug is expensive.
-
-The Skill tool cannot choose a model, so wrap it in an agent:
-
-- Agent tool, `subagent_type`: `general-purpose`, `model`: `opus`
-- Prompt, filled in with the real values:
-
-> Invoke the `code-review` skill with args `--comment <level> <PR URL>`.
-> The target is that PR, not the working tree of this checkout. Do not use
-> the advisor tool at any point: decide the review axes yourself from the
-> diff and the PR description, and run the review directly. Nesting another
-> model under this one only adds latency. When the findings arrive, compare
-> the files they name and the scope the skill reports against this list of
-> PR files: `<file list>`. If the review covered anything else, do not
-> rerun; report the mismatch and what the skill said its scope was.
-> Otherwise return the findings exactly as reported, with file and line for
-> each, and confirm that the inline comments were posted.
-
-Keep `--comment` at the start or the end of the args; the skill only
-recognises the flag at either end. With it, the skill posts each of its
-findings as an inline comment on the PR, so the bug pass needs no separate
-posting step.
-
-Keep the returned findings; they are merged into the report.
-
-### 3. Design pass
-
-Read the diff:
-
-```
-gh pr diff <PR>
-```
-
-Compare it against the issue's Design, Constraints, Cases, and To Implementer, and
-against the PR's own Cases and Deviations sections. Ask, concretely:
-
-**The design**
-
-- Did it implement the decided design, or something that resembles it?
-- Did it make any decision the issue does not cover — a new interface, a
-  new dependency, a changed data shape, a widened responsibility?
-- Did it touch anything listed as out of scope?
-- Does every Structure constraint hold? Run the issue's structural checks against
-  the PR branch rather than trusting the PR body.
-- Does every Direction constraint hold in the code as written?
-- Are outside specifications still behind their interface (principle 7)?
-- Anything in Deviations that the issue did not authorise?
-
-**The tests**
-
-- Does every case in the issue have a row in the PR's Cases table, and does
-  the named test exist?
-- Does each test assert what its case says is seen, with the case's literal
-  values? A test that shares a case's name but asserts something weaker does
-  not receive it.
-- Is any test hollow by the theory's Hollow tests list? Read the assertions,
-  not the titles.
-- Is there a test no case calls for? It is either a missing case, which is
-  design-level, or padding, which is code-level.
-- Did the tests come before the implementation? The commit that adds the
-  tests precedes the commit that adds the behaviour. A single commit holding
-  both is a finding.
-
-### 4. Sort the findings
-
-Two buckets. Getting this split right is the whole point of the skill.
-
-**Code-level — fix without asking.** A bug, a case with no test, a test
-weaker than its case, a hollow or padding test, tests committed together with
-or after the implementation, an error path not handled as the issue
-specified, naming, dead code, an inefficiency that does not change the
-design, and comments, test names, or documents that break principle 8 (No
-history in the code). The developer wants these handled, not reported.
-
-A departure from the issue that the agent did not argue for is also
-code-level: a broken Structure or Direction constraint, an out-of-scope change, a
-different shape than the decided one. The design was already judged; the fix
-is to bring the code back to it.
-
-**Design-level — do not fix, return.** Anything that reopens the design: the
-agent reports, in Deviations or in its final message, that the design as
-written cannot work; the code needs a decision the issue is silent on; a
-behaviour needs a case the issue does not have; an interface or a
-responsibility has to change. Even if the agent's choice looks better, it is
-not the reviewer's to accept. Check it against `software-design-theory`: if a
-principle settles it, say which and treat the finding as code-level. If none
-does, it goes back to the caller as a redo request for architect's "Redoing
-a design" — reviewer does not decide it and does not ask the developer.
-
-When unsure which bucket, it is design-level.
-
-### 5. Post the design-pass findings on the PR
-
-The developer reads findings where the code is, not in a chat log. The bug
-pass already posted its own; post every finding from step 3 the same way,
-before anything is fixed, so each comment anchors to the commit that was
-reviewed.
-
-Prefix the body with `[design]` or `[code]` so the buckets are visible on
-the PR. For a finding that points at a line:
+For a finding that points at a line:
 
 ```
 gh api repos/<owner>/<repo>/pulls/<PR>/comments \
   -f commit_id=<headRefOid> -f path=<file> -F line=<line> -f side=RIGHT \
-  -f body='[design] ...'
+  -f body='[bug / fix] ...'
 ```
 
-For a finding with no single line (wrong option chosen, scope widened,
-missing test file), one PR-level comment:
+For a finding with no single line:
 
 ```
-gh pr comment <PR> --body '[design] ...'
+gh pr comment <PR> --body '[mismatch / fix] ...'
 ```
 
-Write the comment bodies in Japanese, following `.claude/rules/writing.md`.
-A design-level comment states what the issue said, what the code does, and
-that the design is going back for a redo.
+### 5. Get the fixes pushed
 
-### 6. Apply code-level fixes
+Send every `fix` finding to the implementation agent with SendMessage when
+the caller passed its id. Otherwise spawn a new agent (`model`: `sonnet`,
+`isolation`: `worktree`) told to check out `headRefName` first. A `test`
+finding is fixed by deleting the test. Ask it to run the tests and push.
+Wait for CI once more as in the implementer skill. One fix round; do not
+review again on your own.
 
-If the implementer agent from this session is still available, continue it
-with SendMessage: list the findings, ask it to fix, run tests, push. Otherwise
-spawn a new agent (`model`: `sonnet`, `isolation`: `worktree`) told to check
-out `headRefName` first. After the push, wait for CI once more as in the
-implementer skill. Do not run a second full review round on your own; one
-fix round, then report.
-
-After the push, close the loop on the PR. List the review comments, and
-reply on each thread whose finding was fixed with the commit that fixed it:
+After the push, reply on each fixed thread with the commit that fixed it:
 
 ```
 gh api repos/<owner>/<repo>/pulls/<PR>/comments --jq '.[] | {id, path, line, body}'
 gh api repos/<owner>/<repo>/pulls/<PR>/comments/<id>/replies -f body='<sha> で修正しました。'
 ```
 
-Design-level threads stay open; the redo the caller starts is what answers
-them.
+### 6. Ask about harm
+
+Skip this step when nothing is `ask`.
+
+Put each one to the developer with the AskUserQuestion tool, reading on
+its own following `.claude/rules/questions.md`: what the change would do to
+them, and the options. Apply the answer the same way as step 5.
 
 ### 7. Report
 
-Japanese, following `.claude/rules/writing.md`. Order:
+Japanese, following `.claude/rules/writing.md`:
 
-1. One line: the PR, what it implements, whether CI passed, and that the
-   findings are on the PR as comments.
-2. Code-level findings that were fixed, briefly.
-3. Anything left open, including a scope-check failure from step 2 and the
-   modified files noticed in step 1 if there were any.
+1. One line: the PR, what it builds, whether CI passed, and that the
+   findings are on the PR.
+2. Findings fixed, briefly, with which reviewer raised each and whether
+   both did.
+3. Findings dismissed, one line each with the reason, so the developer can
+   overturn them.
+4. Anything left open: a harm the developer declined, a fix that did not
+   land, a seat that ran on a fallback model.
 
-Return the design-level findings as redo requests, one per finding: what the
-issue said, what the code does, and the question still open. The caller —
-`implementer`, or the developer when this skill was invoked directly — takes
-each one to architect's "Redoing a design"; reviewer does not decide it and
-does not ask the developer.
-
-Then stop. Merging is the developer's action.
+Then stop. Merging is dispatcher's call, or the developer's.

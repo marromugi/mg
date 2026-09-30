@@ -1,6 +1,6 @@
 ---
 name: reconciler
-description: "Find conflicts between open GitHub issues before anyone builds them: one issue removes or renames something another issue builds on, two issues change the same interface in different directions, one issue's decision is another's rejected shape, the build order contradicts itself, or two issues do the same work. Settles what software-design-theory settles, asks the developer the rest with AskUserQuestion, and hands every resolution to architect's \"Redoing a design\" so the issues get rewritten. Use this whenever the developer wants the backlog checked for contradictions — 「issue の競合を見て」「矛盾している issue がないか確認して」「この issue とぶつかるものはある？」「削除の issue に依存している issue がないか」「backlog を精査して」 — and after architect creates issues, to check the new ones against everything already open. Not for merge conflicts in git, and not for reviewing one design on its own (software-design-review does that)."
+description: "Find conflicts between open GitHub issues before anyone builds them: one issue removes or renames something another issue builds on, two issues change the same interface in different directions, two issues decide the same thing opposite ways, the build order contradicts itself, or two issues do the same work. Settles every conflict itself except those that change what an issue sets out to build, which it asks the developer with AskUserQuestion, and hands every resolution to architect's \"Redoing a design\" so the issues get rewritten. Use this whenever the developer wants the backlog checked for contradictions — 「issue の競合を見て」「矛盾している issue がないか確認して」「この issue とぶつかるものはある？」「削除の issue に依存している issue がないか」「backlog を精査して」 — and after architect creates issues, to check the new ones against everything already open. Not for merge conflicts in git."
 ---
 
 # Reconciler
@@ -29,8 +29,8 @@ Read `software-design-theory` before step 5.
   numbers, or nothing, which means every open issue against every other.
 - Called from architect after step 7: the numbers of the issues it just
   created. Compare each of them against every other open issue. Skip
-  pairs where both are new children of the same parent; one design
-  review already saw them together.
+  pairs where both are new children of the same parent; architect drew
+  them together.
 
 ## Step 1: Gather
 
@@ -58,7 +58,7 @@ names, not prose:
 - 足す: what it adds.
 - 変える: interfaces and behaviours whose shape changes, and to what.
 - 前提: what it uses or builds on that must already exist, by name.
-- 決定と見送った形: from the issue or its parent's decision record.
+- 決定: from the issue's and its parent's `Design` and `Decided`.
 - 順序: its parent and its place in the parent's `Child issues` list, the
   parent it declares (`Parent: #<n>`), and any issue it says it waits for.
   A child whose declared parent differs from the issue that lists it is a
@@ -83,7 +83,7 @@ then read for the kinds a name match cannot catch.
 |---|---|
 | 消すものに依存 | A の消す・改名するに、B の前提か変えるが含まれる |
 | 同じものを別方向に変える | A と B の変えるが同じ名前を指し、形が違う |
-| 決定の食い違い | A の決定が、B の見送った形に入っている |
+| 決定の食い違い | A の決定と B の決定が、同じことを逆に決めている |
 | 順序の矛盾 | 待ち合わせが循環している、または親の順番と逆になっている |
 | 重複 | A と B の足すか変えるが、同じことを指している |
 | 進行中の PR とぶつかる | 開いている PR の変更が、ほかの issue の消すや変えると重なる |
@@ -106,7 +106,7 @@ Drop what does not hold. What remains is a conflict.
 ## Step 5: Sort each conflict
 
 Hold each conflict against `software-design-theory` ("How to use this"
-and "What still goes to the developer"):
+and "What goes to the developer"):
 
 - Settled by a principle. The resolution follows from the principles and
   both issues' goals stay whole. For example, B builds on a name A
@@ -118,8 +118,11 @@ and "What still goes to the developer"):
 - Goes to the developer. The conflict touches the goal or scope of either
   issue: one of them has to give up part of what it set out to do, or
   both issues' goals cannot hold at once. Dropping an issue is always
-  this kind. So is a collision between principles the theory does not
-  settle.
+  this kind.
+
+Anything else — including principles that lean against each other — is
+decided here, and the report names the choice so the developer can
+overturn it.
 
 When unsure between the first and the last, it goes to the developer.
 

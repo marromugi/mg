@@ -177,16 +177,20 @@ export const declaredTarget = async (
   root: string,
   input: string,
   reach: Reach,
+  fallback: (
+    root: string,
+    input: string,
+  ) => Promise<ResolvedPath> = resolveExistingPath,
 ): Promise<ResolvedPath> => {
   const declared =
     reach.kind === "paths" && reach.paths.length === 1
       ? reach.paths[0]
       : undefined;
-  if (declared === undefined) return resolveExistingPath(root, input);
+  if (declared === undefined) return fallback(root, input);
 
   const rootReal = await fs.realpath(root);
   if (!isWithinRoot(rootReal, declared.path)) {
-    return resolveExistingPath(root, input);
+    return fallback(root, input);
   }
   return {
     absolute: declared.path,

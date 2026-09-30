@@ -235,6 +235,13 @@ It writes a check as `mg.gate` only when it receives a parent span.
 - `name` is the participant field on a gen_ai input message.
 - If an author is empty or only whitespace, that exporter throws `RangeError`.
 
+### gen_ai input messages
+
+- For an `mg.llm` span, `gen_ai.input.messages` is the rebuilt list of sent messages.
+- System messages stay in it at their positions. `gen_ai.system_instructions` is not written.
+- When the record cannot be read, `gen_ai.input.messages` is left out.
+- Then `mg.llm.messages.unreadable` on the exported span carries the reason.
+
 ### Export
 
 trace promises when and in what order spans are handed to the exporters.

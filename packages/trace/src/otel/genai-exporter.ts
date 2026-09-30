@@ -2,7 +2,7 @@ import type {
   ReadableSpan,
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
-import { mapGenAiAttributes } from "./genai-mapping.js";
+import { mapGenAiSpan } from "./genai-mapping.js";
 
 type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
 
@@ -11,7 +11,7 @@ const withGenAiAttributes = (span: ReadableSpan): ReadableSpan =>
     attributes: {
       value: {
         ...span.attributes,
-        ...mapGenAiAttributes(span.attributes),
+        ...mapGenAiSpan(span),
       },
       enumerable: true,
     },

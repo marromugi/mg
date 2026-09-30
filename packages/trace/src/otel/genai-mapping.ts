@@ -2,8 +2,10 @@
 // @ 0c87594975195608dc91b3f702e250a7b240c151, docs/gen-ai/gen-ai-spans.md and
 // docs/gen-ai/gen-ai-agent-spans.md.
 import type { Attributes } from "@opentelemetry/api";
-import type { ToolCall } from "@mg/core";
+import type { Message, ToolCall } from "@mg/core";
 import { jsonAttribute } from "../json.js";
+import { sentMessagesOf } from "../sent-messages.js";
+import type { RecordedSpan } from "../sent-messages.js";
 import { ATTR } from "../vocabulary.js";
 
 const GEN_AI_PROVIDER_NAME = "gen_ai.provider.name";
@@ -149,23 +151,16 @@ const parseMessages = (json: unknown): MessageLike[] | undefined => {
   }
 };
 
-const mapInputMessages = (
-  attributes: Attributes,
-): string | undefined => {
-  const messages = parseMessages(attributes[ATTR.llmInputMessages]);
-  if (messages === undefined) return undefined;
-  return jsonAttribute(messages.map(toGenAiMessage));
-};
-
 const mapOutputMessages = (
-  attributes: Attributes,
+  attributes: RecordedSpan["attributes"],
 ): string | undefined => {
   const messages = parseMessages(attributes[ATTR.llmOutputMessages]);
   if (messages === undefined) return undefined;
   return jsonAttribute(messages.map(toGenAiMessage));
 };
 
-const mapLlmAttributes = (attributes: Attributes): Attributes => {
+const mapLlmAttributes = (span: RecordedSpan): Attributes => {
+  const attributes = span.attributes;
   const mapped: Attributes = {};
 
   const providerName = attributes[ATTR.llmProvider];
@@ -193,9 +188,13 @@ const mapLlmAttributes = (attributes: Attributes): Attributes => {
     mapped[GEN_AI_RESPONSE_FINISH_REASONS] = [finishReason]; // gen_ai.response.finish_reasons
   }
 
-  const inputMessages = mapInputMessages(attributes);
-  if (inputMessages !== undefined) {
-    mapped[GEN_AI_INPUT_MESSAGES] = inputMessages; // gen_ai.input.messages
+  const sent = sentMessagesOf(span);
+  if (sent.kind === "messages") {
+    mapped[GEN_AI_INPUT_MESSAGES] = jsonAttribute(
+      sent.messages.map((m: Message) => toGenAiMessage(m)),
+    ); // gen_ai.input.messages
+  } else {
+    mapped[ATTR.llmMessagesUnreadable] = sent.reason;
   }
 
   const outputMessages = mapOutputMessages(attributes);
@@ -206,9 +205,8 @@ const mapLlmAttributes = (attributes: Attributes): Attributes => {
   return mapped;
 };
 
-export const mapGenAiAttributes = (
-  attributes: Attributes,
-): Attributes => {
+export const mapGenAiSpan = (span: RecordedSpan): Attributes => {
+  const attributes = span.attributes;
   const op = attributes[ATTR.op];
   if (typeof op !== "string") return {};
 
@@ -220,7 +218,7 @@ export const mapGenAiAttributes = (
   };
 
   if (op === "llm") {
-    Object.assign(mapped, mapLlmAttributes(attributes));
+    Object.assign(mapped, mapLlmAttributes(span));
   } else if (op === "tool") {
     const toolName = attributes[ATTR.toolName];
     if (typeof toolName === "string") {

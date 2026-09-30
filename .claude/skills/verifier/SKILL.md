@@ -129,9 +129,10 @@ being checked.
 
 For each V item that still has a command to run, and whose declared burdens
 include `cost` or `outside`, ask with AskUserQuestion right before running
-it, not earlier — approval is for this one run, not a standing yes. State
-the command and what kind of cost or outside effect it carries. Options: run
-it, or do not.
+it, not earlier — approval is for this one run, not a standing yes. Write
+it following `.claude/rules/questions.md`: what the PR changes and what the
+run checks, then the command and what kind of cost or outside effect it
+carries. Options: run it, or do not.
 
 Not approved: note that item as unverifiable, with the reason
 "承認されませんでした".

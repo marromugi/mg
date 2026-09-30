@@ -109,17 +109,17 @@ carry on, whether to batch the questions. Decide it and say what you chose.
 
 Then stop here, once, with all that is left. Put the questions with the
 AskUserQuestion tool, one entry per question, each option's description
-saying what it gives up. What does not fit in the tool — a mechanism to
-explain, the principles that come close — goes in a short message before the
-call. Write in Japanese following `.claude/rules/writing.md`. For each
-question:
+saying what it gives up. Each question reads on its own, following
+`.claude/rules/questions.md`: the mechanism and the code go in each option's
+preview, and a message before the call only adds to what the dialog holds.
+Write in Japanese following `.claude/rules/writing.md`. For each question:
 
 - What is being decided, in plain words. When the options are shapes of
   code — an entry point, an interface, the wiring between pieces — show
-  them on the code: the existing code the question rests on, with its path,
-  and for each option what its user would write. A mechanism told in words
-  alone cannot be chosen between.
-- The options, and what each one gives up, in a table.
+  them on the code in each option's preview: the existing code the question
+  rests on, with its path, and what the option's user would write. A
+  mechanism told in words alone cannot be chosen between.
+- The options, and what each one gives up, in each option's description.
 - Which principles come close and why none of them settles it. A question
   reaches here with a principle leaning one way only when another leans the
   other way, or when it is the goal or the scope. Recommend the option the

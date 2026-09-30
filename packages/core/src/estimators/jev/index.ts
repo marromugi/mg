@@ -177,6 +177,7 @@ export const createJevEstimator = (
         signal,
       });
     } catch (error) {
+      if (signal?.aborted) throw signal.reason;
       if (isAbortError(error)) throw error;
       throw new EstimatorRequestError("Jev request failed", {
         cause: error,
@@ -185,12 +186,16 @@ export const createJevEstimator = (
     }
 
     if (!response.ok) {
-      let text = "";
+      let text: string;
       try {
         text = await response.text();
       } catch (error) {
+        if (signal?.aborted) throw signal.reason;
         if (isAbortError(error)) throw error;
-        // ignore: fall back to the status alone
+        throw new EstimatorRequestError(
+          `Jev request failed: ${response.status}; the body could not be read`,
+          { cause: error, ...retryMarkForStatus(response) },
+        );
       }
       const cause = new JevHttpError(response.status, text);
       throw new EstimatorRequestError(

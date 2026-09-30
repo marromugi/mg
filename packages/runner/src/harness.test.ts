@@ -54,12 +54,7 @@ describe("createHarness", () => {
       harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
     };
 
-    const harness = createHarness(
-      config.harness,
-      config.provider,
-      config.gate,
-      config.tools ?? [],
-    );
+    const harness = createHarness(config.harness, config.provider, {});
     const result = await collect(harness({ messages: [] }));
 
     expect(result.reason).toBe("stop");
@@ -86,14 +81,15 @@ describe("createHarness", () => {
       tools: [tool],
       gate: { judge: async () => ({ allowed: true, reason: "ok" }) },
     };
+    const gate: Gate = {
+      judge: async () => ({ allowed: true, reason: "ok" }),
+    };
 
     await collect(
-      createHarness(
-        config.harness,
-        config.provider,
-        config.gate,
-        config.tools ?? [],
-      )({ messages: [] }),
+      createHarness(config.harness, config.provider, {
+        gate,
+        tools: [tool],
+      })({ messages: [] }),
     );
 
     const request = (
@@ -141,12 +137,10 @@ describe("createHarness", () => {
     };
 
     const result = await collect(
-      createHarness(
-        config.harness,
-        config.provider,
-        config.gate,
-        config.tools ?? [],
-      )({ messages: [] }),
+      createHarness(config.harness, config.provider, {
+        gate,
+        tools: [tool],
+      })({ messages: [] }),
     );
 
     expect(judge).toHaveBeenCalledTimes(1);
@@ -169,7 +163,7 @@ describe("createHarness", () => {
     } as unknown as RunConfig;
 
     expect(() =>
-      createHarness(config.harness, config.provider, config.gate, []),
+      createHarness(config.harness, config.provider, {}),
     ).toThrow(RangeError);
   });
 });

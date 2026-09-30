@@ -85,6 +85,65 @@ const fakeWorkspace = (
 ): Workspace =>
   defineWorkspace({ name, connectors: [fakeConnector(tools)] });
 
+describe("the request to the provider when a run or subagent has no tools", () => {
+  test("a run without gate, tools or subagents sends an empty tool list", async () => {
+    const { provider, requests } = trackingProvider([
+      textResponse("hi"),
+    ]);
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 1, stream: false },
+    };
+
+    const outcome = await run(config, []);
+
+    expect(outcome.result.reason).toBe("stop");
+    expect(requests[0]?.tools).toEqual([]);
+  });
+
+  test("a subagent without gate, tools or workspace sends an empty tool list", async () => {
+    const parent = trackingProvider([
+      {
+        parts: [
+          {
+            type: "tool-call",
+            id: "c1",
+            name: "helper",
+            arguments: { prompt: "go" },
+          },
+        ],
+        finishReason: "tool_calls",
+      },
+      textResponse("done"),
+    ]);
+    const child = trackingProvider([textResponse("hi")]);
+    const config: RunConfig = {
+      name: "example",
+      provider: parent.provider,
+      harness: { kind: "loop", model: "m", maxTurns: 2, stream: false },
+      gate: stubGate(),
+      subagents: [
+        {
+          name: "helper",
+          description: "Helps",
+          provider: child.provider,
+          harness: {
+            kind: "loop",
+            model: "m",
+            maxTurns: 1,
+            stream: false,
+          },
+        },
+      ],
+    };
+
+    await run(config, []);
+
+    expect(child.requests[0]?.tools).toEqual([]);
+  });
+});
+
 describe("run with subagents in the config", () => {
   test("a subagent call from the parent's provider is answered by the child's provider, as a tool message, and the run stops", async () => {
     let parentTurn = 0;

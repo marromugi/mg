@@ -2,6 +2,7 @@ import type { Message, Tool } from "@mg/core";
 import { textOf } from "@mg/core";
 import { collect, noopSpan } from "@mg/harness";
 import type {
+  Harness,
   HarnessResult,
   Subagent,
   SubagentContext,
@@ -210,6 +211,16 @@ const resolveSource = (
   return source;
 };
 
+const harnessOf = (
+  config: SubagentConfig,
+  tools: readonly Tool[],
+): Harness =>
+  createHarness(
+    config.harness,
+    config.provider,
+    config.gate ? { gate: config.gate, tools } : { subagents: [] },
+  );
+
 export const createSubagent = (
   config: SubagentConfig,
   environment: {
@@ -228,7 +239,7 @@ export const createSubagent = (
   const parentName = parent?.name;
   validateWorkspace(config.name, config.workspace, parentName);
   validateHeldNames(config.name, config.workspace, parentHeldNames);
-  createHarness(config.harness, config.provider, config.gate, tools);
+  harnessOf(config, tools);
 
   const inputSchema = buildInputSchema(
     config.name,
@@ -256,12 +267,7 @@ export const createSubagent = (
     const runWith = async (
       merged: readonly Tool[],
     ): Promise<string> => {
-      const harness = createHarness(
-        config.harness,
-        config.provider,
-        config.gate,
-        merged,
-      );
+      const harness = harnessOf(config, merged);
       const result = await collect(
         harness({
           messages,

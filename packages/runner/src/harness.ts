@@ -4,23 +4,26 @@ import type { Harness, Subagent } from "@mg/harness";
 import { createLoopHarness } from "@mg/loop";
 import type { HarnessConfig } from "./config.js";
 
+export type HarnessParts = {
+  subagents?: readonly Subagent[];
+} & (
+  | { gate: Gate; tools?: readonly Tool[] }
+  | { gate?: undefined; tools?: undefined }
+);
+
 export const createHarness = (
   harnessConfig: HarnessConfig,
   provider: Provider,
-  gate: Gate | undefined,
-  tools: readonly Tool[],
-  subagents?: readonly Subagent[],
+  parts: HarnessParts,
 ): Harness => {
   switch (harnessConfig.kind) {
     case "loop":
       return createLoopHarness({
         provider,
         model: harnessConfig.model,
-        tools,
-        subagents,
         maxTurns: harnessConfig.maxTurns,
         stream: harnessConfig.stream,
-        gate,
+        ...parts,
       });
     default: {
       const unknown = harnessConfig as { kind: unknown };

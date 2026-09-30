@@ -17,7 +17,10 @@ export type ReasoningPart = {
   text: string;
   carry?: ReasoningCarry;
 };
-export type ToolCallPart = { type: "tool-call" } & ToolCall;
+export type ToolCallCarry = { provider: string; data: unknown };
+export type ToolCallPart = { type: "tool-call" } & ToolCall & {
+    carry?: ToolCallCarry;
+  };
 export type AssistantPart = TextPart | ReasoningPart | ToolCallPart;
 
 export type AssistantMessage = {
@@ -58,17 +61,29 @@ export type FinishReason =
   "stop" | "tool_calls" | "length" | "halted" | "other";
 export type Usage = { inputTokens: number; outputTokens: number };
 
+// What a provider could not give back faithfully in one request.
+export type Omission = {
+  kind: "outside-tool-call-id";
+  toolCallIds: string[];
+};
+
 export type GenerateResponse = {
   parts: AssistantPart[];
   finishReason: FinishReason;
   usage?: Usage;
+  omitted?: Omission[];
 };
 
 export type StreamEvent =
   | { type: "text-delta"; delta: string }
   | { type: "reasoning-delta"; delta: string; carry?: ReasoningCarry }
-  | { type: "tool-call"; toolCall: ToolCall }
-  | { type: "finish"; finishReason: FinishReason; usage?: Usage };
+  | { type: "tool-call"; toolCall: ToolCall; carry?: ToolCallCarry }
+  | {
+      type: "finish";
+      finishReason: FinishReason;
+      usage?: Usage;
+      omitted?: Omission[];
+    };
 
 export interface Provider {
   readonly name?: string;

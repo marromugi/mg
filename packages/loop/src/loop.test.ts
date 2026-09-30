@@ -412,6 +412,61 @@ describe("createLoopHarness", () => {
     expect(provider.generate).toHaveBeenCalledTimes(1);
   });
 
+  test("a streamed tool call shows bare in the harness event and carries in the assistant message", async () => {
+    const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
+      name: "echo",
+      input: stubSchema(),
+      execute: async () => "pong",
+    });
+    const provider = stubStreamProvider([
+      [
+        {
+          type: "tool-call",
+          toolCall: {
+            id: "u1",
+            name: "echo",
+            arguments: { text: "ping" },
+          },
+          carry: { provider: "openrouter", data: { id: "call_1" } },
+        },
+        { type: "finish", finishReason: "tool_calls" },
+      ],
+    ]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [tool],
+      maxTurns: 1,
+    });
+
+    const events: HarnessEvent[] = [];
+    for await (const event of harness({ messages: [] })) {
+      events.push(event);
+    }
+
+    expect(events[0]).toStrictEqual({
+      type: "tool-call",
+      toolCall: { id: "u1", name: "echo", arguments: { text: "ping" } },
+    });
+    const done = events.at(-1) as Extract<
+      HarnessEvent,
+      { type: "done" }
+    >;
+    expect(done.result.messages[0]).toEqual({
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-call",
+          id: "u1",
+          name: "echo",
+          arguments: { text: "ping" },
+          carry: { provider: "openrouter", data: { id: "call_1" } },
+        },
+      ],
+    });
+  });
+
   test("an already-aborted signal rejects with AbortError before generate is called", async () => {
     const provider = stubProvider([]);
     const harness = createLoopHarness({

@@ -23,19 +23,22 @@ const llmStep1: LlmStep = {
       },
     ],
   },
-  output: [
-    {
-      role: "assistant",
-      parts: [
-        {
-          type: "tool-call",
-          id: "call-1",
-          name: "bash",
-          arguments: { cmd: "ls" },
-        },
-      ],
-    },
-  ],
+  output: {
+    kind: "messages",
+    messages: [
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-call",
+            id: "call-1",
+            name: "bash",
+            arguments: { cmd: "ls" },
+          },
+        ],
+      },
+    ],
+  },
 };
 
 const gateStep: GateStep = {
@@ -64,12 +67,15 @@ const llmStep2: LlmStep = {
   ...baseTimes,
   model: "gpt-4o-mini",
   input: { kind: "messages", messages: [] },
-  output: [
-    {
-      role: "assistant",
-      parts: [{ type: "text", text: "Done, I listed the files." }],
-    },
-  ],
+  output: {
+    kind: "messages",
+    messages: [
+      {
+        role: "assistant",
+        parts: [{ type: "text", text: "Done, I listed the files." }],
+      },
+    ],
+  },
 };
 
 const view: RunView = {
@@ -82,7 +88,7 @@ const view: RunView = {
   gateSteps: [gateStep],
   subagentSteps: [],
   turnCount: 2,
-  finalText: "Done, I listed the files.",
+  finalText: { kind: "text", text: "Done, I listed the files." },
   usage: { inputTokens: 30, outputTokens: 13 },
   ...baseTimes,
 };
@@ -309,6 +315,27 @@ describe("transcribe", () => {
 
     expect(transcribe(unreadableView)).toBe(
       "[input unreadable] input messages are not a JSON array\n\n[assistant] Done, I listed the files.",
+    );
+  });
+});
+
+describe("transcribe unreadable output", () => {
+  it("writes the reason in the place of the step", () => {
+    const failed: LlmStep = {
+      ...llmStep2,
+      output: {
+        kind: "unreadable",
+        reason: "output messages are missing",
+      },
+    };
+    const text = transcribe({
+      ...view,
+      steps: [failed],
+      llmSteps: [failed],
+    });
+
+    expect(text).toContain(
+      "[output unreadable] output messages are missing",
     );
   });
 });

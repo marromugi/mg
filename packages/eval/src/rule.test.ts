@@ -11,7 +11,7 @@ const makeView = (overrides: Partial<RunView> = {}): RunView => ({
   gateSteps: [],
   subagentSteps: [],
   turnCount: 0,
-  finalText: undefined,
+  finalText: { kind: "none" },
   usage: { inputTokens: 0, outputTokens: 0 },
   startTime: "2026-01-01T00:00:00.000Z",
   endTime: "2026-01-01T00:00:01.000Z",

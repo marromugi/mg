@@ -65,8 +65,8 @@ describe("ATTR", () => {
     expect(ATTR.llmSystemContent).toBe("mg.llm.system.content");
     expect(ATTR.llmSystemIndex).toBe("mg.llm.system.index");
     expect(ATTR.llmSystemCount).toBe("mg.llm.system.count");
-    expect(ATTR.llmMessagesUnreadable).toBe(
-      "mg.llm.messages.unreadable",
+    expect(ATTR.llmInputUnreadable).toBe(
+      "mg.llm.messages.input.unreadable",
     );
   });
 

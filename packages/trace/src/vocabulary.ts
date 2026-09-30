@@ -41,8 +41,9 @@ export const ATTR = {
   llmSystemContent: "mg.llm.system.content", // string, on an EVENT.llmSystem event
   llmSystemIndex: "mg.llm.system.index", // number, position in the sent list, on an EVENT.llmSystem event
   llmSystemCount: "mg.llm.system.count", // number of system messages sent
-  llmMessagesUnreadable: "mg.llm.messages.unreadable", // why the sent messages cannot be rebuilt
+  llmInputUnreadable: "mg.llm.messages.input.unreadable", // why the sent messages cannot be rebuilt
   llmOutputMessages: "mg.llm.messages.output", // jsonAttribute(AssistantMessage[])
+  llmOutputUnreadable: "mg.llm.messages.output.unreadable", // why the received messages cannot be rebuilt
   llmOmitted: "mg.llm.omitted", // jsonAttribute(Omission[]), what the provider reports it could not give back
   toolName: "mg.tool.name",
   toolCallId: "mg.tool.call_id",

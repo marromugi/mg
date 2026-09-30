@@ -39,7 +39,7 @@ describe("mapGenAiSpan", () => {
 
     expect(mapped["gen_ai.operation.name"]).toBe("chat");
     expect(mapped["gen_ai.system_instructions"]).toBeUndefined();
-    expect(mapped["mg.llm.messages.unreadable"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.input.unreadable"]).toBeUndefined();
     expect(mapped["gen_ai.provider.name"]).toBe("openrouter");
     expect(mapped["gen_ai.request.model"]).toBe("gpt-4");
     expect(mapped["gen_ai.usage.input_tokens"]).toBe(10);
@@ -160,7 +160,7 @@ describe("mapGenAiSpan", () => {
     expect(() => mapGenAiSpan(span)).not.toThrow();
     const mapped = mapGenAiSpan(span);
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
-    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+    expect(mapped["mg.llm.messages.input.unreadable"]).toBe(
       "input messages are not a JSON array",
     );
     expect(mapped["gen_ai.request.model"]).toBe("gpt-4");
@@ -173,7 +173,7 @@ describe("mapGenAiSpan", () => {
     });
 
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
-    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+    expect(mapped["mg.llm.messages.input.unreadable"]).toBe(
       "input messages are missing",
     );
   });
@@ -221,7 +221,9 @@ describe("mapGenAiSpan", () => {
         JSON.parse(mapped["gen_ai.input.messages"] as string),
       ).toEqual(expected);
       expect(mapped["gen_ai.system_instructions"]).toBeUndefined();
-      expect(mapped["mg.llm.messages.unreadable"]).toBeUndefined();
+      expect(
+        mapped["mg.llm.messages.input.unreadable"],
+      ).toBeUndefined();
     }
   });
 
@@ -246,7 +248,7 @@ describe("mapGenAiSpan", () => {
     });
 
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
-    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+    expect(mapped["mg.llm.messages.input.unreadable"]).toBe(
       "expected 2 system events, found 1",
     );
   });
@@ -281,7 +283,7 @@ describe("mapGenAiSpan", () => {
     expect(() => mapGenAiSpan(span)).not.toThrow();
     const mapped = mapGenAiSpan(span);
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
-    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+    expect(mapped["mg.llm.messages.input.unreadable"]).toBe(
       "input message at 0 is not a message",
     );
   });
@@ -299,7 +301,7 @@ describe("mapGenAiSpan", () => {
     });
 
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
-    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+    expect(mapped["mg.llm.messages.input.unreadable"]).toBe(
       "input message at 0 is not a message",
     );
   });
@@ -380,57 +382,24 @@ describe("mapGenAiSpan", () => {
     ]);
   });
 
-  it("skips malformed entries in an assistant parts array without throwing", () => {
-    const raw = JSON.stringify([
-      {
-        role: "assistant",
-        parts: [
-          { type: "text", text: "kept" },
-          null,
-          "not an object",
-          { type: "text" },
-          { type: "reasoning" },
-          { type: "tool-call" },
-          { type: "unknown-type", text: "ignored" },
-          { type: "tool-call", name: "get_weather", arguments: {} },
-        ],
-      },
-    ]);
-
-    expect(() =>
-      mapGenAiSpan({
-        attributes: {
-          [ATTR.op]: "llm",
-          [ATTR.llmOutputMessages]: raw,
-        },
-        events: [],
-      }),
-    ).not.toThrow();
-
+  it("reports an assistant message with a malformed part as unreadable", () => {
     const mapped = mapGenAiSpan({
       attributes: {
         [ATTR.op]: "llm",
-        [ATTR.llmOutputMessages]: raw,
+        [ATTR.llmOutputMessages]: JSON.stringify([
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "kept" }, { type: "text" }],
+          },
+        ]),
       },
       events: [],
     });
 
-    expect(
-      JSON.parse(mapped["gen_ai.output.messages"] as string),
-    ).toEqual([
-      {
-        role: "assistant",
-        parts: [
-          { type: "text", content: "kept" },
-          {
-            type: "tool_call",
-            id: undefined,
-            name: "get_weather",
-            arguments: {},
-          },
-        ],
-      },
-    ]);
+    expect(mapped["gen_ai.output.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.output.unreadable"]).toBe(
+      "output message at 0 is not an assistant message",
+    );
   });
 
   it("still maps an old-shape assistant message with content and toolCalls when no parts array is present", () => {
@@ -466,5 +435,36 @@ describe("mapGenAiSpan", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("mapGenAiSpan output messages", () => {
+  it("writes the reason and no output messages when the output is missing", () => {
+    const mapped = mapGenAiSpan({
+      attributes: { [ATTR.op]: "llm" },
+      events: [],
+    });
+
+    expect(mapped["gen_ai.output.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.output.unreadable"]).toBe(
+      "output messages are missing",
+    );
+  });
+
+  it("writes the reason when an output message is not an assistant message", () => {
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmOutputMessages]: JSON.stringify([
+          { role: "user", content: "x" },
+        ]),
+      },
+      events: [],
+    });
+
+    expect(mapped["gen_ai.output.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.output.unreadable"]).toBe(
+      "output message at 0 is not an assistant message",
+    );
   });
 });

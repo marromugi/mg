@@ -1,6 +1,7 @@
 export * from "./json.js";
 export * from "./otel-span.js";
 export * from "./provider.js";
+export * from "./received-messages.js";
 export * from "./sent-messages.js";
 export * from "./span-guard.js";
 export * from "./subagents.js";

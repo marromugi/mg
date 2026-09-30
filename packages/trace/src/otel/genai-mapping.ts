@@ -2,8 +2,9 @@
 // @ 0c87594975195608dc91b3f702e250a7b240c151, docs/gen-ai/gen-ai-spans.md and
 // docs/gen-ai/gen-ai-agent-spans.md.
 import type { Attributes } from "@opentelemetry/api";
-import type { Message, ToolCall } from "@mg/core";
+import type { Message } from "@mg/core";
 import { jsonAttribute } from "../json.js";
+import { receivedMessagesOf } from "../received-messages.js";
 import { sentMessagesOf } from "../sent-messages.js";
 import type { RecordedSpan } from "../sent-messages.js";
 import { ATTR } from "../vocabulary.js";
@@ -41,86 +42,39 @@ type GenAiMessage = {
   parts: GenAiPart[];
 };
 
-type MessageLike = { role: string } & Record<string, unknown>;
-
-const isMessageLike = (value: unknown): value is MessageLike =>
-  typeof value === "object" &&
-  value !== null &&
-  typeof (value as { role?: unknown }).role === "string";
-
-const toStoredAssistantPart = (
-  value: unknown,
-): GenAiPart | undefined => {
-  if (typeof value !== "object" || value === null) return undefined;
-  const part = value as Record<string, unknown>;
-  switch (part.type) {
-    case "text":
-      return typeof part.text === "string"
-        ? { type: "text", content: part.text }
-        : undefined;
-    case "reasoning":
-      return typeof part.text === "string"
-        ? { type: "reasoning", content: part.text }
-        : undefined;
-    case "tool-call":
-      return typeof part.name === "string"
-        ? {
-            type: "tool_call",
-            id: typeof part.id === "string" ? part.id : undefined,
-            name: part.name,
-            arguments: part.arguments,
-          }
-        : undefined;
-    default:
-      return undefined;
-  }
-};
-
-const toParts = (message: MessageLike): GenAiPart[] => {
+const toParts = (message: Message): GenAiPart[] => {
   switch (message.role) {
     case "system":
     case "user":
-      return [{ type: "text", content: message.content as string }];
-    case "assistant": {
-      if (Array.isArray(message.parts)) {
-        return message.parts
-          .map(toStoredAssistantPart)
-          .filter((part): part is GenAiPart => part !== undefined);
-      }
-      const parts: GenAiPart[] = [];
-      const content = message.content as string;
-      if (content !== "") {
-        parts.push({ type: "text", content });
-      }
-      const toolCalls = Array.isArray(message.toolCalls)
-        ? (message.toolCalls as ToolCall[])
-        : [];
-      for (const toolCall of toolCalls) {
-        parts.push({
-          type: "tool_call",
-          id: toolCall.id,
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-        });
-      }
-      return parts;
-    }
+      return [{ type: "text", content: message.content }];
+    case "assistant":
+      return message.parts.map((part): GenAiPart => {
+        switch (part.type) {
+          case "text":
+            return { type: "text", content: part.text };
+          case "reasoning":
+            return { type: "reasoning", content: part.text };
+          case "tool-call":
+            return {
+              type: "tool_call",
+              id: part.id,
+              name: part.name,
+              arguments: part.arguments,
+            };
+        }
+      });
     case "tool":
       return [
         {
           type: "tool_call_response",
-          id: message.toolCallId as string | undefined,
+          id: message.toolCallId,
           response: message.content,
         },
       ];
-    default:
-      return typeof message.content === "string"
-        ? [{ type: "text", content: message.content }]
-        : [];
   }
 };
 
-const userAuthor = (message: MessageLike): string | undefined => {
+const userAuthor = (message: Message): string | undefined => {
   if (message.role !== "user") return undefined;
   const author = message.author;
   if (typeof author !== "string") return undefined;
@@ -130,33 +84,13 @@ const userAuthor = (message: MessageLike): string | undefined => {
   return author;
 };
 
-const toGenAiMessage = (message: MessageLike): GenAiMessage => {
+const toGenAiMessage = (message: Message): GenAiMessage => {
   const author = userAuthor(message);
   return {
     role: message.role,
     ...(author !== undefined ? { name: author } : {}),
     parts: toParts(message),
   };
-};
-
-const parseMessages = (json: unknown): MessageLike[] | undefined => {
-  if (typeof json !== "string") return undefined;
-  try {
-    const parsed = JSON.parse(json) as unknown;
-    return Array.isArray(parsed)
-      ? parsed.filter(isMessageLike)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-const mapOutputMessages = (
-  attributes: RecordedSpan["attributes"],
-): string | undefined => {
-  const messages = parseMessages(attributes[ATTR.llmOutputMessages]);
-  if (messages === undefined) return undefined;
-  return jsonAttribute(messages.map(toGenAiMessage));
 };
 
 const mapLlmAttributes = (span: RecordedSpan): Attributes => {
@@ -194,12 +128,16 @@ const mapLlmAttributes = (span: RecordedSpan): Attributes => {
       sent.messages.map((m: Message) => toGenAiMessage(m)),
     ); // gen_ai.input.messages
   } else {
-    mapped[ATTR.llmMessagesUnreadable] = sent.reason;
+    mapped[ATTR.llmInputUnreadable] = sent.reason;
   }
 
-  const outputMessages = mapOutputMessages(attributes);
-  if (outputMessages !== undefined) {
-    mapped[GEN_AI_OUTPUT_MESSAGES] = outputMessages; // gen_ai.output.messages
+  const received = receivedMessagesOf(span);
+  if (received.kind === "messages") {
+    mapped[GEN_AI_OUTPUT_MESSAGES] = jsonAttribute(
+      received.messages.map((m: Message) => toGenAiMessage(m)),
+    ); // gen_ai.output.messages
+  } else {
+    mapped[ATTR.llmOutputUnreadable] = received.reason;
   }
 
   return mapped;

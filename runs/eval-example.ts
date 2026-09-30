@@ -28,7 +28,7 @@ const cases: EvalCase[] = [
           view.toolSteps.filter((step) => step.name === "bash")
             .length <= 3,
       ),
-      rule("has-final-text", (view) => view.finalText !== undefined),
+      rule("has-final-text", (view) => view.finalText.kind === "text"),
       estimatorCheck({
         name: "answers-with-listing",
         question:

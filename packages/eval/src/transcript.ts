@@ -83,8 +83,12 @@ export const transcribe = (
 
   for (const step of view.steps) {
     if (step.type === "llm") {
-      for (const message of step.output) {
-        blocks.push(...transcribeAssistantParts(message.parts));
+      if (step.output.kind === "messages") {
+        for (const message of step.output.messages) {
+          blocks.push(...transcribeAssistantParts(message.parts));
+        }
+      } else {
+        blocks.push(`[output unreadable] ${step.output.reason}`);
       }
     } else if (step.type === "tool") {
       if (step.error !== undefined) {

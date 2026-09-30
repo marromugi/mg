@@ -62,6 +62,7 @@ const fakeProvider = (): {
     finishReason: "stop",
   };
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       // The harness appends turns to this same messages array after the
       // call returns, so snapshot it now rather than keep the reference.
@@ -76,6 +77,7 @@ const fakeProvider = (): {
 };
 
 const throwingProvider = (error: Error): Provider => ({
+  toolForcing: true,
   generate: async () => {
     throw error;
   },
@@ -309,6 +311,7 @@ describe("runOnTrigger", () => {
     let observed:
       { ended: boolean; hasRunSession: boolean } | undefined;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         const inputSpan = judgeExporter
           .getFinishedSpans()

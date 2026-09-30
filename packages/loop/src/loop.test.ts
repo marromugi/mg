@@ -81,7 +81,7 @@ const stubProvider = (
   const stream = vi.fn((): AsyncIterable<StreamEvent> => {
     throw new Error("stubProvider: stream is not scripted");
   });
-  return { generate, stream };
+  return { toolForcing: true, generate, stream };
 };
 
 const stubStreamProvider = (
@@ -102,7 +102,7 @@ const stubStreamProvider = (
       }
     })();
   });
-  return { generate, stream };
+  return { toolForcing: true, generate, stream };
 };
 
 const deferred = <T>() => {
@@ -166,7 +166,7 @@ const haltingProvider = (
     },
   );
 
-  return { generate, stream };
+  return { toolForcing: true, generate, stream };
 };
 
 describe("createLoopHarness", () => {
@@ -510,7 +510,7 @@ describe("createLoopHarness", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
 
     const harness = createLoopHarness({
       provider,
@@ -964,7 +964,7 @@ describe("createLoopHarness", () => {
         throw boom;
       })();
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const harness = createLoopHarness({
       provider,
       model: "m",
@@ -991,7 +991,7 @@ describe("createLoopHarness", () => {
         } satisfies StreamEvent;
       })();
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const harness = createLoopHarness({
       provider,
       model: "m",
@@ -1176,7 +1176,7 @@ describe("createLoopHarness", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const harness = createLoopHarness({
       provider,
       model: "m",
@@ -1644,7 +1644,7 @@ describe("createLoopHarness wrapping up", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const harness = createLoopHarness({
       provider,
       tools: [ls],
@@ -1833,7 +1833,7 @@ describe("createLoopHarness wrapping up", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const harness = createLoopHarness({
       provider,
       model: "m",
@@ -2056,6 +2056,7 @@ describe("createLoopHarness stop reason attribute", () => {
   test("does not write the stop reason when the provider throws, and the span still ends with that error", async () => {
     const boom = new Error("boom");
     const provider: Provider = {
+      toolForcing: true,
       generate: vi.fn(async (): Promise<GenerateResponse> => {
         throw boom;
       }),

@@ -32,6 +32,7 @@ describe("runMany with a subagent's own exclusive workspace", () => {
       throw new Error("should not be called");
     });
     const provider: Provider = {
+      toolForcing: true,
       generate,
       stream: () => {
         throw new Error("stream is not scripted");

@@ -21,6 +21,7 @@ const OUTPUT_NAMES = [
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const fakeProvider: Provider = {
+  toolForcing: true,
   generate: () => Promise.reject(new Error("not used")),
   stream: () => {
     throw new Error("not used");

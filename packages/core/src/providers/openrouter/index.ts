@@ -133,7 +133,7 @@ export type OpenRouterOptions = {
 
 export const createOpenRouterProvider = (
   options: OpenRouterOptions,
-): Provider => {
+): Provider & { toolForcing: true } => {
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(
     /\/$/,
     "",
@@ -277,5 +277,5 @@ export const createOpenRouterProvider = (
     request: GenerateRequest,
   ): AsyncIterable<StreamEvent> => runStream(request);
 
-  return { name: PROVIDER_NAME, generate, stream };
+  return { name: PROVIDER_NAME, toolForcing: true, generate, stream };
 };

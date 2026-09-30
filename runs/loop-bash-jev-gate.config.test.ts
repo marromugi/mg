@@ -8,6 +8,7 @@ const { buildLoopBashJevGateRun } =
   await import("./loop-bash-jev-gate.config.ts");
 
 const provider: Provider = {
+  toolForcing: true,
   generate: async () => {
     throw new Error("the provider must not be called");
   },

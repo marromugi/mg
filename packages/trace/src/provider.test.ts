@@ -25,6 +25,7 @@ describe("traceProvider / generate", () => {
     const root = new RecordingSpan("root");
     let startedBefore: RecordingSpan | undefined;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         startedBefore = root.children[0];
         return {
@@ -58,6 +59,7 @@ describe("traceProvider / generate", () => {
       usage: { inputTokens: 3, outputTokens: 5 },
     };
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => response,
       stream: async function* () {},
     };
@@ -80,6 +82,7 @@ describe("traceProvider / generate", () => {
   it("omits token attributes when usage is absent", async () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => ({
         parts: [{ type: "text", text: "no usage" }],
         finishReason: "stop",
@@ -107,6 +110,7 @@ describe("traceProvider / generate", () => {
       finishReason: "stop",
     };
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => response,
       stream: async function* () {},
     };
@@ -150,6 +154,7 @@ describe("traceProvider / generate", () => {
       finishReason: "stop",
     };
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => response,
       stream: async function* () {},
     };
@@ -192,6 +197,7 @@ describe("traceProvider / generate", () => {
     const root = new RecordingSpan("root");
     const error = new Error("boom");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw error;
       },
@@ -209,6 +215,7 @@ describe("traceProvider / generate", () => {
   it("starts no span until generate is called", () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => ({
         parts: [],
         finishReason: "stop",
@@ -250,6 +257,7 @@ describe("traceProvider / stream", () => {
   it("forwards every event unchanged and in order", async () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -270,6 +278,7 @@ describe("traceProvider / stream", () => {
   it("records stream=true, and after completion the accumulated output and tokens", async () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -332,6 +341,7 @@ describe("traceProvider / stream", () => {
       },
     ];
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -368,6 +378,7 @@ describe("traceProvider / stream", () => {
     const root = new RecordingSpan("root");
     const error = new Error("stream boom");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -389,6 +400,7 @@ describe("traceProvider / stream", () => {
     const root = new RecordingSpan("root");
     let returned = false;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -417,6 +429,7 @@ describe("traceProvider / stream", () => {
   it("ends the span with a stream-incomplete error when the inner iterable ends without a finish event", async () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -461,6 +474,7 @@ describe("traceProvider / stream", () => {
   it("starts no span until iteration begins", () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -480,6 +494,7 @@ describe("traceProvider / stream", () => {
 describe("traceProvider / provider name", () => {
   const providerOf = (name?: string): Provider => ({
     ...(name !== undefined ? { name } : {}),
+    toolForcing: true,
     generate: async () => ({
       parts: [{ type: "text", text: "hello" }],
       finishReason: "stop",
@@ -566,6 +581,7 @@ describe("traceProvider / system messages", () => {
     const root = new RecordingSpan("root");
     let seen: Seen | undefined;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         seen = snapshot(root.children[0]);
         return { parts: [], finishReason: "stop" };
@@ -591,6 +607,7 @@ describe("traceProvider / system messages", () => {
     const root = new RecordingSpan("root");
     let seen: Seen | undefined;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         seen = snapshot(root.children[0]);
         return { parts: [], finishReason: "stop" };
@@ -615,6 +632,7 @@ describe("traceProvider / system messages", () => {
       { type: "finish", finishReason: "stop" },
     ];
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         throw new Error("unused");
       },
@@ -651,10 +669,12 @@ describe("traceProvider / tool-call carry and omissions", () => {
   const part = { ...bare, carry };
 
   const generating = (response: GenerateResponse): Provider => ({
+    toolForcing: true,
     generate: async () => response,
     stream: async function* () {},
   });
   const streaming = (events: StreamEvent[]): Provider => ({
+    toolForcing: true,
     generate: async () => {
       throw new Error("unused");
     },

@@ -2,9 +2,14 @@ import { describe, expect, test } from "vitest";
 import {
   ProviderHttpError,
   ProviderTransportError,
+  ProviderUnsupportedError,
   ToolArgumentsError,
 } from "../errors.js";
-import type { GenerateRequest, StreamEvent } from "../types.js";
+import type {
+  GenerateRequest,
+  StreamEvent,
+  ToolChoice,
+} from "../types.js";
 import { createOllamaProvider } from "./index.js";
 
 type Call = { url: string; init: RequestInit | undefined };
@@ -774,4 +779,51 @@ describe("createOllamaProvider with an authored user message", () => {
       JSON.parse(String(plainCalls[0].init?.body)),
     );
   });
+});
+
+describe("createOllamaProvider tool forcing", () => {
+  const tool = {
+    name: "t",
+    input: {
+      "~standard": {
+        version: 1,
+        vendor: "mg-test",
+        jsonSchema: {
+          input: () => ({ type: "object" }),
+          output: () => ({ type: "object" }),
+        },
+      },
+    },
+  } as never;
+
+  test("declares that it cannot force a tool call", () => {
+    const { fetchStub } = stubFetch(() => jsonResponse(okBody));
+
+    expect(createOllamaProvider({ fetch: fetchStub }).toolForcing).toBe(
+      false,
+    );
+  });
+
+  test.each<ToolChoice>(["required", { type: "tool", name: "t" }])(
+    "rejects the tool choice %j without sending anything",
+    async (toolChoice) => {
+      const { fetchStub, calls } = stubFetch(() =>
+        jsonResponse(okBody),
+      );
+      const provider = createOllamaProvider({ fetch: fetchStub });
+
+      const error = await provider
+        .generate({ ...request, tools: [tool], toolChoice })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ProviderUnsupportedError);
+      expect((error as ProviderUnsupportedError).feature).toBe(
+        "tool-choice",
+      );
+      expect((error as ProviderUnsupportedError).message).toBe(
+        "Ollama does not support forcing tool use",
+      );
+      expect(calls).toHaveLength(0);
+    },
+  );
 });

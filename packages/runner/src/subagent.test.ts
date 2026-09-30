@@ -74,6 +74,7 @@ const scriptedProvider = (
   let index = 0;
   const requests: Message[][] = [];
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       requests.push([...request.messages]);
       const response = responses[index];
@@ -90,6 +91,7 @@ const scriptedProvider = (
 };
 
 const throwingProvider = (error: Error): Provider => ({
+  toolForcing: true,
   generate: async () => {
     throw error;
   },
@@ -104,6 +106,7 @@ const trackingProvider = (
   let index = 0;
   const requests: GenerateRequest[] = [];
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       requests.push(request);
       const response = responses[index];
@@ -128,6 +131,7 @@ const wrapUpOnDeltaProvider = (
   delta: string,
   controller: AbortController,
 ): Provider => ({
+  toolForcing: true,
   generate: vi.fn(async () => {
     throw new Error("wrapUpOnDeltaProvider: generate is not scripted");
   }),
@@ -573,6 +577,7 @@ describe("createSubagent", () => {
       throw new Error("should not be called");
     });
     const provider: Provider = {
+      toolForcing: true,
       generate,
       stream: (): AsyncIterable<StreamEvent> => {
         throw new Error("not scripted");
@@ -902,6 +907,7 @@ describe("createSubagent with a workspace", () => {
       throw new Error("should not be called");
     });
     const provider: Provider = {
+      toolForcing: true,
       generate,
       stream: (): AsyncIterable<StreamEvent> => {
         throw new Error("not scripted");
@@ -1017,6 +1023,7 @@ describe("createSubagent with a workspace", () => {
       throw new Error("should not be called");
     });
     const provider: Provider = {
+      toolForcing: true,
       generate,
       stream: (): AsyncIterable<StreamEvent> => {
         throw new Error("not scripted");
@@ -1064,6 +1071,7 @@ describe("createSubagent with a workspace", () => {
       throw new Error("should not be called");
     });
     const provider: Provider = {
+      toolForcing: true,
       generate,
       stream: (): AsyncIterable<StreamEvent> => {
         throw new Error("not scripted");
@@ -1337,6 +1345,7 @@ describe("createSubagent sharing exclusive names across separate own workspaces"
       response: GenerateResponse,
     ) => void = () => {};
     const provider: Provider = {
+      toolForcing: true,
       generate: () =>
         new Promise((resolve) => {
           resolveGenerate = resolve;

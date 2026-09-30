@@ -38,6 +38,7 @@ const createFakeEstimator = (
 };
 
 const failingProvider: Provider = {
+  toolForcing: true,
   generate: () =>
     Promise.reject(new Error("provider must not be called")),
   stream: () => {

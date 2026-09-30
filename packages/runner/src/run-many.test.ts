@@ -43,6 +43,7 @@ const waitFor = async (
 const providerByLastMessage = (
   script: (id: string) => GenerateResponse | Promise<GenerateResponse>,
 ): Provider => ({
+  toolForcing: true,
   generate: async (request) =>
     script(lastUserContent(request.messages)),
   stream: () => {
@@ -133,6 +134,7 @@ describe("runMany", () => {
     let maxActive = 0;
     const calls: string[] = [];
     const provider: Provider = {
+      toolForcing: true,
       generate: async (request) => {
         const id = lastUserContent(request.messages);
         calls.push(id);
@@ -258,6 +260,7 @@ describe("runMany", () => {
     const opened = { count: 0 };
     let providerCalled = false;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         providerCalled = true;
         return {
@@ -368,6 +371,7 @@ describe("runMany", () => {
     }
     const calls: string[] = [];
     const provider: Provider = {
+      toolForcing: true,
       generate: async (request) => {
         const id = lastUserContent(request.messages);
         calls.push(id);
@@ -404,6 +408,7 @@ describe("runMany", () => {
     const controller = new AbortController();
     const calls: string[] = [];
     const provider: Provider = {
+      toolForcing: true,
       generate: async (request) => {
         const id = lastUserContent(request.messages);
         calls.push(id);

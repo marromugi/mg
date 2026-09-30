@@ -39,6 +39,7 @@ const stubProvider = (
 ): Provider => {
   let index = 0;
   return {
+    toolForcing: true,
     generate: async () => {
       const response = responses[index];
       index++;
@@ -57,6 +58,7 @@ const stubStreamProvider = (
 ): Provider => {
   let index = 0;
   return {
+    toolForcing: true,
     generate: async () => {
       throw new Error("stubStreamProvider: generate is not scripted");
     },
@@ -75,6 +77,7 @@ const stubStreamProvider = (
 };
 
 const throwingProvider = (error: Error): Provider => ({
+  toolForcing: true,
   generate: async () => {
     throw error;
   },
@@ -105,6 +108,7 @@ class FlushFailingExporter implements SpanExporter {
 }
 
 const nullRejectingProvider = (): Provider => ({
+  toolForcing: true,
   generate: () => Promise.reject(null),
   stream: () => {
     throw new Error("nullRejectingProvider: stream is not scripted");
@@ -117,6 +121,7 @@ const trackingProvider = (
   let index = 0;
   const requests: GenerateRequest[] = [];
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       requests.push(request);
       const response = responses[index];
@@ -151,6 +156,7 @@ const haltingStreamProvider = (
 ): Provider => {
   let index = 0;
   return {
+    toolForcing: true,
     generate: async () => {
       throw new Error(
         "haltingStreamProvider: generate is not scripted",
@@ -471,6 +477,7 @@ describe("run", () => {
     const lost = new Error("lost");
     let calls = 0;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         calls += 1;
         if (calls === 1) {
@@ -1032,6 +1039,7 @@ describe("run with call-only tools", () => {
       throw new Error("should not be called");
     });
     const provider: Provider = {
+      toolForcing: true,
       generate,
       stream: () => {
         throw new Error("stream is not scripted");
@@ -1145,6 +1153,7 @@ describe("run with an ungated config that reached it untyped", () => {
         throw new Error("should not be called");
       });
       const provider: Provider = {
+        toolForcing: true,
         generate,
         stream: () => {
           throw new Error("stream is not scripted");
@@ -1211,6 +1220,7 @@ describe("run with an ungated config that reached it untyped", () => {
         throw new Error("should not be called");
       });
       const provider: Provider = {
+        toolForcing: true,
         generate,
         stream: () => {
           throw new Error("stream is not scripted");
@@ -1273,6 +1283,7 @@ describe("run with a hold", () => {
   test("does not call the provider while held, and stops once released", async () => {
     const calls: number[] = [];
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         calls.push(1);
         return {

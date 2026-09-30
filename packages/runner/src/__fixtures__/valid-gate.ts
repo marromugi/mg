@@ -3,6 +3,7 @@ import type { Gate, Verdict } from "@mg/gate";
 import { defineRun } from "../config.js";
 
 const provider: Provider = {
+  toolForcing: true,
   generate: async (): Promise<GenerateResponse> => ({
     parts: [{ type: "text", text: "hi" }],
     finishReason: "stop",

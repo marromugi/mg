@@ -103,6 +103,7 @@ const fakeProvider = (options?: {
 }): { provider: Provider; calls: GenerateRequest[] } => {
   const calls: GenerateRequest[] = [];
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       calls.push({ ...request, messages: [...request.messages] });
       if (options?.beforeRespond) await options.beforeRespond();

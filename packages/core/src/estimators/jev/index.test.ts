@@ -306,6 +306,86 @@ describe("createJevEstimator", () => {
     );
   });
 
+  test("leaves the service's body text out of messageWithoutServiceText on a non-2xx response", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () => new Response("upstream busy", { status: 503 }),
+      ),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorHttpError).message).toBe(
+      "Jev request failed: 503 upstream busy",
+    );
+    expect(
+      (error as EstimatorHttpError).messageWithoutServiceText,
+    ).toBe("Jev request failed: 503 (text from the service left out)");
+  });
+
+  test("keeps both texts equal when the failed response body is empty", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => new Response("", { status: 502 })),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorHttpError).message).toBe(
+      "Jev request failed: 502",
+    );
+    expect(
+      (error as EstimatorHttpError).messageWithoutServiceText,
+    ).toBe("Jev request failed: 502");
+  });
+
+  test("leaves the parser's message out of messageWithoutServiceText when the body is not JSON", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () =>
+          new Response("<html><body>hello</body></html>", {
+            status: 200,
+          }),
+      ),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(
+      (error as EstimatorResponseError).messageWithoutServiceText,
+    ).toBe(
+      "Jev response is not JSON: (text from the service left out)",
+    );
+  });
+
+  test("keeps both texts equal when fetch rejects", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => {
+        throw new Error("network down");
+      }),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorTransportError).message).toBe(
+      "Jev request failed: network down",
+    );
+    expect(
+      (error as EstimatorTransportError).messageWithoutServiceText,
+    ).toBe("Jev request failed: network down");
+  });
+
   test("throws EstimatorTransportError with the original error as cause when fetch rejects", async () => {
     const original = new Error("network down");
     const fetchStub = stubFetch(async () => {
@@ -1027,6 +1107,11 @@ describe("createJevEstimator classify", () => {
 
     expect(error).toBeInstanceOf(EstimatorResponseError);
     expect((error as EstimatorResponseError).message).toBe(
+      'Jev response failed validation: chosen label "c" is not among the labels',
+    );
+    expect(
+      (error as EstimatorResponseError).messageWithoutServiceText,
+    ).toBe(
       'Jev response failed validation: chosen label "c" is not among the labels',
     );
   });

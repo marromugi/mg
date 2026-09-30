@@ -101,6 +101,16 @@ Wrapping follows these rules.
   Estimator error, whose message is already complete. An empty message
   adds nothing, and a cause that is not an `Error` or a string reads
   `(non-Error cause)`.
+- Every Estimator error also carries `messageWithoutServiceText`, the
+  same reason with the service's body text replaced by
+  `(text from the service left out)` (`SERVICE_TEXT_LEFT_OUT`). The
+  implementation marks body text with one of two options.
+  `withoutServiceText` gives the error's own words a second time
+  without the body text. `causeQuotesService: true` says the cause's
+  text quotes the body, so the whole chain is replaced by the marker.
+  With neither mark the second text follows the same walk as the
+  message, and an Estimator error in the chain gives its own second
+  text.
 - A stop caused by an abort passes through unwrapped.
 - An exception thrown by a tool's run function also passes through as is.
 

@@ -201,6 +201,73 @@ describe("EstimatorRetryExhaustedError", () => {
   });
 });
 
+describe("messageWithoutServiceText", () => {
+  test("equals message when nothing is marked", () => {
+    const error = new EstimatorTransportError("Jev request failed", {
+      cause: new Error("network down"),
+    });
+
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev request failed: network down",
+    );
+  });
+
+  test("starts from withoutServiceText and leaves message unchanged", () => {
+    const error = new EstimatorHttpError(
+      "Jev request failed: 503 upstream busy",
+      503,
+      "upstream busy",
+      {
+        withoutServiceText:
+          "Jev request failed: 503 (text from the service left out)",
+      },
+    );
+
+    expect(error.message).toBe("Jev request failed: 503 upstream busy");
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev request failed: 503 (text from the service left out)",
+    );
+  });
+
+  test("replaces the whole cause chain when causeQuotesService is true", () => {
+    const error = new EstimatorResponseError(
+      "Jev response is not JSON",
+      {
+        cause: new SyntaxError("Unexpected token '<'"),
+        causeQuotesService: true,
+      },
+    );
+
+    expect(error.message).toBe(
+      "Jev response is not JSON: Unexpected token '<'",
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev response is not JSON: (text from the service left out)",
+    );
+  });
+
+  test("takes the second text of an Estimator error in the chain", () => {
+    const inner = new EstimatorHttpError(
+      "Jev request failed: 503 upstream busy",
+      503,
+      "upstream busy",
+      {
+        withoutServiceText:
+          "Jev request failed: 503 (text from the service left out)",
+      },
+    );
+
+    const error = new EstimatorRetryExhaustedError(3, { cause: inner });
+
+    expect(error.message).toBe(
+      "Estimator retries exhausted (attempts: 3): Jev request failed: 503 upstream busy",
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Estimator retries exhausted (attempts: 3): Jev request failed: 503 (text from the service left out)",
+    );
+  });
+});
+
 describe("isEstimatorError", () => {
   test("returns true for each of the three errors", () => {
     const cause = new Error("boom");

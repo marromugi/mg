@@ -2,6 +2,7 @@ import {
   EstimatorHttpError,
   EstimatorResponseError,
   EstimatorTransportError,
+  SERVICE_TEXT_LEFT_OUT,
 } from "../errors.js";
 import {
   assertClassifyRequest,
@@ -209,18 +210,23 @@ export const createJevEstimator = (
       const isRetryable =
         response.status === 429 ||
         (response.status >= 500 && response.status <= 599);
+      const withoutServiceText =
+        snippet === ""
+          ? undefined
+          : `Jev request failed: ${response.status} ${SERVICE_TEXT_LEFT_OUT}`;
       throw new EstimatorHttpError(
         message,
         response.status,
         text,
         isRetryable
           ? {
+              withoutServiceText,
               retryable: true,
               retryAfterMs: readRetryAfterMs(
                 response.headers.get("Retry-After"),
               ),
             }
-          : undefined,
+          : { withoutServiceText },
       );
     }
 
@@ -230,6 +236,7 @@ export const createJevEstimator = (
       if (isAbortError(error)) throw error;
       throw new EstimatorResponseError("Jev response is not JSON", {
         cause: error,
+        causeQuotesService: true,
       });
     }
   };

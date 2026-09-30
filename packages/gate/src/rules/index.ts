@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import {
   isAbsolute,
   matchesGlob,
+  parse,
   relative as relativePath,
   sep,
 } from "node:path";
@@ -43,10 +44,82 @@ const REACH_KINDS: readonly string[] = Object.keys(REACH_KIND_TABLE);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const isReach = (value: unknown): value is Reach =>
-  isRecord(value) &&
-  typeof value.kind === "string" &&
-  REACH_KINDS.includes(value.kind);
+const isPlainObject = (
+  value: unknown,
+): value is Record<string, unknown> =>
+  isRecord(value) && !Array.isArray(value);
+
+const describeType = (value: unknown): string => {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  switch (typeof value) {
+    case "boolean":
+      return "a boolean";
+    case "number":
+      return "a number";
+    case "bigint":
+      return "a bigint";
+    case "symbol":
+      return "a symbol";
+    case "function":
+      return "a function";
+    default:
+      return "an object";
+  }
+};
+
+const found = (value: unknown): string =>
+  typeof value === "string"
+    ? JSON.stringify(value)
+    : describeType(value);
+
+// Absolute means independent of the working directory and, on Windows,
+// of the current drive.
+const isAnchoredPath = (value: string): boolean => {
+  if (!isAbsolute(value)) return false;
+  if (sep !== "\\") return true;
+  const { root } = parse(value);
+  return /^[A-Za-z]:[\\/]/.test(root) || /^[\\/]{2}/.test(root);
+};
+
+const malformed = (part: string, expected: string, value: unknown) =>
+  new GateError(
+    `Rules gate payload has a malformed reach: ${part} must be ${expected}, got ${found(value)}`,
+  );
+
+const checkReach = (reach: unknown): void => {
+  if (!isPlainObject(reach))
+    throw malformed("reach", "an object", reach);
+  const { kind } = reach;
+  if (typeof kind !== "string" || !REACH_KINDS.includes(kind)) {
+    throw malformed(
+      "reach.kind",
+      `one of ${REACH_KINDS.join(", ")}`,
+      kind,
+    );
+  }
+  if (kind !== "paths") return;
+
+  const { paths } = reach;
+  if (!Array.isArray(paths)) {
+    throw malformed("reach.paths", "an array", paths);
+  }
+  for (const [index, entry] of paths.entries()) {
+    const at = `reach.paths[${index}]`;
+    if (!isPlainObject(entry)) throw malformed(at, "an object", entry);
+    const { path, extent } = entry;
+    if (typeof path !== "string") {
+      throw malformed(`${at}.path`, "a string", path);
+    }
+    if (!isAnchoredPath(path)) {
+      throw malformed(`${at}.path`, "an absolute path", path);
+    }
+    if (extent !== "file" && extent !== "tree") {
+      throw malformed(`${at}.extent`, '"file" or "tree"', extent);
+    }
+  }
+};
 
 const asToolCallPayload = (payload: unknown): ToolCallPayload => {
   const record = isRecord(payload) ? payload : {};
@@ -56,9 +129,10 @@ const asToolCallPayload = (payload: unknown): ToolCallPayload => {
     throw new GateError("Rules gate payload is missing call");
   }
 
-  if (!isReach(reach)) {
+  if (reach === undefined) {
     throw new GateError("Rules gate payload is missing reach");
   }
+  checkReach(reach);
 
   return payload as ToolCallPayload;
 };

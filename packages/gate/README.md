@@ -53,9 +53,13 @@ The table lists what you pass to `createLlmGate`.
 
 | Name       | Contents                                 |
 | ---------- | ---------------------------------------- |
-| `provider` | The provider to use                      |
+| `provider` | A provider that can force a tool call    |
 | `model`    | The name of the model to use             |
 | `policy`   | The policy text the decision is based on |
+
+`provider` must be a `ToolForcingProvider` from `@mg/core`.
+A provider that cannot force a tool call, such as the Ollama provider, is a type error.
+There is no fallback to an unforced request.
 
 If the decision itself fails, it throws `GateError`.
 The original exception is kept in `cause`.

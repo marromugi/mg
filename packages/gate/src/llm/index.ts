@@ -1,8 +1,8 @@
 import type {
   GenerateRequest,
   GenerateResponse,
-  Provider,
   ToolDefinition,
+  ToolForcingProvider,
 } from "@mg/core";
 import { toolCallsOf } from "@mg/core";
 import { noopSpan } from "@mg/harness";
@@ -20,7 +20,7 @@ import type {
 } from "../types.js";
 
 export type LlmGateOptions = {
-  provider: Provider;
+  provider: ToolForcingProvider;
   model: string;
   policy: string;
 };

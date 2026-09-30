@@ -1,11 +1,13 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  GenerateRequest,
-  GenerateResponse,
-  Provider,
-  ToolCall,
+import {
+  createOllamaProvider,
+  createOpenRouterProvider,
+  type GenerateRequest,
+  type GenerateResponse,
+  type ToolForcingProvider,
+  type ToolCall,
 } from "@mg/core";
 import { toToolCallRequest } from "@mg/gate";
 import { run } from "@mg/runner";
@@ -38,7 +40,7 @@ const verdictResponse = (
 
 const fakeProvider = (respond: () => GenerateResponse) => {
   const requests: GenerateRequest[] = [];
-  const provider: Provider = {
+  const provider: ToolForcingProvider = {
     toolForcing: true,
     generate: async (request) => {
       requests.push(request);
@@ -71,8 +73,12 @@ const failingProvider = () =>
     throw new Error("the provider must not be called");
   });
 
-const judge = async (provider: Provider, call: ToolCall) => {
-  const config = buildLoopFilesRun({ provider, root: process.cwd() });
+const judge = async (provider: ToolForcingProvider, call: ToolCall) => {
+  const config = buildLoopFilesRun({
+    provider: failingProvider().provider,
+    gateProvider: provider,
+    root: process.cwd(),
+  });
   return config.gate.judge(
     await toToolCallRequest(config.tools ?? [], call),
   );
@@ -197,6 +203,64 @@ describe("loop-files gate", () => {
   });
 });
 
+describe("loop-files providers", () => {
+  it("asks only the gate provider when judging a call", async () => {
+    const loop = failingProvider();
+    const gate = fakeProvider(() => verdictResponse(true, "ok"));
+    const config = buildLoopFilesRun({
+      provider: loop.provider,
+      gateProvider: gate.provider,
+      root: process.cwd(),
+    });
+    const verdict = await config.gate.judge(
+      await toToolCallRequest(config.tools ?? [], {
+        id: "p1",
+        name: "read_file",
+        arguments: { path: "src/a.ts" },
+      }),
+    );
+    expect(verdict).toEqual({
+      allowed: true,
+      reason: "All 2 gates allowed.",
+    });
+    expect(gate.requests).toHaveLength(1);
+    expect(loop.requests).toHaveLength(0);
+  });
+
+  it("asks only the loop provider when running", async () => {
+    const loop = fakeProvider(() => ({
+      parts: [{ type: "text", text: "done" }],
+      finishReason: "stop",
+    }));
+    const gate = failingProvider();
+    const config = buildLoopFilesRun({
+      provider: loop.provider,
+      gateProvider: gate.provider,
+      root: process.cwd(),
+    });
+    const result = await run(config, [{ role: "user", content: "hi" }]);
+    expect(JSON.stringify(result)).toContain('"done"');
+    expect(loop.requests).toHaveLength(1);
+    expect(gate.requests).toHaveLength(0);
+  });
+
+  it("accepts an Ollama provider as provider and refuses it as gateProvider", () => {
+    const openRouter = createOpenRouterProvider({ apiKey: "k" });
+    const accepted = buildLoopFilesRun({
+      provider: createOllamaProvider(),
+      gateProvider: openRouter,
+      root: process.cwd(),
+    });
+    const refused = buildLoopFilesRun({
+      provider: openRouter,
+      // @ts-expect-error the Ollama provider cannot force a tool call
+      gateProvider: createOllamaProvider(),
+      root: process.cwd(),
+    });
+    expect([accepted, refused]).toHaveLength(2);
+  });
+});
+
 describe("loop-files run", () => {
   let dir: string;
   beforeEach(() => {
@@ -214,6 +278,7 @@ describe("loop-files run", () => {
     const jsonlPath = join(dir, "trace.jsonl");
     const config = buildLoopFilesRun({
       provider,
+      gateProvider: failingProvider().provider,
       root: process.cwd(),
       trace: { jsonlPath },
     });

@@ -83,12 +83,18 @@ export default defineRun({
 Composing a rules gate with an LLM gate via `composeGates`. It asks each gate
 in order and stops at the first denial. The rules gate denies secrets,
 lockfiles and `.git` first. The LLM gate then judges every call the rules let
-through, including calls an allow rule matched (see `runs/loop-files.config.ts`
-for the file in the repo):
+through, including calls an allow rule matched. The loop and the LLM gate
+take separate providers: the loop's may be any `Provider`, and the gate's
+must be a `ToolForcingProvider` (see `runs/loop-files.config.ts` for the
+file in the repo):
 
 ```ts
 import { defineRun, type RunConfig } from "@mg/runner";
-import { createOpenRouterProvider, type Provider } from "@mg/core";
+import {
+  createOpenRouterProvider,
+  type Provider,
+  type ToolForcingProvider,
+} from "@mg/core";
 import {
   createBashTool,
   createReadFileTool,
@@ -105,12 +111,14 @@ if (apiKey === undefined)
 
 export type LoopFilesRunOptions = {
   provider: Provider;
+  gateProvider: ToolForcingProvider;
   root: string;
   trace?: RunConfig["trace"];
 };
 
 export const buildLoopFilesRun = ({
   provider,
+  gateProvider,
   root,
   trace,
 }: LoopFilesRunOptions) =>
@@ -155,7 +163,7 @@ export const buildLoopFilesRun = ({
         ],
       }),
       createLlmGate({
-        provider,
+        provider: gateProvider,
         model: "deepseek/deepseek-v4-flash",
         policy:
           "Reading and editing project files is allowed. Reading or " +
@@ -166,8 +174,11 @@ export const buildLoopFilesRun = ({
     trace,
   });
 
+const openRouter = createOpenRouterProvider({ apiKey });
+
 export default buildLoopFilesRun({
-  provider: createOpenRouterProvider({ apiKey }),
+  provider: openRouter,
+  gateProvider: openRouter,
   root: process.cwd(),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

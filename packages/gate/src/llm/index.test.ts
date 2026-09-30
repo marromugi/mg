@@ -1,8 +1,12 @@
+import {
+  createOllamaProvider,
+  createOpenRouterProvider,
+} from "@mg/core";
 import type {
   GenerateRequest,
   GenerateResponse,
-  Provider,
   StreamEvent,
+  ToolForcingProvider,
 } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
@@ -40,7 +44,7 @@ class RecordingSpan implements TraceSpan {
 
 const stubProvider = (
   respond: (request: GenerateRequest) => GenerateResponse,
-): Provider => {
+): ToolForcingProvider => {
   const generate = vi.fn(
     async (request: GenerateRequest): Promise<GenerateResponse> =>
       respond(request),
@@ -181,7 +185,11 @@ describe("createLlmGate", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { toolForcing: true, generate, stream };
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream,
+    };
     const gate = createLlmGate({
       provider,
       model: "m",
@@ -208,7 +216,11 @@ describe("createLlmGate", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { toolForcing: true, generate, stream };
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream,
+    };
     const gate = createLlmGate({
       provider,
       model: "m",
@@ -226,7 +238,11 @@ describe("createLlmGate", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { toolForcing: true, generate, stream };
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream,
+    };
     const gate = createLlmGate({
       provider,
       model: "m",
@@ -318,5 +334,22 @@ describe("createLlmGate", () => {
     });
 
     expect(provider.generate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createLlmGate provider type", () => {
+  test("refuses a provider that cannot force a tool call", () => {
+    const refused = createLlmGate({
+      // @ts-expect-error the Ollama provider cannot force a tool call
+      provider: createOllamaProvider(),
+      model: "m",
+      policy: "p",
+    });
+    const accepted = createLlmGate({
+      provider: createOpenRouterProvider({ apiKey: "k" }),
+      model: "m",
+      policy: "p",
+    });
+    expect([refused, accepted]).toHaveLength(2);
   });
 });

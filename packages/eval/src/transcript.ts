@@ -71,8 +71,13 @@ export const transcribe = (
 
   const firstLlmStep = view.llmSteps[0];
   if (firstLlmStep !== undefined) {
-    for (const message of firstLlmStep.input) {
-      blocks.push(...transcribeMessage(message));
+    const { input } = firstLlmStep;
+    if (input.kind === "messages") {
+      for (const message of input.messages) {
+        blocks.push(...transcribeMessage(message));
+      }
+    } else {
+      blocks.push(`[input unreadable] ${input.reason}`);
     }
   }
 

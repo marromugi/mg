@@ -13,13 +13,16 @@ const llmStep1: LlmStep = {
   spanId: "llm-1",
   ...baseTimes,
   model: "gpt-4o-mini",
-  input: [
-    { role: "system", content: "You are a helpful assistant." },
-    {
-      role: "user",
-      content: "List the files in the current directory.",
-    },
-  ],
+  input: {
+    kind: "messages",
+    messages: [
+      { role: "system", content: "You are a helpful assistant." },
+      {
+        role: "user",
+        content: "List the files in the current directory.",
+      },
+    ],
+  },
   output: [
     {
       role: "assistant",
@@ -60,7 +63,7 @@ const llmStep2: LlmStep = {
   spanId: "llm-2",
   ...baseTimes,
   model: "gpt-4o-mini",
-  input: [],
+  input: { kind: "messages", messages: [] },
   output: [
     {
       role: "assistant",
@@ -155,7 +158,10 @@ describe("transcribe", () => {
   it("puts a user message's author in the bracket as a JSON string, ahead of the body on the same line", () => {
     const authoredStep: LlmStep = {
       ...llmStep1,
-      input: [{ role: "user", author: "alice", content: "hi" }],
+      input: {
+        kind: "messages",
+        messages: [{ role: "user", author: "alice", content: "hi" }],
+      },
     };
     const authoredView: RunView = {
       ...view,
@@ -171,7 +177,10 @@ describe("transcribe", () => {
   it("escapes a quote in the author", () => {
     const authoredStep: LlmStep = {
       ...llmStep1,
-      input: [{ role: "user", author: 'al"ice', content: "hi" }],
+      input: {
+        kind: "messages",
+        messages: [{ role: "user", author: 'al"ice', content: "hi" }],
+      },
     };
     const authoredView: RunView = {
       ...view,
@@ -187,7 +196,10 @@ describe("transcribe", () => {
   it("leaves a user message with no author as the plain [user] line", () => {
     const unauthoredStep: LlmStep = {
       ...llmStep1,
-      input: [{ role: "user", content: "hi" }],
+      input: {
+        kind: "messages",
+        messages: [{ role: "user", content: "hi" }],
+      },
     };
     const unauthoredView: RunView = {
       ...view,
@@ -203,7 +215,10 @@ describe("transcribe", () => {
   it("throws a RangeError for a blank author", () => {
     const blankAuthorStep = (author: string): LlmStep => ({
       ...llmStep1,
-      input: [{ role: "user", author, content: "hi" }],
+      input: {
+        kind: "messages",
+        messages: [{ role: "user", author, content: "hi" }],
+      },
     });
     const emptyView: RunView = {
       ...view,
@@ -237,7 +252,15 @@ describe("transcribe", () => {
     } as unknown as Message;
     const stepWithUnknownRole: LlmStep = {
       ...llmStep1,
-      input: [...llmStep1.input, unknownRoleMessage],
+      input: {
+        kind: "messages",
+        messages: [
+          ...(llmStep1.input.kind === "messages"
+            ? llmStep1.input.messages
+            : []),
+          unknownRoleMessage,
+        ],
+      },
     };
     const viewWithUnknownRole: RunView = {
       ...view,
@@ -266,5 +289,26 @@ describe("transcribe", () => {
       result.split("[user] List the files in the current directory.")
         .length,
     ).toBe(2);
+  });
+
+  it("opens with one line holding the reason when the first input is unreadable", () => {
+    const unreadableStep: LlmStep = {
+      ...llmStep2,
+      input: {
+        kind: "unreadable",
+        reason: "input messages are not a JSON array",
+      },
+    };
+    const unreadableView: RunView = {
+      ...view,
+      steps: [unreadableStep],
+      llmSteps: [unreadableStep],
+      toolSteps: [],
+      gateSteps: [],
+    };
+
+    expect(transcribe(unreadableView)).toBe(
+      "[input unreadable] input messages are not a JSON array\n\n[assistant] Done, I listed the files.",
+    );
   });
 });

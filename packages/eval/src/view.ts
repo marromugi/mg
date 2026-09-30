@@ -1,6 +1,7 @@
-import type { AssistantMessage, Message, Usage } from "@mg/core";
+import type { AssistantMessage, Usage } from "@mg/core";
 import { textOf } from "@mg/core";
-import { ATTR, SPAN } from "@mg/trace";
+import { ATTR, SPAN, sentMessagesOf } from "@mg/trace";
+import type { SentMessages } from "@mg/trace";
 import type { SessionTree, SpanNode, TraceTree } from "@mg/trace/store";
 import { NoRunInSessionError } from "./errors.js";
 
@@ -12,7 +13,7 @@ export type LlmStep = {
   model?: string;
   provider?: string;
   finishReason?: string;
-  input: Message[];
+  input: SentMessages;
   output: AssistantMessage[];
   usage?: Usage;
 };
@@ -178,9 +179,7 @@ const toLlmStep = (node: SpanNode): LlmStep => {
     model: getString(attributes, ATTR.llmModel),
     provider: getString(attributes, ATTR.llmProvider),
     finishReason: getString(attributes, ATTR.llmFinishReason),
-    input: parseMessageArray<Message>(
-      getString(attributes, ATTR.llmInputMessages),
-    ),
+    input: sentMessagesOf(node),
     output: parseMessageArray<AssistantMessage>(
       getString(attributes, ATTR.llmOutputMessages),
     ),

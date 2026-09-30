@@ -1,4 +1,8 @@
-import type { Estimator, EstimatorSubject, Provider } from "@mg/core";
+import type {
+  Estimator,
+  EstimatorSubject,
+  ToolForcingProvider,
+} from "@mg/core";
 import type { MemoryStore } from "@mg/memory";
 import type { Persona, RecallRead } from "@mg/persona";
 import { createLlmExtractor, createPersona } from "@mg/persona";
@@ -15,7 +19,7 @@ const extractionInstruction =
 export const buildJevPersona = (options: {
   store: MemoryStore;
   estimator: Estimator;
-  extractorProvider: Provider;
+  extractorProvider: ToolForcingProvider;
 }): Persona<EstimatorSubject, RecallRead> =>
   createPersona({
     id: "jev",

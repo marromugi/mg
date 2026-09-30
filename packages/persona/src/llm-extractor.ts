@@ -1,8 +1,8 @@
 import type {
   GenerateRequest,
   GenerateResponse,
-  Provider,
   ToolDefinition,
+  ToolForcingProvider,
 } from "@mg/core";
 import { toolCallsOf } from "@mg/core";
 import { traceProvider } from "@mg/trace";
@@ -20,7 +20,7 @@ import type {
 } from "./types.js";
 
 export type LlmExtractorOptions = {
-  provider: Provider;
+  provider: ToolForcingProvider;
   model: string;
   instruction: string;
 };

@@ -276,6 +276,11 @@ and text `text`), and the personality document's new text `persona`
 The options have the provider `provider`, the model name `model`, and the
 instruction text `instruction`.
 
+The provider must be one that can force a tool call
+(`ToolForcingProvider`). The extractor always forces the remember tool,
+so passing a provider that cannot force, such as the Ollama provider,
+is a type error.
+
 The instruction is required. It is something the caller measures and
 chooses, so there is no default.
 If the instruction is empty, it throws `RangeError` at build time.

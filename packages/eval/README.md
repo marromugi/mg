@@ -208,6 +208,7 @@ It compares the returned probability with the threshold, and the result keeps bo
 The reason text also shows the probability and the threshold.
 
 If the `Estimator` call fails, the error is rewrapped in `EstimatorCheckError`.
+Its text is `Estimator request failed: ` followed by the text of the `Estimator` error.
 The original error is kept as `cause`.
 Only an abort signal (`AbortSignal`) is rethrown as is, without wrapping.
 

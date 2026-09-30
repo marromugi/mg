@@ -127,3 +127,13 @@ export class EntryToolPairingError extends Error {
     this.toolCallId = toolCallId;
   }
 }
+
+export class ConversationStoreClosedError extends Error {
+  override readonly name = "ConversationStoreClosedError";
+
+  constructor() {
+    super(
+      "The conversation store is closed. Open it again to keep using it.",
+    );
+  }
+}

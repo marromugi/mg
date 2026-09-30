@@ -170,8 +170,13 @@ The table lists the exceptions thrown.
 | `ConversationConflictError`        | The total passed differs from the actual total in the store    |
 | `ConversationEntryUnreadableError` | A stored entry cannot be read back                             |
 | `ConversationToolCallIdError`      | The entry reuses a tool-call id stored in the conversation     |
+| `ConversationStoreClosedError`     | Creating, reading, or appending after `close` was called       |
 | `EntryNotJsonError`                | The entry's value does not stay the same through JSON and back |
 | `EntryToolPairingError`            | Tool calls and results do not come in pairs within the entry   |
+
+`ConversationStoreClosedError` has no fields.
+Its message is
+`The conversation store is closed. Open it again to keep using it.`
 
 `ConversationExistsError` and `ConversationNotFoundError` have the id
 `conversationId`.
@@ -228,8 +233,8 @@ Stores created separately do not share conversations.
 
 ### SQLite store
 
-`openSqliteConversationStore` is an implementation of `ConversationStore`
-that uses SQLite.
+`openSqliteConversationStore` opens a `SqliteConversationStore`,
+a `ConversationStore` that uses SQLite and adds `close()`.
 It is exported from an entry point separate from the main entry point of
 `@mg/conversation`.
 
@@ -256,6 +261,22 @@ A row that parses but is not a list of messages is not checked.
 
 When the store cannot be opened, the open function rejects with that error.
 No store is returned.
+
+`close()` waits for the calls already made on this store.
+Then it releases the store's connections to the file, including the file's
+descriptors.
+What those calls wrote stays in the file.
+Other stores open on the same file keep working.
+
+`close()` resolves and never rejects.
+Calling it again resolves once the first close has finished.
+
+Once `close()` has been called, even before it resolves, `create`, `read`
+and `append` reject with `ConversationStoreClosedError`.
+They do not check their arguments or reach the file.
+
+When opening fails after the connection was made, the connection is closed
+before the open function rejects.
 
 The library that talks to SQLite is loaded only inside this entry point.
 It is not loaded from the main entry point of `@mg/conversation`.

@@ -1,4 +1,5 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +9,8 @@ import { describe, expect, test } from "vitest";
 import {
   ConversationConflictError,
   ConversationEntryUnreadableError,
+  ConversationNotFoundError,
+  ConversationStoreClosedError,
 } from "../errors.js";
 import { describeStoreContract } from "../store-contract.test-helper.js";
 import type { ConversationEntry } from "../types.js";
@@ -292,5 +295,174 @@ describe("openSqliteConversationStore", () => {
 
     expect(slice).toEqual({ entries: [], length: 0, toolCalls: [] });
     expect(existsSync(join(process.cwd(), ":memory:"))).toBe(false);
+  });
+});
+
+describe("close", () => {
+  const closedMessage =
+    "The conversation store is closed. Open it again to keep using it.";
+
+  const openDescriptors = (path: string): number => {
+    const real = realpathSync(path);
+    return execFileSync("lsof", ["-p", String(process.pid), "-Fn"], {
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((line) => line === `n${real}`).length;
+  };
+
+  const track = (
+    order: string[],
+    label: string,
+    promise: Promise<unknown>,
+  ) =>
+    promise.then(
+      (value) => {
+        order.push(label);
+        return value;
+      },
+      (error: unknown) => {
+        order.push(label);
+        throw error;
+      },
+    );
+
+  test("waits for a pending append, keeps what it wrote, and resolves to undefined", async () => {
+    const path = await newDbPath();
+    const store = await openSqliteConversationStore(path);
+    await store.create("jev");
+    const order: string[] = [];
+
+    const append = track(
+      order,
+      "append",
+      store.append("jev", entryA, 0),
+    );
+    const close = track(order, "close", store.close());
+
+    expect(await append).toBeUndefined();
+    expect(await close).toBeUndefined();
+    expect(order).toEqual(["append", "close"]);
+    const other = await openSqliteConversationStore(path);
+    expect((await other.read("jev", { kind: "all" })).entries).toEqual([
+      entryA,
+    ]);
+  });
+
+  test("waits for a pending read that rejects", async () => {
+    const store = await openSqliteConversationStore(await newDbPath());
+    const order: string[] = [];
+
+    const read = track(
+      order,
+      "read",
+      store.read("nobody", { kind: "all" }),
+    );
+    const close = track(order, "close", store.close());
+
+    expect(await thrown(read)).toBeInstanceOf(
+      ConversationNotFoundError,
+    );
+    expect(await close).toBeUndefined();
+    expect(order).toEqual(["read", "close"]);
+  });
+
+  test("rejects every operation with the closed error after close, even for invalid arguments", async () => {
+    const store = await openSqliteConversationStore(":memory:");
+    await store.close();
+
+    for (const call of [
+      store.create("jev"),
+      store.read("jev", { kind: "last", count: 0 }),
+      store.append("jev", { messages: [{ role: "tool" }] } as never, 0),
+    ]) {
+      const error = await thrown(call);
+      expect(error).toBeInstanceOf(ConversationStoreClosedError);
+      expect((error as Error).name).toBe(
+        "ConversationStoreClosedError",
+      );
+      expect((error as Error).message).toBe(closedMessage);
+    }
+  });
+
+  test("does not reach the file for a call made after close", async () => {
+    const path = await newDbPath();
+    const store = await openSqliteConversationStore(path);
+    await store.close();
+
+    await thrown(store.create("jev"));
+
+    const other = await openSqliteConversationStore(path);
+    expect(
+      await thrown(other.read("jev", { kind: "all" })),
+    ).toBeInstanceOf(ConversationNotFoundError);
+  });
+
+  test("rejects a call made while close is still pending", async () => {
+    const store = await openSqliteConversationStore(await newDbPath());
+    await store.create("jev");
+
+    const close = store.close();
+    const read = store.read("jev", { kind: "all" });
+
+    expect(await thrown(read)).toBeInstanceOf(
+      ConversationStoreClosedError,
+    );
+    expect(await close).toBeUndefined();
+  });
+
+  test("resolves a repeated close after the first one", async () => {
+    const store = await openSqliteConversationStore(await newDbPath());
+    await store.create("jev");
+    const order: string[] = [];
+
+    const append = track(
+      order,
+      "append",
+      store.append("jev", entryA, 0),
+    );
+    const first = track(order, "first", store.close());
+    const second = track(order, "second", store.close());
+
+    expect(await append).toBeUndefined();
+    expect(await first).toBeUndefined();
+    expect(await second).toBeUndefined();
+    expect(order).toEqual(["append", "first", "second"]);
+    expect(await store.close()).toBeUndefined();
+  });
+
+  test("releases the closed store's file but not another file's", async () => {
+    const pathP = await newDbPath();
+    const pathQ = await newDbPath();
+    const storeP = await openSqliteConversationStore(pathP);
+    const storeQ = await openSqliteConversationStore(pathQ);
+    for (const store of [storeP, storeQ]) {
+      await store.create("jev");
+      await store.read("jev", { kind: "all" });
+    }
+    expect(openDescriptors(pathP)).toBeGreaterThanOrEqual(1);
+
+    await storeP.close();
+    const deadline = Date.now() + 2000;
+    while (openDescriptors(pathP) > 0 && Date.now() < deadline) {
+      await new Promise((done) => setTimeout(done, 100));
+    }
+
+    expect(openDescriptors(pathP)).toBe(0);
+    expect(openDescriptors(pathQ)).toBeGreaterThanOrEqual(1);
+    await storeQ.close();
+  });
+
+  test("keeps another store on the same file working", async () => {
+    const path = await newDbPath();
+    const closed = await openSqliteConversationStore(path);
+    const open = await openSqliteConversationStore(path);
+    await closed.create("jev");
+    await closed.close();
+
+    await open.append("jev", entryA, 0);
+    expect((await open.read("jev", { kind: "all" })).entries).toEqual([
+      entryA,
+    ]);
   });
 });

@@ -82,7 +82,9 @@ outside machines it reaches.
 If what step 2 found carries a cost or reaches outside this machine, ask
 with AskUserQuestion right before running it — approval is for this one run,
 not a standing yes. State what would run, its burdens in plain words, and
-two options: run it, or do not.
+two options: run it, or do not. Write it following
+`.claude/rules/questions.md`, starting from the design question the run
+answers.
 
 Not approved: return `could not run: 承認されませんでした`, and do not run
 anything.

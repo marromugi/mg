@@ -143,8 +143,9 @@ the answers. For each question:
 - Recommend an option only when a principle leans towards it, and name
   the principle in its description. When none does, recommend nothing.
 
-What does not fit in the tool — the colliding sentences, the code on main
-— goes in the message before the call.
+Each question reads on its own, following `.claude/rules/questions.md`.
+The colliding sentences and the code on main go in each option's preview,
+not in the message before the call.
 
 Wait for the answers.
 

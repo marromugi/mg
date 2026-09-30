@@ -295,6 +295,9 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../packages/core
+      '@mg/dialogue':
+        specifier: workspace:*
+        version: link:../packages/dialogue
       '@mg/eval':
         specifier: workspace:*
         version: link:../packages/eval

@@ -13,3 +13,11 @@ export class DuplicateCallableNameError extends Error {
     super(`Name "${name}" is used by more than one tool or subagent`);
   }
 }
+
+export class GateRequiredError extends Error {
+  override readonly name = "GateRequiredError";
+
+  constructor() {
+    super("gate is required when tools are set");
+  }
+}

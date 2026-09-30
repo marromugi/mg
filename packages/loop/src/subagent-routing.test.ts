@@ -111,6 +111,11 @@ const stubProvider = (
 
 const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
 
+const allowAll = stubGate(async (): Promise<Verdict> => ({
+  allowed: true,
+  reason: "ok",
+}));
+
 const toolMessageOf = (
   messages: readonly Message[],
 ): ToolMessage | undefined =>
@@ -148,6 +153,7 @@ describe("createLoopHarness with subagents", () => {
       provider,
       model: "m",
       tools: [echo],
+      gate: allowAll,
       subagents: [researcher],
       maxTurns: 1,
       stream: false,
@@ -417,6 +423,7 @@ describe("createLoopHarness with subagents", () => {
         provider,
         model: "m",
         tools: [tool],
+        gate: allowAll,
         subagents: [subagent],
         maxTurns: 1,
       }),

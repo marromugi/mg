@@ -14,7 +14,8 @@ Builds a loop harness that keeps calling tools until the model stops.
 
 ## Usage
 
-Build a harness from a provider and tools, then run it with a conversation.
+Build a harness from a provider, tools and a gate, then run it with a
+conversation.
 
 ```ts
 import { createLoopHarness } from "@mg/loop";
@@ -24,6 +25,7 @@ const harness = createLoopHarness({
   provider,
   model: "openai/gpt-4o-mini",
   tools: [bashTool],
+  gate,
   maxTurns: 10,
 });
 
@@ -41,15 +43,15 @@ Pass @mg/harness input to the returned function and it streams events.
 
 Options:
 
-| Name        | Description                                   |
-| ----------- | --------------------------------------------- |
-| `provider`  | Provider to use                               |
-| `model`     | Model name                                    |
-| `tools`     | Tools the model may call (optional)           |
-| `subagents` | Subagents the model may call (optional)       |
-| `maxTurns`  | Maximum number of turns                       |
-| `stream`    | Whether to receive a stream (default `true`)  |
-| `gate`      | Gate checked before each tool call (optional) |
+| Name        | Description                                                       |
+| ----------- | ----------------------------------------------------------------- |
+| `provider`  | Provider to use                                                   |
+| `model`     | Model name                                                        |
+| `tools`     | Tools the model may call (optional; needs `gate`)                 |
+| `subagents` | Subagents the model may call (optional)                           |
+| `maxTurns`  | Maximum number of turns                                           |
+| `stream`    | Whether to receive a stream (default `true`)                      |
+| `gate`      | Gate checked before each tool call (required when `tools` is set) |
 
 ## How it works
 
@@ -160,7 +162,13 @@ With a parent span as well, the gate span `mg.gate` sits under
 `mg.harness` as a sibling of the tool span `mg.tool`.
 A rejected call gets no `mg.tool` span.
 
-Without a gate, no check happens.
+A gate is required when `tools` is set, and an empty list counts as
+set. The types reject tools without a gate. Bypassing the types, building
+the harness throws `GateRequiredError` with the message
+`gate is required when tools are set`. This check comes after the turn
+limit check and before the duplicate-name check.
+
+Without tools, the gate may be left out. Then no check happens.
 
 ### Subagents
 

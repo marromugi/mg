@@ -6,6 +6,7 @@ import type {
   ToolSchema,
 } from "@mg/core";
 import { defineTool } from "@mg/core";
+import type { Gate } from "@mg/gate";
 import { collect, createHoldController } from "@mg/harness";
 import type {
   HarnessEvent,
@@ -15,6 +16,10 @@ import type {
 } from "@mg/harness";
 import { describe, expect, test, vi } from "vitest";
 import { createLoopHarness } from "./loop.js";
+
+const allowAll: Gate = {
+  judge: async () => ({ allowed: true, reason: "ok" }),
+};
 
 const schema = (): ToolSchema => ({
   "~standard": {
@@ -126,6 +131,7 @@ describe("createLoopHarness while held", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 3,
     });
 
@@ -180,6 +186,7 @@ describe("createLoopHarness while held", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 3,
     });
 
@@ -236,6 +243,7 @@ describe("createLoopHarness while held", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 3,
     });
 
@@ -278,6 +286,7 @@ describe("createLoopHarness while held", () => {
       provider,
       model: "m",
       tools: [tool],
+      gate: allowAll,
       maxTurns: 3,
     });
     const reason = new Error("aborted by test");

@@ -307,7 +307,10 @@ It plays each sentence through ffmpeg's AudioToolbox output.
 
 It is created from the function that starts a process.
 The function takes a command and its arguments.
-It returns the process's stdin, a promise of its exit code, and a way to kill it.
+It returns the process's stdin, its output, a promise of its exit, and a way to kill it.
+The exit is the exit code, or the name of the signal that ended the process.
+The output ends when the process closes it and never throws.
+The description of a started process lives in `ffmpeg/process.ts`.
 The ffmpeg command line lives only inside this implementation.
 
 `play(index, audio)` starts one ffmpeg process for the sentence.
@@ -320,6 +323,7 @@ The index rules are those of `Player`.
 | The process exits with code 0       | Resolves `{ played: true }`             |
 | `stop()` is called                  | Resolves `{ played: false }`            |
 | The process exits with another code | Rejects with the exit code              |
+| A signal ends the process           | Rejects naming the signal               |
 | The process cannot start            | Rejects with the start error            |
 | A chunk's rate or channels differ   | Rejects naming both formats, kills it   |
 | A chunk is not `pcm-s16le`          | Rejects naming the encoding, kills it   |

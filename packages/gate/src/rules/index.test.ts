@@ -242,16 +242,41 @@ describe("createRulesGate", () => {
     expect(verdict.reason).toBe("Rule 0 denied bash");
   });
 
-  test("throws GateError when the payload is missing call", async () => {
+  test.each([
+    [{}, "Rules gate payload is missing call"],
+    [
+      { call: null },
+      "Rules gate payload has a malformed call: call must be an object, got null",
+    ],
+    [
+      { call: [] },
+      "Rules gate payload has a malformed call: call must be an object, got an array",
+    ],
+    [
+      { call: "bash" },
+      'Rules gate payload has a malformed call: call must be an object, got "bash"',
+    ],
+    [
+      { call: { name: 7 } },
+      "Rules gate payload has a malformed call: call.name must be a string, got a number",
+    ],
+    [
+      { call: {} },
+      "Rules gate payload has a malformed call: call.name must be a string, got undefined",
+    ],
+  ])("refuses payload %j with its text", async (payload, message) => {
     const gate = createRulesGate({ root, rules: [] });
 
-    await expect(
-      gate.judge({
+    const error = await gate
+      .judge({
         kind: TOOL_CALL_KIND,
         description: "malformed",
-        payload: {},
-      }),
-    ).rejects.toBeInstanceOf(GateError);
+        payload,
+      })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(GateError);
+    expect((error as GateError).message).toBe(message);
   });
 
   test("records exactly one mg.gate span with allowed and reason, and no child span", async () => {

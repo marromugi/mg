@@ -106,8 +106,9 @@ wording, one point per sentence, with no file names or function names.
 <what problem this solves and why now — 2–4 sentences>
 
 ## Design
-<the design this issue follows and the boundary it lives in. Link the parent
-if there is one. If there is none, the decision record goes here instead.>
+<the design this issue follows and the boundary it lives in. A child of a
+parent says so with one line `Parent: #<n>`. If there is no parent, the
+decision record goes here instead.>
 
 ## Changes
 - <what changes, from the user's or developer's point of view>
@@ -165,7 +166,10 @@ next to it.
 2. ...
 ```
 
-Child issues link to the parent in their Design section.
+A child of a parent has exactly one line `Parent: #<n>` in its Design
+section, on its own and outside code fences. An issue without a parent, and a
+body with its own decision record, have none. A line that starts with
+`Parent:` in any other form is an error. Fenced lines never count.
 
 ## Checking and creating
 

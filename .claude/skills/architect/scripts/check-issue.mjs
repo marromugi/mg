@@ -79,6 +79,15 @@ if (isChild) requireInOrder(CHILD_H2);
 if (hasRecord) requireInOrder(RECORD_H2);
 if (isParent && !find("Child issues")) fail(1, 'missing section "## Child issues"');
 
+const parentAttempts = (find("Design")?.lines ?? []).filter(({ text }) =>
+  /^\s*parent\s*:/i.test(text),
+);
+parentAttempts.forEach(({ n, text }, i) => {
+  if (!/^Parent: #\d+$/.test(text)) fail(n, 'Parent line is not "Parent: #<n>"');
+  if (i > 0) fail(n, 'more than one Parent line in "## Design"');
+  if (hasRecord) fail(n, "a Parent line in a body that holds its own decision record");
+});
+
 for (const title of ["Reasons", "Rejected shapes"]) {
   for (const { n, item } of bullets(find(title)?.lines ?? [])) {
     if (item !== NONE && !/Principle ?\d/.test(item)) {

@@ -359,3 +359,100 @@ describe("createCdpConnector with an endpoint", () => {
     expect(urls).toEqual(["http://localhost:9222"]);
   });
 });
+
+describe("createCdpConnector browser tools when the endpoint is lost", () => {
+  const reason = new Error(
+    "SSH connection to pi-01.local:22 was lost: Keepalive timeout",
+  );
+
+  const setup = async (
+    script: Partial<BrowserPage> = {},
+    lost = new AbortController(),
+  ) => {
+    let calls = 0;
+    const page: BrowserPage = {
+      navigate: async (url) => {
+        calls += 1;
+        return { url, title: "" };
+      },
+      snapshot: async () => {
+        calls += 1;
+        return "";
+      },
+      click: async () => {
+        calls += 1;
+      },
+      type: async () => {
+        calls += 1;
+      },
+      ...script,
+    };
+    const endpoint: Endpoint = {
+      async open() {
+        return {
+          host: "127.0.0.1",
+          port: 45678,
+          lost: lost.signal,
+          close: async () => {},
+        };
+      },
+    };
+    const connector = createCdpConnector(
+      { endpoint, browser: "build-browser" },
+      { connect: async () => ({ page, close: async () => {} }) },
+    );
+    const connection = await connector.open();
+    const run = async (name: string, input: object) => {
+      const tool = connection.tools.find((t) => t.name === name)!;
+      return (await tool.prepare(input)).run({});
+    };
+    return { run, lost, calls: () => calls };
+  };
+
+  test("every browser tool rejects with the reason without calling the page", async () => {
+    const { run, lost, calls } = await setup();
+    lost.abort(reason);
+
+    for (const [name, input] of [
+      ["browser_navigate", { url: "https://example.com" }],
+      ["browser_read", {}],
+      ["browser_click", { role: "button", name: "Go" }],
+      ["browser_type", { role: "textbox", name: "Search", text: "hi" }],
+    ] as const) {
+      await expect(run(name, input)).rejects.toBe(reason);
+    }
+    expect(calls()).toBe(0);
+  });
+
+  test("a page failure after the loss rejects with the reason", async () => {
+    const lost = new AbortController();
+    const { run } = await setup(
+      {
+        click: async () => {
+          lost.abort(reason);
+          throw new Error(
+            "Target page, context or browser has been closed",
+          );
+        },
+      },
+      lost,
+    );
+
+    await expect(
+      run("browser_click", { role: "button", name: "Go" }),
+    ).rejects.toBe(reason);
+  });
+
+  test("a page failure without a loss rejects with the page error", async () => {
+    const pageError = new Error("Timeout 30000ms exceeded");
+    const { run } = await setup({
+      click: async () => {
+        throw pageError;
+      },
+    });
+
+    await expect(
+      run("browser_click", { role: "button", name: "Go" }),
+    ).rejects.toBe(pageError);
+  });
+});

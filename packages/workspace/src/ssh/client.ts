@@ -20,9 +20,17 @@ export type ForwardResult =
   | { kind: "open"; stream: Duplex }
   | { kind: "refused"; cause: unknown };
 
+export type ForwarderLoss =
+  { kind: "failed"; cause: unknown } | { kind: "closed" };
+
 export interface SshForwarder {
   // Resolves "refused" for a refused channel; rejects on any other failure.
   forwardOut(dstHost: string, dstPort: number): Promise<ForwardResult>;
+  // Aborts when the connection closes other than through end(), before
+  // any stream from forwardOut reports its end because of that close.
+  // The reason is a ForwarderLoss.
+  readonly lost: AbortSignal;
+  // Resolves at once after lost has aborted.
   end(): Promise<void>;
 }
 
@@ -213,15 +221,24 @@ class Ssh2Client implements SshClient {
   }
 }
 
+const FORWARDER_KEEPALIVE: ConnectConfig = {
+  keepaliveInterval: 15000,
+  keepaliveCountMax: 3,
+};
+
 const openConnection = (
   options: SshConnectionOptions,
   context?: ConnectorContext,
+  extra?: {
+    createClient?: () => Client;
+    config?: ConnectConfig;
+  },
 ): Promise<Client> => {
   context?.signal?.throwIfAborted();
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    const connection = new Client();
+    const connection = (extra?.createClient ?? (() => new Client()))();
 
     const onAbort = (): void => {
       const signalRef = context?.signal;
@@ -247,7 +264,10 @@ const openConnection = (
       reject(error);
     });
 
-    connection.connect(toConnectConfig(options));
+    connection.connect({
+      ...toConnectConfig(options),
+      ...extra?.config,
+    });
   });
 };
 
@@ -263,35 +283,65 @@ const isRefused = (error: Error): boolean =>
   error.message.includes("Connection refused");
 
 export const toSshForwarder = (
-  connection: Pick<Client, "forwardOut" | "end" | "once">,
-): SshForwarder => ({
-  forwardOut: (dstHost, dstPort) =>
-    new Promise((resolve, reject) => {
-      connection.forwardOut(
-        "127.0.0.1",
-        0,
-        dstHost,
-        dstPort,
-        (error, stream) => {
-          if (error === undefined) {
-            resolve({ kind: "open", stream });
-          } else if (isRefused(error)) {
-            resolve({ kind: "refused", cause: error });
-          } else {
-            reject(error);
-          }
-        },
-      );
-    }),
-  end: () =>
-    new Promise((resolve) => {
-      connection.once("close", () => resolve());
-      connection.end();
-    }),
-});
+  connection: Pick<Client, "forwardOut" | "end" | "on" | "once">,
+): SshForwarder => {
+  const lost = new AbortController();
+  let ended = false;
+  let lastError: { cause: unknown } | undefined;
+
+  connection.on("error", (error: unknown) => {
+    lastError = { cause: error };
+  });
+  connection.on("close", () => {
+    if (ended) return;
+    const loss: ForwarderLoss =
+      lastError === undefined
+        ? { kind: "closed" }
+        : { kind: "failed", cause: lastError.cause };
+    lost.abort(loss);
+  });
+
+  return {
+    lost: lost.signal,
+    forwardOut: (dstHost, dstPort) =>
+      new Promise((resolve, reject) => {
+        connection.forwardOut(
+          "127.0.0.1",
+          0,
+          dstHost,
+          dstPort,
+          (error, stream) => {
+            if (error === undefined) {
+              resolve({ kind: "open", stream });
+            } else if (isRefused(error)) {
+              resolve({ kind: "refused", cause: error });
+            } else {
+              reject(error);
+            }
+          },
+        );
+      }),
+    end: () =>
+      new Promise((resolve) => {
+        if (lost.signal.aborted) {
+          resolve();
+          return;
+        }
+        ended = true;
+        connection.once("close", () => resolve());
+        connection.end();
+      }),
+  };
+};
 
 export const connectSshForwarder = async (
   options: SshConnectionOptions,
   context?: ConnectorContext,
+  deps?: { createClient?: () => Client },
 ): Promise<SshForwarder> =>
-  toSshForwarder(await openConnection(options, context));
+  toSshForwarder(
+    await openConnection(options, context, {
+      createClient: deps?.createClient,
+      config: FORWARDER_KEEPALIVE,
+    }),
+  );

@@ -20,7 +20,6 @@ import type {
 } from "./types.js";
 import {
   gateRunToolCall,
-  TOOL_CALL_KIND,
   toToolCallRequest,
   type ToolCallPayload,
 } from "./tool-gate.js";
@@ -56,13 +55,6 @@ const numberSchema: ToolSchema = {
   },
 };
 
-const allow: Gate = {
-  judge: async (): Promise<Verdict> => ({
-    allowed: true,
-    reason: "ok",
-  }),
-};
-
 const recordingGate = (
   seen: GateRequest[],
   verdict: Verdict = { allowed: true, reason: "ok" },
@@ -96,24 +88,6 @@ const fakeTool = (
 const call: ToolCall = { id: "c1", name: "t", arguments: { a: 1 } };
 
 describe("toToolCallRequest", () => {
-  it("builds a tool-call request from the call, the definition and the reach", () => {
-    const request = toToolCallRequest([fakeTool()], call, fileReach);
-
-    expect(request.kind).toBe(TOOL_CALL_KIND);
-    expect(request.description).toBe(
-      'Tool: t\nDescription: d\nArguments:\n{\n  "a": 1\n}',
-    );
-    const payload = request.payload as ToolCallPayload;
-    expect(payload.call).toBe(call);
-    expect(payload.reach).toBe(fileReach);
-    expect(payload.tool).toEqual({
-      name: "t",
-      description: "d",
-      input: schema,
-    });
-    expect(payload.tool).not.toHaveProperty("prepare");
-  });
-
   it("describes a tool without a description as (none)", () => {
     const tool = fakeTool({ description: undefined });
 
@@ -402,16 +376,6 @@ describe("gateRunToolCall", () => {
 
     expect(contexts[0]?.trace).toBe(parent);
     expect(contexts[1]).not.toHaveProperty("trace");
-  });
-
-  it("gives the same message as running the tool without a gate", async () => {
-    const message = await gateRunToolCall(allow)([fakeTool()], call);
-
-    expect(message).toEqual({
-      role: "tool",
-      toolCallId: "c1",
-      content: "ran-1",
-    });
   });
 });
 

@@ -76,6 +76,27 @@ describe("runToolCall", () => {
     expect(message.content).toBe(JSON.stringify({ city: "TOKYO" }));
   });
 
+  test("gives the prepared call's result for a call to t and rejects an unknown name", async () => {
+    const t: Tool = {
+      name: "t",
+      input: stubSchema((value) => ({ value })),
+      async prepare() {
+        return { reach: { kind: "none" }, run: async () => "ran-1" };
+      },
+    };
+
+    await expect(
+      runToolCall([t], { id: "c1", name: "t", arguments: {} }),
+    ).resolves.toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content: "ran-1",
+    });
+    await expect(
+      runToolCall([t], { id: "c1", name: "nope", arguments: {} }),
+    ).rejects.toThrow("No tool named nope for tool call c1");
+  });
+
   test("picks the tool whose name matches the call", async () => {
     const other = {
       ...stubTool(stubSchema(upperCity), async () => "other"),

@@ -180,11 +180,17 @@ the same way.
 Do not ask before creating. Both reviews have passed, and the developer reads
 the result in the report.
 
-Create the issues with `gh issue create` from the checked bodies, parent
-first if there is one, then fill the parent's `Child issues` list with the real
-numbers. Put the real parent number in each child's `Parent: #<n>` line, run
-`check-issue.mjs` on each child body again, and create the child only when it
-prints no problems. A defect set aside under principle 9 becomes a note issue: Background and
+Create the issues with `gh issue create` from the checked bodies. Child
+bodies from step 5 carry no `Parent:` line, because the parent has no number
+yet and a placeholder fails the check. In this order:
+
+1. Create the parent, if there is one.
+2. Write the parent's number into each child's `Parent: #<n>` line.
+3. Run `check-issue.mjs` again on each child body.
+4. Create each child only when it prints no problems.
+5. Fill the parent's `Child issues` list with the real numbers.
+
+A defect set aside under principle 9 becomes a note issue: Background and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
 Its title ends in "(note)"; that is how `triager` finds it later.
 

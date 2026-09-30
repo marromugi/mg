@@ -136,9 +136,10 @@ Input: the issue numbers, and each resolution as a decision already made.
    line, or takes the new parent's number when it moved.
 4. Edit each with `gh issue edit <n> --body-file <file>`. Where the new
    design contradicts work already merged, leave that work alone and open a
-   new issue instead.
+   new issue instead. A child the new design drops from every `Child issues`
+   list is closed with `gh issue close <n> --comment "<parent and reason>"`.
 
-Return the list of edited and created issue numbers.
+Return the list of edited, closed, and created issue numbers.
 
 ## Things to keep in mind
 

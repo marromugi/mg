@@ -40,13 +40,12 @@ checks and still break after the merge before it. When the file sets are
 disjoint that cannot happen, so those issues go together. When there is any
 doubt, they go one after another. Slower and safe beats fast and sorry.
 
-GitHub is the record of what is ready, and it keeps changing while the loop
-runs: issues get closed, rewritten, or dropped from a parent's list mid-run.
-Deciding whether an issue can start from that record is mechanical, so the
-`.claude/skills/implementer/scripts/issue-guard.mjs` script does it, not
-prose here. dispatcher calls it wherever a decision depends on GitHub's
-current state — building the queue, and again right before each merge —
-instead of holding its own copy of the rule.
+GitHub is the record of what is ready, and this loop owns everything that
+depends on its current state: which issues are ready, their order, which run
+side by side, and the last look before a merge. The loop reads the open
+issues once per pass. Contradictions between issues are settled when the
+issues are created, so it does not check them. Before a merge it checks one
+thing: that the issue has not been edited or commented on since work began.
 
 ## Before starting
 
@@ -77,18 +76,17 @@ chain in this session — `architect` and `triager` do, for work with no
 issue. For each, the caller passes what step 3 gathers: the PR number, the
 Design changes section, reviewer's report, CI, and the verifier result.
 Decide each with step 4 before step 1, so the queue is read from the merged
-state. A PR with no issue has no issue-guard snapshot, and step 4 skips the
-guard's verify for it.
+state. A PR with no issue has no last-updated time to compare, and step 4
+skips that check for it.
 
 ## Step 1: Find the ready issues
 
-List open issues. Run this every time this step starts, and again each time
-an issue is added to a batch already in flight; nothing from an earlier
-listing is reused, because merges and edits made during the run change what
-is ready.
+List open issues once per pass. Run this every time this step starts;
+nothing from an earlier listing is reused, because merges and edits made
+during the run change what is ready.
 
 ```
-gh issue list --state open --limit 100 --json number,title,body
+gh issue list --state open --limit 200 --json number,title,body,updatedAt
 ```
 
 A candidate is an issue where all of these hold. Check them by reading the
@@ -105,56 +103,38 @@ body; they are structural, not keyword matches.
   gh pr list --state open --json number,body --jq '.[] | select(.body | test("Closes #<N>\\b")) | .number'
   ```
 
-For each candidate, run:
+A child of a parent is ready only when every child listed before it in the
+parent's `## Child issues` list is closed as completed. The lists come from
+the parents in the same listing. The closed predecessors' reasons come
+from one more read in the same pass:
 
 ```
-node .claude/skills/implementer/scripts/issue-guard.mjs check <N>
+gh issue list --state closed --limit 500 --json number,stateReason
 ```
 
-A refusal excludes the issue from the queue. Record its number and the
-script's lines in the per-run not-started list, and do not try it again in
-this run (see "Not started" below).
+A predecessor that is still open means the child is not ready this pass.
+Leave it out of the queue without adding it to the not-started list, since
+a merge later in this run may finish the predecessor. A predecessor closed
+as not planned means the child does not start: add it to the not-started
+list with the predecessor's number.
 
-On success the script prints `ok: issue #<N> can start`, then `parent: none`
-or `parent: #<P>` followed by one `child #<n>: …` line per other child of
-the parent. The script does not judge ordering, and its output carries
-neither the parent's body nor this issue's own place in the parent's
-`## Child issues` list, so the ordering rule cannot be applied from that output
-alone. When it printed `parent: #<P>`, read the parent now:
-
-```
-gh issue view <P> --json body
-```
-
-Read it at this moment, not reused from an earlier pass in this run: the
-parent can be rewritten while the loop runs, and its wording is what
-decides whether a predecessor still blocks this issue. Apply "When an issue
-can start" in `.claude/skills/implementer/SKILL.md` to the list order and
-wording in that body, together with the `child #<n>: …` states `check`
-printed, to decide whether this issue's predecessors are done. This
-judgment stays with the reader rather than moving into the script, because
-it depends on the parent's own words, not only on its children's states.
-
-An issue whose predecessors are not done yet is simply not ready this pass —
-leave it out of the queue without adding it to the not-started list, since a
-merge later in this run may finish it.
+No other dependency is checked. A child's `Parent:` line is not compared
+with the lists: an open issue is work to build, and a child dropped from
+every parent's list is closed by architect when it redoes the design.
 
 **Not started.** Keep a per-run list of issues that did not start: number
-and the reason. An issue lands on it here, when `check` refuses it, or in
-step 3, when implementer stops before spawning an agent for any other
-reason. An issue on the list is not tried again in this run, except one
-whose only reason is a predecessor still being open — that one goes back to
-simply not ready, as above, since a merge later in this run may finish the
-predecessor. The list is a record of what this run did, not a copy of
-GitHub, so it starts empty at the top of the run and is not carried into the
-next one.
+and the reason. An issue lands on it here, when a predecessor was closed as
+not planned, or in step 3, when implementer stops before spawning an agent.
+An issue on the list is not tried again in this run. The list is a record
+of what this run did, not a copy of GitHub, so it starts empty at the top
+of the run and is not carried into the next one.
 
 ## Step 2: Order and group the ready issues
 
 Two questions decide the order: which issues touch everything, and which
 issues can be built at the same time. Both come from reading the ready
 issues' `To Implementer` sections, in particular `Files / modules` and
-`Out of scope`, and the parents' `Child issues` lists. Do this reading before
+`Out of scope`. Do this reading before
 starting anything, over the whole ready set, so a later issue cannot
 surprise an earlier one.
 
@@ -170,22 +150,21 @@ else is in flight while it builds, reviews, and merges.
 **Everything else goes in batches of independent issues.** Two issues can
 share a batch only when all of these are certain:
 
-- Neither is before the other in a parent's `Child issues` order, or the parent
-  says they are independent.
+- They have different parents, or no parent. The children of one parent
+  always run one at a time, in their listed order, whatever the parent's
+  wording says.
 - Their `Files / modules` lists name no common file, and neither lists a
   file the other's `Out of scope` protects.
 - They do not both add to the same index or barrel file, the same README
   table, the same test snapshot set, or the same config file. Disjoint
   source files with a shared `index.ts` still conflict.
-- Neither depends on a package export the other creates. An issue in
-  `tools` that uses a type an issue in `core` adds is dependent even if the
-  files are disjoint.
 
-"Certain" means it follows from what the issues say. If deciding takes an
-argument, the answer is no, and the issues go in separate batches, in issue
-number order within their parent order. Keep a batch to at most 3 issues:
-each one is an agent in this session, and reviews are run one at a time
-afterwards anyway.
+Dependencies between issues of different parents are not checked; only
+file overlap is. "Certain" means it follows from what the issues say. If
+deciding takes an argument, the answer is no, and the issues go in separate
+batches, in issue number order. Keep a batch to at most 3 issues: each one
+is an agent in this session, and reviews are run one at a time afterwards
+anyway.
 
 Show the plan to the developer in one short list: the repo-wide issues in
 order, then each batch with its issues and one line on why they are
@@ -212,19 +191,15 @@ Running implementer on an issue ends one of three ways:
 - implementer stopped on a question the developer declined to answer. A PR
   stays open if there was one. Quote the question in the report (step 5).
 - implementer stopped before spawning an agent (step 1 of the implementer
-  skill): its own snapshot of the issue was refused, a predecessor under
-  "When an issue can start" was still open, or the body had no
-  `To Implementer` section. There is no PR; add the issue's number and the
-  reason implementer gave — the guard script's lines when there are any —
-  to the not-started list from step 1, and continue with the rest of the
-  batch. An issue whose only reason was an open predecessor goes back to
-  not ready instead, per step 1.
+  skill): the body had no `To Implementer` section. There is no PR; add the
+  issue's number and that reason to the not-started list from step 1, and
+  continue with the rest of the batch.
 
 When implementer's chain for an issue — reviewer, then verifier — is in,
 gather from the run:
 
-- The PR number, and the `Decided` and `Design changes` sections of its
-  body.
+- The PR number, the `updatedAt` implementer handed back, and the
+  `Decided` and `Design changes` sections of the PR body.
 - reviewer's report: what was fixed, what was dismissed, and any harm the
   developer declined.
 - Whether CI ran, and its final result.
@@ -263,22 +238,21 @@ that is the cheap mistake.
   `CONFLICTING` or `DIRTY` is not: the independence call was wrong. Leave
   the PR open and say so in the report. `headRefOid` from this same call is
   the commit to read the verifier status from below.
-- For a PR built from an issue, the guard script's verify operation
-  passes. Run it last, immediately
-  before the merge commands below, not earlier while the other conditions
-  were still being checked — review can take time, and the issue or its
-  parent can change again in that gap:
+- For a PR built from an issue, the issue has not changed since work
+  began. Run this last, immediately before the verifier status read and
+  the merge commands below, not earlier while the other conditions were
+  still being checked — review can take time, and the issue can change in
+  that gap:
 
   ```
-  node .claude/skills/implementer/scripts/issue-guard.mjs verify <N> --dir <scratchpad>/issue-guard
+  gh issue view <N> --json updatedAt --jq .updatedAt
   ```
 
-  `<scratchpad>/issue-guard` is the same folder implementer wrote the
-  snapshot to in this session, in its own step 1; verify reads that
-  snapshot back, not a new one. A refusal leaves the PR open, and the
-  script's lines go into the report. `refused: no snapshot for issue #<N>`
-  means the PR was not built in this run — it stays open for the same
-  reason as any other refusal here.
+  Compare it with the `updatedAt` noted in step 3. Any difference leaves
+  the PR open, and the report names the issue and both times. Only the
+  issue's own time counts; edits to its parent do not stop the merge. A
+  failed read also leaves the PR open, with gh's first error line. A PR
+  with no issue skips this condition.
 - The head commit's verifier status is success:
 
   ```
@@ -286,8 +260,8 @@ that is the cheap mistake.
   ```
 
   A missing status is not success. Run this immediately before merging too,
-  for the same reason as the guard script's verify above: a push can land
-  on the PR while review was still running.
+  for the same reason: a push can land on the PR while review was still
+  running.
 
 **Merge.** Follow this whenever a PR built by implementer is merged,
 including when the developer asks for the merge in chat. Remove the agent's
@@ -322,8 +296,8 @@ leave the same text on that issue now, after the merge:
 gh issue comment <N> --body "<Design changes, and the PR number>"
 ```
 
-It goes after the merge because the guard counts comments on the issue
-while the work is open, and a comment of our own would stop the merge.
+It goes after the merge because a comment moves the issue's last-updated
+time, and a comment of our own would stop the merge.
 
 **Leave open.** Do nothing to the PR or the worktree. The developer may
 continue the agent, and reviewer's comments on the PR already say what
@@ -387,7 +361,8 @@ Japanese, following `.claude/rules/writing.md`. Order:
    Point at the PR comments rather than repeating them. A question with no
    PR is quoted here in full.
 5. Not started: each issue on the not-started list, the reason, and what
-   the developer needs to repair — usually the parent's `Child issues` list.
+   the developer needs to repair — usually the predecessor closed as not
+   planned, or the parent's `Child issues` list.
    Keep these separate from item 4; there is no PR to point at.
 6. Parents closed during the run, and what is ready next if anything
    remains.

@@ -52,10 +52,9 @@ run's `git worktree add`.
 ## Input
 
 - The PR number.
-- The body to read `Verification` from: the issue snapshot file the
-  `implementer` skill already produced, at
-  `<scratchpad>/issue-guard/issue-<N>.json`, or, for work with no issue,
-  the body file architect wrote.
+- The body file to read `Verification` from: the issue text the
+  `implementer` skill saved at `<scratchpad>/issues/issue-<N>.md`, or, for
+  work with no issue, the body file architect wrote.
 - The path to the developer's main checkout, where an optional `.env` may
   be.
 
@@ -68,7 +67,7 @@ step 5.
 
 ### 1. Read the confirmation section
 
-Read `## Verification` from the snapshot's `body`, or from the body file.
+Read `## Verification` from the body file.
 
 - `- None` alone: this work has no entry points to check. Note the result as
   not-needed, with no reason, and go to step 5.

@@ -220,3 +220,108 @@ test("prints ok and exits 0 when the confirmation entry gives a reason instead o
   assert.equal(code, 0);
   assert.equal(stdout, `${file}: ok\n`);
 });
+
+async function runCheckInFolder(body) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-issue-"));
+  fs.writeFileSync(path.join(dir, "body.md"), body);
+  try {
+    const result = await execFileAsync(process.execPath, [SCRIPT, "body.md"], {
+      cwd: dir,
+    });
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (err) {
+    return { code: err.code, stdout: err.stdout, stderr: err.stderr };
+  }
+}
+
+const withDesign = (text) => BASE_CHILD.replace("Design for the test.", text);
+
+const PARENT_LINE_ERROR = 'body.md:7: Parent line is not "Parent: #<n>"\n';
+
+test("reports a parent line without the issue mark and exits 1", async () => {
+  const { code, stderr } = await runCheckInFolder(withDesign("Parent: 12"));
+
+  assert.equal(code, 1);
+  assert.equal(stderr, PARENT_LINE_ERROR);
+});
+
+test("reports a parent line in lower case and exits 1", async () => {
+  const { code, stderr } = await runCheckInFolder(withDesign("parent: #12"));
+
+  assert.equal(code, 1);
+  assert.equal(stderr, PARENT_LINE_ERROR);
+});
+
+test("reports a parent line that starts with spaces and exits 1", async () => {
+  const { code, stderr } = await runCheckInFolder(withDesign("  Parent: #12"));
+
+  assert.equal(code, 1);
+  assert.equal(stderr, PARENT_LINE_ERROR);
+});
+
+test("reports the second parent line in the design section and exits 1", async () => {
+  const { code, stderr } = await runCheckInFolder(
+    withDesign("Parent: #12\nParent: #13"),
+  );
+
+  assert.equal(code, 1);
+  assert.equal(stderr, 'body.md:8: more than one Parent line in "## Design"\n');
+});
+
+test("reports a parent line in a body that holds its own decision record and exits 1", async () => {
+  const record = [
+    "Decision",
+    "Behaviour changes",
+    "Place in the whole",
+    "Confirmed facts",
+    "Reasons",
+    "Rejected shapes",
+    "Trade-offs",
+  ]
+    .map((title) => `## ${title}\n- None\n\n`)
+    .join("");
+
+  const { code, stderr } = await runCheckInFolder(
+    record + withDesign("Parent: #12"),
+  );
+
+  assert.equal(code, 1);
+  assert.equal(
+    stderr,
+    "body.md:28: a Parent line in a body that holds its own decision record\n",
+  );
+});
+
+test("prints ok and exits 0 for one parent line in the design section", async () => {
+  const { code, stdout } = await runCheckInFolder(withDesign("Parent: #12"));
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "body.md: ok\n");
+});
+
+test("prints ok and exits 0 for a parent line inside a code fence", async () => {
+  const { code, stdout } = await runCheckInFolder(
+    withDesign("```\nParent: 12\n```"),
+  );
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "body.md: ok\n");
+});
+
+test("prints ok and exits 0 for a parent line outside the design section", async () => {
+  const body = BASE_CHILD.replace("Background for the test.", "Parent: 12");
+
+  const { code, stdout } = await runCheckInFolder(body);
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "body.md: ok\n");
+});
+
+test("prints ok and exits 0 for prose that uses the word parent", async () => {
+  const { code, stdout } = await runCheckInFolder(
+    withDesign("The parent's open workspace is reused."),
+  );
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "body.md: ok\n");
+});

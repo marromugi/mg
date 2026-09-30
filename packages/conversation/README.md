@@ -116,14 +116,15 @@ It does not matter whether a result came first.
 
 The table lists the exceptions thrown.
 
-| Exception                   | Thrown when                                                    |
-| --------------------------- | -------------------------------------------------------------- |
-| `ConversationExistsError`   | Creating with an id that already exists                        |
-| `ConversationNotFoundError` | Reading or appending with an id that was never created         |
-| `ConversationRangeError`    | The range's count is not a positive integer                    |
-| `ConversationConflictError` | The total passed differs from the actual total in the store    |
-| `EntryNotJsonError`         | The entry's value does not stay the same through JSON and back |
-| `EntryToolPairingError`     | Tool calls and results do not come in pairs within the entry   |
+| Exception                          | Thrown when                                                    |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `ConversationExistsError`          | Creating with an id that already exists                        |
+| `ConversationNotFoundError`        | Reading or appending with an id that was never created         |
+| `ConversationRangeError`           | The range's count is not a positive integer                    |
+| `ConversationConflictError`        | The total passed differs from the actual total in the store    |
+| `ConversationEntryUnreadableError` | A stored entry cannot be read back                             |
+| `EntryNotJsonError`                | The entry's value does not stay the same through JSON and back |
+| `EntryToolPairingError`            | Tool calls and results do not come in pairs within the entry   |
 
 `ConversationExistsError` and `ConversationNotFoundError` have the id
 `conversationId`.
@@ -132,6 +133,12 @@ The table lists the exceptions thrown.
 
 `ConversationConflictError` has `conversationId`, the given total
 `expectedLength`, and the actual total `actualLength`.
+
+`ConversationEntryUnreadableError` has `conversationId`, the 0-based
+`position` of the lowest unreadable entry, and the original parse error in
+`cause`.
+Stores that keep entries outside memory throw it when a stored entry cannot
+be turned back into an entry.
 
 `EntryNotJsonError` has a kind `kind` and the location of the first value
 found, `path`.
@@ -189,6 +196,11 @@ Even when 2 stores have the same path open at once, the total check still
 works.
 Only the side that appended first is kept.
 The side that appended later fails with `ConversationConflictError`.
+
+When a stored row is not valid JSON, reading the conversation rejects with
+`ConversationEntryUnreadableError`.
+It names the conversation and the lowest unreadable position.
+A row that parses but is not a list of messages is not checked.
 
 When the store cannot be opened, the open function rejects with that error.
 No store is returned.

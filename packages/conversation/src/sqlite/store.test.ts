@@ -1,9 +1,14 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { createClient } from "@libsql/client";
 import { describe, expect, test } from "vitest";
-import { ConversationConflictError } from "../errors.js";
+import {
+  ConversationConflictError,
+  ConversationEntryUnreadableError,
+} from "../errors.js";
 import { describeStoreContract } from "../store-contract.test-helper.js";
 import type { ConversationEntry } from "../types.js";
 import { openSqliteConversationStore } from "./store.js";
@@ -51,6 +56,34 @@ describe("openSqliteConversationStore", () => {
     const slice = await second.read("jev", { kind: "all" });
 
     expect(slice).toEqual({ entries: [entryA], length: 1 });
+  });
+
+  test("rejects a read covering unreadable rows with the conversation, the lowest broken position, and the parse error", async () => {
+    const path = await newDbPath();
+    const store = await openSqliteConversationStore(path);
+    await store.create("jev");
+    await store.append("jev", entryA, 0);
+    await store.append("jev", entryB, 1);
+    await store.append("jev", entryA, 2);
+
+    const other = createClient({
+      url: pathToFileURL(resolve(path)).href,
+    });
+    await other.execute(
+      "update entries set messages = '{' where position in (1, 2)",
+    );
+    other.close();
+
+    const error = await thrown(store.read("jev", { kind: "all" }));
+
+    expect(error).toBeInstanceOf(ConversationEntryUnreadableError);
+    const unreadable = error as ConversationEntryUnreadableError;
+    expect(unreadable.conversationId).toBe("jev");
+    expect(unreadable.position).toBe(1);
+    expect(unreadable.cause).toBeInstanceOf(SyntaxError);
+    expect(unreadable.message).toBe(
+      `Conversation "jev" has a stored entry at position 1 that cannot be read: ${(unreadable.cause as SyntaxError).message}.`,
+    );
   });
 
   test("lets the first of two stores opened on the same file append, and rejects the second with the conflict, leaving only the first entry", async () => {

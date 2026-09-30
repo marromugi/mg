@@ -11,9 +11,22 @@ const payloadsOf = async function* (
   }
 };
 
+const sequentialIds = (): (() => string) => {
+  let count = 0;
+  return () => `u${++count}`;
+};
+
+const orCarry = (id: string) => ({
+  provider: "openrouter",
+  data: { id },
+});
+
 const collect = async (chunks: unknown[]): Promise<StreamEvent[]> => {
   const events: StreamEvent[] = [];
-  for await (const event of toStreamEvents(payloadsOf(chunks))) {
+  for await (const event of toStreamEvents(
+    payloadsOf(chunks),
+    sequentialIds(),
+  )) {
     events.push(event);
   }
   return events;
@@ -160,6 +173,76 @@ describe("toStreamEvents", () => {
     ]);
   });
 
+  test("keeps the first non-empty id of a tool call as its carry", async () => {
+    const events = await collect([
+      toolFragment(0, { id: "", name: "weather" }),
+      toolFragment(0, { id: "call_1", arguments: '{"city":' }),
+      toolFragment(0, { arguments: '"Tokyo"}' }),
+      finishChunk("tool_calls"),
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "tool-call",
+        toolCall: {
+          id: "u1",
+          name: "weather",
+          arguments: { city: "Tokyo" },
+        },
+        carry: orCarry("call_1"),
+      },
+      { type: "finish", finishReason: "tool_calls" },
+    ]);
+  });
+
+  test("sets no carry when the tool call has no id", async () => {
+    const events = await collect([
+      toolFragment(0, { name: "weather", arguments: "{}" }),
+      finishChunk("tool_calls"),
+    ]);
+
+    expect(events[0]).toEqual({
+      type: "tool-call",
+      toolCall: { id: "u1", name: "weather", arguments: {} },
+    });
+  });
+
+  test("adds nothing when a later fragment repeats the same id", async () => {
+    const events = await collect([
+      toolFragment(0, {
+        id: "call_1",
+        name: "weather",
+        arguments: '{"city":',
+      }),
+      toolFragment(0, { id: "call_1", arguments: '"Tokyo"}' }),
+      finishChunk("tool_calls"),
+    ]);
+
+    expect(events).toEqual([
+      {
+        type: "tool-call",
+        toolCall: {
+          id: "u1",
+          name: "weather",
+          arguments: { city: "Tokyo" },
+        },
+        carry: orCarry("call_1"),
+      },
+      { type: "finish", finishReason: "tool_calls" },
+    ]);
+  });
+
+  test("throws a ProviderHttpError when fragments of one call carry two ids", async () => {
+    const error = await collect([
+      toolFragment(0, { id: "call_1", name: "weather" }),
+      toolFragment(0, { id: "call_2", arguments: "{}" }),
+      finishChunk("tool_calls"),
+    ]).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderHttpError);
+    expect((error as ProviderHttpError).status).toBe(200);
+  });
+
   test("emits the pending carry before finish when no text or tool call follows", async () => {
     const detail = {
       type: "reasoning.text",
@@ -209,7 +292,8 @@ describe("toStreamEvents", () => {
       },
       {
         type: "tool-call",
-        toolCall: { id: "call-1", name: "weather", arguments: {} },
+        toolCall: { id: "u1", name: "weather", arguments: {} },
+        carry: orCarry("call-1"),
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
@@ -228,10 +312,11 @@ describe("toStreamEvents", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call-1",
+          id: "u1",
           name: "weather",
           arguments: { city: "Tokyo" },
         },
+        carry: orCarry("call-1"),
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
@@ -258,18 +343,20 @@ describe("toStreamEvents", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call-1",
+          id: "u1",
           name: "weather",
           arguments: { city: "Tokyo" },
         },
+        carry: orCarry("call-1"),
       },
       {
         type: "tool-call",
         toolCall: {
-          id: "call-2",
+          id: "u2",
           name: "clock",
           arguments: { tz: "UTC" },
         },
+        carry: orCarry("call-2"),
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
@@ -293,7 +380,8 @@ describe("toStreamEvents", () => {
       { type: "text-delta", delta: " now" },
       {
         type: "tool-call",
-        toolCall: { id: "call-1", name: "weather", arguments: {} },
+        toolCall: { id: "u1", name: "weather", arguments: {} },
+        carry: orCarry("call-1"),
       },
       {
         type: "finish",
@@ -311,7 +399,8 @@ describe("toStreamEvents", () => {
 
     expect(events[0]).toEqual({
       type: "tool-call",
-      toolCall: { id: "call-1", name: "ping", arguments: {} },
+      toolCall: { id: "u1", name: "ping", arguments: {} },
+      carry: orCarry("call-1"),
     });
   });
 
@@ -361,7 +450,7 @@ describe("toStreamEvents", () => {
 
     expect(error).toBeInstanceOf(ToolArgumentsError);
     const toolArgumentsError = error as ToolArgumentsError;
-    expect(toolArgumentsError.toolCallId).toBe("call-1");
+    expect(toolArgumentsError.toolCallId).toBe("u1");
     expect(toolArgumentsError.toolName).toBe("weather");
     expect(toolArgumentsError.raw).toBe("{ not json");
     expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
@@ -409,7 +498,10 @@ describe("toStreamEvents", () => {
 
     const events: StreamEvent[] = [];
     const error = await (async () => {
-      for await (const event of toStreamEvents(payloads))
+      for await (const event of toStreamEvents(
+        payloads,
+        sequentialIds(),
+      ))
         events.push(event);
     })().catch((caught: unknown) => caught);
 

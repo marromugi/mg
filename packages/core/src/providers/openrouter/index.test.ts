@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import {
   ProviderHttpError,
   ProviderTransportError,
+  ProviderUnsupportedError,
   ToolArgumentsError,
 } from "../errors.js";
+import { toolCallsOf } from "../parts.js";
 import type { GenerateRequest, StreamEvent } from "../types.js";
 import { createOpenRouterProvider } from "./index.js";
 
@@ -356,6 +358,7 @@ describe("createOpenRouterProvider", () => {
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
       fetch: fetchStub,
+      newToolCallId: () => "u1",
     });
 
     const error = await provider
@@ -364,7 +367,7 @@ describe("createOpenRouterProvider", () => {
 
     expect(error).toBeInstanceOf(ToolArgumentsError);
     const toolArgumentsError = error as ToolArgumentsError;
-    expect(toolArgumentsError.toolCallId).toBe("call-1");
+    expect(toolArgumentsError.toolCallId).toBe("u1");
     expect(toolArgumentsError.toolName).toBe("weather");
     expect(toolArgumentsError.raw).toBe("{ not json");
     expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
@@ -501,6 +504,7 @@ describe("createOpenRouterProvider stream", () => {
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
       fetch: fetchStub,
+      newToolCallId: () => "u1",
     });
 
     await expect(
@@ -514,10 +518,11 @@ describe("createOpenRouterProvider stream", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call-1",
+          id: "u1",
           name: "weather",
           arguments: {},
         },
+        carry: { provider: "openrouter", data: { id: "call-1" } },
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
@@ -561,6 +566,7 @@ describe("createOpenRouterProvider stream", () => {
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
       fetch: fetchStub,
+      newToolCallId: () => "u1",
     });
 
     await expect(
@@ -569,13 +575,177 @@ describe("createOpenRouterProvider stream", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call-1",
+          id: "u1",
           name: "weather",
           arguments: { city: "Tokyo" },
         },
+        carry: { provider: "openrouter", data: { id: "call-1" } },
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
+  });
+
+  test("puts omissions on the finish event when calls share the model's id", async () => {
+    const { fetchStub } = stubFetch(() =>
+      sseResponse([
+        JSON.stringify({
+          choices: [
+            { delta: { content: "ok" }, finish_reason: "stop" },
+          ],
+        }),
+      ]),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const carry = { provider: "openrouter", data: { id: "call_1" } };
+    const call = (id: string) => ({
+      type: "tool-call" as const,
+      id,
+      name: "weather",
+      arguments: {},
+      carry,
+    });
+
+    await expect(
+      collectStream(
+        provider.stream({
+          model: "openai/gpt-4o",
+          messages: [
+            { role: "assistant", parts: [call("u1"), call("u2")] },
+            { role: "tool", toolCallId: "u1", content: "Sunny" },
+            { role: "tool", toolCallId: "u2", content: "Rainy" },
+          ],
+        }),
+      ),
+    ).resolves.toEqual([
+      { type: "text-delta", delta: "ok" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        omitted: [
+          { kind: "outside-tool-call-id", toolCallIds: ["u1", "u2"] },
+        ],
+      },
+    ]);
+  });
+
+  test("puts omissions on the response of generate when calls share the model's id", async () => {
+    const { fetchStub } = stubFetch(() => jsonResponse(okBody));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+    const carry = { provider: "openrouter", data: { id: "call_1" } };
+    const call = (id: string) => ({
+      type: "tool-call" as const,
+      id,
+      name: "weather",
+      arguments: {},
+      carry,
+    });
+
+    const response = await provider.generate({
+      model: "openai/gpt-4o",
+      messages: [
+        { role: "assistant", parts: [call("u1"), call("u2")] },
+        { role: "tool", toolCallId: "u1", content: "Sunny" },
+        { role: "tool", toolCallId: "u2", content: "Rainy" },
+      ],
+    });
+
+    expect(response.omitted).toEqual([
+      { kind: "outside-tool-call-id", toolCallIds: ["u1", "u2"] },
+    ]);
+  });
+
+  test("leaves omitted out of the response when no model id is shared", async () => {
+    const { fetchStub } = stubFetch(() => jsonResponse(okBody));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const response = await provider.generate({
+      model: "openai/gpt-4o",
+      messages: [
+        { role: "user", content: "hi" },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              id: "u1",
+              name: "weather",
+              arguments: {},
+              carry: { provider: "openrouter", data: { id: "call_1" } },
+            },
+          ],
+        },
+        { role: "tool", toolCallId: "u1", content: "Sunny" },
+      ],
+    });
+
+    expect("omitted" in response).toBe(false);
+  });
+
+  test("does not fetch when a tool message has no call", async () => {
+    const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const error = await provider
+      .generate({
+        model: "openai/gpt-4o",
+        messages: [
+          { role: "user", content: "hi" },
+          { role: "tool", toolCallId: "u9", content: "Sunny" },
+        ],
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ProviderUnsupportedError);
+    expect((error as ProviderUnsupportedError).feature).toBe(
+      "tool-message-without-call",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  test("gives two calls different UUID ids when no generator is given", async () => {
+    const toolCall = {
+      id: "call_1",
+      type: "function",
+      function: { name: "weather", arguments: "{}" },
+    };
+    const { fetchStub } = stubFetch(() =>
+      jsonResponse({
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [toolCall, toolCall],
+            },
+            finish_reason: "tool_calls",
+          },
+        ],
+      }),
+    );
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const response = await provider.generate(request);
+
+    const [first, second] = toolCallsOf(response);
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    expect(first?.id).toMatch(uuid);
+    expect(second?.id).toMatch(uuid);
+    expect(first?.id).not.toBe(second?.id);
   });
 
   test("throws a ProviderHttpError before any event on a non-2xx", async () => {

@@ -1,6 +1,11 @@
 import { ProviderHttpError } from "../errors.js";
 import type { FinishReason, StreamEvent, Usage } from "../types.js";
-import { toFinishReason, toToolCall, toUsage } from "./convert.js";
+import {
+  toFinishReason,
+  toToolCall,
+  toToolCallCarry,
+  toUsage,
+} from "./convert.js";
 import { PROVIDER_NAME } from "./name.js";
 
 type OpenRouterChunkToolCall = {
@@ -25,7 +30,11 @@ type OpenRouterChunk = {
   usage?: { prompt_tokens: number; completion_tokens: number } | null;
 };
 
-type PendingToolCall = { id: string; name: string; arguments: string };
+type PendingToolCall = {
+  vendorId: string | undefined;
+  name: string;
+  arguments: string;
+};
 
 const parseChunk = (payload: string): OpenRouterChunk => {
   let parsed: unknown;
@@ -53,6 +62,7 @@ const parseChunk = (payload: string): OpenRouterChunk => {
 
 export async function* toStreamEvents(
   payloads: AsyncIterable<string>,
+  newToolCallId: () => string,
   halt?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
   const pending = new Map<number, PendingToolCall>();
@@ -108,11 +118,23 @@ export async function* toStreamEvents(
       let toolCall = pending.get(index);
       if (toolCall === undefined) {
         toolCall = {
-          id: fragment.id ?? "",
+          vendorId: undefined,
           name: fragment.function?.name ?? "",
           arguments: "",
         };
         pending.set(index, toolCall);
+      }
+      const fragmentId = fragment.id;
+      if (typeof fragmentId === "string" && fragmentId !== "") {
+        if (toolCall.vendorId === undefined) {
+          toolCall.vendorId = fragmentId;
+        } else if (toolCall.vendorId !== fragmentId) {
+          throw new ProviderHttpError(
+            "OpenRouter stream gave two ids for one tool call",
+            200,
+            payload,
+          );
+        }
       }
       toolCall.arguments += fragment.function?.arguments ?? "";
     }
@@ -140,13 +162,16 @@ export async function* toStreamEvents(
   for (const [, accumulated] of accumulatedCalls) {
     yield {
       type: "tool-call",
-      toolCall: toToolCall({
-        id: accumulated.id,
-        function: {
-          name: accumulated.name,
-          arguments: accumulated.arguments,
+      toolCall: toToolCall(
+        {
+          function: {
+            name: accumulated.name,
+            arguments: accumulated.arguments,
+          },
         },
-      }),
+        newToolCallId(),
+      ),
+      ...toToolCallCarry(accumulated.vendorId),
     };
   }
 

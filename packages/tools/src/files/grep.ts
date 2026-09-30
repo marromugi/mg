@@ -251,10 +251,14 @@ const buildIncompleteNote = (
 const readIfFile = async (
   declared: string,
   root: string,
+  named: string,
 ): Promise<string | undefined> => {
   let handle: FileHandle;
   try {
-    handle = await openDeclared(declared, constants.O_RDONLY, { root });
+    handle = await openDeclared(declared, constants.O_RDONLY, {
+      root,
+      named,
+    });
   } catch (error) {
     if (error instanceof PathCheckError) throw error;
     return undefined;
@@ -306,6 +310,7 @@ export const createGrepTool = (
           const directContent = await readIfFile(
             resolved.absolute,
             root,
+            inputPath ?? ".",
           );
           if (directContent !== undefined && isBinary(directContent)) {
             throw new FileToolError(
@@ -324,7 +329,10 @@ export const createGrepTool = (
             resolved.absolute,
           ];
 
-          await checkDeclared(resolved.absolute, { root });
+          await checkDeclared(resolved.absolute, {
+            root,
+            named: inputPath ?? ".",
+          });
 
           const { stdout, stderr, error } = await run(rgPath, args, {
             cwd: rootReal,

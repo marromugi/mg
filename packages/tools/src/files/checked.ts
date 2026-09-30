@@ -13,6 +13,9 @@ export type CheckedOpenOptions = {
   root: string;
   fs?: CheckedFs;
   noFollow?: number | undefined;
+  // How the caller wrote the path; named in not-found and not-a-file
+  // errors. Defaults to the path relative to the root.
+  named?: string;
 };
 
 // A check that found the declared path no longer what it was.
@@ -41,7 +44,15 @@ const notFound = (relative: string): FileToolError =>
 
 const NO_INODE = "the file system reports no inode";
 
-type Located = { base: string; parts: string[]; relative: string };
+type Located = {
+  base: string;
+  parts: string[];
+  relative: string;
+  named: string;
+};
+
+const cannotResolve = (named: string): FileToolError =>
+  new FileToolError(`cannot resolve path: ${named}`);
 
 const within = (base: string, target: string): string | undefined => {
   const relative = path.relative(base, target);
@@ -58,16 +69,14 @@ const within = (base: string, target: string): string | undefined => {
 const locate = async (
   declared: string,
   root: string,
+  named: string | undefined,
 ): Promise<Located> => {
   for (const base of [await nodeFs.realpath(root), root]) {
     const relative = within(base, declared);
     if (relative === undefined) continue;
     const parts = relative === "" ? [] : relative.split(path.sep);
-    return {
-      base,
-      parts,
-      relative: parts.length === 0 ? "." : parts.join("/"),
-    };
+    const joined = parts.length === 0 ? "." : parts.join("/");
+    return { base, parts, relative: joined, named: named ?? joined };
   }
   throw new FileToolError(`path is outside the root: ${declared}`);
 };
@@ -94,8 +103,10 @@ const walk = async (
         (error.code === "ENOENT" || error.code === "ENOTDIR")
       ) {
         if (phase === "after") throw changed(located.relative);
+        if (error.code === "ENOTDIR")
+          throw cannotResolve(located.named);
         if (index === located.parts.length - 1) return undefined;
-        throw notFound(located.relative);
+        throw notFound(located.named);
       }
       throw cannotCheck(
         located.relative,
@@ -114,10 +125,10 @@ export const checkDeclared = async (
   declared: string,
   options: CheckedOpenOptions,
 ): Promise<void> => {
-  const located = await locate(declared, options.root);
+  const located = await locate(declared, options.root, options.named);
   const last = await walk(options.fs ?? nodeFs, located, "before");
   if (last === undefined && located.parts.length > 0) {
-    throw notFound(located.relative);
+    throw notFound(located.named);
   }
 };
 
@@ -131,11 +142,11 @@ export const openDeclared = async (
   const fs = options.fs ?? nodeFs;
   const noFollow =
     "noFollow" in options ? options.noFollow : constants.O_NOFOLLOW;
-  const located = await locate(declared, options.root);
+  const located = await locate(declared, options.root, options.named);
 
   const before = await walk(fs, located, "before");
   if (located.parts.length === 0 || (before && !before.isFile())) {
-    throw new FileToolError(`not a file: ${located.relative}`);
+    throw new FileToolError(`not a file: ${located.named}`);
   }
 
   let handle: FileHandle;
@@ -144,7 +155,8 @@ export const openDeclared = async (
   } catch (error) {
     if (isErrnoException(error)) {
       if (error.code === "ELOOP") throw changed(located.relative);
-      if (error.code === "ENOENT") throw notFound(located.relative);
+      if (error.code === "ENOENT") throw notFound(located.named);
+      if (error.code === "ENOTDIR") throw cannotResolve(located.named);
     }
     throw error;
   }

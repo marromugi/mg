@@ -134,4 +134,37 @@ describe("a link swapped in after preparing", () => {
     await fs.mkdir(join(root, "sub", "a.txt"));
     await expect(edit.run({})).rejects.toThrow("not a file: sub/a.txt");
   });
+
+  test("read_file names a missing file as it was typed, through a link inside the root", async () => {
+    await fs.symlink(join(root, "sub"), join(root, "link"));
+    const call = await createReadFileTool({ root }).prepare({
+      path: "link/missing.txt",
+    });
+
+    await expect(call.run({})).rejects.toThrow(
+      "file not found: link/missing.txt",
+    );
+  });
+
+  test("read_file reports a missing file outside the root as not found", async () => {
+    const call = await createReadFileTool({ root }).prepare({
+      path: "../nope.txt",
+    });
+
+    await expect(call.run({})).rejects.toThrow(
+      "file not found: ../nope.txt",
+    );
+  });
+
+  test("read_file cannot resolve a path whose parent became a file", async () => {
+    const call = await createReadFileTool({ root }).prepare({
+      path: "sub/a.txt",
+    });
+    await fs.rm(join(root, "sub"), { recursive: true });
+    await fs.writeFile(join(root, "sub"), "F");
+
+    await expect(call.run({})).rejects.toThrow(
+      "cannot resolve path: sub/a.txt",
+    );
+  });
 });

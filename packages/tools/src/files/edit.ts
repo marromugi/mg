@@ -113,7 +113,7 @@ export const createEditFileTool = (
           const handle = await openDeclared(
             resolved.absolute,
             constants.O_RDWR,
-            { root },
+            { root, named: inputPath },
           );
           try {
             const buffer = await handle.readFile({

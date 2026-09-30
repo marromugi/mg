@@ -55,7 +55,7 @@ export const createReadFileTool = (
           const handle = await openDeclared(
             resolved.absolute,
             constants.O_RDONLY,
-            { root },
+            { root, named: inputPath },
           );
           let content: string;
           try {

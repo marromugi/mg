@@ -10,6 +10,13 @@ const toRelative = (rootReal: string, real: string): string => {
   return relative === "" ? "." : relative.split(path.sep).join("/");
 };
 
+const isWithinRoot = (rootReal: string, real: string): boolean => {
+  const prefix = rootReal.endsWith(path.sep)
+    ? rootReal
+    : rootReal + path.sep;
+  return real === rootReal || real.startsWith(prefix);
+};
+
 const assertWithinRoot = (
   rootReal: string,
   real: string,
@@ -178,7 +185,9 @@ export const declaredTarget = async (
   if (declared === undefined) return resolveExistingPath(root, input);
 
   const rootReal = await fs.realpath(root);
-  assertWithinRoot(rootReal, declared.path, input);
+  if (!isWithinRoot(rootReal, declared.path)) {
+    return resolveExistingPath(root, input);
+  }
   return {
     absolute: declared.path,
     relative: toRelative(rootReal, declared.path),

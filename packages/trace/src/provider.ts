@@ -180,10 +180,10 @@ async function* traceStream(
   }
 }
 
-export const traceProvider = (
-  provider: Provider,
+export const traceProvider = <P extends Provider>(
+  provider: P,
   parent: TraceSpan,
-): Provider => ({
+): Provider & Pick<P, "toolForcing"> => ({
   name: provider.name,
   toolForcing: provider.toolForcing,
   generate: (request: GenerateRequest): Promise<GenerateResponse> =>

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   assistantMessage,
+  createOllamaProvider,
+  createOpenRouterProvider,
   type GenerateRequest,
   type GenerateResponse,
   type Message,
   type Provider,
   type StreamEvent,
+  type ToolForcingProvider,
 } from "@mg/core";
 import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 import {
@@ -812,5 +815,49 @@ describe("traceProvider / tool-call carry and omissions", () => {
     expect(
       ATTR.llmOmitted in (root.children[0]?.mergedAttributes ?? {}),
     ).toBe(false);
+  });
+});
+
+describe("traceProvider / tool forcing", () => {
+  const providerOf = (toolForcing: boolean): Provider => ({
+    toolForcing,
+    generate: async () => ({
+      parts: [{ type: "text", text: "hello" }],
+      finishReason: "stop",
+    }),
+    stream: async function* () {},
+  });
+
+  it("states true when the wrapped provider states true", () => {
+    const root = new RecordingSpan("root");
+
+    expect(traceProvider(providerOf(true), root).toolForcing).toBe(
+      true,
+    );
+  });
+
+  it("states false when the wrapped provider states false", () => {
+    const root = new RecordingSpan("root");
+
+    expect(traceProvider(providerOf(false), root).toolForcing).toBe(
+      false,
+    );
+  });
+
+  it("is assignable to ToolForcingProvider only when the wrapped provider can force", () => {
+    const root = new RecordingSpan("root");
+
+    const forcing: ToolForcingProvider = traceProvider(
+      createOpenRouterProvider({ apiKey: "k" }),
+      root,
+    );
+    // @ts-expect-error ollama cannot force a tool call
+    const notForcing: ToolForcingProvider = traceProvider(
+      createOllamaProvider(),
+      root,
+    );
+
+    expect(forcing.toolForcing).toBe(true);
+    expect(notForcing.toolForcing).toBe(false);
   });
 });

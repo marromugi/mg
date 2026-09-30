@@ -12,6 +12,8 @@ export const REQUEST_LIMIT = 500;
 export const LANGUAGES = ["ja-JP"] as const;
 export const TRIGGER_THRESHOLD = 0.7;
 
+export { bashReadOnlyQuestion as workerQuestion } from "./bash-policy.ts";
+
 // AVFoundation's built-in microphone on this machine.
 export const MICROPHONE_DEVICE = ":1";
 

@@ -8,7 +8,7 @@ A package for gates, which decide whether a tool call or similar may run without
   It receives a kind, a description, and the original value.
   It returns whether it is allowed, and a reason.
 - Can build an implementation that decides with an LLM, from a policy text, a provider, and a model.
-- Can also build an implementation that decides by probability, from an `Estimator` and a policy text.
+- Can also build an implementation that decides by probability, from an `Estimator` and a question.
 - Can also build an implementation that decides by rules alone, from a root path and a list of rules.
 - Can also build an implementation that combines a list of gates by asking them in order.
 - Has a dedicated exception for when the decision itself fails.
@@ -65,7 +65,7 @@ If you pass an already aborted signal in `context.signal`, it throws without cal
 
 ### `createEstimatorGate(options)`
 
-`createEstimatorGate` takes a core `Estimator` and a policy text.
+`createEstimatorGate` takes a core `Estimator` and a question.
 It builds a gate from them.
 
 `Estimator` is the type for a model service that takes a subject and a question,
@@ -73,7 +73,10 @@ and returns the probability that the answer is "yes".
 Which model service it talks to is up to the `Estimator` implementation you pass.
 For example, you can pass core's `createJevEstimator`.
 
-It asks only one thing: "Is it fine to run this action?"
+It sends the question exactly as you give it, and adds nothing to it.
+The wording of the question is up to the caller.
+A question for a real use lives in runs. See `runs/bash-policy.ts`.
+An empty question, or one made only of whitespace, throws `RangeError` when the gate is built.
 If the returned probability is at or above the threshold, it allows. If below, it denies.
 
 You can pass the threshold. If left out, it is 0.5.
@@ -88,7 +91,7 @@ The table lists what you pass to `createEstimatorGate`.
 | Name        | Contents                                                     |
 | ----------- | ------------------------------------------------------------ |
 | `estimator` | The `Estimator` to use (from `@mg/core`)                     |
-| `policy`    | The policy text the decision is based on                     |
+| `question`  | The question sent to the `Estimator`, as it is (required)    |
 | `threshold` | The probability needed to allow. From 0 to 1 (default `0.5`) |
 
 ```ts
@@ -99,7 +102,8 @@ const gate = createEstimatorGate({
   estimator: createJevEstimator({
     apiKey: process.env.TYPESAFE_API_KEY!,
   }),
-  policy: "読み取り専用のコマンドだけ、聞かずに実行してよい。",
+  question:
+    "このコマンドは読み取り専用で、聞かずに実行してよいですか？",
 });
 
 const verdict = await gate.judge({

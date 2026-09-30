@@ -11,10 +11,13 @@ import {
 } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, expectTypeOf, test, vi } from "vitest";
 import { GateError } from "../errors.js";
 import type { GateContext, GateRequest } from "../types.js";
-import { createEstimatorGate } from "./index.js";
+import {
+  createEstimatorGate,
+  type EstimatorGateOptions,
+} from "./index.js";
 
 class RecordingSpan implements TraceSpan {
   readonly name: string;
@@ -81,7 +84,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => ({
       probability: 0.5,
     }));
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     await expect(gate.judge(request)).resolves.toMatchObject({
       allowed: true,
@@ -92,7 +98,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => ({
       probability: 0.49,
     }));
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     await expect(gate.judge(request)).resolves.toMatchObject({
       allowed: false,
@@ -105,7 +114,7 @@ describe("createEstimatorGate", () => {
     }));
     const gate = createEstimatorGate({
       estimator,
-      policy: "policy",
+      question: "question",
       threshold: 0.8,
     });
 
@@ -120,7 +129,7 @@ describe("createEstimatorGate", () => {
     }));
     const gate = createEstimatorGate({
       estimator,
-      policy: "policy",
+      question: "question",
       threshold: 0.8,
     });
 
@@ -133,7 +142,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => ({
       probability: 0.9,
     }));
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const verdict = await gate.judge(request);
 
@@ -144,14 +156,17 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => ({
       probability: 0.1,
     }));
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const verdict = await gate.judge(request);
 
     expect(verdict.reason).toBe(DENIED_REASON);
   });
 
-  test("sends the kind and description as text and the policy with the fixed question as the question", async () => {
+  test("sends the question as given and the kind line with the description as the subject", async () => {
     const calls: EstimateRequest[] = [];
     const estimator = createFakeEstimator("m", async (req) => {
       calls.push(req);
@@ -159,15 +174,48 @@ describe("createEstimatorGate", () => {
     });
     const gate = createEstimatorGate({
       estimator,
-      policy: "Allow read-only commands.",
+      question: "  Is this command read-only?\n",
     });
 
     await gate.judge({ kind: "tool-call", description: "Run: ls" });
 
     expect(calls[0].subject).toBe("Kind: tool-call\nRun: ls");
-    expect(calls[0].question).toBe(
-      "Allow read-only commands.\n\nIs it fine to run this action?",
-    );
+    expect(calls[0].question).toBe("  Is this command read-only?\n");
+  });
+
+  test("rejects an empty or whitespace-only question at creation", () => {
+    const estimator = createFakeEstimator("m", async () => ({
+      probability: 1,
+    }));
+
+    for (const question of ["", " \n\t "]) {
+      const create = () => createEstimatorGate({ estimator, question });
+
+      expect(create).toThrow(RangeError);
+      expect(create).toThrow(/^question must not be empty$/);
+    }
+  });
+
+  test("reports the threshold error first when both threshold and question are invalid", () => {
+    const estimator = createFakeEstimator("m", async () => ({
+      probability: 1,
+    }));
+
+    expect(() =>
+      createEstimatorGate({ estimator, question: "", threshold: 2 }),
+    ).toThrow(/^threshold must be between 0 and 1$/);
+  });
+
+  test("requires a question and has no policy option", () => {
+    type Options = EstimatorGateOptions;
+    type NoQuestion = { estimator: Estimator };
+
+    // @ts-expect-error policy is not an option
+    expectTypeOf<Options>().toHaveProperty("policy");
+    // @ts-expect-error question is required
+    expectTypeOf<NoQuestion>().toMatchTypeOf<Options>();
+
+    expect(true).toBe(true);
   });
 
   test("wraps an HTTP error from the estimator in a gate error with the original as cause", async () => {
@@ -179,7 +227,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => {
       throw original;
     });
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const error = await gate
       .judge(request)
@@ -198,7 +249,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => {
       throw original;
     });
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const error = await gate
       .judge(request)
@@ -216,7 +270,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => {
       throw original;
     });
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const error = await gate
       .judge(request)
@@ -230,7 +287,10 @@ describe("createEstimatorGate", () => {
   test("rejects without calling the estimator when the signal is already aborted", async () => {
     const estimate = vi.fn(async () => ({ probability: 0.9 }));
     const estimator = createFakeEstimator("m", estimate);
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
     const controller = new AbortController();
     const reason = new Error("cancelled");
     controller.abort(reason);
@@ -252,7 +312,10 @@ describe("createEstimatorGate", () => {
         return { probability: 0.9 };
       },
     );
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
     const controller = new AbortController();
 
     await gate.judge(request, { signal: controller.signal });
@@ -265,7 +328,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m", async () => {
       throw abortError;
     });
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const error = await gate
       .judge(request)
@@ -278,7 +344,10 @@ describe("createEstimatorGate", () => {
     const estimator = createFakeEstimator("m-1", async () => ({
       probability: 0.9,
     }));
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
     const root = new RecordingSpan("root");
     const context: GateContext = { trace: root };
 
@@ -299,7 +368,10 @@ describe("createEstimatorGate", () => {
   test("does not record a span and still judges once when context has no trace", async () => {
     const estimate = vi.fn(async () => ({ probability: 0.9 }));
     const estimator = createFakeEstimator("m", estimate);
-    const gate = createEstimatorGate({ estimator, policy: "policy" });
+    const gate = createEstimatorGate({
+      estimator,
+      question: "question",
+    });
 
     const verdict = await gate.judge(request);
 
@@ -320,7 +392,11 @@ describe("createEstimatorGate", () => {
       Number.POSITIVE_INFINITY,
     ]) {
       const create = () =>
-        createEstimatorGate({ estimator, policy: "policy", threshold });
+        createEstimatorGate({
+          estimator,
+          question: "question",
+          threshold,
+        });
 
       expect(create).toThrow(RangeError);
       expect(create).toThrow(/^threshold must be between 0 and 1$/);
@@ -333,7 +409,7 @@ describe("createEstimatorGate", () => {
     }));
     const gate = createEstimatorGate({
       estimator,
-      policy: "policy",
+      question: "question",
       threshold: 0,
     });
 
@@ -349,7 +425,7 @@ describe("createEstimatorGate", () => {
     }));
     const gate = createEstimatorGate({
       estimator,
-      policy: "policy",
+      question: "question",
       threshold: 1,
     });
 

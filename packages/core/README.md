@@ -311,12 +311,14 @@ The result comes back as a message carrying the tool's result.
 
 ### Layout
 
-The source is split into 3 folders.
+The source is split into 5 folders.
 
 ```
 src/
 ├── estimators/ types, errors and the Jev implementation for model services that answer with probabilities
+├── http/       reader for the Retry-After header, internal to core
 ├── providers/  provider types, errors, and the OpenRouter and ollama implementations
+├── retry/      the retry schedule that the retries share
 └── tools/      runnable tool types, the run function, and its errors
 ```
 
@@ -340,6 +342,9 @@ providers/
   createOpenRouterProvider  creates the OpenRouter provider
   createOllamaProvider      creates the ollama provider
   readSseData               reads a streaming response
+
+retry/
+  RetrySchedule            type of the retry schedule: attempt count, waits, upper bound on a wait and the sleep
 
 tools/
   Tool, defineTool          type of runnable tools, and a helper for defining them

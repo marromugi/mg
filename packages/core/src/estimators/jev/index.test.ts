@@ -652,6 +652,30 @@ describe("retryable failures and retryAfterMs", () => {
     }
   });
 
+  test("reads a Retry-After given in the RFC 850 or asctime date form as a past date, giving 0", async () => {
+    for (const retryAfter of [
+      "Wednesday, 21-Oct-15 07:28:00 GMT",
+      "Wed Oct 21 07:28:00 2015",
+    ]) {
+      const estimator = createJevEstimator({
+        apiKey: "key",
+        fetch: stubFetch(
+          async () =>
+            new Response("busy", {
+              status: 503,
+              headers: { "Retry-After": retryAfter },
+            }),
+        ),
+      });
+
+      const error = await estimator
+        .estimate(request)
+        .catch((thrown: unknown) => thrown);
+
+      expect((error as EstimatorRequestError).retryAfterMs).toBe(0);
+    }
+  });
+
   test("marks the failure as retryable without a retryAfterMs when Retry-After cannot be read as seconds or an HTTP date", async () => {
     for (const retryAfter of ["soon", "-1", "1.5"]) {
       const estimator = createJevEstimator({

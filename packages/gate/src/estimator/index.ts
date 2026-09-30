@@ -12,12 +12,11 @@ import type {
 
 export type EstimatorGateOptions = {
   estimator: Estimator;
-  policy: string;
+  question: string;
   threshold?: number;
 };
 
 const DEFAULT_THRESHOLD = 0.5;
-const QUESTION = "Is it fine to run this action?";
 
 const ALLOWED_REASON = "The estimator judged this action acceptable.";
 const DENIED_REASON = "The estimator judged this action unacceptable.";
@@ -25,7 +24,7 @@ const DENIED_REASON = "The estimator judged this action unacceptable.";
 export const createEstimatorGate = (
   options: EstimatorGateOptions,
 ): Gate => {
-  const { estimator, policy } = options;
+  const { estimator, question } = options;
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
 
   if (!(
@@ -34,6 +33,10 @@ export const createEstimatorGate = (
     threshold <= 1
   )) {
     throw new RangeError("threshold must be between 0 and 1");
+  }
+
+  if (question.trim() === "") {
+    throw new RangeError("question must not be empty");
   }
 
   return {
@@ -51,10 +54,7 @@ export const createEstimatorGate = (
           let probability: number;
           try {
             ({ probability } = await estimator.estimate(
-              {
-                subject: toStateText(request),
-                question: `${policy}\n\n${QUESTION}`,
-              },
+              { subject: toStateText(request), question },
               { signal: context?.signal },
             ));
           } catch (error) {

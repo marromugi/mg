@@ -1,8 +1,13 @@
 // 書き方は packages/runner/agent-guide.md を見てください。
 import { defineRun } from "@mg/runner";
-import { createOpenRouterProvider } from "@mg/core";
+import {
+  createOpenRouterProvider,
+  type Estimator,
+  type Provider,
+} from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createEstimatorGate } from "@mg/gate";
+import { bashReadOnlyQuestion } from "./bash-policy.ts";
 import { createSampleJevEstimator } from "./jev-estimator.ts";
 import { outputPath } from "./outputs.ts";
 
@@ -14,24 +19,30 @@ const jevApiKey = process.env.TYPESAFE_API_KEY;
 if (jevApiKey === undefined)
   throw new Error("TYPESAFE_API_KEY is not set");
 
-const provider = createOpenRouterProvider({ apiKey });
-
-const policy =
-  "Read-only commands are allowed. Deleting files or " +
-  "sending data outside the machine is not.";
-
-export default defineRun({
-  name: "loop-bash-jev-gate-deepseek",
+export const buildLoopBashJevGateRun = ({
   provider,
-  harness: {
-    kind: "loop",
-    model: "deepseek/deepseek-v4-flash",
-    maxTurns: 10,
-  },
-  tools: [createBashTool({ cwd: process.cwd() })],
-  gate: createEstimatorGate({
-    estimator: createSampleJevEstimator({ apiKey: jevApiKey }),
-    policy,
-  }),
-  trace: { jsonlPath: outputPath("trace.jsonl") },
+  estimator,
+}: {
+  provider: Provider;
+  estimator: Estimator;
+}) =>
+  defineRun({
+    name: "loop-bash-jev-gate-deepseek",
+    provider,
+    harness: {
+      kind: "loop",
+      model: "deepseek/deepseek-v4-flash",
+      maxTurns: 10,
+    },
+    tools: [createBashTool({ cwd: process.cwd() })],
+    gate: createEstimatorGate({
+      estimator,
+      question: bashReadOnlyQuestion,
+    }),
+    trace: { jsonlPath: outputPath("trace.jsonl") },
+  });
+
+export default buildLoopBashJevGateRun({
+  provider: createOpenRouterProvider({ apiKey }),
+  estimator: createSampleJevEstimator({ apiKey: jevApiKey }),
 });

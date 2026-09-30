@@ -47,13 +47,10 @@ import {
   questions,
   talkerInstruction,
   wording,
+  workerQuestion,
 } from "./voice-dialogue.values.ts";
 
 const MODEL = "deepseek/deepseek-v4-flash";
-
-const workerPolicy =
-  "Read-only commands are allowed. Deleting files or " +
-  "sending data outside the machine is not.";
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -91,7 +88,7 @@ export const createWorkerConfig = (options: {
     tools: [createBashTool({ cwd: process.cwd() })],
     gate: createEstimatorGate({
       estimator: options.estimator,
-      policy: workerPolicy,
+      question: workerQuestion,
     }),
     trace: { jsonlPath: options.jsonlPath },
   });

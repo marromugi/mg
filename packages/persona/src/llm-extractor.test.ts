@@ -1,9 +1,13 @@
 import type {
   GenerateRequest,
   GenerateResponse,
-  Provider,
   StreamEvent,
   ToolDefinition,
+  ToolForcingProvider,
+} from "@mg/core";
+import {
+  createOllamaProvider,
+  createOpenRouterProvider,
 } from "@mg/core";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, test, vi } from "vitest";
@@ -34,7 +38,7 @@ const itemsSchemaOf = (
 
 const stubProvider = (
   respond: (request: GenerateRequest) => GenerateResponse,
-): Provider => {
+): ToolForcingProvider => {
   const generate = vi.fn(
     async (request: GenerateRequest): Promise<GenerateResponse> =>
       respond(request),
@@ -285,7 +289,11 @@ describe("createLlmExtractor", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { toolForcing: true, generate, stream };
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream,
+    };
     const extractor = createLlmExtractor({
       provider,
       model: "m",
@@ -460,7 +468,11 @@ describe("createLlmExtractor", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { toolForcing: true, generate, stream };
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream,
+    };
     const extractor = createLlmExtractor({
       provider,
       model: "m",
@@ -702,5 +714,22 @@ describe("createLlmExtractor", () => {
       "counterpart",
     ]);
     expect(cause).not.toBeInstanceOf(ExtractorContractError);
+  });
+});
+
+describe("createLlmExtractor provider option", () => {
+  test("accepts only a provider that can force a tool call", () => {
+    const extractor = createLlmExtractor({
+      provider: createOpenRouterProvider({ apiKey: "k" }),
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+    expect(typeof extractor.extract).toBe("function");
+    createLlmExtractor({
+      // @ts-expect-error the Ollama provider cannot force a tool call
+      provider: createOllamaProvider(),
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
   });
 });

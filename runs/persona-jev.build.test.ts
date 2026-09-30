@@ -3,9 +3,10 @@ import type {
   ClassifyRequest,
   Estimate,
   Estimator,
-  Provider,
   Score,
+  ToolForcingProvider,
 } from "@mg/core";
+import { createOllamaProvider } from "@mg/core";
 import { createMemoryStore } from "@mg/memory";
 import { describe, expect, test } from "vitest";
 import { buildJevPersona } from "./persona-jev.build.ts";
@@ -37,7 +38,7 @@ const createFakeEstimator = (
   };
 };
 
-const failingProvider: Provider = {
+const failingProvider: ToolForcingProvider = {
   toolForcing: true,
   generate: () =>
     Promise.reject(new Error("provider must not be called")),
@@ -115,5 +116,17 @@ describe("buildJevPersona recall", () => {
 
     expect([...atHalf.read.selected].sort()).toEqual(["m3", "m4"]);
     expect(belowHalf.read.selected).toEqual(["m4"]);
+  });
+});
+
+describe("buildJevPersona extractorProvider", () => {
+  test("is a provider that can force a tool call", async () => {
+    const persona = buildJevPersona({
+      store: await createStore(),
+      estimator: createFakeEstimator(() => 0),
+      // @ts-expect-error the Ollama provider cannot force a tool call
+      extractorProvider: createOllamaProvider(),
+    });
+    expect(persona.id).toBe("jev");
   });
 });

@@ -407,6 +407,7 @@ describe("continueConversation", () => {
     expect(await store.read("jev", { kind: "all" })).toEqual({
       entries: [],
       length: 0,
+      toolCalls: [],
     });
   });
 
@@ -443,6 +444,7 @@ describe("continueConversation", () => {
     expect(await store.read("jev", { kind: "all" })).toEqual({
       entries: [ENTRY_A],
       length: 1,
+      toolCalls: [],
     });
   });
 
@@ -713,6 +715,7 @@ describe("createContinueConversation", () => {
     expect(await store.read("jev", { kind: "all" })).toEqual({
       entries: [],
       length: 0,
+      toolCalls: [],
     });
   });
 });

@@ -36,6 +36,27 @@ const entryB: ConversationEntry = {
   ],
 };
 
+const entryWithCall = (id: string): ConversationEntry => ({
+  messages: [
+    { role: "user", content: "hi" },
+    {
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-call",
+          id,
+          name: "echo",
+          arguments: { text: "ping" },
+        },
+      ],
+    },
+    { role: "tool", toolCallId: id, content: "pong" },
+  ],
+});
+
+const openSecondClient = (path: string) =>
+  createClient({ url: pathToFileURL(resolve(path)).href });
+
 const newDbPath = async (): Promise<string> => {
   const dir = await mkdtemp(join(tmpdir(), "mg-conversation-sqlite-"));
   return join(dir, "nested", "conversations.db");
@@ -55,7 +76,11 @@ describe("openSqliteConversationStore", () => {
     const second = await openSqliteConversationStore(path);
     const slice = await second.read("jev", { kind: "all" });
 
-    expect(slice).toEqual({ entries: [entryA], length: 1 });
+    expect(slice).toEqual({
+      entries: [entryA],
+      length: 1,
+      toolCalls: [],
+    });
   });
 
   test("rejects a read covering unreadable rows with the conversation, the lowest broken position, and the parse error", async () => {
@@ -84,6 +109,63 @@ describe("openSqliteConversationStore", () => {
     expect(unreadable.message).toBe(
       `Conversation "jev" has a stored entry at position 1 that cannot be read: ${(unreadable.cause as SyntaxError).message}.`,
     );
+  });
+
+  test("reads stored entries sharing a tool-call id, and appends an entry with another id", async () => {
+    const path = await newDbPath();
+    const store = await openSqliteConversationStore(path);
+    await store.create("c");
+    await store.append("c", entryWithCall("k"), 0);
+    const other = openSecondClient(path);
+    await other.execute({
+      sql: "insert into entries (conversation_id, position, messages) values (?, ?, ?)",
+      args: ["c", 1, JSON.stringify(entryWithCall("k").messages)],
+    });
+    other.close();
+
+    await store.append("c", entryWithCall("z"), 2);
+    const slice = await store.read("c", { kind: "all" });
+
+    expect(slice.length).toBe(3);
+    expect(slice.toolCalls).toEqual([
+      { id: "k", position: 0 },
+      { id: "k", position: 1 },
+      { id: "z", position: 2 },
+    ]);
+  });
+
+  test("rejects a last-1 read and an append when a row outside the range is not valid JSON", async () => {
+    const path = await newDbPath();
+    const store = await openSqliteConversationStore(path);
+    await store.create("c");
+    await store.append("c", entryWithCall("a"), 0);
+    await store.append(
+      "c",
+      { messages: [{ role: "user", content: "hi" }] },
+      1,
+    );
+    const other = openSecondClient(path);
+    await other.execute(
+      "update entries set messages = '{' where position = 0",
+    );
+    other.close();
+
+    const readError = await thrown(
+      store.read("c", { kind: "last", count: 1 }),
+    );
+    const appendError = await thrown(
+      store.append("c", entryWithCall("z"), 2),
+    );
+
+    for (const error of [readError, appendError]) {
+      expect(error).toBeInstanceOf(ConversationEntryUnreadableError);
+      expect(
+        (error as ConversationEntryUnreadableError).conversationId,
+      ).toBe("c");
+      expect((error as ConversationEntryUnreadableError).position).toBe(
+        0,
+      );
+    }
   });
 
   test("lets the first of two stores opened on the same file append, and rejects the second with the conflict, leaving only the first entry", async () => {
@@ -136,9 +218,17 @@ describe("openSqliteConversationStore", () => {
     const winner =
       firstOutcome.status === "fulfilled" ? entryA : entryB;
     const fromFirst = await first.read("jev", { kind: "all" });
-    expect(fromFirst).toEqual({ entries: [winner], length: 1 });
+    expect(fromFirst).toEqual({
+      entries: [winner],
+      length: 1,
+      toolCalls: [],
+    });
     const fromSecond = await second.read("jev", { kind: "all" });
-    expect(fromSecond).toEqual({ entries: [winner], length: 1 });
+    expect(fromSecond).toEqual({
+      entries: [winner],
+      length: 1,
+      toolCalls: [],
+    });
   });
 
   test("lets exactly one of two overlapping appends on the same in-memory store succeed, and rejects the other with the conflict", async () => {
@@ -171,7 +261,11 @@ describe("openSqliteConversationStore", () => {
     const winner =
       firstOutcome.status === "fulfilled" ? entryA : entryB;
     const slice = await store.read("jev", { kind: "all" });
-    expect(slice).toEqual({ entries: [winner], length: 1 });
+    expect(slice).toEqual({
+      entries: [winner],
+      length: 1,
+      toolCalls: [],
+    });
   });
 
   test("rejects with the filesystem error when the store cannot be opened", async () => {
@@ -196,7 +290,7 @@ describe("openSqliteConversationStore", () => {
 
     const slice = await store.read("jev", { kind: "all" });
 
-    expect(slice).toEqual({ entries: [], length: 0 });
+    expect(slice).toEqual({ entries: [], length: 0, toolCalls: [] });
     expect(existsSync(join(process.cwd(), ":memory:"))).toBe(false);
   });
 });

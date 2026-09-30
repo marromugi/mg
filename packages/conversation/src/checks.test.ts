@@ -1,7 +1,15 @@
 import type { Message } from "@mg/core";
 import { describe, expect, test } from "vitest";
-import { assertJsonEntry, assertToolPairing } from "./checks.js";
-import { EntryNotJsonError, EntryToolPairingError } from "./errors.js";
+import {
+  assertJsonEntry,
+  assertNewToolCallIds,
+  assertToolPairing,
+} from "./checks.js";
+import {
+  ConversationToolCallIdError,
+  EntryNotJsonError,
+  EntryToolPairingError,
+} from "./errors.js";
 import type { ConversationEntry } from "./types.js";
 
 const thrown = (fn: () => void): unknown => {
@@ -414,6 +422,56 @@ describe("assertToolPairing", () => {
     ]);
 
     expect(assertToolPairing(entry)).toBeUndefined();
+  });
+});
+
+describe("assertNewToolCallIds", () => {
+  const entryWithCallId = (id: string): ConversationEntry =>
+    entryWithMessages([
+      userMessage(),
+      toolCallMessage({
+        id,
+        name: "echo",
+        arguments: { text: "ping" },
+      }),
+      toolResultMessage(id),
+    ]);
+
+  test("throws with the lowest position when the id is stored more than once", () => {
+    const error = thrown(() =>
+      assertNewToolCallIds(
+        [
+          { id: "k", position: 4 },
+          { id: "k", position: 1 },
+        ],
+        entryWithCallId("k"),
+      ),
+    );
+
+    expect(error).toBeInstanceOf(ConversationToolCallIdError);
+    expect((error as ConversationToolCallIdError).toolCallId).toBe("k");
+    expect((error as ConversationToolCallIdError).position).toBe(1);
+  });
+
+  test("returns undefined when no id of the entry is stored", () => {
+    expect(
+      assertNewToolCallIds(
+        [{ id: "a", position: 0 }],
+        entryWithCallId("z"),
+      ),
+    ).toBeUndefined();
+  });
+
+  test("returns undefined for a new id when stored entries already share an id", () => {
+    expect(
+      assertNewToolCallIds(
+        [
+          { id: "k", position: 0 },
+          { id: "k", position: 1 },
+        ],
+        entryWithCallId("z"),
+      ),
+    ).toBeUndefined();
   });
 });
 

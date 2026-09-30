@@ -75,6 +75,20 @@ export class ConversationEntryUnreadableError extends Error {
   }
 }
 
+export class ConversationToolCallIdError extends Error {
+  override readonly name = "ConversationToolCallIdError";
+  readonly toolCallId: string;
+  readonly position: number;
+
+  constructor(toolCallId: string, position: number) {
+    super(
+      `Tool call id "${toolCallId}" is already stored at position ${position}. A tool-call id must be unique across the conversation.`,
+    );
+    this.toolCallId = toolCallId;
+    this.position = position;
+  }
+}
+
 export class EntryNotJsonError extends Error {
   override readonly name = "EntryNotJsonError";
   readonly kind: "not-json" | "cycle" | "too-deep";

@@ -17,12 +17,12 @@ This is called an "entry".
 - Defines the type of a read range.
   A range is either "all" or "the last n".
 - Defines the type of a read result.
-  The result holds the list of entries and the total number of entries in
-  that conversation.
+  The result holds the list of entries, the total number of entries in
+  that conversation, and every tool call stored in that conversation.
 - Defines `ConversationStore`, the interface for saving conversations.
   It has 3 operations: create, read and append.
 - Has dedicated errors used by the stores and the checks.
-- Has 2 check functions to use before appending.
+- Has 3 check functions to use before appending.
 - Has 2 implementations of `ConversationStore`.
   One lives only inside the process, the other uses SQLite.
 
@@ -58,29 +58,56 @@ const slice = await store.read("jev", { kind: "all" });
 
 The table lists the interface's operations.
 
-| Operation | What it does                                                            |
-| --------- | ----------------------------------------------------------------------- |
-| `create`  | Takes an id and creates a conversation with 0 entries.                  |
-| `read`    | Takes an id and a range, and returns the list of entries and the total. |
-| `append`  | Takes an id, one entry, and the total at the time of reading.           |
+| Operation | What it does                                                                    |
+| --------- | ------------------------------------------------------------------------------- |
+| `create`  | Takes an id and creates a conversation with 0 entries.                          |
+| `read`    | Takes an id and a range, and returns the entries, the total and the tool calls. |
+| `append`  | Takes an id, one entry, and the total at the time of reading.                   |
 
 The total passed to `append` is the total number of entries at the time of
 reading.
 If it differs from the actual total in the store, the append fails.
 
-### The two checks
+`read` returns `toolCalls`: every tool call stored in the whole
+conversation, whatever the range.
+Each one is `{ id, position }`, where `position` is the 0-based position of
+its entry.
+They come in position order, then message order, then part order.
 
-There are 2 functions to use before appending.
+`append` refuses an entry that holds a tool-call id already stored in the
+conversation.
+Nothing is written, and the total stays the same.
+Entries stored before this rule may already share an id.
+They stay readable and are not checked against each other.
+Only a new entry is compared against what is stored.
+
+`append` fails with the first error that applies, in this order.
+
+1. `EntryNotJsonError`
+2. `EntryToolPairingError`
+3. `ConversationNotFoundError`
+4. `ConversationConflictError`
+5. `ConversationToolCallIdError`
+
+The SQLite store can also fail with `ConversationEntryUnreadableError`
+before step 4, when it reads the stored rows.
+
+### The three checks
+
+There are 3 functions to use before appending.
 Neither changes the entry passed in.
-They take neither the store nor the conversation id, and look only at the
-entry.
+They take neither the store nor the conversation id.
+`assertJsonEntry` and `assertToolPairing` look only at the entry.
+`assertNewToolCallIds` looks at the entry and the tool calls stored in the
+conversation.
 
 The table lists what each function checks.
 
-| Function            | What it checks                                                 |
-| ------------------- | -------------------------------------------------------------- |
-| `assertJsonEntry`   | Whether the entry's value stays the same through JSON and back |
-| `assertToolPairing` | Whether tool calls and results come in pairs                   |
+| Function               | What it checks                                                 |
+| ---------------------- | -------------------------------------------------------------- |
+| `assertJsonEntry`      | Whether the entry's value stays the same through JSON and back |
+| `assertToolPairing`    | Whether tool calls and results come in pairs                   |
+| `assertNewToolCallIds` | Whether the entry reuses a stored tool-call id                 |
 
 If there is no problem, neither returns anything.
 If there is a problem, they throw a dedicated error.
@@ -122,6 +149,15 @@ It throws the same error when it finds a duplicated call.
 The error happens as soon as a second call with the same id appears.
 It does not matter whether a result came first.
 
+`assertNewToolCallIds(stored, entry)` takes the stored tool calls, as
+`StoredToolCall[]`, and an entry.
+Both stores use it, and so can any other `ConversationStore`.
+It returns nothing when no tool-call id of the entry is stored.
+Otherwise it throws `ConversationToolCallIdError` for the first tool call of
+the entry, in message and part order, whose id is stored.
+When that id is stored in more than one entry, the error names the lowest
+position.
+
 ### Errors
 
 The table lists the exceptions thrown.
@@ -133,6 +169,7 @@ The table lists the exceptions thrown.
 | `ConversationRangeError`           | The range's count is not a positive integer                    |
 | `ConversationConflictError`        | The total passed differs from the actual total in the store    |
 | `ConversationEntryUnreadableError` | A stored entry cannot be read back                             |
+| `ConversationToolCallIdError`      | The entry reuses a tool-call id stored in the conversation     |
 | `EntryNotJsonError`                | The entry's value does not stay the same through JSON and back |
 | `EntryToolPairingError`            | Tool calls and results do not come in pairs within the entry   |
 
@@ -149,6 +186,9 @@ The table lists the exceptions thrown.
 `cause`.
 Stores that keep entries outside memory throw it when a stored entry cannot
 be turned back into an entry.
+
+`ConversationToolCallIdError` has the tool-call id `toolCallId` and the
+0-based `position` of the lowest entry that holds it.
 
 `EntryNotJsonError` has a kind `kind` and the location of the first value
 found, `path`.
@@ -207,8 +247,10 @@ works.
 Only the side that appended first is kept.
 The side that appended later fails with `ConversationConflictError`.
 
-When a stored row is not valid JSON, reading the conversation rejects with
-`ConversationEntryUnreadableError`.
+Reading and appending both parse every stored row of the conversation.
+When a stored row is not valid JSON, `read` with any range and `append`
+reject with `ConversationEntryUnreadableError`, even when the row is outside
+the range.
 It names the conversation and the lowest unreadable position.
 A row that parses but is not a list of messages is not checked.
 

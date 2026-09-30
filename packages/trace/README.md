@@ -132,6 +132,7 @@ The table below lists the attribute names.
 | `ATTR.llmSystemCount`           | `mg.llm.system.count`           | Number of system messages sent                                                                                                     |
 | `ATTR.llmMessagesUnreadable`    | `mg.llm.messages.unreadable`    | Why the sent messages cannot be rebuilt                                                                                            |
 | `ATTR.llmOutputMessages`        | `mg.llm.messages.output`        | Messages returned (JSON string)                                                                                                    |
+| `ATTR.llmOmitted`               | `mg.llm.omitted`                | What the provider says it could not give back, as it reported it (JSON string; absent when it reported none)                       |
 | `ATTR.toolName`                 | `mg.tool.name`                  | Name of the tool                                                                                                                   |
 | `ATTR.toolCallId`               | `mg.tool.call_id`               | ID of the call                                                                                                                     |
 | `ATTR.toolArguments`            | `mg.tool.arguments`             | Arguments passed (JSON string)                                                                                                     |
@@ -215,6 +216,9 @@ The record of an LLM call is written by a wrapper around the provider.
 That wrapper is `traceProvider`.
 It records system messages as `mg.llm.system` events on the `mg.llm` span, one per message, with its content and position.
 The span also holds their number in `mg.llm.system.count`, and `mg.llm.messages.input` holds the other messages.
+Carries, the vendor data that only one provider reads, are left out of the recorded messages: both the reasoning carry and the tool-call carry.
+The request and the response the caller receives keep them.
+When a response, or the finish event of a stream, lists omissions, the span records that list as it was given in `mg.llm.omitted`.
 
 The record of a tool run is written by a wrapper around the run function.
 That wrapper is `traceRunToolCall`.

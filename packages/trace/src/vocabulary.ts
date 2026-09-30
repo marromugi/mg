@@ -43,6 +43,7 @@ export const ATTR = {
   llmSystemCount: "mg.llm.system.count", // number of system messages sent
   llmMessagesUnreadable: "mg.llm.messages.unreadable", // why the sent messages cannot be rebuilt
   llmOutputMessages: "mg.llm.messages.output", // jsonAttribute(AssistantMessage[])
+  llmOmitted: "mg.llm.omitted", // jsonAttribute(Omission[]), what the provider reports it could not give back
   toolName: "mg.tool.name",
   toolCallId: "mg.tool.call_id",
   toolArguments: "mg.tool.arguments", // jsonAttribute(unknown)

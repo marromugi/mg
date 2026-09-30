@@ -7,6 +7,7 @@ import {
   type GenerateRequest,
   type GenerateResponse,
   type Message,
+  type Omission,
   type Provider,
   type StreamEvent,
   type Usage,
@@ -22,14 +23,24 @@ import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 
 export const STREAM_INCOMPLETE_MESSAGE = "stream ended without finish";
 
-const stripReasoningCarry = (part: AssistantPart): AssistantPart =>
-  part.type === "reasoning"
-    ? { type: "reasoning", text: part.text }
-    : part;
+const stripCarry = (part: AssistantPart): AssistantPart => {
+  if (part.type === "reasoning") {
+    return { type: "reasoning", text: part.text };
+  }
+  if (part.type === "tool-call") {
+    return {
+      type: "tool-call",
+      id: part.id,
+      name: part.name,
+      arguments: part.arguments,
+    };
+  }
+  return part;
+};
 
 const stripCarryFromMessage = (message: Message): Message =>
   message.role === "assistant"
-    ? assistantMessage(partsOf(message).map(stripReasoningCarry))
+    ? assistantMessage(partsOf(message).map(stripCarry))
     : message;
 
 const startLlmSpan = (
@@ -74,17 +85,19 @@ const setOutputAttributes = (
     parts: AssistantPart[];
     finishReason?: FinishReason;
     usage?: Usage;
+    omitted?: Omission[];
   },
 ): void => {
-  const message = assistantMessage(
-    outcome.parts.map(stripReasoningCarry),
-  );
+  const message = assistantMessage(outcome.parts.map(stripCarry));
 
   const attributes: TraceAttributes = {
     ...(outcome.finishReason !== undefined
       ? { [ATTR.llmFinishReason]: outcome.finishReason }
       : {}),
     [ATTR.llmOutputMessages]: jsonAttribute([message]),
+    ...(outcome.omitted !== undefined
+      ? { [ATTR.llmOmitted]: jsonAttribute(outcome.omitted) }
+      : {}),
     ...(outcome.usage !== undefined
       ? {
           [ATTR.llmInputTokens]: outcome.usage.inputTokens,
@@ -109,6 +122,7 @@ const traceGenerate = async (
       parts: partsOf(response),
       finishReason: response.finishReason,
       usage: response.usage,
+      omitted: response.omitted,
     });
     endSpan(span);
     return response;
@@ -128,6 +142,7 @@ async function* traceStream(
   const accumulator = createPartsAccumulator();
   let finishReason: FinishReason | undefined;
   let usage: Usage | undefined;
+  let omitted: Omission[] | undefined;
   let finished = false;
   let ended = false;
 
@@ -138,6 +153,7 @@ async function* traceStream(
         finished = true;
         finishReason = event.finishReason;
         usage = event.usage;
+        omitted = event.omitted;
       }
       yield event;
     }
@@ -147,6 +163,7 @@ async function* traceStream(
       parts: accumulator.parts(),
       finishReason,
       usage,
+      omitted,
     });
     endSpan(
       span,

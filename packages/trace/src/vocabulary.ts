@@ -17,6 +17,10 @@ export const SPAN = {
   dialogueRun: "mg.dialogue.run",
 } as const;
 
+export const EVENT = {
+  llmSystem: "mg.llm.system",
+} as const;
+
 export const ATTR = {
   op: "mg.op", // "harness" | "llm" | "tool" | "run" | "gate" | "workspace" | "subagent" | "thread" | "input" | "trigger" | "persona" | "recall" | "reflection" | "turn" | "dialogue" | "dialogue.run"
   harnessName: "mg.harness.name",
@@ -34,6 +38,10 @@ export const ATTR = {
   llmInputTokens: "mg.llm.usage.input_tokens",
   llmOutputTokens: "mg.llm.usage.output_tokens",
   llmInputMessages: "mg.llm.messages.input", // jsonAttribute(Message[])
+  llmSystemContent: "mg.llm.system.content", // string, on an EVENT.llmSystem event
+  llmSystemIndex: "mg.llm.system.index", // number, position in the sent list, on an EVENT.llmSystem event
+  llmSystemCount: "mg.llm.system.count", // number of system messages sent
+  llmMessagesUnreadable: "mg.llm.messages.unreadable", // why the sent messages cannot be rebuilt
   llmOutputMessages: "mg.llm.messages.output", // jsonAttribute(AssistantMessage[])
   toolName: "mg.tool.name",
   toolCallId: "mg.tool.call_id",

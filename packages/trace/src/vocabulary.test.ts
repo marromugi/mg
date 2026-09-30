@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ATTR, SPAN } from "./vocabulary.js";
+import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 
 describe("SPAN", () => {
   it("names every span with the mg. prefix", () => {
@@ -30,6 +30,18 @@ describe("SPAN", () => {
   });
 });
 
+describe("EVENT", () => {
+  it("names every event with the mg. prefix", () => {
+    for (const value of Object.values(EVENT)) {
+      expect(value.startsWith("mg.")).toBe(true);
+    }
+  });
+
+  it("has the llm system event", () => {
+    expect(EVENT).toEqual({ llmSystem: "mg.llm.system" });
+  });
+});
+
 describe("ATTR", () => {
   it("names every attribute with the mg. prefix", () => {
     for (const value of Object.values(ATTR)) {
@@ -46,6 +58,15 @@ describe("ATTR", () => {
     expect(ATTR.llmOutputTokens).toBe("mg.llm.usage.output_tokens");
     expect(ATTR.llmInputMessages).toBe("mg.llm.messages.input");
     expect(ATTR.llmOutputMessages).toBe("mg.llm.messages.output");
+  });
+
+  it("has the llm system message attributes", () => {
+    expect(ATTR.llmSystemContent).toBe("mg.llm.system.content");
+    expect(ATTR.llmSystemIndex).toBe("mg.llm.system.index");
+    expect(ATTR.llmSystemCount).toBe("mg.llm.system.count");
+    expect(ATTR.llmMessagesUnreadable).toBe(
+      "mg.llm.messages.unreadable",
+    );
   });
 
   it("has the harness stop reason attribute", () => {

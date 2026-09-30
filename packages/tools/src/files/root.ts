@@ -164,6 +164,27 @@ export const reachOfFile = async (
   }
 };
 
+// The path a prepared call acts on: the one it declared, or, when it
+// declared any-local, the one resolved now.
+export const declaredTarget = async (
+  root: string,
+  input: string,
+  reach: Reach,
+): Promise<ResolvedPath> => {
+  const declared =
+    reach.kind === "paths" && reach.paths.length === 1
+      ? reach.paths[0]
+      : undefined;
+  if (declared === undefined) return resolveExistingPath(root, input);
+
+  const rootReal = await fs.realpath(root);
+  assertWithinRoot(rootReal, declared.path, input);
+  return {
+    absolute: declared.path,
+    relative: toRelative(rootReal, declared.path),
+  };
+};
+
 export const reachOfSearchPath = async (
   root: string,
   input: string,

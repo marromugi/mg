@@ -1,8 +1,10 @@
-import { promises as fs } from "node:fs";
+import { constants } from "node:fs";
+import type { FileHandle } from "node:fs/promises";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { resolveExistingPath, reachOfFile } from "./root.js";
+import { openDeclared } from "./checked.js";
+import { declaredTarget, reachOfFile } from "./root.js";
 import { isBinary } from "./text.js";
 
 export type EditFileToolOptions = { root: string };
@@ -65,6 +67,23 @@ const spliceContent = (
   return result + content.slice(cursor);
 };
 
+const writeAll = async (
+  handle: FileHandle,
+  buffer: Buffer,
+): Promise<void> => {
+  await handle.truncate(0);
+  let offset = 0;
+  while (offset < buffer.length) {
+    const { bytesWritten } = await handle.write(
+      buffer,
+      offset,
+      buffer.length - offset,
+      offset,
+    );
+    offset += bytesWritten;
+  }
+};
+
 export const createEditFileTool = (
   options: EditFileToolOptions,
 ): Tool<typeof editFileInput> => {
@@ -84,96 +103,97 @@ export const createEditFileTool = (
       newString,
       replaceAll,
     }) {
+      const reach = await reachOfFile(root, inputPath);
       return {
-        reach: await reachOfFile(root, inputPath),
+        reach,
         run: async (context) => {
           context.signal?.throwIfAborted();
 
-          const resolved = await resolveExistingPath(root, inputPath);
-          const stat = await fs.stat(resolved.absolute);
-          if (!stat.isFile()) {
-            throw new FileToolError(`not a file: ${resolved.relative}`);
-          }
-
-          const buffer = await fs.readFile(resolved.absolute, {
-            signal: context.signal,
-          });
-
-          let content: string;
-          try {
-            content = new TextDecoder("utf-8", { fatal: true }).decode(
-              buffer,
-            );
-          } catch {
-            throw new FileToolError(
-              `not valid UTF-8: ${resolved.relative}`,
-            );
-          }
-
-          if (isBinary(content)) {
-            throw new FileToolError(
-              `binary file: ${resolved.relative}`,
-            );
-          }
-
-          if (oldString === newString) {
-            throw new FileToolError(
-              "oldString and newString are identical",
-            );
-          }
-
-          const indices = findOccurrenceIndices(content, oldString);
-
-          if (indices.length === 0) {
-            throw new FileToolError(
-              `oldString not found in ${resolved.relative}`,
-            );
-          }
-
-          if (indices.length >= 2 && !replaceAll) {
-            const lines = indices.map((index) =>
-              lineOf(content, index),
-            );
-            throw new FileToolError(
-              `oldString matches ${indices.length} times in ${resolved.relative} ` +
-                `(lines ${formatLineList(lines)}). Include more surrounding ` +
-                "text to make it unique, or set replaceAll.",
-            );
-          }
-
-          const targetIndices = replaceAll
-            ? indices
-            : indices.slice(0, 1);
-          const updated = spliceContent(
-            content,
-            targetIndices,
-            oldString,
-            newString,
+          const resolved = await declaredTarget(root, inputPath, reach);
+          const handle = await openDeclared(
+            resolved.absolute,
+            constants.O_RDWR,
+            { root },
           );
-
           try {
-            await fs.writeFile(resolved.absolute, updated, {
-              encoding: "utf8",
+            const buffer = await handle.readFile({
               signal: context.signal,
             });
-          } catch (error) {
-            if (isAbortError(error)) throw error;
-            throw new FileToolError(
-              `cannot write file: ${resolved.relative}`,
-              { cause: error },
-            );
-          }
+            let content: string;
+            try {
+              content = new TextDecoder("utf-8", {
+                fatal: true,
+              }).decode(buffer);
+            } catch {
+              throw new FileToolError(
+                `not valid UTF-8: ${resolved.relative}`,
+              );
+            }
 
-          const lines = targetIndices.map((index) =>
-            lineOf(content, index),
-          );
-          const count = targetIndices.length;
-          const noun = count === 1 ? "occurrence" : "occurrences";
-          const lineWord = count === 1 ? "line" : "lines";
-          return (
-            `Replaced ${count} ${noun} in ${resolved.relative} ` +
-            `(${lineWord} ${formatLineList(lines)}).`
-          );
+            if (isBinary(content)) {
+              throw new FileToolError(
+                `binary file: ${resolved.relative}`,
+              );
+            }
+
+            if (oldString === newString) {
+              throw new FileToolError(
+                "oldString and newString are identical",
+              );
+            }
+
+            const indices = findOccurrenceIndices(content, oldString);
+
+            if (indices.length === 0) {
+              throw new FileToolError(
+                `oldString not found in ${resolved.relative}`,
+              );
+            }
+
+            if (indices.length >= 2 && !replaceAll) {
+              const lines = indices.map((index) =>
+                lineOf(content, index),
+              );
+              throw new FileToolError(
+                `oldString matches ${indices.length} times in ${resolved.relative} ` +
+                  `(lines ${formatLineList(lines)}). Include more surrounding ` +
+                  "text to make it unique, or set replaceAll.",
+              );
+            }
+
+            const targetIndices = replaceAll
+              ? indices
+              : indices.slice(0, 1);
+            const updated = spliceContent(
+              content,
+              targetIndices,
+              oldString,
+              newString,
+            );
+
+            try {
+              await writeAll(handle, Buffer.from(updated, "utf8"));
+            } catch (error) {
+              if (isAbortError(error)) throw error;
+              throw new FileToolError(
+                `cannot write file: ${resolved.relative}`,
+                { cause: error },
+              );
+            }
+
+            const lines = targetIndices.map((index) =>
+              lineOf(content, index),
+            );
+            const count = targetIndices.length;
+            const noun = count === 1 ? "occurrence" : "occurrences";
+            const lineWord = count === 1 ? "line" : "lines";
+            return (
+              `Replaced ${count} ${noun} in ${resolved.relative} ` +
+              `(${lineWord} ${formatLineList(lines)}).`
+            );
+          } finally {
+            await handle.close();
+          }
         },
       };
     },

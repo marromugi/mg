@@ -1,10 +1,16 @@
 import { execFile, type ExecFileException } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { constants, promises as fs } from "node:fs";
 import path from "node:path";
+import type { FileHandle } from "node:fs/promises";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { reachOfSearchPath, resolveExistingPath } from "./root.js";
+import {
+  checkDeclared,
+  openDeclared,
+  PathCheckError,
+} from "./checked.js";
+import { declaredTarget, reachOfSearchPath } from "./root.js";
 import { isBinary } from "./text.js";
 
 export type GrepToolOptions = {
@@ -240,6 +246,28 @@ const buildIncompleteNote = (
   ].join("\n");
 };
 
+// The content of the declared path when it is a readable file.
+// Anything else is left to ripgrep; a changed path is not.
+const readIfFile = async (
+  declared: string,
+  root: string,
+): Promise<string | undefined> => {
+  let handle: FileHandle;
+  try {
+    handle = await openDeclared(declared, constants.O_RDONLY, { root });
+  } catch (error) {
+    if (error instanceof PathCheckError) throw error;
+    return undefined;
+  }
+  try {
+    return await handle.readFile({ encoding: "utf-8" });
+  } catch {
+    return undefined;
+  } finally {
+    await handle.close();
+  }
+};
+
 export const createGrepTool = (
   options: GrepToolOptions,
 ): Tool<typeof grepInput> => {
@@ -262,28 +290,23 @@ export const createGrepTool = (
       `${maxResults} matches.`,
     input: grepInput,
     async prepare({ pattern, path: inputPath, glob, ignoreCase }) {
+      const reach = await reachOfSearchPath(root, inputPath ?? ".");
       return {
-        reach: await reachOfSearchPath(root, inputPath ?? "."),
+        reach,
         run: async (context) => {
           context.signal?.throwIfAborted();
 
           const rootReal = await fs.realpath(root);
-          const resolved = await resolveExistingPath(
+          const resolved = await declaredTarget(
             root,
             inputPath ?? ".",
+            reach,
           );
 
-          let directContent: string | undefined;
-          try {
-            const resolvedStat = await fs.stat(resolved.absolute);
-            if (resolvedStat.isFile()) {
-              directContent = await fs.readFile(resolved.absolute, {
-                encoding: "utf-8",
-              });
-            }
-          } catch {
-            directContent = undefined;
-          }
+          const directContent = await readIfFile(
+            resolved.absolute,
+            root,
+          );
           if (directContent !== undefined && isBinary(directContent)) {
             throw new FileToolError(
               `binary file: ${resolved.relative}`,
@@ -300,6 +323,8 @@ export const createGrepTool = (
             "--",
             resolved.absolute,
           ];
+
+          await checkDeclared(resolved.absolute, { root });
 
           const { stdout, stderr, error } = await run(rgPath, args, {
             cwd: rootReal,

@@ -14,65 +14,40 @@ can be in flight. The agent owns the design while it builds: when the
 design in the issue does not hold, it redraws it and says what changed,
 rather than stopping (`software-design-theory`, principle 9).
 
-The issue can be rewritten or withdrawn while the agent works — the developer
-or another session may edit it, close it, or change the parent it belongs to.
-The guard script takes a copy before the agent starts, and that copy, not a
-fresh read, is what the agent builds from and what the later checks compare
-against. Reading fresh at every step would let the agent and the merge
-decision see two different versions of the same issue.
-
-## When an issue can start
-
-An issue that names a parent is only ready once its predecessors in the
-parent's `## Child issues` list are done. The snapshot (see step 1 below)
-already carries what that needs: `parent.body` holds the ordered list, and
-`parent.children` gives every other child's current `state` (`OPEN` or
-`CLOSED`) and `stateReason` (`COMPLETED`, `NOT_PLANNED`, or `null`). A
-predecessor is done when its `state` is `CLOSED` and its `stateReason` is
-`COMPLETED`.
-
-Every child listed before this one in `parent.body` must be done, unless
-the parent says in words, anywhere in its body, that this issue is
-independent of the others (「他と独立です」 or similar). When the parent's
-wording is unclear, treat the list as strict order: a predecessor that is
-not done means this issue is not ready yet.
-
-An issue with no parent (`parent` is `null` in the snapshot) has no
-predecessors to check.
-
+Whether an issue is ready is not decided here. dispatcher reads GitHub for
+that, once per pass, and a single named issue starts as it is. This skill
+reads the issue once, saves its text, and notes when it was last updated.
+The agent builds from that saved text, and dispatcher compares the noted
+time with GitHub's before it merges.
 
 ## Steps
 
 ### 1. Read the work
 
-**From an issue.** Run the guard script's snapshot operation before anything
-else, including before checking whether the issue is ready to start. The
-script does not create its output folder, so make it first:
+**From an issue.** Read it once:
 
 ```
-mkdir -p <scratchpad>/issue-guard
-node .claude/skills/implementer/scripts/issue-guard.mjs snapshot <N> --dir <scratchpad>/issue-guard
+gh issue view <N> --json body,updatedAt
 ```
 
-On a non-zero exit, stop and show the developer the script's lines exactly
-as printed; do not spawn the agent.
-
-On success, the snapshot is at `<scratchpad>/issue-guard/issue-<N>.json`.
-Its `body` field is the issue text, and, when the issue has a parent, the
-`parent.body` field is the parent's text. These are the copies to use from
-here on; do not fetch either with `gh issue view` again.
-
-Apply the rule under "When an issue can start" above. If a predecessor
-blocks it, stop and tell the developer which predecessor is still open.
+Write `body` to `<scratchpad>/issues/issue-<N>.md` (make the folder first)
+and keep `updatedAt`. That file is the copy to use from here on; do not
+fetch the issue again.
 
 Check that the body has a `To Implementer` section. If it does not, the
 issue was not written up by architect; stop and tell the developer to run
 architect for it. Issues in the earlier format are built as they are
 (`architect/references/issue-format.md`, last paragraph).
 
+When the Design has a `Parent: #<P>` line, read the parent too, for the
+agent prompt only:
+
+```
+gh issue view <P> --json body
+```
+
 **From a body file.** architect hands over a scratchpad file in the issue
-format when the work has no issue. There is no snapshot and no guard; the
-file is the copy to use.
+format when the work has no issue. The file is the copy to use.
 
 ### 2. Spawn the implementation agent
 
@@ -82,14 +57,14 @@ Use the Agent tool with:
 - `model`: `sonnet`
 - `isolation`: `worktree`
 
-The prompt must contain the full body (and the parent's text if any), plus
+The prompt must contain the full body (and the parent's body if any), plus
 these instructions, in this spirit:
 
 ```
 You are building the work below in this repository.
 
 <body>
-<parent text, if any>
+<parent body, if any>
 
 Rules:
 - Build what Request asks for, in the shape Design describes. Nothing
@@ -156,29 +131,23 @@ leaving out any entry named `verifier`. Three outcomes:
 
 ### 5. Hand off to review
 
-With an issue, run the guard script's verify operation first:
-
-```
-node .claude/skills/implementer/scripts/issue-guard.mjs verify <N> --dir <scratchpad>/issue-guard
-```
-
-On a non-zero exit, do not invoke `reviewer`. Leave the PR open and report
-the script's lines to the developer exactly as printed.
-
-Then invoke the `reviewer` skill with the PR number, and, when the
+Invoke the `reviewer` skill with the PR number, and, when the
 implementation agent is still available, its agent id so reviewer can send
 fixes to it.
 
 ### 6. Verify
 
-Invoke the `verifier` skill with the PR number, the body to read
-`Verification` from — the snapshot file at
-`<scratchpad>/issue-guard/issue-<N>.json`, or the body file — and the path
-to the developer's main checkout.
+Invoke the `verifier` skill with the PR number, the body file to read
+`Verification` from (the saved issue file at
+`<scratchpad>/issues/issue-<N>.md`, or the body file), and the path to the
+developer's main checkout.
 
 - **pass** or **not-needed**: done. Pass the result on to the caller.
 - **fail**: send verifier's PR comment to the same implementation agent with
   SendMessage, and ask it to fix and push. Once. Then repeat step 4 (CI),
-  step 5 (guard verify, then reviewer), and this step, from the start.
+  step 5 (reviewer), and this step, from the start.
 - Still **fail** after that one retry, or **unverifiable**: leave the PR
   open and report the reason.
+
+With an issue, the result to the caller also carries the issue's
+`updatedAt` (ISO string) next to the PR number and Design changes.

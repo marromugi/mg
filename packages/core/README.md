@@ -119,6 +119,9 @@ have `retryable`, which says whether a retry is possible, and `retryAfterMs`, th
 
 - The Jev implementation treats connection failures and 429 and 5xx
   responses as retryable failures.
+- A connection cut while reading a successful response's body is
+  retried. Any other failure to read that body is an unusable answer
+  and is not retried, and so is a body that is not JSON.
 - If the response's Retry-After reads as a number of seconds or as an HTTP
   date, it is written to `retryAfterMs`. If not, it is left out.
 - For a failure response the Jev implementation throws

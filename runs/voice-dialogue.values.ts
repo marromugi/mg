@@ -4,12 +4,23 @@ import type {
   WorkStatus,
 } from "@mg/dialogue";
 import type { Exchange } from "@mg/turn";
+import type { AudioFormat } from "@mg/voice";
 
 export const STOP_CHECK_MS = 2000;
 export const EXCHANGE_COUNT = 3;
 export const REQUEST_LIMIT = 500;
 export const LANGUAGES = ["ja-JP"] as const;
 export const TRIGGER_THRESHOLD = 0.7;
+
+// AVFoundation's built-in microphone on this machine.
+export const MICROPHONE_DEVICE = ":1";
+
+// The format the Gemini Live transcriber accepts.
+export const LISTENER_FORMAT: AudioFormat = {
+  encoding: "pcm-s16le",
+  sampleRate: 16000,
+  channels: 1,
+};
 
 // Tool activity in the status block: how many calls, and how many
 // characters of each call's arguments and result.

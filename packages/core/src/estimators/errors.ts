@@ -6,6 +6,31 @@ export type EstimatorErrorOptions = {
   cause?: unknown;
 } & EstimatorRetryMark;
 
+const NON_ERROR_CAUSE = "(non-Error cause)";
+
+// cause の連鎖を下って、理由の文を集めます。
+const causeTexts = (cause: unknown): string[] => {
+  const texts: string[] = [];
+  const seen = new Set<unknown>();
+  let current = cause;
+  while (current !== undefined) {
+    if (typeof current === "string") {
+      if (current !== "") texts.push(current);
+      break;
+    }
+    if (!(current instanceof Error)) {
+      texts.push(NON_ERROR_CAUSE);
+      break;
+    }
+    if (seen.has(current)) break;
+    seen.add(current);
+    if (current.message !== "") texts.push(current.message);
+    if (current instanceof EstimatorBaseError) break;
+    current = current.cause;
+  }
+  return texts;
+};
+
 export abstract class EstimatorBaseError extends Error {
   abstract override readonly name: EstimatorErrorName;
   readonly retryable: boolean;
@@ -15,7 +40,7 @@ export abstract class EstimatorBaseError extends Error {
     message: string,
     options?: EstimatorErrorOptions,
   ) {
-    super(message, options);
+    super([message, ...causeTexts(options?.cause)].join(": "), options);
     this.retryable = options?.retryable === true;
     this.retryAfterMs = this.retryable
       ? options?.retryAfterMs

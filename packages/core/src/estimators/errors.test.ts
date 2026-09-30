@@ -51,6 +51,92 @@ describe("EstimatorResponseError", () => {
   });
 });
 
+describe("message composition", () => {
+  test("ends with each message down the cause chain", () => {
+    const error = new EstimatorTransportError("Jev request failed", {
+      cause: new TypeError("fetch failed", {
+        cause: new Error("connect ECONNREFUSED 127.0.0.1:59999"),
+      }),
+    });
+
+    expect(error.message).toBe(
+      "Jev request failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999",
+    );
+  });
+
+  test("states the network text once when an Estimator error sits in the chain", () => {
+    const error = new EstimatorRetryExhaustedError(3, {
+      cause: new EstimatorTransportError("Jev request failed", {
+        cause: new TypeError("fetch failed", {
+          cause: new Error("connect ECONNREFUSED 127.0.0.1:59999"),
+        }),
+      }),
+    });
+
+    expect(error.message).toBe(
+      "Estimator retries exhausted (attempts: 3): Jev request failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999",
+    );
+  });
+
+  test("appends a string cause and ends there", () => {
+    const own = "Jev request failed";
+
+    expect(
+      new EstimatorResponseError(own, { cause: "socket hang up" })
+        .message,
+    ).toBe("Jev request failed: socket hang up");
+    expect(new EstimatorResponseError(own, { cause: "" }).message).toBe(
+      "Jev request failed",
+    );
+    expect(
+      new EstimatorResponseError(own, {
+        cause: new TypeError("fetch failed", {
+          cause: "socket hang up",
+        }),
+      }).message,
+    ).toBe("Jev request failed: fetch failed: socket hang up");
+  });
+
+  test("marks a cause that is not an Error, at any depth", () => {
+    const own = "Jev request failed";
+
+    expect(
+      new EstimatorResponseError(own, { cause: { code: 1 } }).message,
+    ).toBe("Jev request failed: (non-Error cause)");
+    expect(
+      new EstimatorResponseError(own, {
+        cause: new TypeError("fetch failed", { cause: { code: 1 } }),
+      }).message,
+    ).toBe("Jev request failed: fetch failed: (non-Error cause)");
+  });
+
+  test("adds nothing for an empty message and reads on below it", () => {
+    const error = new EstimatorResponseError("Jev request failed", {
+      cause: new TypeError("", {
+        cause: new Error("connect ECONNREFUSED 127.0.0.1:59999"),
+      }),
+    });
+
+    expect(error.message).toBe(
+      "Jev request failed: connect ECONNREFUSED 127.0.0.1:59999",
+    );
+  });
+
+  test("keeps its own words without a cause and stops at a loop", () => {
+    const loop = new Error("loop");
+    loop.cause = loop;
+
+    expect(
+      new EstimatorResponseError("Jev response failed validation")
+        .message,
+    ).toBe("Jev response failed validation");
+    expect(
+      new EstimatorResponseError("Jev request failed", { cause: loop })
+        .message,
+    ).toBe("Jev request failed: loop");
+  });
+});
+
 describe("retryable mark and retryAfterMs", () => {
   test("is not retryable and has no retryAfterMs when created without a mark", () => {
     const cause = new Error("boom");
@@ -110,7 +196,7 @@ describe("EstimatorRetryExhaustedError", () => {
     expect(isEstimatorError(error)).toBe(true);
     expect(error.name).toBe("EstimatorRetryExhaustedError");
     expect(error.message).toBe(
-      "Estimator retries exhausted (attempts: 3)",
+      "Estimator retries exhausted (attempts: 3): x: boom",
     );
   });
 });

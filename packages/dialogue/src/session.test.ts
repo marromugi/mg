@@ -659,6 +659,40 @@ describe("runDialogue", () => {
     expect(h.trigger.calls).toHaveLength(1);
   });
 
+  test("hands a reply that finished playing to the work trigger in full when a new utterance starts right after its playback ends", async () => {
+    vi.useFakeTimers();
+    const h = build({
+      replies: ["はい。"],
+      player: () => "hold",
+    });
+    await say(h, "こんにちは");
+    h.player.finishHeld({ played: true });
+    h.listener.utter();
+    await settle();
+    expect(
+      h.events.filter((e) => e.type === "reply").map(describeEvent),
+    ).toEqual(["reply:はい。"]);
+    expect(h.trigger.calls).toEqual([
+      { exchanges: [{ utterance: "こんにちは", reply: "はい。" }] },
+    ]);
+  });
+
+  test("shows only the heard part of a reply cut while playing, and does not ask the work trigger", async () => {
+    vi.useFakeTimers();
+    const h = build({
+      replies: ["一つ目。二つ目。"],
+      player: (index) =>
+        index === 1 ? "hold" : Promise.resolve({ played: true }),
+    });
+    await say(h, "こんにちは");
+    h.listener.utter();
+    await settle();
+    expect(
+      h.events.filter((e) => e.type === "reply").map(describeEvent),
+    ).toEqual(["reply:一つ目。"]);
+    expect(h.trigger.calls).toHaveLength(0);
+  });
+
   test("gives the redirect judge the last exchanges and the request, then wraps up and sends a new request on switch", async () => {
     vi.useFakeTimers();
     const h = build({

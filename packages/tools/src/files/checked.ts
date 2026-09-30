@@ -177,7 +177,16 @@ const assertSameFile = async (
   handle: FileHandle,
 ): Promise<void> => {
   const after = await walk(fs, located, "after");
-  const opened = await handle.stat({ bigint: true });
+  let opened: BigIntStats;
+  try {
+    opened = await handle.stat({ bigint: true });
+  } catch (error) {
+    throw cannotCheck(
+      located.relative,
+      error instanceof Error ? error.message : String(error),
+      error,
+    );
+  }
   if (after === undefined || after.ino === 0n || opened.ino === 0n) {
     throw cannotCheck(located.relative, NO_INODE);
   }

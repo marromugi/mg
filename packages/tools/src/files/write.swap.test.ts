@@ -182,6 +182,26 @@ describe("write_file with a change after preparing", () => {
     await expect(exists("other", "f.txt")).resolves.toBe(false);
   });
 
+  test("fails with the system reason when the opened file cannot be checked", async () => {
+    const call = await createWriteFileTool({
+      root,
+      fs: {
+        ...realFs,
+        open: async (...args) => {
+          const handle = await fs.open(...args);
+          handle.stat = async () => {
+            throw new Error("EIO: i/o error, fstat");
+          };
+          return handle;
+        },
+      },
+    }).prepare({ path: "n1/a.txt", content: "NEW" });
+
+    await expect(call.run({})).rejects.toThrow(
+      "cannot check path: n1/a.txt: EIO: i/o error, fstat (created before stopping: n1)",
+    );
+  });
+
   test("fails when a file that did not exist became a link", async () => {
     const call = await createWriteFileTool({ root }).prepare({
       path: "sub/b.txt",

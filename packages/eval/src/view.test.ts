@@ -1,5 +1,5 @@
 import type { AssistantMessage, Message } from "@mg/core";
-import { ATTR, SPAN } from "@mg/trace";
+import { ATTR, EVENT, SPAN } from "@mg/trace";
 import type { SessionTree, SpanRecord } from "@mg/trace/store";
 import { buildSessionTree } from "@mg/trace/store";
 import { describe, expect, it } from "vitest";
@@ -379,5 +379,93 @@ describe("viewRun", () => {
     const view = viewRun(session);
 
     expect(view.error).toBe("error");
+  });
+
+  describe("llm step input", () => {
+    const llmSession = (
+      overrides: Partial<SpanRecord>,
+    ): SessionTree => {
+      const session = buildSessionTree([
+        record({
+          spanId: "run",
+          name: SPAN.run,
+          attributes: { [ATTR.op]: "run" },
+        }),
+        record({
+          spanId: "llm",
+          parentSpanId: "run",
+          name: SPAN.llm,
+          ...overrides,
+        }),
+      ]);
+      if (session === undefined) throw new Error("session not built");
+      return session;
+    };
+
+    const expected = {
+      kind: "messages",
+      messages: [
+        { role: "system", content: "be brief" },
+        { role: "user", content: "hi" },
+      ],
+    };
+
+    it("puts system messages from events back at their positions", () => {
+      const view = viewRun(
+        llmSession({
+          attributes: {
+            [ATTR.op]: "llm",
+            [ATTR.llmInputMessages]: json([
+              { role: "user", content: "hi" },
+            ]),
+            [ATTR.llmSystemCount]: 1,
+          },
+          events: [
+            {
+              name: EVENT.llmSystem,
+              time: "2026-01-01T00:00:00.000Z",
+              attributes: {
+                [ATTR.llmSystemContent]: "be brief",
+                [ATTR.llmSystemIndex]: 0,
+              },
+            },
+          ],
+        }),
+      );
+
+      expect(view.llmSteps[0]?.input).toEqual(expected);
+    });
+
+    it("reads a record with system messages in the attribute", () => {
+      const view = viewRun(
+        llmSession({
+          attributes: {
+            [ATTR.op]: "llm",
+            [ATTR.llmInputMessages]: json([
+              { role: "system", content: "be brief" },
+              { role: "user", content: "hi" },
+            ]),
+          },
+        }),
+      );
+
+      expect(view.llmSteps[0]?.input).toEqual(expected);
+    });
+
+    it("carries the reason when the input cannot be read", () => {
+      const view = viewRun(
+        llmSession({
+          attributes: {
+            [ATTR.op]: "llm",
+            [ATTR.llmInputMessages]: "not json",
+          },
+        }),
+      );
+
+      expect(view.llmSteps[0]?.input).toEqual({
+        kind: "unreadable",
+        reason: "input messages are not a JSON array",
+      });
+    });
   });
 });

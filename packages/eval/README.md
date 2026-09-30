@@ -238,6 +238,14 @@ A subagent step that ended in an error takes this form.
 [subagent <name> error] <error text>
 ```
 
+The first LLM step's input messages come first, as `[system] ...` and `[user] ...` lines.
+If that input cannot be read, the transcript opens with one line holding the reason instead.
+The rest of the transcript is the same.
+
+```
+[input unreadable] <reason>
+```
+
 If a user message has an author, its id is written as a JSON string, as in
 `[user "alice"] <body>`. Without an author it is `[user] <body>`.
 
@@ -251,6 +259,21 @@ const estimatorCheck = createEstimatorChecker({
   estimator: createJevEstimator({ apiKey: process.env.JEV_API_KEY! }),
   transcribe: (view) => view.finalText ?? "",
 });
+```
+
+### LLM step input
+
+An LLM step's `input` is either the list of messages that was sent or the reason it cannot be read.
+System messages are in the list at the positions where they were sent.
+The step never holds an empty list in place of an input it could not read.
+
+```ts
+const { input } = view.llmSteps[0];
+if (input.kind === "messages") {
+  input.messages; // Message[]
+} else {
+  input.reason; // why the record cannot be read
+}
 ```
 
 ## How it works

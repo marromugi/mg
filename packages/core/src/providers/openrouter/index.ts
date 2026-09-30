@@ -14,6 +14,12 @@ import {
   toOpenRouterRequest,
 } from "./convert.js";
 import { PROVIDER_NAME } from "./name.js";
+import {
+  bodyReadFailureMark,
+  sendFailureMark,
+  statusMark,
+  type RetryMark,
+} from "./retry.js";
 import { toStreamEvents } from "./stream.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
@@ -23,10 +29,14 @@ const isAbortError = (cause: unknown): boolean =>
   cause !== null &&
   (cause as { name?: unknown }).name === "AbortError";
 
-const transportFailure = (cause: unknown, message: string): unknown =>
+const transportFailure = (
+  cause: unknown,
+  message: string,
+  mark: RetryMark,
+): unknown =>
   isAbortError(cause)
     ? cause
-    : new ProviderTransportError(message, { cause });
+    : new ProviderTransportError(message, { cause, ...mark });
 
 const HALTED = "halted" as const;
 
@@ -85,6 +95,7 @@ const readGenerateBody = async (
       throw transportFailure(
         cause,
         "OpenRouter response failed to read",
+        bodyReadFailureMark(cause),
       );
     }
   }
@@ -117,7 +128,11 @@ const readGenerateBody = async (
     if (halted) {
       return HALTED;
     }
-    throw transportFailure(cause, "OpenRouter response failed to read");
+    throw transportFailure(
+      cause,
+      "OpenRouter response failed to read",
+      bodyReadFailureMark(cause),
+    );
   } finally {
     halt.removeEventListener("abort", onAbort);
     reader.releaseLock();
@@ -171,6 +186,7 @@ export const createOpenRouterProvider = (
       throw transportFailure(
         cause,
         "OpenRouter request failed to send",
+        sendFailureMark(cause),
       );
     }
 
@@ -182,12 +198,14 @@ export const createOpenRouterProvider = (
         throw transportFailure(
           cause,
           "OpenRouter response failed to read",
+          statusMark(response),
         );
       }
       throw new ProviderHttpError(
         `OpenRouter request failed: ${response.status}`,
         response.status,
         text,
+        statusMark(response),
       );
     }
 
@@ -241,6 +259,7 @@ export const createOpenRouterProvider = (
       throw transportFailure(
         cause,
         "OpenRouter response failed to read",
+        bodyReadFailureMark(cause),
       );
     }
   }

@@ -1251,3 +1251,303 @@ describe("createOpenRouterProvider tool forcing", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("createOpenRouterProvider retry marks", () => {
+  const withCode = (code: string) =>
+    new TypeError("fetch failed", {
+      cause: Object.assign(new Error("cause"), { code }),
+    });
+  const socketCut = new TypeError("terminated", {
+    cause: Object.assign(new Error("other side closed"), {
+      code: "UND_ERR_SOCKET",
+    }),
+  });
+  const brokenGzip = new TypeError("terminated", {
+    cause: Object.assign(new Error("incorrect header check"), {
+      code: "Z_DATA_ERROR",
+    }),
+  });
+
+  const providerFor = (respond: () => Response) =>
+    createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: async () => respond(),
+    });
+
+  const failingBody = (error: unknown, status = 200, init = {}) =>
+    new Response(
+      new ReadableStream({
+        pull: (controller) => {
+          controller.error(error);
+        },
+      }),
+      { status, ...init },
+    );
+
+  const generateError = (provider: {
+    generate: (r: GenerateRequest) => Promise<unknown>;
+  }) => provider.generate(request).catch((caught: unknown) => caught);
+
+  const streamError = (provider: {
+    stream: (r: GenerateRequest) => AsyncIterable<StreamEvent>;
+  }) =>
+    collectStream(provider.stream(request)).catch(
+      (caught: unknown) => caught,
+    );
+
+  test.each([
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "EAI_AGAIN",
+    "UND_ERR_SOCKET",
+    "UND_ERR_CONNECT_TIMEOUT",
+  ])(
+    "marks a send failure with cause code %s as retryable",
+    async (code) => {
+      const provider = providerFor(() => {
+        throw withCode(code);
+      });
+
+      for (const error of [
+        await generateError(provider),
+        await streamError(provider),
+      ]) {
+        expect(error).toBeInstanceOf(ProviderTransportError);
+        const failure = error as ProviderTransportError;
+        expect(failure.message).toBe(
+          "OpenRouter request failed to send",
+        );
+        expect(failure.retryable).toBe(true);
+        expect(failure.retryAfterMs).toBeUndefined();
+      }
+    },
+  );
+
+  test.each([
+    withCode("DEPTH_ZERO_SELF_SIGNED_CERT"),
+    withCode("ENOTFOUND"),
+    withCode("ERR_INVALID_URL"),
+    new TypeError("fetch failed"),
+  ])("marks another send failure as not retryable", async (thrown) => {
+    const provider = providerFor(() => {
+      throw thrown;
+    });
+
+    const error = await generateError(provider);
+
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    expect((error as ProviderTransportError).message).toBe(
+      "OpenRouter request failed to send",
+    );
+    expect((error as ProviderTransportError).retryable).toBe(false);
+  });
+
+  test("marks a header value the request cannot carry as not retryable without sending", async () => {
+    let called = false;
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      headers: { "X-Title": "a\nb" },
+      fetch: async () => {
+        called = true;
+        return jsonResponse(okBody);
+      },
+    });
+
+    const error = await generateError(provider);
+
+    expect(error).toBeInstanceOf(ProviderTransportError);
+    expect((error as ProviderTransportError).message).toBe(
+      "OpenRouter request failed to send",
+    );
+    expect((error as ProviderTransportError).retryable).toBe(false);
+    expect(called).toBe(false);
+  });
+
+  test.each([408, 429, 500, 503, 599])(
+    "marks status %i as retryable and reads Retry-After",
+    async (status) => {
+      const cases: [string | undefined, number | undefined][] = [
+        [undefined, undefined],
+        ["7", 7000],
+        ["Wed, 21 Oct 2015 07:28:00 GMT", 0],
+        ["soon", undefined],
+      ];
+      for (const [header, expected] of cases) {
+        const provider = providerFor(
+          () =>
+            new Response("busy", {
+              status,
+              ...(header !== undefined && {
+                headers: { "Retry-After": header },
+              }),
+            }),
+        );
+
+        const error = await generateError(provider);
+
+        expect(error).toBeInstanceOf(ProviderHttpError);
+        const failure = error as ProviderHttpError;
+        expect(failure.status).toBe(status);
+        expect(failure.retryable).toBe(true);
+        expect(failure.retryAfterMs).toBe(expected);
+      }
+    },
+  );
+
+  test.each([400, 401, 402, 404])(
+    "marks status %i as not retryable even with Retry-After",
+    async (status) => {
+      const provider = providerFor(
+        () =>
+          new Response("no", {
+            status,
+            headers: { "Retry-After": "7" },
+          }),
+      );
+
+      const error = (await generateError(
+        provider,
+      )) as ProviderHttpError;
+
+      expect(error).toBeInstanceOf(ProviderHttpError);
+      expect(error.retryable).toBe(false);
+      expect(error.retryAfterMs).toBeUndefined();
+    },
+  );
+
+  test("marks a connection cut while reading the body as retryable", async () => {
+    const provider = providerFor(() => failingBody(socketCut));
+
+    const errors = [
+      await generateError(provider),
+      await streamError(provider),
+      await provider
+        .generate({ ...request, halt: new AbortController().signal })
+        .catch((caught: unknown) => caught),
+    ];
+
+    for (const error of errors) {
+      expect(error).toBeInstanceOf(ProviderTransportError);
+      const failure = error as ProviderTransportError;
+      expect(failure.message).toBe(
+        "OpenRouter response failed to read",
+      );
+      expect(failure.retryable).toBe(true);
+    }
+  });
+
+  test("marks another body read failure as not retryable", async () => {
+    const provider = providerFor(() => failingBody(brokenGzip));
+
+    for (const error of [
+      await generateError(provider),
+      await streamError(provider),
+    ]) {
+      expect(error).toBeInstanceOf(ProviderTransportError);
+      const failure = error as ProviderTransportError;
+      expect(failure.message).toBe(
+        "OpenRouter response failed to read",
+      );
+      expect(failure.retryable).toBe(false);
+    }
+  });
+
+  test("lets the status decide when a failure response body cannot be read", async () => {
+    const retryable = providerFor(() =>
+      failingBody(brokenGzip, 503, { headers: { "Retry-After": "4" } }),
+    );
+    const notRetryable = providerFor(() =>
+      failingBody(socketCut, 400, { headers: { "Retry-After": "4" } }),
+    );
+
+    const first = (await generateError(
+      retryable,
+    )) as ProviderTransportError;
+    const second = (await generateError(
+      notRetryable,
+    )) as ProviderTransportError;
+
+    expect(first.message).toBe("OpenRouter response failed to read");
+    expect(first.retryable).toBe(true);
+    expect(first.retryAfterMs).toBe(4000);
+    expect(second.message).toBe("OpenRouter response failed to read");
+    expect(second.retryable).toBe(false);
+    expect(second.retryAfterMs).toBeUndefined();
+  });
+
+  test.each([
+    [
+      "a stream without a body",
+      "stream",
+      null,
+      "OpenRouter response has no body",
+    ],
+    [
+      "a body that is not JSON",
+      "generate",
+      "not json",
+      "OpenRouter response is not JSON",
+    ],
+    [
+      "a body without choices",
+      "generate",
+      "{}",
+      "OpenRouter response has no choices",
+    ],
+    [
+      "a stream chunk that is not JSON",
+      "stream",
+      "data: nope\n\n",
+      "OpenRouter stream chunk is not JSON",
+    ],
+    [
+      "a stream chunk without choices",
+      "stream",
+      "data: {}\n\n",
+      "OpenRouter stream chunk has no choices",
+    ],
+  ] as const)(
+    "marks %s as not retryable",
+    async (_name, call, body, message) => {
+      const provider = providerFor(
+        () => new Response(body, { status: 200 }),
+      );
+
+      const error = (
+        call === "stream"
+          ? await streamError(provider)
+          : await generateError(provider)
+      ) as ProviderHttpError;
+
+      expect(error).toBeInstanceOf(ProviderHttpError);
+      expect(error.message).toBe(message);
+      expect(error.retryable).toBe(false);
+    },
+  );
+
+  test("returns a halted answer when an abort follows a fired halt signal", async () => {
+    const abort = new DOMException("aborted", "AbortError");
+    const controller = new AbortController();
+    const provider = providerFor(() => {
+      controller.abort();
+      throw abort;
+    });
+
+    const response = await provider.generate({
+      ...request,
+      halt: controller.signal,
+    });
+
+    expect(response).toEqual({ parts: [], finishReason: "halted" });
+  });
+
+  test("throws an abort from a failure response body unwrapped", async () => {
+    const abort = new DOMException("aborted", "AbortError");
+    const provider = providerFor(() => failingBody(abort, 503));
+
+    const error = await generateError(provider);
+
+    expect(error).toBe(abort);
+  });
+});

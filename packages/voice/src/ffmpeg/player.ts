@@ -1,17 +1,10 @@
 import type { AudioChunk, AudioFormat } from "../audio.js";
 import type { PlaybackEnd, Player } from "../player.js";
-
-// A started process: its stdin, a promise of its exit code, and a way to
-// end it. exit rejects when the process cannot run.
-export interface SpawnedProcess {
-  stdin: { write(data: Uint8Array): void; end(): void };
-  exit: Promise<number>;
-  kill(): void;
-}
-export type SpawnProcess = (
-  command: string,
-  args: string[],
-) => SpawnedProcess;
+import type {
+  ProcessExit,
+  SpawnedProcess,
+  SpawnProcess,
+} from "./process.js";
 
 type Deferred = { promise: Promise<void>; resolve: () => void };
 
@@ -42,7 +35,7 @@ type Round = {
   current: SpawnedProcess | undefined;
 };
 
-type Exit = { code: number } | { error: unknown };
+type Exit = ProcessExit | { error: unknown };
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -161,7 +154,7 @@ export const createFfmpegPlayer = ({
     }
     r.current = process;
     const exited = process.exit.then(
-      (code): Exit => ({ code }),
+      (exit): Exit => exit,
       (error: unknown): Exit => ({ error }),
     );
     return { process, exited };
@@ -173,6 +166,9 @@ export const createFfmpegPlayer = ({
         `ffmpeg could not start: ${messageOf(outcome.error)}`,
         { cause: outcome.error },
       );
+    }
+    if ("signal" in outcome) {
+      throw new Error(`ffmpeg was ended by ${outcome.signal}`);
     }
     if (outcome.code !== 0) {
       throw new Error(`ffmpeg failed with exit code ${outcome.code}`);
@@ -200,7 +196,7 @@ export const createFfmpegPlayer = ({
           kill(started?.process);
           return { played: false };
         }
-        if ("code" in step || "error" in step) {
+        if ("code" in step || "signal" in step || "error" in step) {
           finish(step);
           throw new Error(
             "ffmpeg ended before all the audio was written",

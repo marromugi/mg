@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { createFfmpegPlayer } from "@mg/voice";
-import type { AudioChunk, SpawnProcess } from "@mg/voice";
+import type { AudioChunk } from "@mg/voice";
 import { term } from "@mg/term";
+import { spawnProcess } from "./node-spawn.ts";
 
 const sampleRate = 24000;
 const seconds = 1;
@@ -23,31 +23,6 @@ const tone = (): AudioChunk => {
 async function* once(chunk: AudioChunk): AsyncIterable<AudioChunk> {
   yield chunk;
 }
-
-const spawnProcess: SpawnProcess = (command, args) => {
-  const child = spawn(command, args, {
-    stdio: ["pipe", "ignore", "inherit"],
-  });
-  child.stdin.on("error", () => {});
-  const exit = new Promise<number>((resolve, reject) => {
-    child.on("error", reject);
-    child.on("close", (code) => resolve(code ?? -1));
-  });
-  return {
-    stdin: {
-      write: (data) => {
-        child.stdin.write(data);
-      },
-      end: () => {
-        child.stdin.end();
-      },
-    },
-    exit,
-    kill: () => {
-      child.kill();
-    },
-  };
-};
 
 const player = createFfmpegPlayer({ spawn: spawnProcess });
 

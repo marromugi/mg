@@ -21,8 +21,13 @@ import { defineWorkspace } from "@mg/workspace";
 import { describe, expect, test, vi } from "vitest";
 import type { ExclusiveNames } from "./exclusive-names.js";
 import { createExclusiveNames } from "./exclusive-names.js";
-import { InvalidRunConfigError, SubagentCloseError } from "./errors.js";
+import {
+  GateRequiredError,
+  InvalidRunConfigError,
+  SubagentCloseError,
+} from "./errors.js";
 import { createSubagent } from "./subagent.js";
+import type { SubagentConfig } from "./subagent-config.js";
 
 const flushMicrotasks = async (): Promise<void> => {
   for (let i = 0; i < 20; i++) {
@@ -236,6 +241,62 @@ class RecordingSpan implements TraceSpan {
   addEvent(_name: string, _attributes?: TraceAttributes): void {}
   end(_error?: unknown): void {}
 }
+
+describe("createSubagent with means and no gate", () => {
+  const message =
+    'subagent "helper": gate is required when tools or workspace is set';
+  const base = {
+    name: "helper",
+    description: "Helps",
+    provider: scriptedProvider([]).provider,
+    harness: {
+      kind: "loop" as const,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    },
+  };
+
+  test("throws GateRequiredError, not InvalidRunConfigError, when the caller-picked workspace lists the same source twice", () => {
+    const config = {
+      ...base,
+      workspace: {
+        pick: "caller",
+        sources: [{ kind: "parent" }, { kind: "parent" }],
+        required: true,
+      },
+    } as unknown as SubagentConfig;
+
+    const error = (() => {
+      try {
+        createSubagent(config, environmentFor());
+      } catch (caught) {
+        return caught;
+      }
+    })();
+
+    expect(error).toBeInstanceOf(GateRequiredError);
+    expect((error as GateRequiredError).message).toBe(message);
+  });
+
+  test("throws GateRequiredError when it has tools and no workspace", () => {
+    const config = {
+      ...base,
+      tools: [stubTool("t")],
+    } as unknown as SubagentConfig;
+
+    const error = (() => {
+      try {
+        createSubagent(config, environmentFor());
+      } catch (caught) {
+        return caught;
+      }
+    })();
+
+    expect(error).toBeInstanceOf(GateRequiredError);
+    expect((error as GateRequiredError).message).toBe(message);
+  });
+});
 
 describe("createSubagent", () => {
   test("exposes the configured name and description, with an input schema that requires only a described prompt", () => {

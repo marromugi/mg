@@ -187,14 +187,12 @@ For example, when the SSH server does not allow forwarding.
 When closed, it closes the listener, the received connections, and the SSH connection.
 Closing it a second time or later does nothing.
 
-It holds one name exclusively.
-The form is `ssh-forward:<SSH host>:<SSH port>:<machine host>:<machine port>`.
-
 ```ts
 import fs from "node:fs";
 import { createCdpConnector, createSshEndpoint } from "@mg/workspace";
 
 const cdpConnector = createCdpConnector({
+  browser: "pi-01.local:9333",
   endpoint: createSshEndpoint({
     host: "pi-01.local",
     username: "marromugi",
@@ -233,14 +231,17 @@ It connects to a browser that is already running.
 It creates no new context and uses the context the browser already has.
 The login state stays in that browser.
 
-When a URL is passed, it holds one name exclusively.
-The name is `cdp:` followed by the host and port of the URL.
-URLs that point at the same browser get the same name even if their paths differ.
-Passing a string that cannot be read as a URL gives `TypeError` at creation time.
+It is given the name of the browser it drives, in `browser`.
+The name is the config author's statement of which browser this connector drives.
+It holds exactly that name exclusively, whether it is given a URL or an endpoint.
+Two connectors reach the same browser only when they are given the same name.
+Nothing normalizes, resolves, or compares addresses, so the name is used as written and compared exactly.
+A name with no non-space character gives `TypeError` at creation time.
+Passing a string that cannot be read as a URL also gives `TypeError` at creation time.
+The URL is checked before the name.
 
 Instead of a URL, you can pass an endpoint (`Endpoint`).
 When opened, an endpoint returns a host and port usable from your side, and when closed, it cleans up.
-The names it holds exclusively are the ones the endpoint declares.
 
 When an endpoint is passed, opening opens the endpoint, builds the URL `http://<host>:<port>` from the returned host and port, and connects.
 If it cannot connect to the browser, it closes the endpoint, then fails with the connection exception.
@@ -287,6 +288,7 @@ Passing `submit` to `browser_type` presses Enter after typing the text.
 import { createCdpConnector } from "@mg/workspace";
 
 const cdpConnector = createCdpConnector({
+  browser: "localhost:9222",
   url: "http://localhost:9222",
 });
 ```
@@ -295,6 +297,7 @@ This table lists what you can set.
 
 | Option           | Meaning                                                        | Default                   |
 | ---------------- | -------------------------------------------------------------- | ------------------------- |
+| `browser`        | Name of the browser this connector drives                      | Required                  |
 | `url`            | URL of the browser's CDP endpoint                              | Either this or `endpoint` |
 | `endpoint`       | Endpoint that returns a host and port reachable from your side | Either this or `url`      |
 | `timeoutMs`      | Time limit for one operation (milliseconds)                    | `30000`                   |

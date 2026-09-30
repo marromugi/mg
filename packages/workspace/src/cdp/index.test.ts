@@ -6,7 +6,10 @@ import { exclusiveNamesOf } from "../exclusive.js";
 import { openWorkspace } from "../open.js";
 import type { Endpoint } from "../types.js";
 
-const options = { url: "http://localhost:9222" };
+const options = {
+  url: "http://localhost:9222",
+  browser: "build-browser",
+};
 
 const fakePage: BrowserPage = {
   navigate: async (url) => ({ url, title: "" }),
@@ -65,26 +68,45 @@ describe("createCdpConnector", () => {
     await expect(connector.open()).rejects.toBe(cause);
   });
 
-  test("declares one exclusive name built from the host and port", () => {
+  test("declares the given browser name for a URL", () => {
     const connector = createCdpConnector({
       url: "http://localhost:9222",
+      browser: "build-browser",
     });
 
-    expect(connector.exclusive).toEqual(["cdp:localhost:9222"]);
+    expect(connector.exclusive).toEqual(["build-browser"]);
   });
 
-  test("declares the same exclusive name for a websocket URL to the same browser", () => {
+  test("declares the given browser name unchanged, spaces kept", () => {
     const connector = createCdpConnector({
-      url: "ws://localhost:9222/devtools/browser/abc",
+      url: "ws://127.0.0.1:9222/devtools/browser/abc",
+      browser: " Build Browser ",
     });
 
-    expect(connector.exclusive).toEqual(["cdp:localhost:9222"]);
+    expect(connector.exclusive).toEqual([" Build Browser "]);
   });
 
-  test("throws a TypeError when the url cannot be parsed", () => {
-    expect(() => createCdpConnector({ url: "not a url" })).toThrow(
-      TypeError,
-    );
+  test("throws a TypeError for an empty or blank browser name with a URL", () => {
+    for (const browser of ["", "   "]) {
+      expect(() =>
+        createCdpConnector({ url: "http://localhost:9222", browser }),
+      ).toThrow(new TypeError("browser name must not be empty"));
+    }
+  });
+
+  test("throws the URL's TypeError when the url cannot be parsed", () => {
+    for (const browser of ["build-browser", ""]) {
+      let thrown: unknown;
+      try {
+        createCdpConnector({ url: "not a url", browser });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(TypeError);
+      expect((thrown as TypeError).message).not.toBe(
+        "browser name must not be empty",
+      );
+    }
   });
 });
 
@@ -102,7 +124,6 @@ const fakeEndpoint = (
     opens: 0,
     closes: 0,
     signals: [],
-    exclusive: ["fake:a", "fake:b"],
     async open(context) {
       endpoint.opens += 1;
       endpoint.signals.push(context?.signal);
@@ -143,7 +164,7 @@ describe("createCdpConnector with an endpoint", () => {
     const endpoint = fakeEndpoint();
     const urls: string[] = [];
     const connector = createCdpConnector(
-      { endpoint },
+      { endpoint, browser: "build-browser" },
       {
         connect: async (connectOptions) => {
           urls.push(connectOptions.url);
@@ -170,7 +191,10 @@ describe("createCdpConnector with an endpoint", () => {
     const cause = new Error("endpoint down");
     let connects = 0;
     const connector = createCdpConnector(
-      { endpoint: fakeEndpoint({ openError: cause }) },
+      {
+        endpoint: fakeEndpoint({ openError: cause }),
+        browser: "build-browser",
+      },
       {
         connect: async () => {
           connects += 1;
@@ -196,7 +220,7 @@ describe("createCdpConnector with an endpoint", () => {
     const cause = new Error("cdp refused");
     const endpoint = fakeEndpoint();
     const connector = createCdpConnector(
-      { endpoint },
+      { endpoint, browser: "build-browser" },
       {
         connect: async () => {
           throw cause;
@@ -214,7 +238,7 @@ describe("createCdpConnector with an endpoint", () => {
       closeError: new Error("close failed"),
     });
     const connector = createCdpConnector(
-      { endpoint },
+      { endpoint, browser: "build-browser" },
       {
         connect: async () => {
           throw cause;
@@ -230,7 +254,7 @@ describe("createCdpConnector with an endpoint", () => {
     const order: string[] = [];
     const endpoint = fakeEndpoint({}, order);
     const connector = createCdpConnector(
-      { endpoint },
+      { endpoint, browser: "build-browser" },
       { connect: async () => fakeSession(undefined, order) },
     );
 
@@ -245,7 +269,7 @@ describe("createCdpConnector with an endpoint", () => {
     const cause = new Error("session close");
     const endpoint = fakeEndpoint();
     const connector = createCdpConnector(
-      { endpoint },
+      { endpoint, browser: "build-browser" },
       { connect: async () => fakeSession(cause) },
     );
 
@@ -258,7 +282,10 @@ describe("createCdpConnector with an endpoint", () => {
   test("throws the endpoint error when only the endpoint fails to close", async () => {
     const cause = new Error("endpoint close");
     const connector = createCdpConnector(
-      { endpoint: fakeEndpoint({ closeError: cause }) },
+      {
+        endpoint: fakeEndpoint({ closeError: cause }),
+        browser: "build-browser",
+      },
       { connect: async () => fakeSession() },
     );
 
@@ -271,7 +298,10 @@ describe("createCdpConnector with an endpoint", () => {
     const sessionError = new Error("session close");
     const endpointError = new Error("endpoint close");
     const connector = createCdpConnector(
-      { endpoint: fakeEndpoint({ closeError: endpointError }) },
+      {
+        endpoint: fakeEndpoint({ closeError: endpointError }),
+        browser: "build-browser",
+      },
       { connect: async () => fakeSession(sessionError) },
     );
 
@@ -289,21 +319,32 @@ describe("createCdpConnector with an endpoint", () => {
     );
   });
 
-  test("declares the exclusive names of the endpoint", () => {
+  test("declares the given browser name for an endpoint", () => {
     const connector = createCdpConnector({
       endpoint: fakeEndpoint(),
+      browser: "build-browser",
     });
 
-    expect(connector.exclusive).toEqual(["fake:a", "fake:b"]);
+    expect(connector.exclusive).toEqual(["build-browser"]);
     expect(
       exclusiveNamesOf({ name: "w", connectors: [connector] }),
-    ).toEqual(["fake:a", "fake:b"]);
+    ).toEqual(["build-browser"]);
   });
 
-  test("connects to the given URL and declares its own exclusive name when given a URL", async () => {
+  test("throws a TypeError for an empty or blank browser name with an endpoint, without opening it", () => {
+    for (const browser of ["", "   "]) {
+      const endpoint = fakeEndpoint();
+      expect(() => createCdpConnector({ endpoint, browser })).toThrow(
+        new TypeError("browser name must not be empty"),
+      );
+      expect(endpoint.opens).toBe(0);
+    }
+  });
+
+  test("connects to the given URL when given a URL", async () => {
     const urls: string[] = [];
     const connector = createCdpConnector(
-      { url: "http://localhost:9222" },
+      { url: "http://localhost:9222", browser: "build-browser" },
       {
         connect: async (connectOptions) => {
           urls.push(connectOptions.url);
@@ -314,7 +355,6 @@ describe("createCdpConnector with an endpoint", () => {
 
     await connector.open();
 
-    expect(connector.exclusive).toEqual(["cdp:localhost:9222"]);
     expect(urls).toEqual(["http://localhost:9222"]);
   });
 });

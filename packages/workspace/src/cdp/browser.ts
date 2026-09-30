@@ -5,6 +5,7 @@ export type CdpConnectorOptions = (
   | { url: string; endpoint?: never }
   | { endpoint: Endpoint; url?: never }
 ) & {
+  browser: string;
   timeoutMs?: number;
   maxOutputBytes?: number;
 };

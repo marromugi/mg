@@ -1283,6 +1283,22 @@ describe("continueConversation with an ungated config that reached it untyped", 
         options: { tools: [askTool] },
         message: "gate is required when tools or workspace is set",
       },
+      {
+        config: {
+          ...runConfig(fakeProvider().provider),
+          subagents: [
+            {
+              name: "helper",
+              description: "Helps",
+              provider: fakeProvider().provider,
+              harness: runConfig(fakeProvider().provider).harness,
+              tools: [stubTool("a")],
+            },
+          ],
+        } as unknown as RunConfig,
+        message:
+          'subagent "helper": gate is required when tools or workspace is set',
+      },
     ];
 
     for (const { config, options, message } of cases) {

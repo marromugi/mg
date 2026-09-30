@@ -991,12 +991,27 @@ describe("continueAsPersona with an ungated config that reached it untyped", () 
         } as unknown as RunConfig,
         options: { tools: [askTool] },
       },
+      {
+        config: {
+          ...runConfig(),
+          subagents: [
+            {
+              name: "helper",
+              description: "Helps",
+              provider: runConfig().provider,
+              harness: runConfig().harness,
+              tools: [stubTool("a")],
+            },
+          ],
+        } as unknown as RunConfig,
+      },
     ];
     const expectedMessages = [
       "gate is required when tools are added to the call",
       "gate is required when tools or workspace is set",
       "gate is required when tools or workspace is set",
       "gate is required when tools or workspace is set",
+      'subagent "helper": gate is required when tools or workspace is set',
     ];
 
     for (const [index, { config, options }] of cases.entries()) {

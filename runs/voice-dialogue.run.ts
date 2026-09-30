@@ -73,13 +73,18 @@ export const runLive = async (
     failure = { error };
   }
 
+  // Ctrl-C is the only thing that aborts the controller before this point.
+  const interrupted = abort.signal.aborted;
+  // Ends the key stream, which restores the terminal.
+  abort.abort();
+
   try {
     await trace.close();
   } catch (error) {
     err(`could not close the trace: ${messageOf(error)}`);
     return 1;
   }
-  if (abort.signal.aborted) return 130;
+  if (interrupted) return 130;
   if (failure !== undefined) {
     err(`failed: ${messageOf(failure.error)}`);
     return 1;

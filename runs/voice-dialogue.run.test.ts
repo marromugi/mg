@@ -67,6 +67,7 @@ const listening: RunDialogue = async (options, context) => {
 const setup = (options: {
   createCollaborators?: () => Promise<DialogueCollaborators>;
   closeTrace?: () => Promise<void>;
+  dialogue?: RunDialogue;
 }) => {
   const terminal = createFakeInput();
   const out: string[] = [];
@@ -86,7 +87,7 @@ const setup = (options: {
     spawn,
     createCollaborators:
       options.createCollaborators ?? realCollaborators,
-    dialogue: listening,
+    dialogue: options.dialogue ?? listening,
     openTrace: async () => trace,
     out: (line) => out.push(line),
     err: (line) => err.push(line),
@@ -103,6 +104,24 @@ describe("runLive", () => {
     const code = await t.run;
 
     expect(code).toBe(130);
+    expect(t.terminal.rawModes).toEqual([true, false]);
+  });
+
+  test("exits 1 with the terminal restored when the dialogue fails without Ctrl-C", async () => {
+    const t = setup({
+      dialogue: async (options, context) => {
+        const heard = options.listener.listen(context.signal);
+        void heard[Symbol.asyncIterator]().next();
+        await flush();
+        throw new Error("ffmpeg failed with exit code 1");
+      },
+    });
+
+    const code = await t.run;
+    await flush();
+
+    expect(code).toBe(1);
+    expect(t.err).toEqual(["failed: ffmpeg failed with exit code 1"]);
     expect(t.terminal.rawModes).toEqual([true, false]);
   });
 

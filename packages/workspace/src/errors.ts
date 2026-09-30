@@ -44,6 +44,28 @@ export class DuplicateToolNameError extends WorkspaceBaseError {
   }
 }
 
+export class DuplicateExclusiveNameError extends WorkspaceBaseError {
+  override readonly name = "DuplicateExclusiveNameError";
+  readonly workspaceName: string;
+  readonly exclusiveName: string;
+  readonly holders: readonly { kind: string; index: number }[];
+
+  constructor(
+    workspaceName: string,
+    exclusiveName: string,
+    holders: readonly { kind: string; index: number }[],
+  ) {
+    super(
+      `workspace "${workspaceName}" has exclusive name "${exclusiveName}" declared by more than one connector: ${holders
+        .map((holder) => `${holder.kind} at index ${holder.index}`)
+        .join(", ")}`,
+    );
+    this.workspaceName = workspaceName;
+    this.exclusiveName = exclusiveName;
+    this.holders = holders;
+  }
+}
+
 export class WorkspaceCloseError extends WorkspaceBaseError {
   override readonly name = "WorkspaceCloseError";
   readonly errors: readonly unknown[];
@@ -127,6 +149,7 @@ export type WorkspaceError =
   | ConnectorOpenError
   | ConnectorCloseError
   | DuplicateToolNameError
+  | DuplicateExclusiveNameError
   | WorkspaceCloseError
   | NothingListeningError
   | SshConnectionLostError

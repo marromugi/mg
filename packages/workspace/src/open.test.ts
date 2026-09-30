@@ -2,6 +2,7 @@ import { defineTool, type Tool, type ToolSchema } from "@mg/core";
 import { describe, expect, test } from "vitest";
 import {
   ConnectorOpenError,
+  DuplicateExclusiveNameError,
   DuplicateToolNameError,
   WorkspaceCloseError,
 } from "./errors.js";
@@ -66,6 +67,26 @@ const createFakeConnector = (
 };
 
 describe("openWorkspace", () => {
+  test("refuses a shared exclusive name without opening any connector", async () => {
+    let opened = 0;
+    const holder = (kind: string): Connector => ({
+      kind,
+      exclusive: ["chrome"],
+      async open() {
+        opened += 1;
+        return { tools: [], async close() {} };
+      },
+    });
+
+    await expect(
+      openWorkspace({
+        name: "ws",
+        connectors: [holder("cdp"), holder("cdp")],
+      }),
+    ).rejects.toBeInstanceOf(DuplicateExclusiveNameError);
+    expect(opened).toBe(0);
+  });
+
   test("connects the tools of every connector in order", async () => {
     const toolA1 = fakeTool("a1");
     const toolA2 = fakeTool("a2");

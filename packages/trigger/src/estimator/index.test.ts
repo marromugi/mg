@@ -4,7 +4,7 @@ import type {
   EstimateRequest,
   Estimator,
 } from "@mg/core";
-import { EstimatorTransportError } from "@mg/core";
+import { EstimatorRequestError } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, expectTypeOf, test } from "vitest";
@@ -199,8 +199,8 @@ describe("createEstimatorTrigger", () => {
     }
   });
 
-  test("wraps a transport error from the estimator in a trigger error with the original as cause", async () => {
-    const original = new EstimatorTransportError(
+  test("wraps a request error from the estimator in a trigger error with the original as cause", async () => {
+    const original = new EstimatorRequestError(
       "Estimator request failed",
       { cause: new Error("network down") },
     );

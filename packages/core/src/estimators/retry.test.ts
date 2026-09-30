@@ -2,8 +2,9 @@ import { describe, expect, test, vi } from "vitest";
 import {
   EstimatorResponseError,
   EstimatorRetryExhaustedError,
-  EstimatorTransportError,
+  EstimatorRequestError,
 } from "./errors.js";
+import { createJevEstimator } from "./jev/index.js";
 import { createRetryingEstimator } from "./retry.js";
 import type {
   Classification,
@@ -97,7 +98,7 @@ const recordingSleep = (delays: number[]) => {
 };
 
 const retryableTransportError = (retryAfterMs?: number) =>
-  new EstimatorTransportError("transport failed", {
+  new EstimatorRequestError("transport failed", {
     cause: new Error("boom"),
     retryable: true,
     retryAfterMs,
@@ -511,5 +512,34 @@ describe("createRetryingEstimator", () => {
         maxDelayMs: 10000,
       }),
     ).not.toThrow();
+  });
+});
+
+describe("retrying a Jev Estimator", () => {
+  test("ends in both texts with the status once and the body only in message", async () => {
+    const jev = createJevEstimator({
+      apiKey: "key",
+      fetch: async () => new Response("upstream busy", { status: 503 }),
+    });
+    const estimator = createRetryingEstimator({
+      estimator: jev,
+      maxAttempts: 2,
+      delaysMs: [0],
+      maxDelayMs: 0,
+    });
+
+    const error = await estimator
+      .estimate({ subject: "T", question: "Q" })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(EstimatorRetryExhaustedError);
+    expect((error as EstimatorRetryExhaustedError).message).toBe(
+      "Estimator retries exhausted (attempts: 2): Jev request failed: 503: upstream busy",
+    );
+    expect(
+      (error as EstimatorRetryExhaustedError).messageWithoutServiceText,
+    ).toBe(
+      "Estimator retries exhausted (attempts: 2): Jev request failed: 503: (text from the service left out)",
+    );
   });
 });

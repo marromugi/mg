@@ -6,7 +6,7 @@ import type {
   Estimator,
   EstimatorLimits,
 } from "@mg/core";
-import { EstimatorTransportError } from "@mg/core";
+import { EstimatorRequestError } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, test } from "vitest";
@@ -146,7 +146,7 @@ describe("createEstimatorStopJudge", () => {
   });
 
   test("wraps a transport error from the estimator in a judgment failure with its name and cause", async () => {
-    const original = new EstimatorTransportError("request failed", {
+    const original = new EstimatorRequestError("request failed", {
       cause: new Error("network down"),
     });
     const estimator = createFakeEstimator(() =>
@@ -320,7 +320,7 @@ describe("createEstimatorStopJudge", () => {
   });
 
   test("closes the child span as failed when the judgment fails", async () => {
-    const original = new EstimatorTransportError("request failed", {
+    const original = new EstimatorRequestError("request failed", {
       cause: new Error("network down"),
     });
     const estimator = createFakeEstimator(() =>

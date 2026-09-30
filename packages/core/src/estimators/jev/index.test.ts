@@ -1,15 +1,15 @@
 import { describe, expect, test, vi } from "vitest";
 import {
-  EstimatorHttpError,
+  EstimatorRequestError,
   EstimatorResponseError,
-  EstimatorTransportError,
+  isEstimatorError,
 } from "../errors.js";
 import type {
   ClassifyRequest,
   EstimateRequest,
   ScoreRequest,
 } from "../types.js";
-import { createJevEstimator } from "./index.js";
+import { createJevEstimator, JevHttpError } from "./index.js";
 
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -244,69 +244,7 @@ describe("createJevEstimator", () => {
     });
   });
 
-  test("throws EstimatorHttpError with the status and body in the message on a non-2xx response", async () => {
-    const fetchStub = stubFetch(
-      async () => new Response("boom", { status: 500 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .estimate(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      "Jev request failed: 500 boom",
-    );
-    expect((error as EstimatorHttpError).status).toBe(500);
-    expect((error as EstimatorHttpError).body).toBe("boom");
-  });
-
-  test("truncates the message to 200 characters of the body but keeps the full body on the error", async () => {
-    const longBody = "a".repeat(300);
-    const fetchStub = stubFetch(
-      async () => new Response(longBody, { status: 500 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .estimate(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      `Jev request failed: 500 ${"a".repeat(200)}`,
-    );
-    expect((error as EstimatorHttpError).body).toBe(longBody);
-    expect((error as EstimatorHttpError).body).toHaveLength(300);
-  });
-
-  test("omits the trailing space when the failed response body is empty", async () => {
-    const fetchStub = stubFetch(
-      async () => new Response("", { status: 502 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .estimate(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      "Jev request failed: 502",
-    );
-  });
-
-  test("leaves the service's body text out of messageWithoutServiceText on a non-2xx response", async () => {
+  test("throws EstimatorRequestError with the status in its words and a JevHttpError as cause on a non-2xx response", async () => {
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: stubFetch(
@@ -318,15 +256,27 @@ describe("createJevEstimator", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
-    expect((error as EstimatorHttpError).message).toBe(
-      "Jev request failed: 503 upstream busy",
+    expect(error).toBeInstanceOf(EstimatorRequestError);
+    const requestError = error as EstimatorRequestError;
+    expect(requestError.message).toBe(
+      "Jev request failed: 503: upstream busy",
     );
-    expect(
-      (error as EstimatorHttpError).messageWithoutServiceText,
-    ).toBe("Jev request failed: 503 (text from the service left out)");
+    expect(requestError.messageWithoutServiceText).toBe(
+      "Jev request failed: 503: (text from the service left out)",
+    );
+    expect(requestError.retryable).toBe(true);
+    expect(requestError.retryAfterMs).toBeUndefined();
+    const cause = requestError.cause as JevHttpError;
+    expect(cause).toBeInstanceOf(JevHttpError);
+    expect(cause.name).toBe("JevHttpError");
+    expect(cause.status).toBe(503);
+    expect(cause.body).toBe("upstream busy");
+    expect(cause.message).toBe("upstream busy");
+    expect(cause.cause).toBeUndefined();
+    expect(isEstimatorError(cause)).toBe(false);
   });
 
-  test("keeps both texts equal when the failed response body is empty", async () => {
+  test("states the status alone in both texts when the failed response body is empty", async () => {
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: stubFetch(async () => new Response("", { status: 502 })),
@@ -336,12 +286,88 @@ describe("createJevEstimator", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
-    expect((error as EstimatorHttpError).message).toBe(
+    const requestError = error as EstimatorRequestError;
+    expect(requestError.message).toBe("Jev request failed: 502");
+    expect(requestError.messageWithoutServiceText).toBe(
       "Jev request failed: 502",
     );
-    expect(
-      (error as EstimatorHttpError).messageWithoutServiceText,
-    ).toBe("Jev request failed: 502");
+    expect((requestError.cause as JevHttpError).message).toBe("");
+    expect((requestError.cause as JevHttpError).body).toBe("");
+  });
+
+  test("marks 429 retryable with its Retry-After and 400 not retryable", async () => {
+    const tooMany = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () =>
+          new Response("slow down", {
+            status: 429,
+            headers: { "Retry-After": "2" },
+          }),
+      ),
+    });
+    const tooManyError = (await tooMany
+      .estimate(request)
+      .catch((thrown: unknown) => thrown)) as EstimatorRequestError;
+
+    expect(tooManyError.retryable).toBe(true);
+    expect(tooManyError.retryAfterMs).toBe(2000);
+    expect(tooManyError.message).toBe(
+      "Jev request failed: 429: slow down",
+    );
+
+    const badRequest = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () => new Response("bad", { status: 400 }),
+      ),
+    });
+    const badError = (await badRequest
+      .estimate(request)
+      .catch((thrown: unknown) => thrown)) as EstimatorRequestError;
+
+    expect(badError.retryable).toBe(false);
+    expect(badError.retryAfterMs).toBeUndefined();
+    expect(badError.message).toBe("Jev request failed: 400: bad");
+  });
+
+  test("cuts the body snippet at 200 characters and keeps the whole body on the cause", async () => {
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () => new Response("a".repeat(300), { status: 500 }),
+      ),
+    });
+
+    const error = (await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown)) as EstimatorRequestError;
+
+    const cause = error.cause as JevHttpError;
+    expect(cause.body).toHaveLength(300);
+    expect(cause.message).toBe(
+      `${"a".repeat(200)} (body cut at 200 characters)`,
+    );
+    expect(error.message).toBe(
+      `Jev request failed: 500: ${"a".repeat(200)} (body cut at 200 characters)`,
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Jev request failed: 500: (text from the service left out)",
+    );
+
+    const exact = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(
+        async () => new Response("a".repeat(200), { status: 500 }),
+      ),
+    });
+    const exactError = (await exact
+      .estimate(request)
+      .catch((thrown: unknown) => thrown)) as EstimatorRequestError;
+
+    expect((exactError.cause as JevHttpError).message).toBe(
+      "a".repeat(200),
+    );
   });
 
   test("leaves the parser's message out of messageWithoutServiceText when the body is not JSON", async () => {
@@ -366,11 +392,14 @@ describe("createJevEstimator", () => {
     );
   });
 
-  test("keeps both texts equal when fetch rejects", async () => {
+  test("throws EstimatorRequestError with the rejection as cause and both texts equal when the transport function rejects", async () => {
+    const original = new TypeError("fetch failed", {
+      cause: new Error("connect ECONNREFUSED 127.0.0.1:59999"),
+    });
     const estimator = createJevEstimator({
       apiKey: "key",
       fetch: stubFetch(async () => {
-        throw new Error("network down");
+        throw original;
       }),
     });
 
@@ -378,33 +407,17 @@ describe("createJevEstimator", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
-    expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed: network down",
+    expect(error).toBeInstanceOf(EstimatorRequestError);
+    const requestError = error as EstimatorRequestError;
+    expect(requestError.message).toBe(
+      "Jev request failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999",
     );
-    expect(
-      (error as EstimatorTransportError).messageWithoutServiceText,
-    ).toBe("Jev request failed: network down");
-  });
-
-  test("throws EstimatorTransportError with the original error as cause when fetch rejects", async () => {
-    const original = new Error("network down");
-    const fetchStub = stubFetch(async () => {
-      throw original;
-    });
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .estimate(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorTransportError);
-    expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed: network down",
+    expect(requestError.messageWithoutServiceText).toBe(
+      "Jev request failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999",
     );
-    expect((error as EstimatorTransportError).cause).toBe(original);
+    expect(requestError.retryable).toBe(true);
+    expect(requestError.retryAfterMs).toBeUndefined();
+    expect(requestError.cause).toBe(original);
   });
 
   test("throws EstimatorResponseError when the response body is not JSON", async () => {
@@ -559,63 +572,6 @@ describe("createJevEstimator", () => {
 });
 
 describe("retryable failures and retryAfterMs", () => {
-  test("marks a transport failure as retryable, without a retryAfterMs, and keeps the original error as cause", async () => {
-    const original = new TypeError("fetch failed");
-    const fetchStub = stubFetch(async () => {
-      throw original;
-    });
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .estimate(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorTransportError);
-    expect((error as EstimatorTransportError).retryable).toBe(true);
-    expect(
-      (error as EstimatorTransportError).retryAfterMs,
-    ).toBeUndefined();
-    expect((error as EstimatorTransportError).cause).toBe(original);
-  });
-
-  test("marks 429 and 5xx responses as retryable, without a retryAfterMs when Retry-After is absent", async () => {
-    const fetchStub = stubFetch(
-      async () => new Response("slow down", { status: 429 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .estimate(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).status).toBe(429);
-    expect((error as EstimatorHttpError).message).toBe(
-      "Jev request failed: 429 slow down",
-    );
-    expect((error as EstimatorHttpError).retryable).toBe(true);
-    expect((error as EstimatorHttpError).retryAfterMs).toBeUndefined();
-
-    for (const status of [500, 503, 599]) {
-      const statusEstimator = createJevEstimator({
-        apiKey: "key",
-        fetch: stubFetch(async () => new Response("busy", { status })),
-      });
-
-      const statusError = await statusEstimator
-        .estimate(request)
-        .catch((thrown: unknown) => thrown);
-
-      expect((statusError as EstimatorHttpError).retryable).toBe(true);
-    }
-  });
-
   test("reads a Retry-After given in seconds as milliseconds, with 0 seconds giving 0", async () => {
     const estimator = createJevEstimator({
       apiKey: "key",
@@ -632,7 +588,7 @@ describe("retryable failures and retryAfterMs", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
-    expect((error as EstimatorHttpError).retryAfterMs).toBe(2000);
+    expect((error as EstimatorRequestError).retryAfterMs).toBe(2000);
 
     const zeroEstimator = createJevEstimator({
       apiKey: "key",
@@ -649,7 +605,7 @@ describe("retryable failures and retryAfterMs", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
-    expect((zeroError as EstimatorHttpError).retryAfterMs).toBe(0);
+    expect((zeroError as EstimatorRequestError).retryAfterMs).toBe(0);
   });
 
   test("reads a Retry-After given as an HTTP date as the time until that date, clamped to 0 in the past", async () => {
@@ -674,7 +630,7 @@ describe("retryable failures and retryAfterMs", () => {
         .estimate(request)
         .catch((thrown: unknown) => thrown);
 
-      expect((futureError as EstimatorHttpError).retryAfterMs).toBe(
+      expect((futureError as EstimatorRequestError).retryAfterMs).toBe(
         5000,
       );
 
@@ -695,7 +651,7 @@ describe("retryable failures and retryAfterMs", () => {
         .estimate(request)
         .catch((thrown: unknown) => thrown);
 
-      expect((pastError as EstimatorHttpError).retryAfterMs).toBe(0);
+      expect((pastError as EstimatorRequestError).retryAfterMs).toBe(0);
     } finally {
       vi.useRealTimers();
     }
@@ -718,9 +674,9 @@ describe("retryable failures and retryAfterMs", () => {
         .estimate(request)
         .catch((thrown: unknown) => thrown);
 
-      expect((error as EstimatorHttpError).retryable).toBe(true);
+      expect((error as EstimatorRequestError).retryable).toBe(true);
       expect(
-        (error as EstimatorHttpError).retryAfterMs,
+        (error as EstimatorRequestError).retryAfterMs,
       ).toBeUndefined();
     }
   });
@@ -736,8 +692,8 @@ describe("retryable failures and retryAfterMs", () => {
         .estimate(request)
         .catch((thrown: unknown) => thrown);
 
-      expect(error).toBeInstanceOf(EstimatorHttpError);
-      expect((error as EstimatorHttpError).retryable).toBe(false);
+      expect(error).toBeInstanceOf(EstimatorRequestError);
+      expect((error as EstimatorRequestError).retryable).toBe(false);
     }
 
     const withRetryAfter = createJevEstimator({
@@ -755,9 +711,11 @@ describe("retryable failures and retryAfterMs", () => {
       .estimate(request)
       .catch((thrown: unknown) => thrown);
 
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).retryable).toBe(false);
-    expect((error as EstimatorHttpError).retryAfterMs).toBeUndefined();
+    expect(error).toBeInstanceOf(EstimatorRequestError);
+    expect((error as EstimatorRequestError).retryable).toBe(false);
+    expect(
+      (error as EstimatorRequestError).retryAfterMs,
+    ).toBeUndefined();
   });
 
   test("leaves a response failure not retryable when the body is not JSON or the probability is out of range", async () => {
@@ -1262,70 +1220,6 @@ describe("createJevEstimator classify", () => {
     expect((error as EstimatorResponseError).message).toBe(
       `Jev response is not JSON: Unexpected token 'o', "not json" is not valid JSON`,
     );
-  });
-
-  test("throws EstimatorHttpError with the status and body in the message on a non-2xx response", async () => {
-    const fetchStub = stubFetch(
-      async () => new Response("boom", { status: 500 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .classify(classifyRequest)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      "Jev request failed: 500 boom",
-    );
-    expect((error as EstimatorHttpError).status).toBe(500);
-    expect((error as EstimatorHttpError).body).toBe("boom");
-  });
-
-  test("truncates the message to 200 characters of the body but keeps the full body on the error", async () => {
-    const longBody = "a".repeat(300);
-    const fetchStub = stubFetch(
-      async () => new Response(longBody, { status: 500 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .classify(classifyRequest)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      `Jev request failed: 500 ${"a".repeat(200)}`,
-    );
-    expect((error as EstimatorHttpError).body).toBe(longBody);
-    expect((error as EstimatorHttpError).body).toHaveLength(300);
-  });
-
-  test("throws EstimatorTransportError with the original error as cause when fetch rejects", async () => {
-    const original = new Error("network down");
-    const fetchStub = stubFetch(async () => {
-      throw original;
-    });
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .classify(classifyRequest)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorTransportError);
-    expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed: network down",
-    );
-    expect((error as EstimatorTransportError).cause).toBe(original);
   });
 
   test("passes the caller's signal through to the transport function unchanged", async () => {
@@ -1913,70 +1807,6 @@ describe("createJevEstimator score", () => {
     expect((error as EstimatorResponseError).message).toBe(
       `Jev response is not JSON: Unexpected token 'o', "not json" is not valid JSON`,
     );
-  });
-
-  test("throws EstimatorHttpError with the status and body in the message on a non-2xx response", async () => {
-    const fetchStub = stubFetch(
-      async () => new Response("boom", { status: 500 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .score(scoreRequest)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      "Jev request failed: 500 boom",
-    );
-    expect((error as EstimatorHttpError).status).toBe(500);
-    expect((error as EstimatorHttpError).body).toBe("boom");
-  });
-
-  test("truncates the message to 200 characters of the body but keeps the full body on the error", async () => {
-    const longBody = "a".repeat(300);
-    const fetchStub = stubFetch(
-      async () => new Response(longBody, { status: 500 }),
-    );
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .score(scoreRequest)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorHttpError);
-    expect((error as EstimatorHttpError).message).toBe(
-      `Jev request failed: 500 ${"a".repeat(200)}`,
-    );
-    expect((error as EstimatorHttpError).body).toBe(longBody);
-    expect((error as EstimatorHttpError).body).toHaveLength(300);
-  });
-
-  test("throws EstimatorTransportError with the original error as cause when fetch rejects", async () => {
-    const original = new Error("network down");
-    const fetchStub = stubFetch(async () => {
-      throw original;
-    });
-    const estimator = createJevEstimator({
-      apiKey: "key",
-      fetch: fetchStub,
-    });
-
-    const error = await estimator
-      .score(scoreRequest)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorTransportError);
-    expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed: network down",
-    );
-    expect((error as EstimatorTransportError).cause).toBe(original);
   });
 
   test("passes the caller's signal through to the transport function unchanged", async () => {

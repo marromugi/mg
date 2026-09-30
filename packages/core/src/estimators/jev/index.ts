@@ -1,8 +1,6 @@
 import {
-  EstimatorHttpError,
+  EstimatorRequestError,
   EstimatorResponseError,
-  EstimatorTransportError,
-  SERVICE_TEXT_LEFT_OUT,
 } from "../errors.js";
 import {
   assertClassifyRequest,
@@ -31,6 +29,24 @@ export type JevEstimatorOptions = {
 const DEFAULT_MODEL = "jev-latest";
 const DEFAULT_BASE_URL = "https://api.typesafe.ai/v1";
 const MAX_ERROR_BODY_LENGTH = 200;
+
+// 失敗応答の status と本文全体を持ちます。
+// message は本文の先頭 200 文字で、長いときは切ったことを添えます。
+export class JevHttpError extends Error {
+  override readonly name = "JevHttpError";
+  readonly status: number;
+  readonly body: string;
+
+  constructor(status: number, body: string) {
+    super(
+      body.length > MAX_ERROR_BODY_LENGTH
+        ? `${body.slice(0, MAX_ERROR_BODY_LENGTH)} (body cut at ${MAX_ERROR_BODY_LENGTH} characters)`
+        : body,
+    );
+    this.status = status;
+    this.body = body;
+  }
+}
 
 const LIMITS: EstimatorLimits = { maxLabels: 255, maxLevels: 10 };
 
@@ -189,7 +205,7 @@ export const createJevEstimator = (
       });
     } catch (error) {
       if (isAbortError(error)) throw error;
-      throw new EstimatorTransportError("Jev request failed", {
+      throw new EstimatorRequestError("Jev request failed", {
         cause: error,
         retryable: true,
       });
@@ -203,30 +219,23 @@ export const createJevEstimator = (
         if (isAbortError(error)) throw error;
         // ignore: fall back to the status alone
       }
-      const snippet = text.slice(0, MAX_ERROR_BODY_LENGTH);
-      const message = `Jev request failed: ${response.status}${
-        snippet === "" ? "" : ` ${snippet}`
-      }`;
       const isRetryable =
         response.status === 429 ||
         (response.status >= 500 && response.status <= 599);
-      const withoutServiceText =
-        snippet === ""
-          ? undefined
-          : `Jev request failed: ${response.status} ${SERVICE_TEXT_LEFT_OUT}`;
-      throw new EstimatorHttpError(
-        message,
-        response.status,
-        text,
+      const cause = new JevHttpError(response.status, text);
+      const quotesService = text === "" ? undefined : true;
+      throw new EstimatorRequestError(
+        `Jev request failed: ${response.status}`,
         isRetryable
           ? {
-              withoutServiceText,
+              cause,
+              causeQuotesService: quotesService,
               retryable: true,
               retryAfterMs: readRetryAfterMs(
                 response.headers.get("Retry-After"),
               ),
             }
-          : { withoutServiceText },
+          : { cause, causeQuotesService: quotesService },
       );
     }
 

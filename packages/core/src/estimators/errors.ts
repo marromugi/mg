@@ -83,32 +83,12 @@ export abstract class EstimatorBaseError extends Error {
   }
 }
 
-export class EstimatorHttpError extends EstimatorBaseError {
-  override readonly name = "EstimatorHttpError";
-  readonly status: number;
-  readonly body: string;
+export class EstimatorRequestError extends EstimatorBaseError {
+  override readonly name = "EstimatorRequestError";
 
-  constructor(
-    message: string,
-    status: number,
-    body: string,
-    options?: EstimatorErrorOptions,
-  ) {
-    super(message, options);
-    this.status = status;
-    this.body = body;
-  }
-}
-
-export class EstimatorTransportError extends EstimatorBaseError {
-  override readonly name = "EstimatorTransportError";
-
-  // cause を必須にするために残しています。
+  // protected な基底のコンストラクタを public にするために残しています。
   // oxlint-disable-next-line no-useless-constructor
-  constructor(
-    message: string,
-    options: EstimatorErrorOptions & { cause: unknown },
-  ) {
+  constructor(message: string, options?: EstimatorErrorOptions) {
     super(message, options);
   }
 }
@@ -136,8 +116,7 @@ export class EstimatorRetryExhaustedError extends EstimatorBaseError {
 }
 
 export type EstimatorError =
-  | EstimatorHttpError
-  | EstimatorTransportError
+  | EstimatorRequestError
   | EstimatorResponseError
   | EstimatorRetryExhaustedError;
 

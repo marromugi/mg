@@ -8,7 +8,7 @@ import type {
 import {
   EstimatorRetryExhaustedError,
   EstimatorResponseError,
-  EstimatorTransportError,
+  EstimatorRequestError,
 } from "@mg/core";
 import { describe, expect, test } from "vitest";
 import { withSampleRetry } from "./jev-estimator.ts";
@@ -48,8 +48,8 @@ const request: EstimateRequest = { subject: "T", question: "Q" };
 
 const retryableTransportError = (
   retryAfterMs?: number,
-): EstimatorTransportError =>
-  new EstimatorTransportError("call failed", {
+): EstimatorRequestError =>
+  new EstimatorRequestError("call failed", {
     cause: new Error("network"),
     retryable: true,
     ...(retryAfterMs === undefined ? {} : { retryAfterMs }),

@@ -146,7 +146,7 @@ export const openDeclared = async (
 
   const before = await walk(fs, located, "before");
   if (located.parts.length === 0 || (before && !before.isFile())) {
-    throw new FileToolError(`not a file: ${located.named}`);
+    throw new FileToolError(`not a file: ${located.relative}`);
   }
 
   let handle: FileHandle;

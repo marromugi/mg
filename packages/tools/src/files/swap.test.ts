@@ -167,4 +167,17 @@ describe("a link swapped in after preparing", () => {
       "cannot resolve path: sub/a.txt",
     );
   });
+
+  test("read_file names a directory by its path under the root", async () => {
+    await fs.mkdir(join(root, "sub", "d"));
+    await fs.symlink(join(root, "sub"), join(root, "link"));
+    const tool = createReadFileTool({ root });
+
+    await expect(
+      (await tool.prepare({ path: "./sub" })).run({}),
+    ).rejects.toThrow("not a file: sub");
+    await expect(
+      (await tool.prepare({ path: "link/d" })).run({}),
+    ).rejects.toThrow("not a file: sub/d");
+  });
 });

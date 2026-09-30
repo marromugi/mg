@@ -66,23 +66,24 @@ class NonClosingExporter implements SpanExporter {
 // comparing across the exporter interface's own enum type.
 const isFailedExportCode = (code: number): boolean => code !== 0;
 
-type WatchedStep = "flush" | "shutdown";
+type ClosingStep = "flush" | "shutdown";
+
+type WatchedStep = "export" | ClosingStep;
 
 type WatchedFailure = {
   step: WatchedStep;
   error: unknown;
-  afterClosingStarted: boolean;
 };
 
 // Wraps one exporter so every failure it produces, before and after closing
 // starts, is kept under its own label, for TraceShutdownError to report by
-// target and step. A failure recorded after closing started is always part
-// of the outcome, under the step the closing sequence was running; one
-// recorded earlier is included only when OpenTelemetry rethrows that same
-// value while closing. Unclaimed thrown values are attributed elsewhere.
+// target and step. Every failure is part of the outcome, under the step the
+// closing sequence was running, or "export" when it was recorded before
+// closing started. Thrown values no watcher recorded are attributed
+// elsewhere.
 class WatchedExporter implements SpanExporter {
   private readonly recorded: WatchedFailure[] = [];
-  private runningStep: WatchedStep | undefined;
+  private runningStep: ClosingStep | undefined;
   private pendingSpans = 0;
   private shutdownCall: Promise<void> | undefined;
 
@@ -91,7 +92,7 @@ class WatchedExporter implements SpanExporter {
     private readonly inner: SpanExporter,
   ) {}
 
-  startStep(step: WatchedStep): void {
+  startStep(step: ClosingStep): void {
     this.runningStep = step;
   }
 
@@ -117,6 +118,7 @@ class WatchedExporter implements SpanExporter {
       });
     } catch (error) {
       this.pendingSpans -= spans.length;
+      this.record(error);
       throw error;
     }
   }
@@ -156,17 +158,15 @@ class WatchedExporter implements SpanExporter {
 
   private record(error: unknown): void {
     this.recorded.push({
-      step: this.runningStep ?? "flush",
+      step: this.runningStep ?? "export",
       error,
-      afterClosingStarted: this.runningStep !== undefined,
     });
   }
 
   // Returns, in recorded order, this exporter's own failures for the given
-  // step: every one recorded after closing started, plus any recorded
-  // earlier that OpenTelemetry rethrew, then, for the shutdown step, the
-  // exports still without a result. Claimed values are removed from
-  // `unclaimed` so they are not also attributed to "trace".
+  // step, then, for the shutdown step, the exports still without a result.
+  // Claimed values are removed from `unclaimed` so they are not also
+  // attributed to "trace".
   collect(
     step: WatchedStep,
     unclaimed: unknown[],
@@ -178,13 +178,11 @@ class WatchedExporter implements SpanExporter {
       if (index !== -1) {
         unclaimed.splice(index, 1);
       }
-      if (failure.afterClosingStarted || index !== -1) {
-        collected.push({
-          target: this.target,
-          step,
-          error: failure.error,
-        });
-      }
+      collected.push({
+        target: this.target,
+        step,
+        error: failure.error,
+      });
     }
     if (step === "shutdown" && this.pendingSpans > 0) {
       collected.push({
@@ -257,9 +255,11 @@ export const createTraceSdk = async (
   // anything) into TraceShutdownFailure entries: each watched exporter's own
   // failures for this step, in exporter order, then any thrown value none of
   // them claimed. OpenTelemetry may surface only one of several exporters'
-  // failures, so the watchers' records are the source.
+  // failures, so the watchers' records are the source. A thrown value that
+  // is one of `exportFailures` is already listed, so it is not listed again.
   const runClosingStep = async (
-    step: WatchedStep,
+    step: ClosingStep,
+    exportFailures: TraceShutdownFailure[],
     action: () => Promise<void>,
   ): Promise<TraceShutdownFailure[]> => {
     for (const exporter of watchedExporters) {
@@ -270,6 +270,12 @@ export const createTraceSdk = async (
       await action();
     } catch (thrown) {
       unclaimed.push(...(Array.isArray(thrown) ? thrown : [thrown]));
+    }
+    for (const { error } of exportFailures) {
+      const index = unclaimed.indexOf(error);
+      if (index !== -1) {
+        unclaimed.splice(index, 1);
+      }
     }
 
     const failures: TraceShutdownFailure[] = [];
@@ -299,12 +305,21 @@ export const createTraceSdk = async (
     tracer: provider.getTracer(serviceName),
     sessionId,
     shutdown: async () => {
-      const failures: TraceShutdownFailure[] = [];
+      const exportFailures = watchedExporters.flatMap((exporter) =>
+        exporter.collect("export", []),
+      );
+      const failures: TraceShutdownFailure[] = [...exportFailures];
       failures.push(
-        ...(await runClosingStep("flush", () => provider.forceFlush())),
+        ...(await runClosingStep("flush", exportFailures, () =>
+          provider.forceFlush(),
+        )),
       );
       failures.push(
-        ...(await runClosingStep("shutdown", endOpenTelemetry)),
+        ...(await runClosingStep(
+          "shutdown",
+          exportFailures,
+          endOpenTelemetry,
+        )),
       );
       if (sqliteDb !== undefined) {
         try {

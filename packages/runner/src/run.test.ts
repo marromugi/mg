@@ -466,7 +466,84 @@ describe("run", () => {
       flushError,
     );
   });
+
+  test("a span lost while the run was open rejects a successful run with a TraceShutdownError naming the export", async () => {
+    const lost = new Error("lost");
+    let calls = 0;
+    const provider: Provider = {
+      generate: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            parts: [
+              {
+                type: "tool-call",
+                id: "c1",
+                name: "ping",
+                arguments: {},
+              },
+            ],
+            finishReason: "tool_calls",
+          };
+        }
+        await nextImmediate();
+        return {
+          parts: [{ type: "text", text: "done" }],
+          finishReason: "stop",
+        };
+      },
+      stream: () => {
+        throw new Error("provider: stream is not scripted");
+      },
+    };
+    const config: RunConfig = {
+      name: "example",
+      provider,
+      harness: { kind: "loop", model: "m", maxTurns: 3, stream: false },
+      tools: [stubTool("ping")],
+      gate: allowGate(),
+      trace: { exporters: [new FirstFailingExporter(lost)] },
+    };
+
+    let caught: unknown;
+    try {
+      await run(config, []);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TraceShutdownError);
+    expect((caught as TraceShutdownError).failures).toEqual([
+      { target: "exporters[0]", step: "export", error: lost },
+    ]);
+  });
 });
+
+// A destination that fails only its first export, at once.
+class FirstFailingExporter implements SpanExporter {
+  private failed = false;
+
+  constructor(private readonly error: Error) {}
+
+  export(
+    _spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
+    if (this.failed) {
+      resultCallback({ code: 0 });
+      return;
+    }
+    this.failed = true;
+    resultCallback({ code: 1, error: this.error });
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const nextImmediate = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
 
 describe("run with a workspace", () => {
   test("the workspace's tools reach the harness alongside the config's tools", async () => {

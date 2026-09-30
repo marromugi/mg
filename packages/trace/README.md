@@ -220,7 +220,7 @@ trace promises when and in what order spans are handed to the exporters.
 - Shutdown finishes only after any in-progress export has finished.
 
 Every closing step runs, even when an earlier one fails.
-If shutdown fails, `shutdown` rejects.
+Shutdown rejects when any span could not be written, during the run or while closing.
 The rejection value is `TraceShutdownError`.
 Its `failures` holds the exporter, the stage and the failure value.
 

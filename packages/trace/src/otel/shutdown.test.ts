@@ -322,7 +322,146 @@ describe("createTraceSdk's shutdown failures", () => {
     }
 
     expect((caught as TraceShutdownError).failures).toEqual([
-      { target: "exporters[0]", step: "flush", error },
+      { target: "exporters[0]", step: "export", error },
+    ]);
+  });
+});
+
+class ThrowingExportExporter implements SpanExporter {
+  constructor(private readonly error: Error) {}
+
+  export(): void {
+    throw this.error;
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+// A destination that fails its n-th export at once with `${name}${n}`.
+class CountingFailureExporter implements SpanExporter {
+  private count = 0;
+
+  constructor(private readonly name: string) {}
+
+  export(
+    _spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
+    this.count += 1;
+    resultCallback({
+      code: 1,
+      error: new Error(`${this.name}${this.count}`),
+    });
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const nextImmediate = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
+
+describe("createTraceSdk's shutdown reports exports that failed while the record was open", () => {
+  it("lists a failure reported before closing started, and words it in the message", async () => {
+    const error = new Error("early");
+    const sdk = await createTraceSdk({
+      exporters: [new ImmediateFailureWithErrorExporter(error)],
+    });
+    endOneSpan(sdk);
+    await nextImmediate();
+
+    let caught: unknown;
+    try {
+      await sdk.shutdown();
+    } catch (thrown) {
+      caught = thrown;
+    }
+
+    expect(caught).toBeInstanceOf(TraceShutdownError);
+    expect((caught as TraceShutdownError).failures).toEqual([
+      { target: "exporters[0]", step: "export", error },
+    ]);
+    expect((caught as TraceShutdownError).message).toBe(
+      "Closing the trace record failed for 1 target: exporters[0] (export): early",
+    );
+  });
+
+  it("lists an exception thrown by an exporter's export as that exporter's failure", async () => {
+    const error = new Error("sync");
+    const sdk = await createTraceSdk({
+      exporters: [new ThrowingExportExporter(error)],
+    });
+    endOneSpan(sdk);
+
+    expect(await failuresOf(sdk)).toEqual([
+      { target: "exporters[0]", step: "export", error },
+    ]);
+  });
+
+  it("lists export failures before the failures of the closing steps", async () => {
+    const disk = new Error("disk");
+    const early = new Error("early");
+    const sdk = await createTraceSdk({
+      exporters: [
+        new FlushRejectingExporter(disk),
+        new ImmediateFailureWithErrorExporter(early),
+      ],
+    });
+    endOneSpan(sdk);
+    await nextImmediate();
+
+    let caught: unknown;
+    try {
+      await sdk.shutdown();
+    } catch (thrown) {
+      caught = thrown;
+    }
+
+    expect((caught as TraceShutdownError).failures).toEqual([
+      { target: "exporters[1]", step: "export", error: early },
+      { target: "exporters[0]", step: "flush", error: disk },
+    ]);
+    expect((caught as TraceShutdownError).message).toBe(
+      "Closing the trace record failed for 2 targets: exporters[1] (export): early; exporters[0] (flush): disk",
+    );
+  });
+
+  it("lists each exporter's export failures in recorded order, exporters in their order", async () => {
+    const sdk = await createTraceSdk({
+      exporters: [
+        new CountingFailureExporter("a"),
+        new CountingFailureExporter("b"),
+      ],
+    });
+    endOneSpan(sdk);
+    await nextImmediate();
+    endOneSpan(sdk);
+    await nextImmediate();
+
+    expect(await failuresOf(sdk)).toEqual([
+      {
+        target: "exporters[0]",
+        step: "export",
+        error: new Error("a1"),
+      },
+      {
+        target: "exporters[0]",
+        step: "export",
+        error: new Error("a2"),
+      },
+      {
+        target: "exporters[1]",
+        step: "export",
+        error: new Error("b1"),
+      },
+      {
+        target: "exporters[1]",
+        step: "export",
+        error: new Error("b2"),
+      },
     ]);
   });
 });

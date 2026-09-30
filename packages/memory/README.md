@@ -38,7 +38,11 @@ const store = await openSqliteMemoryStore("path/to/memory.db");
 await store.create("jev", "I am Jev.");
 await store.write("jev", { add: [item] });
 const view = await store.read("jev", { counterparts: ["alice"] });
+await store.close();
 ```
+
+The SQLite store also has `close()`.
+Call it when you no longer need the store.
 
 ## API
 
@@ -185,6 +189,32 @@ As long as the file remains, memory survives across processes.
 
 When the store cannot be opened, the open function rejects with that error.
 No store is returned.
+
+#### Closing the store
+
+`openSqliteMemoryStore` returns a `SqliteMemoryStore`.
+It is a `MemoryStore` that also has `close()`.
+
+```ts
+await store.close();
+```
+
+- `close()` waits for the calls already made on this store.
+  What they wrote stays in the file.
+- After that, it releases this store's connections to the file.
+  The file's descriptors are freed a short time after `close()` resolves.
+- `close()` resolves to `undefined` and never rejects.
+- Once `close()` has been called, even before it resolves, `create`, `read`,
+  `write` and `delete` reject with `MemoryStoreClosedError`.
+  They do not check their arguments and do not reach the file.
+  Its `name` is `"MemoryStoreClosedError"`.
+  Its message is `The memory store is closed. Open it again to keep using it.`
+- Calling `close()` again resolves to `undefined` once the first `close()`
+  has resolved.
+- Closing one store does not affect another store opened on the same file.
+
+`SqliteMemoryStore` and `MemoryStoreClosedError` are exported from the SQLite
+entry point only.
 
 The library that talks to SQLite is loaded only inside this entry point.
 It is not loaded from the main entry point of `@mg/memory`.

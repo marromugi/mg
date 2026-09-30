@@ -38,91 +38,98 @@ const memoryStore = await openSqliteMemoryStore(
   outputPath("persona-memory.sqlite"),
 );
 try {
-  await memoryStore.create(PERSONA_ID, "I am Jev.");
-} catch (error) {
-  if (!(error instanceof PersonaExistsError)) throw error;
-}
+  try {
+    await memoryStore.create(PERSONA_ID, "I am Jev.");
+  } catch (error) {
+    if (!(error instanceof PersonaExistsError)) throw error;
+  }
 
-const conversationStore = await openSqliteConversationStore(
-  outputPath("persona-conversation.sqlite"),
-);
-try {
-  await conversationStore.create(CONVERSATION_ID);
-} catch (error) {
-  if (!(error instanceof ConversationExistsError)) throw error;
-}
-
-const persona = createJevPersona({ store: memoryStore });
-
-const startFor =
-  (input: TextTriggerInput) =>
-  (messages: Message[], options: StartOptions) => {
-    const [first, ...rest] = messages;
-    if (first === undefined) {
-      throw new Error("toMessages returned no messages");
-    }
-    return continueAsPersona(
-      runConfig,
-      {
-        store: conversationStore,
-        id: CONVERSATION_ID,
-        history: { kind: "all" },
-        messages: [first, ...rest],
-      },
-      {
-        persona,
-        counterparts: COUNTERPARTS,
-        input: input.text,
-        trace: { jsonlPath: outputPath("persona-trace.jsonl") },
-      },
-      options,
-    );
-  };
-
-const inputs: TextTriggerInput[] = [
-  { kind: "note", text: "そういえば明日何かあったっけ" },
-  { kind: "note", text: "今日はいい天気だな" },
-  { kind: "note", text: "来週のミーティングの資料、まだ作ってない" },
-];
-
-for (const input of inputs) {
-  const outcome = await runOnTrigger(
-    {
-      trigger,
-      toMessages,
-      start: startFor(input),
-      trace: { jsonlPath: outputPath("trigger-trace.jsonl") },
-    },
-    input,
+  const conversationStore = await openSqliteConversationStore(
+    outputPath("persona-conversation.sqlite"),
   );
+  try {
+    await conversationStore.create(CONVERSATION_ID);
+  } catch (error) {
+    if (!(error instanceof ConversationExistsError)) throw error;
+  }
 
-  const tone = outcome.fired ? "success" : "muted";
-  const mark = outcome.fired ? term.mark.success : term.mark.muted;
+  const persona = createJevPersona({ store: memoryStore });
 
-  console.log(
-    term.paint("strong", `${term.mark.strong} ${input.text}`),
-  );
-  console.log(term.paint(tone, `  ${mark} fired: ${outcome.fired}`));
-
-  if (outcome.fired) {
-    console.log(
-      term.paint(tone, `  saved: ${outcome.run.saved ? "yes" : "no"}`),
-    );
-    if (outcome.run.saved) {
-      for (const line of memoryLines(outcome.run.memory)) {
-        console.log(term.paint(tone, line));
+  const startFor =
+    (input: TextTriggerInput) =>
+    (messages: Message[], options: StartOptions) => {
+      const [first, ...rest] = messages;
+      if (first === undefined) {
+        throw new Error("toMessages returned no messages");
       }
-    } else {
+      return continueAsPersona(
+        runConfig,
+        {
+          store: conversationStore,
+          id: CONVERSATION_ID,
+          history: { kind: "all" },
+          messages: [first, ...rest],
+        },
+        {
+          persona,
+          counterparts: COUNTERPARTS,
+          input: input.text,
+          trace: { jsonlPath: outputPath("persona-trace.jsonl") },
+        },
+        options,
+      );
+    };
+
+  const inputs: TextTriggerInput[] = [
+    { kind: "note", text: "そういえば明日何かあったっけ" },
+    { kind: "note", text: "今日はいい天気だな" },
+    { kind: "note", text: "来週のミーティングの資料、まだ作ってない" },
+  ];
+
+  for (const input of inputs) {
+    const outcome = await runOnTrigger(
+      {
+        trigger,
+        toMessages,
+        start: startFor(input),
+        trace: { jsonlPath: outputPath("trigger-trace.jsonl") },
+      },
+      input,
+    );
+
+    const tone = outcome.fired ? "success" : "muted";
+    const mark = outcome.fired ? term.mark.success : term.mark.muted;
+
+    console.log(
+      term.paint("strong", `${term.mark.strong} ${input.text}`),
+    );
+    console.log(term.paint(tone, `  ${mark} fired: ${outcome.fired}`));
+
+    if (outcome.fired) {
       console.log(
         term.paint(
           tone,
-          `  reason: ${JSON.stringify(outcome.run.reason)}`,
+          `  saved: ${outcome.run.saved ? "yes" : "no"}`,
         ),
       );
+      if (outcome.run.saved) {
+        for (const line of memoryLines(outcome.run.memory)) {
+          console.log(term.paint(tone, line));
+        }
+      } else {
+        console.log(
+          term.paint(
+            tone,
+            `  reason: ${JSON.stringify(outcome.run.reason)}`,
+          ),
+        );
+      }
+    } else {
+      console.log(
+        term.paint(tone, `  reason: ${outcome.decision.reason}`),
+      );
     }
-  } else {
-    console.log(
-      term.paint(tone, `  reason: ${outcome.decision.reason}`),
-    );
   }
+} finally {
+  await memoryStore.close();
 }

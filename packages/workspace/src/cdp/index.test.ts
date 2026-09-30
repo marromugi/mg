@@ -133,6 +133,7 @@ const fakeEndpoint = (
       return {
         host: "127.0.0.1",
         port: 45678,
+        lost: new AbortController().signal,
         async close() {
           endpoint.closes += 1;
           order.push("endpoint");

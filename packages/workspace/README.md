@@ -70,6 +70,8 @@ This table lists the exceptions it throws.
 | `DuplicateToolNameError` | Tool names overlapped                      |
 | `WorkspaceCloseError`    | A connection failed while closing          |
 | `ConnectorCloseError`    | Both of a connector's 2 close steps failed |
+| `SshConnectionLostError` | An SSH endpoint's SSH connection was lost  |
+| `EndpointCloseError`     | Both of an endpoint's 2 close steps failed |
 
 `ConnectorOpenError` has `kind` and `index`.
 The original exception is in `cause`.
@@ -81,6 +83,13 @@ The list of `kind` values of the overlapping connectors is in `kinds`.
 The first one is also in `cause`.
 
 `ConnectorCloseError` has `kind` and `errors`, the list of exceptions that failed.
+The first one is also in `cause`.
+
+`SshConnectionLostError` has `sshHost` and `sshPort`.
+When the connection reported an error, the message is `SSH connection to <SSH host>:<SSH port> was lost: <error message>` and the error is in `cause`.
+When it ended without one, the message is `SSH connection to <SSH host>:<SSH port> was closed by the other side or the network`.
+
+`EndpointCloseError` has `errors`, the list of exceptions that failed: stopping the listener, then ending the SSH connection.
 The first one is also in `cause`.
 
 `isWorkspaceError` tells whether a value is one of these exceptions.
@@ -184,7 +193,25 @@ The endpoint stays open and accepts the next connection.
 When it cannot reach for any reason other than refusal, it throws the SSH error as is.
 For example, when the SSH server does not allow forwarding.
 
+The opened endpoint has `lost`, an `AbortSignal`.
+It aborts when the address stops working before `close()` was called.
+Its reason is an error saying why.
+It has aborted before any connection to the address sees its end because of the loss.
+`close()` never aborts it.
+
+When the SSH connection is lost, the endpoint does the following.
+
+- Aborts `lost` with `SshConnectionLostError`.
+- Stops listening, so a new local connection is refused.
+- Closes every received connection, including those still waiting for a forward.
+
+If the connection is lost during opening, opening fails with `SshConnectionLostError`.
+If it is lost while closing, `lost` does not abort and closing reports only its own results.
+
 When closed, it closes the listener, the received connections, and the SSH connection.
+Closing it after a loss resolves at once.
+If both the listener and the SSH connection fail to close, it fails with `EndpointCloseError`.
+If one fails, that exception is thrown as is.
 Closing it a second time or later does nothing.
 
 ```ts

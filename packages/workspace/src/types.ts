@@ -20,6 +20,10 @@ export interface Endpoint {
 export interface OpenEndpoint {
   readonly host: string;
   readonly port: number;
+  // Aborts only when the address stops working before close() has been
+  // called, before any connection to the address sees its end because of
+  // that. The reason is an error saying why. close() never aborts it.
+  readonly lost: AbortSignal;
   close(): Promise<void>;
 }
 

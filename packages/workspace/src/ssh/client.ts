@@ -1,5 +1,6 @@
 import type { Duplex } from "node:stream";
 import { Client, type ConnectConfig } from "ssh2";
+import { SshConnectionLostError } from "../errors.js";
 import type { ConnectorContext } from "../types.js";
 
 export type SshConnectionOptions = {
@@ -20,7 +21,7 @@ export type ForwardResult =
   | { kind: "open"; stream: Duplex }
   | { kind: "refused"; cause: unknown };
 
-export type ForwarderLoss =
+export type SshConnectionLoss =
   { kind: "failed"; cause: unknown } | { kind: "closed" };
 
 export interface SshForwarder {
@@ -28,7 +29,7 @@ export interface SshForwarder {
   forwardOut(dstHost: string, dstPort: number): Promise<ForwardResult>;
   // Aborts when the connection closes other than through end(), before
   // any stream from forwardOut reports its end because of that close.
-  // The reason is a ForwarderLoss.
+  // The reason is a SshConnectionLoss.
   readonly lost: AbortSignal;
   // Resolves at once after lost has aborted.
   end(): Promise<void>;
@@ -97,8 +98,53 @@ class Sink {
   }
 }
 
+// Aborts `lost` with an SshConnectionLoss when the connection closes
+// before ending() was called.
+const watchConnection = (
+  connection: Pick<Client, "on">,
+): { lost: AbortSignal; ending: () => void } => {
+  const lost = new AbortController();
+  let ended = false;
+  let lastError: { cause: unknown } | undefined;
+
+  connection.on("error", (error: unknown) => {
+    lastError = { cause: error };
+  });
+  connection.on("close", () => {
+    if (ended) return;
+    const loss: SshConnectionLoss =
+      lastError === undefined
+        ? { kind: "closed" }
+        : { kind: "failed", cause: lastError.cause };
+    lost.abort(loss);
+  });
+
+  return {
+    lost: lost.signal,
+    ending: () => {
+      ended = true;
+    },
+  };
+};
+
 class Ssh2Client implements SshClient {
-  constructor(private readonly connection: Client) {}
+  private readonly watch: ReturnType<typeof watchConnection>;
+
+  constructor(
+    private readonly connection: Client,
+    private readonly sshHost: string,
+    private readonly sshPort: number = DEFAULT_PORT,
+  ) {
+    this.watch = watchConnection(connection);
+  }
+
+  private lostError(): SshConnectionLostError {
+    return new SshConnectionLostError(
+      this.sshHost,
+      this.sshPort,
+      this.watch.lost.reason as SshConnectionLoss,
+    );
+  }
 
   exec(
     command: string,
@@ -111,8 +157,13 @@ class Ssh2Client implements SshClient {
     SshExecResult & { timedOut: boolean; truncated: boolean }
   > {
     options.signal?.throwIfAborted();
+    if (this.watch.lost.aborted) {
+      return Promise.reject(this.lostError());
+    }
 
     return new Promise((resolve, reject) => {
+      const failure = (error: unknown): unknown =>
+        this.watch.lost.aborted ? this.lostError() : error;
       let settled = false;
       let timedOut = false;
       let truncated = false;
@@ -145,7 +196,7 @@ class Ssh2Client implements SshClient {
 
       this.connection.exec(command, (execError, execStream) => {
         if (execError) {
-          finish(() => reject(execError));
+          finish(() => reject(failure(execError)));
           return;
         }
         if (settled) {
@@ -184,6 +235,10 @@ class Ssh2Client implements SshClient {
         });
 
         execStream.on("close", () => {
+          if (this.watch.lost.aborted) {
+            finish(() => reject(this.lostError()));
+            return;
+          }
           if (
             code === null &&
             signal === null &&
@@ -210,18 +265,20 @@ class Ssh2Client implements SshClient {
         });
 
         execStream.on("error", (streamError: Error) => {
-          finish(() => reject(streamError));
+          finish(() => reject(failure(streamError)));
         });
       });
     });
   }
 
   async end(): Promise<void> {
+    if (this.watch.lost.aborted) return;
+    this.watch.ending();
     this.connection.end();
   }
 }
 
-const FORWARDER_KEEPALIVE: ConnectConfig = {
+const KEEPALIVE: ConnectConfig = {
   keepaliveInterval: 15000,
   keepaliveCountMax: 3,
 };
@@ -229,10 +286,7 @@ const FORWARDER_KEEPALIVE: ConnectConfig = {
 const openConnection = (
   options: SshConnectionOptions,
   context?: ConnectorContext,
-  extra?: {
-    createClient?: () => Client;
-    config?: ConnectConfig;
-  },
+  extra?: { createClient?: () => Client },
 ): Promise<Client> => {
   context?.signal?.throwIfAborted();
 
@@ -266,7 +320,7 @@ const openConnection = (
 
     connection.connect({
       ...toConnectConfig(options),
-      ...extra?.config,
+      ...KEEPALIVE,
     });
   });
 };
@@ -274,8 +328,15 @@ const openConnection = (
 export const connectSsh = async (
   options: SshConnectorOptions,
   context?: ConnectorContext,
+  deps?: { createClient?: () => Client },
 ): Promise<SshClient> =>
-  new Ssh2Client(await openConnection(options, context));
+  new Ssh2Client(
+    await openConnection(options, context, {
+      createClient: deps?.createClient,
+    }),
+    options.host,
+    options.port,
+  );
 
 // ssh2 CHANNEL_OPEN_FAILURE.CONNECT_FAILED, worded "Connection refused"
 const isRefused = (error: Error): boolean =>
@@ -285,24 +346,10 @@ const isRefused = (error: Error): boolean =>
 export const toSshForwarder = (
   connection: Pick<Client, "forwardOut" | "end" | "on" | "once">,
 ): SshForwarder => {
-  const lost = new AbortController();
-  let ended = false;
-  let lastError: { cause: unknown } | undefined;
-
-  connection.on("error", (error: unknown) => {
-    lastError = { cause: error };
-  });
-  connection.on("close", () => {
-    if (ended) return;
-    const loss: ForwarderLoss =
-      lastError === undefined
-        ? { kind: "closed" }
-        : { kind: "failed", cause: lastError.cause };
-    lost.abort(loss);
-  });
+  const { lost, ending } = watchConnection(connection);
 
   return {
-    lost: lost.signal,
+    lost,
     forwardOut: (dstHost, dstPort) =>
       new Promise((resolve, reject) => {
         connection.forwardOut(
@@ -323,11 +370,11 @@ export const toSshForwarder = (
       }),
     end: () =>
       new Promise((resolve) => {
-        if (lost.signal.aborted) {
+        if (lost.aborted) {
           resolve();
           return;
         }
-        ended = true;
+        ending();
         connection.once("close", () => resolve());
         connection.end();
       }),
@@ -342,6 +389,5 @@ export const connectSshForwarder = async (
   toSshForwarder(
     await openConnection(options, context, {
       createClient: deps?.createClient,
-      config: FORWARDER_KEEPALIVE,
     }),
   );

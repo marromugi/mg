@@ -2,7 +2,7 @@ import net from "node:net";
 import type { Duplex } from "node:stream";
 import {
   connectSshForwarder,
-  type ForwarderLoss,
+  type SshConnectionLoss,
   type SshConnectionOptions,
   type SshForwarder,
 } from "./client.js";
@@ -93,7 +93,7 @@ export const createSshEndpoint = (
         new SshConnectionLostError(
           options.host,
           sshPort,
-          forwarder.lost.reason as ForwarderLoss,
+          forwarder.lost.reason as SshConnectionLoss,
         );
       const untilLost = <T>(work: Promise<T>): Promise<T> =>
         new Promise<T>((resolve, reject) => {

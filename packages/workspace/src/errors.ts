@@ -1,4 +1,4 @@
-import type { ForwarderLoss } from "./ssh/client.js";
+import type { SshConnectionLoss } from "./ssh/client.js";
 
 export abstract class WorkspaceBaseError extends Error {
   abstract override readonly name: WorkspaceErrorName;
@@ -119,7 +119,11 @@ export class SshConnectionLostError extends WorkspaceBaseError {
   readonly sshHost: string;
   readonly sshPort: number;
 
-  constructor(sshHost: string, sshPort: number, loss: ForwarderLoss) {
+  constructor(
+    sshHost: string,
+    sshPort: number,
+    loss: SshConnectionLoss,
+  ) {
     const where = `SSH connection to ${sshHost}:${sshPort}`;
     if (loss.kind === "failed") {
       const reason =

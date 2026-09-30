@@ -10,6 +10,13 @@ const toRelative = (rootReal: string, real: string): string => {
   return relative === "" ? "." : relative.split(path.sep).join("/");
 };
 
+const isWithinRoot = (rootReal: string, real: string): boolean => {
+  const prefix = rootReal.endsWith(path.sep)
+    ? rootReal
+    : rootReal + path.sep;
+  return real === rootReal || real.startsWith(prefix);
+};
+
 const assertWithinRoot = (
   rootReal: string,
   real: string,
@@ -162,6 +169,29 @@ export const reachOfFile = async (
   } catch {
     return anyLocal;
   }
+};
+
+// The path a prepared call acts on: the one it declared, or, when it
+// declared any-local, the one resolved now.
+export const declaredTarget = async (
+  root: string,
+  input: string,
+  reach: Reach,
+): Promise<ResolvedPath> => {
+  const declared =
+    reach.kind === "paths" && reach.paths.length === 1
+      ? reach.paths[0]
+      : undefined;
+  if (declared === undefined) return resolveExistingPath(root, input);
+
+  const rootReal = await fs.realpath(root);
+  if (!isWithinRoot(rootReal, declared.path)) {
+    return resolveExistingPath(root, input);
+  }
+  return {
+    absolute: declared.path,
+    relative: toRelative(rootReal, declared.path),
+  };
 };
 
 export const reachOfSearchPath = async (

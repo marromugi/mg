@@ -1,8 +1,9 @@
-import { promises as fs } from "node:fs";
+import { constants } from "node:fs";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
-import { resolveExistingPath, reachOfFile } from "./root.js";
+import { openDeclared } from "./checked.js";
+import { declaredTarget, reachOfFile } from "./root.js";
 import { isBinary, sliceCodePoints, splitLines } from "./text.js";
 
 export type ReadFileToolOptions = {
@@ -44,21 +45,27 @@ export const createReadFileTool = (
       "whole line). Positions are the ones grep reports.",
     input: readFileInput,
     async prepare({ path: inputPath, range }) {
+      const reach = await reachOfFile(root, inputPath);
       return {
-        reach: await reachOfFile(root, inputPath),
+        reach,
         run: async (context) => {
           context.signal?.throwIfAborted();
 
-          const resolved = await resolveExistingPath(root, inputPath);
-          const stat = await fs.stat(resolved.absolute);
-          if (!stat.isFile()) {
-            throw new FileToolError(`not a file: ${resolved.relative}`);
+          const resolved = await declaredTarget(root, inputPath, reach);
+          const handle = await openDeclared(
+            resolved.absolute,
+            constants.O_RDONLY,
+            { root, named: inputPath },
+          );
+          let content: string;
+          try {
+            content = await handle.readFile({
+              encoding: "utf-8",
+              signal: context.signal,
+            });
+          } finally {
+            await handle.close();
           }
-
-          const content = await fs.readFile(resolved.absolute, {
-            encoding: "utf-8",
-            signal: context.signal,
-          });
 
           if (isBinary(content)) {
             throw new FileToolError(

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
   ConversationConflictError,
-  ConversationEntryUnreadableError,
   ConversationExistsError,
   ConversationNotFoundError,
   ConversationRangeError,
@@ -57,22 +56,6 @@ describe("ConversationConflictError", () => {
     expect(error.actualLength).toBe(3);
     expect(error.message).toBe(
       'Conversation "jev" has 3 entries, but the append expected 2. Another append came first; nothing was written.',
-    );
-  });
-});
-
-describe("ConversationEntryUnreadableError", () => {
-  test("names the conversation and position, and keeps the parse error as its cause", () => {
-    const cause = new SyntaxError("Unexpected end of JSON input");
-    const error = new ConversationEntryUnreadableError("jev", 2, cause);
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.name).toBe("ConversationEntryUnreadableError");
-    expect(error.conversationId).toBe("jev");
-    expect(error.position).toBe(2);
-    expect(error.cause).toBe(cause);
-    expect(error.message).toBe(
-      'Conversation "jev" has a stored entry at position 2 that cannot be read: Unexpected end of JSON input.',
     );
   });
 });

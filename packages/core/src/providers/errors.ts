@@ -1,12 +1,16 @@
+import {
+  ReasonError,
+  type ReasonErrorOptions,
+} from "../errors/index.js";
+
 type ProviderRetryMark =
   | { retryable?: false; retryAfterMs?: never }
   | { retryable: true; retryAfterMs?: number };
 
-export type ProviderErrorOptions = {
-  cause?: unknown;
-} & ProviderRetryMark;
+export type ProviderErrorOptions = ReasonErrorOptions &
+  ProviderRetryMark;
 
-export abstract class ProviderBaseError extends Error {
+export abstract class ProviderBaseError extends ReasonError {
   abstract override readonly name: ProviderErrorName;
   readonly retryable: boolean;
   readonly retryAfterMs: number | undefined;
@@ -21,32 +25,24 @@ export abstract class ProviderBaseError extends Error {
   }
 }
 
-export class ProviderHttpError extends ProviderBaseError {
-  override readonly name = "ProviderHttpError";
-  readonly status: number;
-  readonly body: string;
+// 応答が返らなかったときのエラーです。
+export class ProviderRequestError extends ProviderBaseError {
+  override readonly name = "ProviderRequestError";
 
-  constructor(
-    message: string,
-    status: number,
-    body: string,
-    options?: ProviderErrorOptions,
-  ) {
+  // protected な基底のコンストラクタを public にするために残しています。
+  // oxlint-disable-next-line no-useless-constructor
+  constructor(message: string, options?: ProviderErrorOptions) {
     super(message, options);
-    this.status = status;
-    this.body = body;
   }
 }
 
-export class ProviderTransportError extends ProviderBaseError {
-  override readonly name = "ProviderTransportError";
+// 応答は返ったが、使えないときのエラーです。再試行できません。
+export class ProviderResponseError extends ProviderBaseError {
+  override readonly name = "ProviderResponseError";
 
-  // cause を必須にするために残しています。
+  // protected な基底のコンストラクタを public にし、再試行の印を外すために残しています。
   // oxlint-disable-next-line no-useless-constructor
-  constructor(
-    message: string,
-    options: ProviderErrorOptions & { cause: unknown },
-  ) {
+  constructor(message: string, options?: ReasonErrorOptions) {
     super(message, options);
   }
 }
@@ -65,7 +61,10 @@ export class ToolArgumentsError extends ProviderBaseError {
   ) {
     super(
       `Failed to parse arguments for tool call ${toolCallId} (${toolName})`,
-      options,
+      // 引数はモデルの出力で、parse の失敗の文はそれを引きます。
+      options?.cause === undefined
+        ? options
+        : { ...options, causeQuotesService: true },
     );
     this.toolCallId = toolCallId;
     this.toolName = toolName;
@@ -106,8 +105,8 @@ export class ProviderRetryExhaustedError extends ProviderBaseError {
 }
 
 export type ProviderError =
-  | ProviderHttpError
-  | ProviderTransportError
+  | ProviderRequestError
+  | ProviderResponseError
   | ToolArgumentsError
   | ToolSchemaError
   | ProviderUnsupportedError

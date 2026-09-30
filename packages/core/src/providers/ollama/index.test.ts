@@ -1,7 +1,8 @@
+import { OllamaHttpError } from "./http-error.js";
 import { describe, expect, test } from "vitest";
 import {
-  ProviderHttpError,
-  ProviderTransportError,
+  ProviderRequestError,
+  ProviderResponseError,
   ProviderUnsupportedError,
   ToolArgumentsError,
 } from "../errors.js";
@@ -151,7 +152,7 @@ describe("createOllamaProvider", () => {
     });
   });
 
-  test("throws a ProviderHttpError carrying the status and the body", async () => {
+  test("throws a ProviderRequestError carrying the status and the body in its cause", async () => {
     const { fetchStub } = stubFetch(
       () =>
         new Response(JSON.stringify({ error: "model 'x' not found" }), {
@@ -164,16 +165,23 @@ describe("createOllamaProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe("Ollama request failed: 404");
-    expect(providerError.status).toBe(404);
-    expect(providerError.body).toBe(
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const providerError = error as ProviderRequestError;
+    expect(providerError.message).toBe(
+      `Ollama request failed: 404: {"error":"model 'x' not found"}`,
+    );
+    expect(providerError.messageWithoutServiceText).toBe(
+      "Ollama request failed: 404: (text from the service left out)",
+    );
+    const httpError = providerError.cause as OllamaHttpError;
+    expect(httpError).toBeInstanceOf(OllamaHttpError);
+    expect(httpError.status).toBe(404);
+    expect(httpError.body).toBe(
       JSON.stringify({ error: "model 'x' not found" }),
     );
   });
 
-  test("throws a ProviderHttpError when a 2xx body is not JSON", async () => {
+  test("throws a ProviderResponseError when a 2xx body is not JSON", async () => {
     const { fetchStub } = stubFetch(
       () =>
         new Response("<html>maintenance</html>", {
@@ -187,14 +195,17 @@ describe("createOllamaProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe("Ollama response is not JSON");
-    expect(providerError.status).toBe(200);
-    expect(providerError.body).toBe("<html>maintenance</html>");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const providerError = error as ProviderResponseError;
+    expect(providerError.messageWithoutServiceText).toBe(
+      "Ollama response is not JSON: (text from the service left out)",
+    );
+    const httpError = providerError.cause as OllamaHttpError;
+    expect(httpError.status).toBe(200);
+    expect(httpError.body).toBe("<html>maintenance</html>");
   });
 
-  test("throws a ProviderTransportError when the request cannot be sent", async () => {
+  test("throws a ProviderRequestError when the request cannot be sent", async () => {
     const failure = new TypeError("fetch failed", {
       cause: new Error("ENOTFOUND"),
     });
@@ -207,15 +218,15 @@ describe("createOllamaProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "Ollama request failed to send",
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const requestError = error as ProviderRequestError;
+    expect(requestError.message).toBe(
+      "Ollama request failed to send: fetch failed: ENOTFOUND",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(requestError.cause).toBe(failure);
   });
 
-  test("throws a ProviderTransportError when the answer cannot be read", async () => {
+  test("throws a ProviderResponseError when the answer cannot be read", async () => {
     const failure = new Error("connection reset");
     const { fetchStub } = stubFetch(
       () =>
@@ -234,12 +245,12 @@ describe("createOllamaProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "Ollama response failed to read",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      "Ollama response body could not be read: connection reset",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(responseError.cause).toBe(failure);
   });
 
   test("passes an abort through without wrapping it", async () => {
@@ -442,7 +453,7 @@ describe("createOllamaProvider stream", () => {
     expect(calls).toHaveLength(1);
   });
 
-  test("throws a ProviderHttpError before any event on a non-2xx", async () => {
+  test("throws a ProviderRequestError before any event on a non-2xx", async () => {
     const { fetchStub } = stubFetch(
       () =>
         new Response(JSON.stringify({ error: "model 'x' not found" }), {
@@ -458,13 +469,15 @@ describe("createOllamaProvider stream", () => {
     ).catch((caught: unknown) => caught);
 
     expect(events).toEqual([]);
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama request failed: 404");
-    expect(httpError.status).toBe(404);
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const requestError = error as ProviderRequestError;
+    expect(requestError.message).toBe(
+      `Ollama request failed: 404: {"error":"model 'x' not found"}`,
+    );
+    expect((requestError.cause as OllamaHttpError).status).toBe(404);
   });
 
-  test("throws a ProviderHttpError when the answer carries no body", async () => {
+  test("throws a ProviderResponseError when the answer carries no body", async () => {
     const { fetchStub } = stubFetch(
       () => new Response(null, { status: 204 }),
     );
@@ -474,14 +487,13 @@ describe("createOllamaProvider stream", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama response has no body");
-    expect(httpError.status).toBe(204);
-    expect(httpError.body).toBe("");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    expect((error as ProviderResponseError).message).toBe(
+      "Ollama response has no body",
+    );
   });
 
-  test("throws a ProviderTransportError when the request cannot be sent", async () => {
+  test("throws a ProviderRequestError when the request cannot be sent", async () => {
     const failure = new TypeError("fetch failed");
     const { fetchStub } = stubFetch(() => {
       throw failure;
@@ -492,15 +504,15 @@ describe("createOllamaProvider stream", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "Ollama request failed to send",
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const requestError = error as ProviderRequestError;
+    expect(requestError.message).toBe(
+      "Ollama request failed to send: fetch failed",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(requestError.cause).toBe(failure);
   });
 
-  test("throws a ProviderTransportError when the body fails midway", async () => {
+  test("throws a ProviderResponseError when the body fails midway", async () => {
     const failure = new Error("connection reset");
     const prelude = `${JSON.stringify({
       message: { content: "24" },
@@ -518,12 +530,12 @@ describe("createOllamaProvider stream", () => {
     ).catch((caught: unknown) => caught);
 
     expect(events).toEqual([{ type: "text-delta", delta: "24" }]);
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "Ollama response failed to read",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      "Ollama response body could not be read: connection reset",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(responseError.cause).toBe(failure);
   });
 
   test("passes an abort from the body through without wrapping it", async () => {
@@ -539,7 +551,7 @@ describe("createOllamaProvider stream", () => {
     expect(error).toBe(abort);
   });
 
-  test("throws a ProviderHttpError when a streamed chunk is not JSON", async () => {
+  test("throws a ProviderResponseError when a streamed chunk is not JSON", async () => {
     const { fetchStub } = stubFetch(
       () => new Response("<html>\n", { status: 200 }),
     );
@@ -549,9 +561,12 @@ describe("createOllamaProvider stream", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama stream chunk is not JSON");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.messageWithoutServiceText).toBe(
+      "Ollama stream chunk is not JSON: (text from the service left out)",
+    );
+    const httpError = responseError.cause as OllamaHttpError;
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe("<html>");
   });
@@ -967,9 +982,11 @@ describe("createOllamaProvider retry marks", () => {
         await generateError(provider),
         await streamError(provider),
       ]) {
-        expect(error).toBeInstanceOf(ProviderTransportError);
-        const failure = error as ProviderTransportError;
-        expect(failure.message).toBe("Ollama request failed to send");
+        expect(error).toBeInstanceOf(ProviderRequestError);
+        const failure = error as ProviderRequestError;
+        expect(failure.message).toBe(
+          "Ollama request failed to send: fetch failed: cause",
+        );
         expect(failure.retryable).toBe(true);
         expect(failure.retryAfterMs).toBeUndefined();
       }
@@ -988,11 +1005,8 @@ describe("createOllamaProvider retry marks", () => {
 
     const error = await generateError(provider);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    expect((error as ProviderTransportError).message).toBe(
-      "Ollama request failed to send",
-    );
-    expect((error as ProviderTransportError).retryable).toBe(false);
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    expect((error as ProviderRequestError).retryable).toBe(false);
   });
 
   test("marks a header value the request cannot carry as not retryable without sending", async () => {
@@ -1007,11 +1021,8 @@ describe("createOllamaProvider retry marks", () => {
 
     const error = await generateError(provider);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    expect((error as ProviderTransportError).message).toBe(
-      "Ollama request failed to send",
-    );
-    expect((error as ProviderTransportError).retryable).toBe(false);
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    expect((error as ProviderRequestError).retryable).toBe(false);
     expect(called).toBe(false);
   });
 
@@ -1037,9 +1048,9 @@ describe("createOllamaProvider retry marks", () => {
 
         const error = await generateError(provider);
 
-        expect(error).toBeInstanceOf(ProviderHttpError);
-        const failure = error as ProviderHttpError;
-        expect(failure.status).toBe(status);
+        expect(error).toBeInstanceOf(ProviderRequestError);
+        const failure = error as ProviderRequestError;
+        expect((failure.cause as OllamaHttpError).status).toBe(status);
         expect(failure.retryable).toBe(true);
         expect(failure.retryAfterMs).toBe(expected);
       }
@@ -1059,9 +1070,9 @@ describe("createOllamaProvider retry marks", () => {
 
       const error = (await generateError(
         provider,
-      )) as ProviderHttpError;
+      )) as ProviderRequestError;
 
-      expect(error).toBeInstanceOf(ProviderHttpError);
+      expect(error).toBeInstanceOf(ProviderRequestError);
       expect(error.retryable).toBe(false);
       expect(error.retryAfterMs).toBeUndefined();
     },
@@ -1079,9 +1090,11 @@ describe("createOllamaProvider retry marks", () => {
     ];
 
     for (const error of errors) {
-      expect(error).toBeInstanceOf(ProviderTransportError);
-      const failure = error as ProviderTransportError;
-      expect(failure.message).toBe("Ollama response failed to read");
+      expect(error).toBeInstanceOf(ProviderRequestError);
+      const failure = error as ProviderRequestError;
+      expect(failure.message).toBe(
+        "Ollama response body could not be read: terminated: other side closed",
+      );
       expect(failure.retryable).toBe(true);
     }
   });
@@ -1093,9 +1106,11 @@ describe("createOllamaProvider retry marks", () => {
       await generateError(provider),
       await streamError(provider),
     ]) {
-      expect(error).toBeInstanceOf(ProviderTransportError);
-      const failure = error as ProviderTransportError;
-      expect(failure.message).toBe("Ollama response failed to read");
+      expect(error).toBeInstanceOf(ProviderResponseError);
+      const failure = error as ProviderResponseError;
+      expect(failure.message).toBe(
+        "Ollama response body could not be read: terminated: incorrect header check",
+      );
       expect(failure.retryable).toBe(false);
     }
   });
@@ -1110,15 +1125,19 @@ describe("createOllamaProvider retry marks", () => {
 
     const first = (await generateError(
       retryable,
-    )) as ProviderTransportError;
+    )) as ProviderRequestError;
     const second = (await generateError(
       notRetryable,
-    )) as ProviderTransportError;
+    )) as ProviderRequestError;
 
-    expect(first.message).toBe("Ollama response failed to read");
+    expect(first.message).toBe(
+      "Ollama request failed: 503; the body could not be read: terminated: incorrect header check",
+    );
     expect(first.retryable).toBe(true);
     expect(first.retryAfterMs).toBe(4000);
-    expect(second.message).toBe("Ollama response failed to read");
+    expect(second.message).toBe(
+      "Ollama request failed: 400; the body could not be read: terminated: other side closed",
+    );
     expect(second.retryable).toBe(false);
     expect(second.retryAfterMs).toBeUndefined();
   });
@@ -1165,10 +1184,12 @@ describe("createOllamaProvider retry marks", () => {
         call === "stream"
           ? await streamError(provider)
           : await generateError(provider)
-      ) as ProviderHttpError;
+      ) as ProviderResponseError;
 
-      expect(error).toBeInstanceOf(ProviderHttpError);
-      expect(error.message).toBe(message);
+      expect(error).toBeInstanceOf(ProviderResponseError);
+      expect(error.messageWithoutServiceText.startsWith(message)).toBe(
+        true,
+      );
       expect(error.retryable).toBe(false);
     },
   );

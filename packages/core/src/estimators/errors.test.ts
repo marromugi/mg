@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ProviderHttpError } from "../providers/errors.js";
+import { ProviderRequestError } from "../providers/errors.js";
 import {
   EstimatorRequestError,
   EstimatorResponseError,
@@ -249,8 +249,6 @@ describe("isEstimatorError", () => {
 
   test("returns false for a plain error and a provider error", () => {
     expect(isEstimatorError(new Error("x"))).toBe(false);
-    expect(isEstimatorError(new ProviderHttpError("x", 500, ""))).toBe(
-      false,
-    );
+    expect(isEstimatorError(new ProviderRequestError("x"))).toBe(false);
   });
 });

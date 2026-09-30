@@ -67,8 +67,8 @@ The names in each family are listed below.
 ```
 Provider errors
   ProviderBaseError       parent (cannot be created directly)
-  ProviderHttpError       a failure response came back
-  ProviderTransportError  the connection itself failed
+  ProviderRequestError    the request got no answer
+  ProviderResponseError   the answer cannot be used
   ToolArgumentsError      the call's arguments cannot be read
   ToolSchemaError         the schema cannot be converted
   ProviderUnsupportedError  the provider does not support a feature
@@ -97,21 +97,23 @@ Tool run errors
 Wrapping follows these rules.
 
 - Provider and Estimator errors keep the original exception inside.
-- An Estimator error built from another error ends its message with the
-  text of the chain below it, joined with `: `. The walk stops at an
-  Estimator error, whose message is already complete. An empty message
-  adds nothing, and a cause that is not an `Error` or a string reads
-  `(non-Error cause)`.
-- Every Estimator error also carries `messageWithoutServiceText`, the
+- A Provider or Estimator error built from another error ends its
+  message with the text of the chain below it, joined with `: `. The
+  walk stops at any Provider or Estimator error, whose message is
+  already complete. An empty message adds nothing, and a cause that is
+  not an `Error` or a string reads `(non-Error cause)`.
+- Every Provider and Estimator error also carries
+  `messageWithoutServiceText`, the
   same reason with the service's body text replaced by
   `(text from the service left out)` (`SERVICE_TEXT_LEFT_OUT`). The
-  implementation marks body text with one of two options.
+  implementation marks body text with one of two options, the same for
+  both families.
   `withoutServiceText` gives the error's own words a second time
   without the body text. `causeQuotesService: true` says the cause's
   text quotes the body, so the whole chain is replaced by the marker.
   With neither mark the second text follows the same walk as the
-  message, and an Estimator error in the chain gives its own second
-  text.
+  message, and a Provider or Estimator error in the chain gives its own
+  second text.
 - A stop caused by an abort passes through unwrapped.
 - An exception thrown by a tool's run function also passes through as is.
 
@@ -154,7 +156,7 @@ may help, and `retryAfterMs`, the time to wait first in milliseconds.
 - An error is not retryable unless the implementation that throws it
   marks it so. Each implementation decides which of its failures are
   retryable.
-- `ProviderHttpError` and `ProviderTransportError` accept the mark.
+- `ProviderRequestError` accepts the mark. `ProviderResponseError`,
   `ToolArgumentsError`, `ToolSchemaError` and `ProviderUnsupportedError`
   never carry it.
 - `ProviderRetryExhaustedError` says the retries ran out. It holds the
@@ -169,6 +171,24 @@ may help, and `retryAfterMs`, the time to wait first in milliseconds.
     be read.
 - If the response's Retry-After reads as a number of seconds or as an
   HTTP date, it is written to `retryAfterMs`. If not, it is left out.
+- The status and body of a failure response stay in
+  `OpenRouterHttpError` and `OllamaHttpError`, exported from each
+  implementation. They are the cause of the shared error, extend
+  `Error` and hold `status` and the whole `body`. Their message is the
+  first 200 characters of the body. A failure response throws
+  `ProviderRequestError` with that cause, marked as quoting the
+  service when the body is not empty. One whose body cannot be read
+  throws `ProviderRequestError` whose message states the status and
+  that the body could not be read.
+- A body that cannot be read, other than by a cut connection, a
+  missing body, and a body or stream payload that is not JSON or has
+  the wrong shape throw `ProviderResponseError`. The shape failures
+  have an `OpenRouterHttpError` or `OllamaHttpError` as their cause,
+  holding the response status and the text read, marked as quoting
+  the service.
+- `ToolArgumentsError` ends its message with the parse error's text,
+  marked as quoting the service. `ToolSchemaError` ends its message
+  with its cause's text.
 - Every other OpenRouter or Ollama failure is not retryable. That
   includes an invalid header value, a certificate failure, an unknown
   host, other statuses, a body that fails for another reason, and a
@@ -210,7 +230,7 @@ These inputs stop the provider.
   `ProviderUnsupportedError` with the feature `tool-message-without-call`.
   Nothing is sent.
 - A streamed tool call whose fragments carry two different ids throws
-  `ProviderHttpError` with status 200.
+  `ProviderResponseError`.
 
 Talking to ollama is a separate implementation.
 ollama does not check API keys, so it takes no API key.

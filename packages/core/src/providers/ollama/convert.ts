@@ -1,9 +1,9 @@
 import {
-  ProviderHttpError,
   ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
+import { unusableOllamaResponse } from "./http-error.js";
 import { reasoningOf, textOf, toolCallsOf } from "../parts.js";
 import type {
   AssistantPart,
@@ -256,7 +256,7 @@ export const fromOllamaResponse = (
   newToolCallId: () => string,
 ): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
-    throw new ProviderHttpError(
+    throw unusableOllamaResponse(
       "Ollama response has no message",
       200,
       stringifyBody(body),
@@ -267,7 +267,7 @@ export const fromOllamaResponse = (
   const message = parsed.message;
 
   if (message === undefined || message === null) {
-    throw new ProviderHttpError(
+    throw unusableOllamaResponse(
       "Ollama response has no message",
       200,
       stringifyBody(body),

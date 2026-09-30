@@ -1,7 +1,8 @@
+import { OpenRouterHttpError } from "./http-error.js";
 import { describe, expect, test } from "vitest";
 import {
-  ProviderHttpError,
-  ProviderTransportError,
+  ProviderRequestError,
+  ProviderResponseError,
   ProviderUnsupportedError,
   ToolArgumentsError,
 } from "../errors.js";
@@ -190,7 +191,7 @@ describe("createOpenRouterProvider", () => {
     });
   });
 
-  test("throws a ProviderHttpError carrying the status and the body", async () => {
+  test("throws a ProviderRequestError carrying the status and the body in its cause", async () => {
     const { fetchStub } = stubFetch(
       () => new Response("rate limited", { status: 429 }),
     );
@@ -203,16 +204,21 @@ describe("createOpenRouterProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const providerError = error as ProviderRequestError;
     expect(providerError.message).toBe(
-      "OpenRouter request failed: 429",
+      "OpenRouter request failed: 429: rate limited",
     );
-    expect(providerError.status).toBe(429);
-    expect(providerError.body).toBe("rate limited");
+    expect(providerError.messageWithoutServiceText).toBe(
+      "OpenRouter request failed: 429: (text from the service left out)",
+    );
+    const httpError = providerError.cause as OpenRouterHttpError;
+    expect(httpError).toBeInstanceOf(OpenRouterHttpError);
+    expect(httpError.status).toBe(429);
+    expect(httpError.body).toBe("rate limited");
   });
 
-  test("throws a ProviderHttpError when a 2xx body is not JSON", async () => {
+  test("throws a ProviderResponseError when a 2xx body is not JSON", async () => {
     const { fetchStub } = stubFetch(
       () =>
         new Response("<html>maintenance</html>", {
@@ -229,16 +235,17 @@ describe("createOpenRouterProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe(
-      "OpenRouter response is not JSON",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const providerError = error as ProviderResponseError;
+    expect(providerError.messageWithoutServiceText).toBe(
+      "OpenRouter response is not JSON: (text from the service left out)",
     );
-    expect(providerError.status).toBe(200);
-    expect(providerError.body).toBe("<html>maintenance</html>");
+    const httpError = providerError.cause as OpenRouterHttpError;
+    expect(httpError.status).toBe(200);
+    expect(httpError.body).toBe("<html>maintenance</html>");
   });
 
-  test("throws a ProviderHttpError when the answer carries no choices", async () => {
+  test("throws a ProviderResponseError when the answer carries no choices", async () => {
     const body = {
       error: { code: 502, message: "Provider returned error" },
     };
@@ -252,15 +259,17 @@ describe("createOpenRouterProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe(
-      "OpenRouter response has no choices",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const providerError = error as ProviderResponseError;
+    expect(providerError.messageWithoutServiceText).toBe(
+      "OpenRouter response has no choices: (text from the service left out)",
     );
-    expect(providerError.body).toBe(JSON.stringify(body));
+    expect((providerError.cause as OpenRouterHttpError).body).toBe(
+      JSON.stringify(body),
+    );
   });
 
-  test("throws a ProviderTransportError when the request cannot be sent", async () => {
+  test("throws a ProviderRequestError when the request cannot be sent", async () => {
     const failure = new TypeError("fetch failed", {
       cause: new Error("ENOTFOUND"),
     });
@@ -276,15 +285,15 @@ describe("createOpenRouterProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "OpenRouter request failed to send",
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const requestError = error as ProviderRequestError;
+    expect(requestError.message).toBe(
+      "OpenRouter request failed to send: fetch failed: ENOTFOUND",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(requestError.cause).toBe(failure);
   });
 
-  test("throws a ProviderTransportError when the answer cannot be read", async () => {
+  test("throws a ProviderResponseError when the answer cannot be read", async () => {
     const failure = new Error("connection reset");
     const { fetchStub } = stubFetch(
       () =>
@@ -306,12 +315,12 @@ describe("createOpenRouterProvider", () => {
       .generate(request)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "OpenRouter response failed to read",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      "OpenRouter response body could not be read: connection reset",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(responseError.cause).toBe(failure);
   });
 
   test("passes an abort through without wrapping it", async () => {
@@ -748,7 +757,7 @@ describe("createOpenRouterProvider stream", () => {
     expect(first?.id).not.toBe(second?.id);
   });
 
-  test("throws a ProviderHttpError before any event on a non-2xx", async () => {
+  test("throws a ProviderRequestError before any event on a non-2xx", async () => {
     const { fetchStub } = stubFetch(
       () => new Response("rate limited", { status: 429 }),
     );
@@ -764,14 +773,17 @@ describe("createOpenRouterProvider stream", () => {
     ).catch((caught: unknown) => caught);
 
     expect(events).toEqual([]);
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("OpenRouter request failed: 429");
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const requestError = error as ProviderRequestError;
+    expect(requestError.message).toBe(
+      "OpenRouter request failed: 429: rate limited",
+    );
+    const httpError = requestError.cause as OpenRouterHttpError;
     expect(httpError.status).toBe(429);
     expect(httpError.body).toBe("rate limited");
   });
 
-  test("throws a ProviderHttpError when the answer carries no body", async () => {
+  test("throws a ProviderResponseError when the answer carries no body", async () => {
     const { fetchStub } = stubFetch(
       () => new Response(null, { status: 204 }),
     );
@@ -784,14 +796,13 @@ describe("createOpenRouterProvider stream", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("OpenRouter response has no body");
-    expect(httpError.status).toBe(204);
-    expect(httpError.body).toBe("");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    expect((error as ProviderResponseError).message).toBe(
+      "OpenRouter response has no body",
+    );
   });
 
-  test("throws a ProviderTransportError when the request cannot be sent", async () => {
+  test("throws a ProviderRequestError when the request cannot be sent", async () => {
     const failure = new TypeError("fetch failed");
     const { fetchStub } = stubFetch(() => {
       throw failure;
@@ -805,15 +816,15 @@ describe("createOpenRouterProvider stream", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "OpenRouter request failed to send",
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    const requestError = error as ProviderRequestError;
+    expect(requestError.message).toBe(
+      "OpenRouter request failed to send: fetch failed",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(requestError.cause).toBe(failure);
   });
 
-  test("throws a ProviderTransportError when the body fails midway", async () => {
+  test("throws a ProviderResponseError when the body fails midway", async () => {
     const failure = new Error("connection reset");
     const prelude = `data: ${JSON.stringify({
       choices: [{ delta: { content: "24" } }],
@@ -833,12 +844,12 @@ describe("createOpenRouterProvider stream", () => {
     ).catch((caught: unknown) => caught);
 
     expect(events).toEqual([{ type: "text-delta", delta: "24" }]);
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    const transportError = error as ProviderTransportError;
-    expect(transportError.message).toBe(
-      "OpenRouter response failed to read",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      "OpenRouter response body could not be read: connection reset",
     );
-    expect(transportError.cause).toBe(failure);
+    expect(responseError.cause).toBe(failure);
   });
 
   test("passes an abort from the body through without wrapping it", async () => {
@@ -857,7 +868,7 @@ describe("createOpenRouterProvider stream", () => {
     expect(error).toBe(abort);
   });
 
-  test("throws a ProviderHttpError when a streamed payload is not JSON", async () => {
+  test("throws a ProviderResponseError when a streamed payload is not JSON", async () => {
     const { fetchStub } = stubFetch(() => sseResponse(["<html>"]));
     const provider = createOpenRouterProvider({
       apiKey: "test-key",
@@ -868,11 +879,12 @@ describe("createOpenRouterProvider stream", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe(
-      "OpenRouter stream chunk is not JSON",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.messageWithoutServiceText).toBe(
+      "OpenRouter stream chunk is not JSON: (text from the service left out)",
     );
+    const httpError = responseError.cause as OpenRouterHttpError;
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe("<html>");
   });
@@ -1313,10 +1325,10 @@ describe("createOpenRouterProvider retry marks", () => {
         await generateError(provider),
         await streamError(provider),
       ]) {
-        expect(error).toBeInstanceOf(ProviderTransportError);
-        const failure = error as ProviderTransportError;
+        expect(error).toBeInstanceOf(ProviderRequestError);
+        const failure = error as ProviderRequestError;
         expect(failure.message).toBe(
-          "OpenRouter request failed to send",
+          "OpenRouter request failed to send: fetch failed: cause",
         );
         expect(failure.retryable).toBe(true);
         expect(failure.retryAfterMs).toBeUndefined();
@@ -1336,11 +1348,8 @@ describe("createOpenRouterProvider retry marks", () => {
 
     const error = await generateError(provider);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    expect((error as ProviderTransportError).message).toBe(
-      "OpenRouter request failed to send",
-    );
-    expect((error as ProviderTransportError).retryable).toBe(false);
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    expect((error as ProviderRequestError).retryable).toBe(false);
   });
 
   test("marks a header value the request cannot carry as not retryable without sending", async () => {
@@ -1356,11 +1365,8 @@ describe("createOpenRouterProvider retry marks", () => {
 
     const error = await generateError(provider);
 
-    expect(error).toBeInstanceOf(ProviderTransportError);
-    expect((error as ProviderTransportError).message).toBe(
-      "OpenRouter request failed to send",
-    );
-    expect((error as ProviderTransportError).retryable).toBe(false);
+    expect(error).toBeInstanceOf(ProviderRequestError);
+    expect((error as ProviderRequestError).retryable).toBe(false);
     expect(called).toBe(false);
   });
 
@@ -1386,9 +1392,11 @@ describe("createOpenRouterProvider retry marks", () => {
 
         const error = await generateError(provider);
 
-        expect(error).toBeInstanceOf(ProviderHttpError);
-        const failure = error as ProviderHttpError;
-        expect(failure.status).toBe(status);
+        expect(error).toBeInstanceOf(ProviderRequestError);
+        const failure = error as ProviderRequestError;
+        expect((failure.cause as OpenRouterHttpError).status).toBe(
+          status,
+        );
         expect(failure.retryable).toBe(true);
         expect(failure.retryAfterMs).toBe(expected);
       }
@@ -1408,9 +1416,9 @@ describe("createOpenRouterProvider retry marks", () => {
 
       const error = (await generateError(
         provider,
-      )) as ProviderHttpError;
+      )) as ProviderRequestError;
 
-      expect(error).toBeInstanceOf(ProviderHttpError);
+      expect(error).toBeInstanceOf(ProviderRequestError);
       expect(error.retryable).toBe(false);
       expect(error.retryAfterMs).toBeUndefined();
     },
@@ -1428,10 +1436,10 @@ describe("createOpenRouterProvider retry marks", () => {
     ];
 
     for (const error of errors) {
-      expect(error).toBeInstanceOf(ProviderTransportError);
-      const failure = error as ProviderTransportError;
+      expect(error).toBeInstanceOf(ProviderRequestError);
+      const failure = error as ProviderRequestError;
       expect(failure.message).toBe(
-        "OpenRouter response failed to read",
+        "OpenRouter response body could not be read: terminated: other side closed",
       );
       expect(failure.retryable).toBe(true);
     }
@@ -1444,10 +1452,10 @@ describe("createOpenRouterProvider retry marks", () => {
       await generateError(provider),
       await streamError(provider),
     ]) {
-      expect(error).toBeInstanceOf(ProviderTransportError);
-      const failure = error as ProviderTransportError;
+      expect(error).toBeInstanceOf(ProviderResponseError);
+      const failure = error as ProviderResponseError;
       expect(failure.message).toBe(
-        "OpenRouter response failed to read",
+        "OpenRouter response body could not be read: terminated: incorrect header check",
       );
       expect(failure.retryable).toBe(false);
     }
@@ -1463,15 +1471,19 @@ describe("createOpenRouterProvider retry marks", () => {
 
     const first = (await generateError(
       retryable,
-    )) as ProviderTransportError;
+    )) as ProviderRequestError;
     const second = (await generateError(
       notRetryable,
-    )) as ProviderTransportError;
+    )) as ProviderRequestError;
 
-    expect(first.message).toBe("OpenRouter response failed to read");
+    expect(first.message).toBe(
+      "OpenRouter request failed: 503; the body could not be read: terminated: incorrect header check",
+    );
     expect(first.retryable).toBe(true);
     expect(first.retryAfterMs).toBe(4000);
-    expect(second.message).toBe("OpenRouter response failed to read");
+    expect(second.message).toBe(
+      "OpenRouter request failed: 400; the body could not be read: terminated: other side closed",
+    );
     expect(second.retryable).toBe(false);
     expect(second.retryAfterMs).toBeUndefined();
   });
@@ -1518,10 +1530,12 @@ describe("createOpenRouterProvider retry marks", () => {
         call === "stream"
           ? await streamError(provider)
           : await generateError(provider)
-      ) as ProviderHttpError;
+      ) as ProviderResponseError;
 
-      expect(error).toBeInstanceOf(ProviderHttpError);
-      expect(error.message).toBe(message);
+      expect(error).toBeInstanceOf(ProviderResponseError);
+      expect(error.messageWithoutServiceText.startsWith(message)).toBe(
+        true,
+      );
       expect(error.retryable).toBe(false);
     },
   );

@@ -12,6 +12,7 @@ import { z } from "zod";
 import { InvalidRunConfigError, SubagentCloseError } from "./errors.js";
 import type { ExclusiveNames } from "./exclusive-names.js";
 import { createHarness } from "./harness.js";
+import { requireSubagentGate } from "./require-gate.js";
 import type {
   SubagentConfig,
   SubagentWorkspace,
@@ -222,6 +223,7 @@ export const createSubagent = (
     exclusive: exclusiveNames,
     parentExclusiveNames: parentHeldNames,
   } = environment;
+  requireSubagentGate(config);
   const tools = config.tools ?? [];
   const parentName = parent?.name;
   validateWorkspace(config.name, config.workspace, parentName);

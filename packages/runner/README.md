@@ -321,6 +321,7 @@ The config has the following fields.
 
 `gate` is required when `tools` or `workspace` is written.
 A config with neither passes the type check without `gate`.
+The same rule is also checked when the run starts. See "Gate".
 
 Anything not written in the config does not reach the child.
 The provider, gate and tools are not filled in from the parent's config.
@@ -495,6 +496,12 @@ Tools may also be added to the call.
 If the config has no `gate`, that also throws `GateRequiredError`.
 The message is `gate is required when tools are added to the call`.
 When both apply, the first message is used.
+
+A subagent config in `subagents` that has `tools` or `workspace` but no `gate`
+is rejected the same way, with `GateRequiredError`.
+The message is `subagent "<name>": gate is required when tools or workspace is set`.
+The rejection comes after the two checks above, and the first failing subagent in the list is named.
+`createSubagent` also throws it, before any other check of that config.
 
 How to write it is in `agent-guide.md`.
 

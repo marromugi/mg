@@ -14,6 +14,7 @@ import type {
 import {
   ConversationConflictError,
   ConversationNotFoundError,
+  ConversationToolCallIdError,
   createMemoryConversationStore,
 } from "@mg/conversation";
 import type { Gate } from "@mg/gate";
@@ -1328,5 +1329,115 @@ describe("continueConversation with a hold", () => {
     hold.release();
     const outcome = await running;
     expect(outcome.saved).toBe(true);
+  });
+});
+
+describe("continueConversation with input that reuses a stored tool-call id", () => {
+  const call = (id: string): Message => ({
+    role: "assistant",
+    parts: [
+      {
+        type: "tool-call",
+        id,
+        name: "echo",
+        arguments: { text: "x" },
+      },
+    ],
+  });
+  const result = (id: string): Message => ({
+    role: "tool",
+    toolCallId: id,
+    content: "pong",
+  });
+  const STORED: ConversationEntry = {
+    messages: [{ role: "user", content: "hi" }, call("a"), result("a")],
+  };
+
+  test("rejects with the store's error before the run, for all history", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("c");
+    await store.append("c", STORED, 0);
+    const fake = countingRun();
+    const entrance = createContinueConversation({ run: fake.run });
+
+    const rejection = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "c",
+        history: { kind: "all" },
+        messages: [
+          { role: "user", content: "again" },
+          call("a"),
+          result("a"),
+        ],
+      },
+    ).catch((error: unknown) => error);
+
+    expect(rejection).toBeInstanceOf(ConversationToolCallIdError);
+    expect(rejection).toMatchObject({ toolCallId: "a", position: 0 });
+    expect(fake.calls()).toBe(0);
+    expect((await store.read("c", { kind: "all" })).length).toBe(1);
+  });
+
+  test("rejects the same way for the last entry only, when the clash is in an older entry", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("c");
+    await store.append("c", STORED, 0);
+    await store.append(
+      "c",
+      { messages: [{ role: "user", content: "x" }] },
+      1,
+    );
+    const fake = countingRun();
+    const entrance = createContinueConversation({ run: fake.run });
+
+    const rejection = await entrance(
+      runConfig(fakeProvider().provider),
+      {
+        store,
+        id: "c",
+        history: { kind: "last", count: 1 },
+        messages: [
+          { role: "user", content: "again" },
+          call("a"),
+          result("a"),
+        ],
+      },
+    ).catch((error: unknown) => error);
+
+    expect(rejection).toBeInstanceOf(ConversationToolCallIdError);
+    expect(rejection).toMatchObject({ toolCallId: "a", position: 0 });
+    expect(fake.calls()).toBe(0);
+  });
+
+  test("runs and saves when the input's tool-call ids are new", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("c");
+    await store.append("c", STORED, 0);
+    const entrance = createContinueConversation({
+      run: async (_config, messages) => ({
+        sessionId: "s1",
+        result: {
+          reason: "stop",
+          messages: [...messages, REPLY],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      }),
+    });
+
+    const outcome = await entrance(runConfig(fakeProvider().provider), {
+      store,
+      id: "c",
+      history: { kind: "all" },
+      messages: [
+        { role: "user", content: "again" },
+        call("b"),
+        result("b"),
+      ],
+    });
+
+    expect(outcome.saved).toBe(true);
+    expect((await store.read("c", { kind: "all" })).length).toBe(2);
   });
 });

@@ -1,3 +1,5 @@
+import { MAX_JSON_DEPTH } from "./limits.js";
+
 export class ConversationExistsError extends Error {
   override readonly name = "ConversationExistsError";
   readonly conversationId: string;
@@ -75,14 +77,16 @@ export class ConversationEntryUnreadableError extends Error {
 
 export class EntryNotJsonError extends Error {
   override readonly name = "EntryNotJsonError";
-  readonly kind: "not-json" | "cycle";
+  readonly kind: "not-json" | "cycle" | "too-deep";
   readonly path: string;
 
-  constructor(kind: "not-json" | "cycle", path: string) {
+  constructor(kind: "not-json" | "cycle" | "too-deep", path: string) {
     super(
       kind === "not-json"
         ? `The entry holds a value at ${path} that does not survive a JSON round trip.`
-        : `The entry holds a value at ${path} that refers back to one of the values containing it.`,
+        : kind === "cycle"
+          ? `The entry holds a value at ${path} that refers back to one of the values containing it.`
+          : `The entry nests a value at ${path} deeper than ${MAX_JSON_DEPTH} levels.`,
     );
     this.kind = kind;
     this.path = path;

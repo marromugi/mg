@@ -92,6 +92,16 @@ When it finds any other value, it throws `EntryNotJsonError`.
 The location is a string that starts with `messages`.
 Array indexes are joined as `[n]`, and object keys as `.key`.
 
+It also counts how deeply arrays and plain objects are nested.
+The `messages` array itself is at depth 1, and each array or plain object
+inside another adds 1.
+An entry may nest up to 128 levels.
+At the first array or object at depth 129, it throws `EntryNotJsonError` of
+the too-deep kind, and the location is that value's.
+The check does not catch the runtime's `RangeError`.
+When the caller's stack is nearly used up, the check or the store can still
+throw it.
+
 A value can contain a reference back to an object or array that contains it.
 At that reference, it throws `EntryNotJsonError` of the cycle kind.
 A containing value is one on the path from the current value up to the root.
@@ -142,8 +152,8 @@ be turned back into an entry.
 
 `EntryNotJsonError` has a kind `kind` and the location of the first value
 found, `path`.
-There are 2 kinds: a value that is not a JSON value, `not-json`, and a cycle,
-`cycle`.
+There are 3 kinds: a value that is not a JSON value, `not-json`, a cycle,
+`cycle`, and nesting deeper than 128 levels, `too-deep`.
 
 `EntryToolPairingError` has a kind `kind` and the tool call id `toolCallId`.
 There are 3 kinds: a call with no result, `unanswered-call`, a result with no

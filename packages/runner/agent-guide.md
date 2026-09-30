@@ -80,9 +80,11 @@ export default defineRun({
 });
 ```
 
-Composing a rules gate with an LLM gate via `composeGates`, so path-based rules
-are checked first and the LLM only judges what the rules don't cover (see
-`runs/loop-files.config.ts` for the file in the repo):
+Composing a rules gate with an LLM gate via `composeGates`. It asks each gate
+in order and stops at the first denial. The rules gate denies secrets,
+lockfiles and `.git` first. The LLM gate then judges every call the rules let
+through, including calls an allow rule matched (see `runs/loop-files.config.ts`
+for the file in the repo):
 
 ```ts
 import { defineRun, type RunConfig } from "@mg/runner";

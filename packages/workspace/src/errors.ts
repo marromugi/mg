@@ -1,3 +1,5 @@
+import type { ForwarderLoss } from "./ssh/client.js";
+
 export abstract class WorkspaceBaseError extends Error {
   abstract override readonly name: WorkspaceErrorName;
 
@@ -90,12 +92,45 @@ export class NothingListeningError extends WorkspaceBaseError {
   }
 }
 
+export class SshConnectionLostError extends WorkspaceBaseError {
+  override readonly name = "SshConnectionLostError";
+  readonly sshHost: string;
+  readonly sshPort: number;
+
+  constructor(sshHost: string, sshPort: number, loss: ForwarderLoss) {
+    const where = `SSH connection to ${sshHost}:${sshPort}`;
+    if (loss.kind === "failed") {
+      const reason =
+        loss.cause instanceof Error
+          ? loss.cause.message
+          : String(loss.cause);
+      super(`${where} was lost: ${reason}`, { cause: loss.cause });
+    } else {
+      super(`${where} was closed by the other side or the network`);
+    }
+    this.sshHost = sshHost;
+    this.sshPort = sshPort;
+  }
+}
+
+export class EndpointCloseError extends WorkspaceBaseError {
+  override readonly name = "EndpointCloseError";
+  readonly errors: readonly unknown[];
+
+  constructor(errors: readonly unknown[]) {
+    super("Failed to close endpoint", { cause: errors[0] });
+    this.errors = errors;
+  }
+}
+
 export type WorkspaceError =
   | ConnectorOpenError
   | ConnectorCloseError
   | DuplicateToolNameError
   | WorkspaceCloseError
-  | NothingListeningError;
+  | NothingListeningError
+  | SshConnectionLostError
+  | EndpointCloseError;
 
 export type WorkspaceErrorName = WorkspaceError["name"];
 

@@ -322,7 +322,7 @@ describe("createJevEstimator", () => {
 
     expect(error).toBeInstanceOf(EstimatorTransportError);
     expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed",
+      "Jev request failed: network down",
     );
     expect((error as EstimatorTransportError).cause).toBe(original);
   });
@@ -342,7 +342,7 @@ describe("createJevEstimator", () => {
 
     expect(error).toBeInstanceOf(EstimatorResponseError);
     expect((error as EstimatorResponseError).message).toBe(
-      "Jev response is not JSON",
+      `Jev response is not JSON: Unexpected token 'o', "not json" is not valid JSON`,
     );
   });
 
@@ -1175,7 +1175,7 @@ describe("createJevEstimator classify", () => {
 
     expect(error).toBeInstanceOf(EstimatorResponseError);
     expect((error as EstimatorResponseError).message).toBe(
-      "Jev response is not JSON",
+      `Jev response is not JSON: Unexpected token 'o', "not json" is not valid JSON`,
     );
   });
 
@@ -1238,7 +1238,7 @@ describe("createJevEstimator classify", () => {
 
     expect(error).toBeInstanceOf(EstimatorTransportError);
     expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed",
+      "Jev request failed: network down",
     );
     expect((error as EstimatorTransportError).cause).toBe(original);
   });
@@ -1826,7 +1826,7 @@ describe("createJevEstimator score", () => {
 
     expect(error).toBeInstanceOf(EstimatorResponseError);
     expect((error as EstimatorResponseError).message).toBe(
-      "Jev response is not JSON",
+      `Jev response is not JSON: Unexpected token 'o', "not json" is not valid JSON`,
     );
   });
 
@@ -1889,7 +1889,7 @@ describe("createJevEstimator score", () => {
 
     expect(error).toBeInstanceOf(EstimatorTransportError);
     expect((error as EstimatorTransportError).message).toBe(
-      "Jev request failed",
+      "Jev request failed: network down",
     );
     expect((error as EstimatorTransportError).cause).toBe(original);
   });

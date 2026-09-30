@@ -96,6 +96,11 @@ Tool run errors
 Wrapping follows these rules.
 
 - Provider and Estimator errors keep the original exception inside.
+- An Estimator error built from another error ends its message with the
+  text of the chain below it, joined with `: `. The walk stops at an
+  Estimator error, whose message is already complete. An empty message
+  adds nothing, and a cause that is not an `Error` or a string reads
+  `(non-Error cause)`.
 - A stop caused by an abort passes through unwrapped.
 - An exception thrown by a tool's run function also passes through as is.
 
@@ -109,8 +114,8 @@ possible, and `retryAfterMs`, the time to wait in milliseconds.
 - If the response's Retry-After reads as a number of seconds or as an HTTP
   date, it is written to `retryAfterMs`. If not, it is left out.
 - `EstimatorRetryExhaustedError` says the retries ran out.
-  It holds the number of attempts and the last error as its cause. It is not
-  retryable.
+  It holds the number of attempts and the last error as its cause. Its
+  message ends with the last error's message. It is not retryable.
 
 ## How it works
 

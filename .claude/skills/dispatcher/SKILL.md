@@ -162,9 +162,8 @@ share a batch only when all of these are certain:
 Dependencies between issues of different parents are not checked; only
 file overlap is. "Certain" means it follows from what the issues say. If
 deciding takes an argument, the answer is no, and the issues go in separate
-batches, in issue number order. Keep a batch to at most 3 issues: each one
-is an agent in this session, and reviews are run one at a time afterwards
-anyway.
+batches, in issue number order. A batch has no size limit; how many agents
+run at once is left to Claude Code.
 
 Show the plan to the developer in one short list: the repo-wide issues in
 order, then each batch with its issues and one line on why they are

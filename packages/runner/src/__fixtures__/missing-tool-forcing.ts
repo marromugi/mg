@@ -1,17 +1,15 @@
 export default {
-  name: "fixture-tools-not-array",
+  name: "fixture-missing-tool-forcing",
   provider: {
-    toolForcing: true,
     generate: async () => ({
       parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",
     }),
     stream: () => {
       throw new Error(
-        "tools-not-array fixture: stream is not scripted",
+        "missing-tool-forcing fixture: stream is not scripted",
       );
     },
   },
   harness: { kind: "loop", model: "m", maxTurns: 1 },
-  tools: "x",
 };

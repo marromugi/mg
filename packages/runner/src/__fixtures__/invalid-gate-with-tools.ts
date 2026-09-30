@@ -3,6 +3,7 @@ import { z } from "zod";
 export default {
   name: "fixture-invalid-gate-with-tools",
   provider: {
+    toolForcing: true,
     generate: async () => ({
       parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",

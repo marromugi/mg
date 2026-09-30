@@ -485,6 +485,10 @@ Values that do not pass the type check are also rejected at run time under the s
 with `InvalidRunConfigError`.
 The message is `<path>: gate is required when tools or workspace is set`.
 
+`loadRun` also rejects a config whose `provider.toolForcing` is missing or is not
+`true` or `false`, with `InvalidRunConfigError`.
+The message is `<path>: provider.toolForcing must be a boolean`.
+
 `run`, `continueConversation` and `continueAsPersona` also check the same
 condition before starting anything.
 If the config has `tools` or `workspace` but no `gate`,

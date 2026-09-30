@@ -1,6 +1,7 @@
 export default {
   name: "fixture-workspace-without-gate",
   provider: {
+    toolForcing: true,
     generate: async () => ({
       parts: [{ type: "text", text: "hi" }],
       finishReason: "stop",

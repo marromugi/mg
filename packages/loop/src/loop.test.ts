@@ -14,6 +14,7 @@ import { collect } from "@mg/harness";
 import type {
   HarnessEvent,
   HarnessInput,
+  Subagent,
   TraceAttributes,
   TraceSpan,
 } from "@mg/harness";
@@ -1358,6 +1359,80 @@ describe("createLoopHarness", () => {
       "mg.gate",
       "mg.llm",
     ]);
+  });
+});
+
+describe("createLoopHarness tool list in the request", () => {
+  const allowAll = stubGate(async (): Promise<Verdict> => ({
+    allowed: true,
+    reason: "ok",
+  }));
+  const oneTurn = (): Provider =>
+    stubProvider([
+      {
+        parts: [{ type: "text", text: "hi" }],
+        finishReason: "stop",
+      },
+    ]);
+  const firstRequest = async (
+    provider: Provider,
+    options: Partial<Parameters<typeof createLoopHarness>[0]>,
+  ): Promise<GenerateRequest> => {
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 3,
+      stream: false,
+      ...options,
+    });
+    await collect(
+      harness({ messages: [{ role: "user", content: "hi" }] }),
+    );
+    return vi.mocked(provider.generate).mock.calls[0][0];
+  };
+
+  test("carries an empty tool list when subagents is an empty list", async () => {
+    const request = await firstRequest(oneTurn(), { subagents: [] });
+
+    expect(request.tools).toEqual([]);
+  });
+
+  test("carries an empty tool list when tools is an empty list", async () => {
+    const request = await firstRequest(oneTurn(), {
+      tools: [],
+      gate: allowAll,
+    });
+
+    expect(request.tools).toEqual([]);
+  });
+
+  test("lists the tools first, then the subagents", async () => {
+    const tool: Tool = defineTool({
+      reach: async () => ({ kind: "any-local" }),
+      name: "a",
+      input: stubSchema(),
+      execute: async () => "a-result",
+    });
+    const helper: Subagent = {
+      reach: async () => ({ kind: "any-local" }),
+      name: "helper",
+      input: stubSchema(),
+      start: async () => "helped",
+    };
+
+    const request = await firstRequest(oneTurn(), {
+      tools: [tool],
+      subagents: [helper],
+      gate: allowAll,
+    });
+
+    expect(request.tools?.map((t) => t.name)).toEqual(["a", "helper"]);
+  });
+
+  test("carries no tool list when neither tools nor subagents are given", async () => {
+    const request = await firstRequest(oneTurn(), {});
+
+    expect(request.tools).toBeUndefined();
   });
 });
 

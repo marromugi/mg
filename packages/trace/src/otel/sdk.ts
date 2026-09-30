@@ -100,20 +100,25 @@ class WatchedExporter implements SpanExporter {
     resultCallback: ExportResultCallback,
   ): void {
     this.pendingSpans += spans.length;
-    this.inner.export(spans, (result) => {
+    try {
+      this.inner.export(spans, (result) => {
+        this.pendingSpans -= spans.length;
+        if (!isFailedExportCode(result.code)) {
+          resultCallback(result);
+          return;
+        }
+        const error =
+          result.error ??
+          new Error(
+            `${this.target} reported a failed export without an error`,
+          );
+        this.record(error);
+        resultCallback({ code: result.code, error });
+      });
+    } catch (error) {
       this.pendingSpans -= spans.length;
-      if (!isFailedExportCode(result.code)) {
-        resultCallback(result);
-        return;
-      }
-      const error =
-        result.error ??
-        new Error(
-          `${this.target} reported a failed export without an error`,
-        );
-      this.record(error);
-      resultCallback({ code: result.code, error });
-    });
+      throw error;
+    }
   }
 
   async forceFlush(): Promise<void> {

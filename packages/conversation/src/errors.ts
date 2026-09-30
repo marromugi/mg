@@ -52,6 +52,27 @@ export class ConversationConflictError extends Error {
   }
 }
 
+export class ConversationEntryUnreadableError extends Error {
+  override readonly name = "ConversationEntryUnreadableError";
+  readonly conversationId: string;
+  readonly position: number;
+
+  constructor(
+    conversationId: string,
+    position: number,
+    cause: unknown,
+  ) {
+    super(
+      `Conversation "${conversationId}" has a stored entry at position ${position} that cannot be read: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }.`,
+      { cause },
+    );
+    this.conversationId = conversationId;
+    this.position = position;
+  }
+}
+
 export class EntryNotJsonError extends Error {
   override readonly name = "EntryNotJsonError";
   readonly kind: "not-json" | "cycle";

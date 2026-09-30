@@ -8,6 +8,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { assertJsonEntry, assertToolPairing } from "../checks.js";
 import {
   ConversationConflictError,
+  ConversationEntryUnreadableError,
   ConversationExistsError,
   ConversationNotFoundError,
   ConversationRangeError,
@@ -32,9 +33,24 @@ const isPrimaryKeyViolation = (error: unknown): boolean =>
   error.cause instanceof LibsqlError &&
   error.cause.extendedCode === "SQLITE_CONSTRAINT_PRIMARYKEY";
 
-const toEntry = (row: { messages: string }): ConversationEntry => ({
-  messages: JSON.parse(row.messages) as ConversationEntry["messages"],
-});
+const toEntry = (
+  conversationId: string,
+  row: { position: number; messages: string },
+): ConversationEntry => {
+  try {
+    return {
+      messages: JSON.parse(
+        row.messages,
+      ) as ConversationEntry["messages"],
+    };
+  } catch (error) {
+    throw new ConversationEntryUnreadableError(
+      conversationId,
+      row.position,
+      error,
+    );
+  }
+};
 
 export const openSqliteConversationStore = async (
   path: string,
@@ -120,13 +136,21 @@ export const openSqliteConversationStore = async (
     const rows =
       range.kind === "all"
         ? await db
-            .select({ messages: entries.messages, total })
+            .select({
+              position: entries.position,
+              messages: entries.messages,
+              total,
+            })
             .from(entries)
             .where(eq(entries.conversationId, id))
             .orderBy(entries.position)
         : (
             await db
-              .select({ messages: entries.messages, total })
+              .select({
+                position: entries.position,
+                messages: entries.messages,
+                total,
+              })
               .from(entries)
               .where(eq(entries.conversationId, id))
               .orderBy(desc(entries.position))
@@ -134,7 +158,7 @@ export const openSqliteConversationStore = async (
           ).reverse();
 
     return {
-      entries: rows.map(toEntry),
+      entries: rows.map((row) => toEntry(id, row)),
       length: rows[0]?.total ?? 0,
     };
   };

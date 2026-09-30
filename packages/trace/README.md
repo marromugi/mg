@@ -96,6 +96,13 @@ There are 13 shared span names.
 
 Spans specific to one harness start with `mg.<harness name>.`.
 
+An event is a record added to a span while it is open.
+The table lists the event names.
+
+| Constant          | Name            | Meaning                                                                           |
+| ----------------- | --------------- | --------------------------------------------------------------------------------- |
+| `EVENT.llmSystem` | `mg.llm.system` | One system message sent in an LLM call, with its content and its position (index) |
+
 A call span sits under the parent span it was given.
 A thread span is a new root in the same session.
 It does not sit under the parent's tree.
@@ -119,7 +126,11 @@ The table below lists the attribute names.
 | `ATTR.llmFinishReason`          | `mg.llm.finish_reason`          | Why the call finished                                                                                                              |
 | `ATTR.llmInputTokens`           | `mg.llm.usage.input_tokens`     | Number of input tokens                                                                                                             |
 | `ATTR.llmOutputTokens`          | `mg.llm.usage.output_tokens`    | Number of output tokens                                                                                                            |
-| `ATTR.llmInputMessages`         | `mg.llm.messages.input`         | Messages sent (JSON string)                                                                                                        |
+| `ATTR.llmInputMessages`         | `mg.llm.messages.input`         | Messages sent, other than system messages for new records (JSON string)                                                            |
+| `ATTR.llmSystemContent`         | `mg.llm.system.content`         | Text of the system message (on an `mg.llm.system` event)                                                                           |
+| `ATTR.llmSystemIndex`           | `mg.llm.system.index`           | Zero-based position of the system message in the sent list (on an `mg.llm.system` event)                                           |
+| `ATTR.llmSystemCount`           | `mg.llm.system.count`           | Number of system messages sent                                                                                                     |
+| `ATTR.llmMessagesUnreadable`    | `mg.llm.messages.unreadable`    | Why the sent messages cannot be rebuilt                                                                                            |
 | `ATTR.llmOutputMessages`        | `mg.llm.messages.output`        | Messages returned (JSON string)                                                                                                    |
 | `ATTR.toolName`                 | `mg.tool.name`                  | Name of the tool                                                                                                                   |
 | `ATTR.toolCallId`               | `mg.tool.call_id`               | ID of the call                                                                                                                     |
@@ -159,6 +170,20 @@ The table below lists the attribute names.
 
 Attribute values are strings, numbers and booleans only.
 A value with structure is stored as a JSON string.
+
+### Rebuilding the sent messages
+
+`sentMessagesOf` rebuilds the list of messages an LLM call sent.
+It takes a span's attributes and events.
+
+- It reads records where system messages sit in `mg.llm.messages.input`.
+- It reads records where system messages are `mg.llm.system` events with positions and a count.
+- It converts the older assistant form (`content` and `toolCalls`) to parts.
+
+It returns `{ kind: "messages", messages }` or `{ kind: "unreadable", reason }`.
+It never guesses.
+A record that contradicts itself, or holds something that is not a message, is unreadable.
+The reason says where.
 
 ## How it works
 

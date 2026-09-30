@@ -2,14 +2,29 @@ type EstimatorRetryMark =
   | { retryable?: false; retryAfterMs?: never }
   | { retryable: true; retryAfterMs?: number };
 
+// 実装が本文の文を印付けする 2 つの方法です。
+// withoutServiceText は本文の文を伏せた自分の文で、
+// causeQuotesService は cause の文が本文を引いていることを示します。
+type EstimatorServiceTextMark = {
+  withoutServiceText?: string;
+  causeQuotesService?: true;
+};
+
 export type EstimatorErrorOptions = {
   cause?: unknown;
-} & EstimatorRetryMark;
+} & EstimatorRetryMark &
+  EstimatorServiceTextMark;
+
+export const SERVICE_TEXT_LEFT_OUT = "(text from the service left out)";
 
 const NON_ERROR_CAUSE = "(non-Error cause)";
 
 // cause の連鎖を下って、理由の文を集めます。
-const causeTexts = (cause: unknown): string[] => {
+// textOf は連鎖の中の Error から、集める文を選びます。
+const causeTexts = (
+  cause: unknown,
+  textOf: (error: Error) => string,
+): string[] => {
   const texts: string[] = [];
   const seen = new Set<unknown>();
   let current = cause;
@@ -24,7 +39,8 @@ const causeTexts = (cause: unknown): string[] => {
     }
     if (seen.has(current)) break;
     seen.add(current);
-    if (current.message !== "") texts.push(current.message);
+    const text = textOf(current);
+    if (text !== "") texts.push(text);
     if (current instanceof EstimatorBaseError) break;
     current = current.cause;
   }
@@ -35,12 +51,31 @@ export abstract class EstimatorBaseError extends Error {
   abstract override readonly name: EstimatorErrorName;
   readonly retryable: boolean;
   readonly retryAfterMs: number | undefined;
+  readonly messageWithoutServiceText: string;
 
   protected constructor(
     message: string,
     options?: EstimatorErrorOptions,
   ) {
-    super([message, ...causeTexts(options?.cause)].join(": "), options);
+    super(
+      [
+        message,
+        ...causeTexts(options?.cause, (error) => error.message),
+      ].join(": "),
+      options,
+    );
+    const start = options?.withoutServiceText ?? message;
+    this.messageWithoutServiceText =
+      options?.causeQuotesService === true
+        ? `${start}: ${SERVICE_TEXT_LEFT_OUT}`
+        : [
+            start,
+            ...causeTexts(options?.cause, (error) =>
+              error instanceof EstimatorBaseError
+                ? error.messageWithoutServiceText
+                : error.message,
+            ),
+          ].join(": ");
     this.retryable = options?.retryable === true;
     this.retryAfterMs = this.retryable
       ? options?.retryAfterMs

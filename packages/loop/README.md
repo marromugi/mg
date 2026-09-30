@@ -63,6 +63,18 @@ The function returned by `createLoopHarness` repeats these steps.
   conversation.
 - Ends when it reaches the turn limit.
 
+### Tool list in the request
+
+Whether the request to the provider carries a tool list depends on
+what was passed at build time.
+
+- When `tools` or `subagents` is passed, every request carries a tool
+  list. This holds even when both are empty lists, and then the list is
+  empty.
+- The list holds the tools first, then one entry per subagent, each in
+  the order given.
+- When neither is passed, the request carries no tool list.
+
 ### Wrap-up
 
 When the input carries a wrap-up signal, the harness stops and keeps

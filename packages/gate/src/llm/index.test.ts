@@ -193,6 +193,10 @@ describe("createLlmGate", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(GateError);
+    expect((error as GateError).message).toBe("Gate judgement failed");
+    expect((error as GateError).callerMessage).toBe(
+      "Gate judgement failed",
+    );
     expect((error as GateError).cause).toBe(original);
   });
 

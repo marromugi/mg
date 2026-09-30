@@ -4,11 +4,7 @@ import type {
   EstimateRequest,
   Estimator,
 } from "@mg/core";
-import {
-  EstimatorHttpError,
-  EstimatorResponseError,
-  EstimatorTransportError,
-} from "@mg/core";
+import { EstimatorResponseError } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, expectTypeOf, test, vi } from "vitest";
@@ -24,6 +20,7 @@ class RecordingSpan implements TraceSpan {
   readonly attributes: TraceAttributes;
   readonly children: RecordingSpan[] = [];
   readonly setAttributesCalls: TraceAttributes[] = [];
+  readonly endCalls: unknown[] = [];
 
   constructor(name: string, attributes?: TraceAttributes) {
     this.name = name;
@@ -46,7 +43,9 @@ class RecordingSpan implements TraceSpan {
 
   addEvent(): void {}
 
-  end(): void {}
+  end(error?: unknown): void {
+    this.endCalls.push(error);
+  }
 
   get mergedAttributes(): TraceAttributes {
     return Object.assign(
@@ -218,60 +217,18 @@ describe("createEstimatorGate", () => {
     expect(true).toBe(true);
   });
 
-  test("wraps an HTTP error from the estimator in a gate error with the original as cause", async () => {
-    const original = new EstimatorHttpError(
-      "Estimator request failed: 500",
-      500,
-      "",
-    );
-    const estimator = createFakeEstimator("m", async () => {
-      throw original;
-    });
-    const gate = createEstimatorGate({
-      estimator,
-      question: "question",
-    });
-
-    const error = await gate
-      .judge(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(GateError);
-    expect((error as GateError).message).toBe("Gate judgement failed");
-    expect((error as GateError).cause).toBe(original);
-  });
-
-  test("wraps a transport error from the estimator in a gate error with the original as cause", async () => {
-    const original = new EstimatorTransportError(
-      "Estimator request failed",
-      { cause: new Error("network down") },
-    );
-    const estimator = createFakeEstimator("m", async () => {
-      throw original;
-    });
-    const gate = createEstimatorGate({
-      estimator,
-      question: "question",
-    });
-
-    const error = await gate
-      .judge(request)
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(GateError);
-    expect((error as GateError).message).toBe("Gate judgement failed");
-    expect((error as GateError).cause).toBe(original);
-  });
-
-  test("wraps a response error from the estimator in a gate error with the original as cause", async () => {
+  test("states the estimator's full reason in message and leaves the service text out of callerMessage", async () => {
     const original = new EstimatorResponseError(
-      "Estimator response failed validation",
+      "Jev response is not JSON",
+      {
+        cause: new SyntaxError("Unexpected token '<'"),
+        causeQuotesService: true,
+      },
     );
-    const estimator = createFakeEstimator("m", async () => {
-      throw original;
-    });
     const gate = createEstimatorGate({
-      estimator,
+      estimator: createFakeEstimator("m", async () => {
+        throw original;
+      }),
       question: "question",
     });
 
@@ -280,8 +237,55 @@ describe("createEstimatorGate", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(GateError);
-    expect((error as GateError).message).toBe("Gate judgement failed");
+    expect((error as GateError).message).toBe(
+      "Gate judgement failed: Jev response is not JSON: Unexpected token '<'",
+    );
+    expect((error as GateError).callerMessage).toBe(
+      "Gate judgement failed: Jev response is not JSON: (text from the service left out)",
+    );
     expect((error as GateError).cause).toBe(original);
+  });
+
+  test("uses the same text for message and callerMessage when the estimator error quotes no service text", async () => {
+    const gate = createEstimatorGate({
+      estimator: createFakeEstimator("m", async () => {
+        throw new EstimatorResponseError(
+          "Jev response failed validation",
+        );
+      }),
+      question: "question",
+    });
+
+    const error = await gate
+      .judge(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as GateError).message).toBe(
+      "Gate judgement failed: Jev response failed validation",
+    );
+    expect((error as GateError).callerMessage).toBe(
+      "Gate judgement failed: Jev response failed validation",
+    );
+  });
+
+  test("ends the gate span with the full message under a trace", async () => {
+    const gate = createEstimatorGate({
+      estimator: createFakeEstimator("m", async () => {
+        throw new EstimatorResponseError("Jev response is not JSON", {
+          cause: new SyntaxError("Unexpected token '<'"),
+          causeQuotesService: true,
+        });
+      }),
+      question: "question",
+    });
+    const root = new RecordingSpan("root");
+
+    await gate.judge(request, { trace: root }).catch(() => {});
+
+    const ended = root.children[0].endCalls[0] as Error;
+    expect(ended.message).toBe(
+      "Gate judgement failed: Jev response is not JSON: Unexpected token '<'",
+    );
   });
 
   test("rejects without calling the estimator when the signal is already aborted", async () => {

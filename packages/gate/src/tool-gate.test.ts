@@ -7,6 +7,7 @@ import {
 } from "@mg/core";
 import type { TraceSpan } from "@mg/harness";
 import { describe, expect, it, vi } from "vitest";
+import { GateError } from "./errors.js";
 import { createRulesGate } from "./rules/index.js";
 import type {
   Gate,
@@ -160,6 +161,44 @@ describe("gateRunToolCall", () => {
     expect(result.toolCallId).toBe(call.id);
     expect(result.content).toContain("[denied]");
     expect(result.content).toContain("provider down");
+  });
+
+  it("shows the callerMessage of a GateError and does not call run", async () => {
+    const gate = stubGate(async () => {
+      throw new GateError(
+        "Gate judgement failed: Jev request failed: 503 upstream busy",
+        {
+          callerMessage:
+            "Gate judgement failed: Jev request failed: 503 (text from the service left out)",
+        },
+      );
+    });
+    const run = vi.fn();
+
+    const result = await gateRunToolCall(gate, run)(
+      [weatherTool],
+      call,
+    );
+
+    expect(run).not.toHaveBeenCalled();
+    expect(result.content).toBe(
+      "[denied] Not executed. The policy check failed: Gate judgement failed: Jev request failed: 503 (text from the service left out)",
+    );
+  });
+
+  it("shows the message of an error that is not a GateError", async () => {
+    const gate = stubGate(async () => {
+      throw new Error("reach could not be resolved");
+    });
+
+    const result = await gateRunToolCall(gate, vi.fn())(
+      [weatherTool],
+      call,
+    );
+
+    expect(result.content).toBe(
+      "[denied] Not executed. The policy check failed: reach could not be resolved",
+    );
   });
 
   it("rethrows an AbortError from the gate unchanged without calling run", async () => {

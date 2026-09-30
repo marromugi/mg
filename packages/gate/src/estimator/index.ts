@@ -59,9 +59,13 @@ export const createEstimatorGate = (
             ));
           } catch (error) {
             if (isEstimatorError(error)) {
-              throw new GateError("Gate judgement failed", {
-                cause: error,
-              });
+              throw new GateError(
+                `Gate judgement failed: ${error.message}`,
+                {
+                  cause: error,
+                  callerMessage: `Gate judgement failed: ${error.messageWithoutServiceText}`,
+                },
+              );
             }
             throw error;
           }

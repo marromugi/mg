@@ -83,17 +83,23 @@ const isAnchoredPath = (value: string): boolean => {
   return /^[A-Za-z]:[\\/]/.test(root) || /^[\\/]{2}/.test(root);
 };
 
-const malformed = (part: string, expected: string, value: unknown) =>
+const malformed = (
+  field: "call" | "reach",
+  part: string,
+  expected: string,
+  value: unknown,
+) =>
   new GateError(
-    `Rules gate payload has a malformed reach: ${part} must be ${expected}, got ${found(value)}`,
+    `Rules gate payload has a malformed ${field}: ${part} must be ${expected}, got ${found(value)}`,
   );
 
 const checkReach = (reach: unknown): void => {
   if (!isPlainObject(reach))
-    throw malformed("reach", "an object", reach);
+    throw malformed("reach", "reach", "an object", reach);
   const { kind } = reach;
   if (typeof kind !== "string" || !REACH_KINDS.includes(kind)) {
     throw malformed(
+      "reach",
       "reach.kind",
       `one of ${REACH_KINDS.join(", ")}`,
       kind,
@@ -103,20 +109,26 @@ const checkReach = (reach: unknown): void => {
 
   const { paths } = reach;
   if (!Array.isArray(paths)) {
-    throw malformed("reach.paths", "an array", paths);
+    throw malformed("reach", "reach.paths", "an array", paths);
   }
   for (const [index, entry] of paths.entries()) {
     const at = `reach.paths[${index}]`;
-    if (!isPlainObject(entry)) throw malformed(at, "an object", entry);
+    if (!isPlainObject(entry))
+      throw malformed("reach", at, "an object", entry);
     const { path, extent } = entry;
     if (typeof path !== "string") {
-      throw malformed(`${at}.path`, "a string", path);
+      throw malformed("reach", `${at}.path`, "a string", path);
     }
     if (!isAnchoredPath(path)) {
-      throw malformed(`${at}.path`, "an absolute path", path);
+      throw malformed("reach", `${at}.path`, "an absolute path", path);
     }
     if (extent !== "file" && extent !== "tree") {
-      throw malformed(`${at}.extent`, '"file" or "tree"', extent);
+      throw malformed(
+        "reach",
+        `${at}.extent`,
+        '"file" or "tree"',
+        extent,
+      );
     }
   }
 };
@@ -125,8 +137,14 @@ const asToolCallPayload = (payload: unknown): ToolCallPayload => {
   const record = isRecord(payload) ? payload : {};
   const { call, reach } = record;
 
-  if (!isRecord(call) || typeof call.name !== "string") {
+  if (call === undefined) {
     throw new GateError("Rules gate payload is missing call");
+  }
+  if (!isPlainObject(call)) {
+    throw malformed("call", "call", "an object", call);
+  }
+  if (typeof call.name !== "string") {
+    throw malformed("call", "call.name", "a string", call.name);
   }
 
   if (reach === undefined) {

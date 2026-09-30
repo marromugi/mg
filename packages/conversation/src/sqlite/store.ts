@@ -2,10 +2,14 @@ import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LibsqlError, createClient } from "@libsql/client";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import { assertJsonEntry, assertToolPairing } from "../checks.js";
+import {
+  assertJsonEntry,
+  assertNewToolCallIds,
+  assertToolPairing,
+} from "../checks.js";
 import {
   ConversationConflictError,
   ConversationEntryUnreadableError,
@@ -13,6 +17,7 @@ import {
   ConversationNotFoundError,
   ConversationRangeError,
 } from "../errors.js";
+import { collectToolCalls } from "../tool-calls.js";
 import type {
   ConversationEntry,
   ConversationSlice,
@@ -101,6 +106,20 @@ export const openSqliteConversationStore = async (
     }
   };
 
+  const readAllEntries = async (
+    id: string,
+  ): Promise<ConversationEntry[]> => {
+    const rows = await db
+      .select({
+        position: entries.position,
+        messages: entries.messages,
+      })
+      .from(entries)
+      .where(eq(entries.conversationId, id))
+      .orderBy(entries.position);
+    return rows.map((row) => toEntry(id, row));
+  };
+
   const create = async (id: string): Promise<void> => {
     try {
       await db.insert(conversations).values({ id });
@@ -128,38 +147,13 @@ export const openSqliteConversationStore = async (
       throw new ConversationNotFoundError(id);
     }
 
-    const total =
-      sql<number>`(select count(*) from entries where conversation_id = ${id})`.as(
-        "total",
-      );
-
-    const rows =
-      range.kind === "all"
-        ? await db
-            .select({
-              position: entries.position,
-              messages: entries.messages,
-              total,
-            })
-            .from(entries)
-            .where(eq(entries.conversationId, id))
-            .orderBy(entries.position)
-        : (
-            await db
-              .select({
-                position: entries.position,
-                messages: entries.messages,
-                total,
-              })
-              .from(entries)
-              .where(eq(entries.conversationId, id))
-              .orderBy(desc(entries.position))
-              .limit(range.count)
-          ).reverse();
+    const all = await readAllEntries(id);
+    const sliced = range.kind === "all" ? all : all.slice(-range.count);
 
     return {
-      entries: rows.map((row) => toEntry(id, row)),
-      length: rows[0]?.total ?? 0,
+      entries: sliced,
+      length: all.length,
+      toolCalls: collectToolCalls(all),
     };
   };
 
@@ -171,6 +165,24 @@ export const openSqliteConversationStore = async (
     assertJsonEntry(entry);
     assertToolPairing(entry);
 
+    const [conversationRow] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, id));
+    if (conversationRow === undefined) {
+      throw new ConversationNotFoundError(id);
+    }
+
+    const stored = await readAllEntries(id);
+    if (stored.length !== expectedLength) {
+      throw new ConversationConflictError(
+        id,
+        expectedLength,
+        stored.length,
+      );
+    }
+    assertNewToolCallIds(collectToolCalls(stored), entry);
+
     const rowsAffected = await insertEntry(
       id,
       expectedLength,
@@ -180,13 +192,6 @@ export const openSqliteConversationStore = async (
       return;
     }
 
-    const [conversationRow] = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, id));
-    if (conversationRow === undefined) {
-      throw new ConversationNotFoundError(id);
-    }
     throw new ConversationConflictError(
       id,
       expectedLength,

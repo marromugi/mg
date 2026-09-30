@@ -4,6 +4,7 @@ import {
   ConversationExistsError,
   ConversationNotFoundError,
   ConversationRangeError,
+  ConversationToolCallIdError,
   EntryNotJsonError,
   EntryToolPairingError,
 } from "./errors.js";
@@ -133,6 +134,20 @@ describe("EntryToolPairingError", () => {
     expect(error.toolCallId).toBe("c1");
     expect(error.message).toBe(
       'Tool call "c1" appears more than once in the same entry.',
+    );
+  });
+});
+
+describe("ConversationToolCallIdError", () => {
+  test("names the tool-call id and the position that holds it", () => {
+    const error = new ConversationToolCallIdError("c", 2);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe("ConversationToolCallIdError");
+    expect(error.toolCallId).toBe("c");
+    expect(error.position).toBe(2);
+    expect(error.message).toBe(
+      'Tool call id "c" is already stored at position 2. A tool-call id must be unique across the conversation.',
     );
   });
 });

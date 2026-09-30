@@ -1,6 +1,10 @@
-import { EntryNotJsonError, EntryToolPairingError } from "./errors.js";
+import {
+  ConversationToolCallIdError,
+  EntryNotJsonError,
+  EntryToolPairingError,
+} from "./errors.js";
 import { MAX_JSON_DEPTH } from "./limits.js";
-import type { ConversationEntry } from "./types.js";
+import type { ConversationEntry, StoredToolCall } from "./types.js";
 
 type NonJsonFound = {
   kind: "not-json" | "cycle" | "too-deep";
@@ -122,5 +126,33 @@ export const assertToolPairing = (entry: ConversationEntry): void => {
   const [firstUnanswered] = pending;
   if (firstUnanswered !== undefined) {
     throw new EntryToolPairingError("unanswered-call", firstUnanswered);
+  }
+};
+
+export const assertNewToolCallIds = (
+  stored: readonly StoredToolCall[],
+  entry: ConversationEntry,
+): void => {
+  const lowest = new Map<string, number>();
+  for (const { id, position } of stored) {
+    const known = lowest.get(id);
+    if (known === undefined || position < known) {
+      lowest.set(id, position);
+    }
+  }
+
+  for (const message of entry.messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+    for (const part of message.parts) {
+      if (part.type !== "tool-call") {
+        continue;
+      }
+      const position = lowest.get(part.id);
+      if (position !== undefined) {
+        throw new ConversationToolCallIdError(part.id, position);
+      }
+    }
   }
 };

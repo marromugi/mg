@@ -7,9 +7,12 @@ export type ConversationEntry = {
 export type ReadRange =
   { kind: "all" } | { kind: "last"; count: number };
 
+export type StoredToolCall = { id: string; position: number };
+
 export type ConversationSlice = {
   entries: ConversationEntry[];
   length: number;
+  toolCalls: StoredToolCall[];
 };
 
 export interface ConversationStore {

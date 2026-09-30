@@ -4,6 +4,7 @@ import {
   ConversationExistsError,
   ConversationNotFoundError,
   ConversationRangeError,
+  ConversationToolCallIdError,
   EntryNotJsonError,
   EntryToolPairingError,
 } from "./errors.js";
@@ -31,6 +32,26 @@ const entry = (
   ],
 });
 
+const entryWithCalls = (...ids: string[]): ConversationEntry => ({
+  messages: [
+    { role: "user", content: "hi" },
+    ...ids.flatMap((id) => [
+      {
+        role: "assistant" as const,
+        parts: [
+          {
+            type: "tool-call" as const,
+            id,
+            name: "echo",
+            arguments: { text: "ping" },
+          },
+        ],
+      },
+      { role: "tool" as const, toolCallId: id, content: "pong" },
+    ]),
+  ],
+});
+
 const entryA = (): ConversationEntry => entry("a", "A");
 const entryB = (): ConversationEntry => entry("b", "B");
 const entryC = (): ConversationEntry => entry("c", "C");
@@ -55,7 +76,7 @@ export const describeStoreContract = (
 
       const slice = await store.read("jev", { kind: "all" });
 
-      expect(slice).toEqual({ entries: [], length: 0 });
+      expect(slice).toEqual({ entries: [], length: 0, toolCalls: [] });
     });
 
     test("refuses to create an id that already exists, and leaves the original conversation untouched", async () => {
@@ -201,7 +222,7 @@ export const describeStoreContract = (
 
       expect(error).toBeInstanceOf(EntryNotJsonError);
       const slice = await store.read("jev", { kind: "all" });
-      expect(slice).toEqual({ entries: [], length: 0 });
+      expect(slice).toEqual({ entries: [], length: 0, toolCalls: [] });
     });
 
     test("refuses to append an entry nested past 128 levels, and leaves the conversation untouched", async () => {
@@ -290,6 +311,60 @@ export const describeStoreContract = (
       expect(firstMessageContent(secondRead.entries[0])).toBe("a");
     });
 
+    test("reads every stored tool call of the conversation with its position, whatever the range", async () => {
+      const store = await open();
+      await store.create("c");
+      await store.append("c", entryWithCalls("a"), 0);
+      await store.append("c", entryWithCalls(), 1);
+      await store.append("c", entryWithCalls("b", "c"), 2);
+
+      const slice = await store.read("c", { kind: "last", count: 1 });
+
+      expect(slice.toolCalls).toEqual([
+        { id: "a", position: 0 },
+        { id: "b", position: 2 },
+        { id: "c", position: 2 },
+      ]);
+    });
+
+    test("refuses an entry reusing a stored tool-call id, names the first such id and its lowest position, and writes nothing", async () => {
+      const store = await open();
+      await store.create("c");
+      await store.append("c", entryWithCalls("a"), 0);
+      await store.append("c", entryWithCalls(), 1);
+      await store.append("c", entryWithCalls("b", "c"), 2);
+
+      const error = await thrown(
+        store.append("c", entryWithCalls("x", "c", "b"), 3),
+      );
+
+      expect(error).toBeInstanceOf(ConversationToolCallIdError);
+      expect((error as ConversationToolCallIdError).toolCallId).toBe(
+        "c",
+      );
+      expect((error as ConversationToolCallIdError).position).toBe(2);
+      const slice = await store.read("c", { kind: "all" });
+      expect(slice.length).toBe(3);
+    });
+
+    test("reports a length mismatch as a conflict even when the entry also reuses a stored tool-call id", async () => {
+      const store = await open();
+      await store.create("c");
+      await store.append("c", entryWithCalls("a"), 0);
+      await store.append("c", entryWithCalls(), 1);
+      await store.append("c", entryWithCalls("b", "c"), 2);
+
+      const error = await thrown(
+        store.append("c", entryWithCalls("b"), 2),
+      );
+
+      expect(error).toBeInstanceOf(ConversationConflictError);
+      expect((error as ConversationConflictError).expectedLength).toBe(
+        2,
+      );
+      expect((error as ConversationConflictError).actualLength).toBe(3);
+    });
+
     test("keeps conversations with different ids independent of each other", async () => {
       const store = await open();
       await store.create("one");
@@ -298,7 +373,7 @@ export const describeStoreContract = (
 
       const slice = await store.read("two", { kind: "all" });
 
-      expect(slice).toEqual({ entries: [], length: 0 });
+      expect(slice).toEqual({ entries: [], length: 0, toolCalls: [] });
     });
   });
 };

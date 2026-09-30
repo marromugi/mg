@@ -1,10 +1,15 @@
-import { assertJsonEntry, assertToolPairing } from "./checks.js";
+import {
+  assertJsonEntry,
+  assertNewToolCallIds,
+  assertToolPairing,
+} from "./checks.js";
 import {
   ConversationConflictError,
   ConversationExistsError,
   ConversationNotFoundError,
   ConversationRangeError,
 } from "./errors.js";
+import { collectToolCalls } from "./tool-calls.js";
 import type {
   ConversationEntry,
   ConversationSlice,
@@ -41,7 +46,11 @@ export const createMemoryConversationStore = (): ConversationStore => {
     const sliced =
       range.kind === "all" ? entries : entries.slice(-range.count);
 
-    return { entries: structuredClone(sliced), length: entries.length };
+    return {
+      entries: structuredClone(sliced),
+      length: entries.length,
+      toolCalls: collectToolCalls(entries),
+    };
   };
 
   const append = async (
@@ -64,6 +73,8 @@ export const createMemoryConversationStore = (): ConversationStore => {
         entries.length,
       );
     }
+
+    assertNewToolCallIds(collectToolCalls(entries), entry);
 
     entries.push({ messages: structuredClone(entry.messages) });
   };

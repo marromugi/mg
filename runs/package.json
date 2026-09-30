@@ -9,6 +9,7 @@
   "dependencies": {
     "@mg/conversation": "workspace:*",
     "@mg/core": "workspace:*",
+    "@mg/dialogue": "workspace:*",
     "@mg/eval": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",

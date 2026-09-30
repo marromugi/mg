@@ -96,9 +96,9 @@ export async function run(
         const harness = createHarness(
           config.harness,
           config.provider,
-          config.gate,
-          tools,
-          subagents,
+          config.gate
+            ? { gate: config.gate, tools, subagents }
+            : { subagents },
         );
         const events = tee(
           harness({

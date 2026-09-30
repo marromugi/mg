@@ -627,6 +627,82 @@ describe("createJevEstimator", () => {
 
     await expect(estimator.estimate(request)).rejects.toBe(abortError);
   });
+
+  test("throws the signal's reason when the caller aborts with a plain object while sending", async () => {
+    const reason = { why: "user left" };
+    const controller = new AbortController();
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => {
+        controller.abort(reason);
+        throw new TypeError("fetch failed");
+      }),
+    });
+
+    await expect(
+      estimator.estimate(request, { signal: controller.signal }),
+    ).rejects.toBe(reason);
+  });
+
+  test("throws the signal's reason when the caller aborts while reading a failed response body", async () => {
+    const reason = { why: "user left" };
+    const controller = new AbortController();
+    const response = new Response(null, { status: 500 });
+    vi.spyOn(response, "text").mockImplementation(async () => {
+      controller.abort(reason);
+      throw new Error("read failed");
+    });
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => response),
+    });
+
+    await expect(
+      estimator.estimate(request, { signal: controller.signal }),
+    ).rejects.toBe(reason);
+  });
+});
+
+describe("a failed response whose body cannot be read", () => {
+  test("reports the status and the read failure, retryable by status, without a JevHttpError", async () => {
+    const readError = new TypeError("terminated: other side closed");
+    const response = new Response(null, { status: 503 });
+    vi.spyOn(response, "text").mockRejectedValue(readError);
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => response),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    const requestError = error as EstimatorRequestError;
+    expect(requestError).toBeInstanceOf(EstimatorRequestError);
+    expect(requestError.message).toBe(
+      "Jev request failed: 503; the body could not be read: terminated: other side closed",
+    );
+    expect(requestError.messageWithoutServiceText).toBe(
+      "Jev request failed: 503; the body could not be read: terminated: other side closed",
+    );
+    expect(requestError.retryable).toBe(true);
+    expect(requestError.cause).toBe(readError);
+  });
+
+  test("is not retryable when the status is 400", async () => {
+    const response = new Response(null, { status: 400 });
+    vi.spyOn(response, "text").mockRejectedValue(new Error("boom"));
+    const estimator = createJevEstimator({
+      apiKey: "key",
+      fetch: stubFetch(async () => response),
+    });
+
+    const error = await estimator
+      .estimate(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as EstimatorRequestError).retryable).toBe(false);
+  });
 });
 
 describe("retryable failures and retryAfterMs", () => {

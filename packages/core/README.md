@@ -129,6 +129,16 @@ have `retryable`, which says whether a retry is possible, and `retryAfterMs`, th
   and is not retried, and so is a body that is not JSON.
 - If the response's Retry-After reads as a number of seconds or as an HTTP
   date, it is written to `retryAfterMs`. If not, it is left out.
+- A failure response whose body cannot be read is reported as such,
+  as `EstimatorRequestError` with the read failure as its cause and
+  no `JevHttpError`. Its message states the status and that the body
+  could not be read. It is retryable by its status, like any failure
+  response.
+- Every step of a Jev call (sending, reading a failure response's
+  body, reading a successful response's body) recognises an abort by
+  the call's signal first. Once the signal has fired, the signal's
+  reason is thrown, whatever the failure was. Otherwise an error named
+  `AbortError` passes through unwrapped.
 - For a failure response the Jev implementation throws
   `EstimatorRequestError` with a `JevHttpError` as its cause. The
   `JevHttpError` holds the `status` and the whole `body`. Its message is

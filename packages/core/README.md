@@ -71,7 +71,9 @@ Provider errors
   ProviderTransportError  the connection itself failed
   ToolArgumentsError      the call's arguments cannot be read
   ToolSchemaError         the schema cannot be converted
-  ProviderError           union of the 4
+  ProviderUnsupportedError  the provider does not support a feature
+  ProviderRetryExhaustedError  the retries ran out
+  ProviderError           union of the 6
   isProviderError         type guard
 
 Estimator errors
@@ -131,6 +133,20 @@ have `retryable`, which says whether a retry is possible, and `retryAfterMs`, th
 - `EstimatorRetryExhaustedError` says the retries ran out.
   It holds the number of attempts and the last error as its cause. Its
   message ends with the last error's message. It is not retryable.
+
+Every provider error has `retryable`, which says whether trying again
+may help, and `retryAfterMs`, the time to wait first in milliseconds.
+`retryAfterMs` is only set on a retryable error.
+
+- An error is not retryable unless the implementation that throws it
+  marks it so. Each implementation decides which of its failures are
+  retryable.
+- `ProviderHttpError` and `ProviderTransportError` accept the mark.
+  `ToolArgumentsError`, `ToolSchemaError` and `ProviderUnsupportedError`
+  never carry it.
+- `ProviderRetryExhaustedError` says the retries ran out. It holds the
+  number of attempts and the last error as its cause. It is not
+  retryable.
 
 ## How it works
 

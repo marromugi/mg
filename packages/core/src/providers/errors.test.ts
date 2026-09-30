@@ -4,6 +4,7 @@ import {
   isProviderError,
   ProviderBaseError,
   ProviderHttpError,
+  ProviderRetryExhaustedError,
   ProviderTransportError,
   ProviderUnsupportedError,
   ToolArgumentsError,
@@ -105,6 +106,73 @@ describe("ProviderUnsupportedError", () => {
   });
 });
 
+describe("retry mark", () => {
+  const cause = new Error("inner");
+
+  test("is off, with no wait time, when not given", () => {
+    const errors = [
+      new ProviderHttpError("x", 400, ""),
+      new ProviderTransportError("x", { cause }),
+      new ToolArgumentsError("id", "tool", "{"),
+      new ToolSchemaError("tool", { cause }),
+      new ProviderUnsupportedError("x", "tool-choice"),
+    ];
+
+    for (const error of errors) {
+      expect(error.retryable).toBe(false);
+      expect(error.retryAfterMs).toBeUndefined();
+    }
+  });
+
+  test("is carried with the wait time given", () => {
+    const http = new ProviderHttpError("x", 503, "", {
+      retryable: true,
+      retryAfterMs: 3000,
+    });
+    const transport = new ProviderTransportError("x", {
+      cause,
+      retryable: true,
+    });
+    const notRetryable = new ProviderHttpError("x", 400, "", {
+      retryable: false,
+    });
+
+    expect(http.retryable).toBe(true);
+    expect(http.retryAfterMs).toBe(3000);
+    expect(transport.retryable).toBe(true);
+    expect(transport.retryAfterMs).toBeUndefined();
+    expect(notRetryable.retryable).toBe(false);
+  });
+
+  test("refuses a wait time on an error that is not retryable", () => {
+    const construct = () =>
+      new ProviderHttpError("x", 400, "", {
+        retryable: false,
+        // @ts-expect-error a wait time needs retryable: true
+        retryAfterMs: 1,
+      });
+
+    expect(construct).toBeTypeOf("function");
+  });
+});
+
+describe("ProviderRetryExhaustedError", () => {
+  test("carries the attempts and the last error", () => {
+    const cause = new Error("inner");
+    const error = new ProviderRetryExhaustedError(3, { cause });
+
+    expect(error.name).toBe("ProviderRetryExhaustedError");
+    expect(error.message).toBe(
+      "Provider retries exhausted (attempts: 3)",
+    );
+    expect(error.attempts).toBe(3);
+    expect(error.cause).toBe(cause);
+    expect(error.retryable).toBe(false);
+    expect(error.retryAfterMs).toBeUndefined();
+    expect(isProviderError(error)).toBe(true);
+  });
+});
+
 describe("ProviderBaseError", () => {
   test("cannot be constructed directly", () => {
     // @ts-expect-error ProviderBaseError is abstract
@@ -131,6 +199,11 @@ describe("ProviderBaseError", () => {
         case "ProviderUnsupportedError":
           expectTypeOf(error).toEqualTypeOf<ProviderUnsupportedError>();
           return `unsupported:${error.feature}`;
+        case "ProviderRetryExhaustedError":
+          expectTypeOf(
+            error,
+          ).toEqualTypeOf<ProviderRetryExhaustedError>();
+          return `exhausted:${error.attempts}`;
       }
     };
 
@@ -206,6 +279,11 @@ describe("isProviderError", () => {
                 error,
               ).toEqualTypeOf<ProviderUnsupportedError>();
               return `unsupported:${error.feature}`;
+            case "ProviderRetryExhaustedError":
+              expectTypeOf(
+                error,
+              ).toEqualTypeOf<ProviderRetryExhaustedError>();
+              return `exhausted:${error.attempts}`;
           }
         }
 

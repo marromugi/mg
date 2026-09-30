@@ -1,11 +1,23 @@
+type ProviderRetryMark =
+  | { retryable?: false; retryAfterMs?: never }
+  | { retryable: true; retryAfterMs?: number };
+
+export type ProviderErrorOptions = {
+  cause?: unknown;
+} & ProviderRetryMark;
+
 export abstract class ProviderBaseError extends Error {
   abstract override readonly name: ProviderErrorName;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | undefined;
 
   protected constructor(
     message: string,
-    options?: { cause?: unknown },
+    options?: ProviderErrorOptions,
   ) {
     super(message, options);
+    this.retryable = options?.retryable ?? false;
+    this.retryAfterMs = options?.retryAfterMs;
   }
 }
 
@@ -18,7 +30,7 @@ export class ProviderHttpError extends ProviderBaseError {
     message: string,
     status: number,
     body: string,
-    options?: { cause?: unknown },
+    options?: ProviderErrorOptions,
   ) {
     super(message, options);
     this.status = status;
@@ -31,7 +43,10 @@ export class ProviderTransportError extends ProviderBaseError {
 
   // cause を必須にするために残しています。
   // oxlint-disable-next-line no-useless-constructor
-  constructor(message: string, options: { cause: unknown }) {
+  constructor(
+    message: string,
+    options: ProviderErrorOptions & { cause: unknown },
+  ) {
     super(message, options);
   }
 }
@@ -78,12 +93,25 @@ export class ProviderUnsupportedError extends ProviderBaseError {
   }
 }
 
+export class ProviderRetryExhaustedError extends ProviderBaseError {
+  override readonly name = "ProviderRetryExhaustedError";
+  readonly attempts: number;
+
+  constructor(attempts: number, options: { cause: unknown }) {
+    super(`Provider retries exhausted (attempts: ${attempts})`, {
+      cause: options.cause,
+    });
+    this.attempts = attempts;
+  }
+}
+
 export type ProviderError =
   | ProviderHttpError
   | ProviderTransportError
   | ToolArgumentsError
   | ToolSchemaError
-  | ProviderUnsupportedError;
+  | ProviderUnsupportedError
+  | ProviderRetryExhaustedError;
 
 export type ProviderErrorName = ProviderError["name"];
 

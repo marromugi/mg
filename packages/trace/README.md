@@ -231,6 +231,13 @@ trace passes a sampler and span limits to the SDK.
 OpenTelemetry has environment variables that change the sampler and span limits.
 They have no effect on trace's recording.
 
+OTLP エクスポーターも、環境変数を読みません。
+
+- 送信先の URL、ヘッダー、タイムアウトは、呼び出し側が渡します。
+- OpenTelemetry が OTLP エクスポーター向けに持つ環境変数は、効きません。
+- 送信は常に圧縮なしです。
+- 独自の CA やクライアント証明書は使えません。
+
 A span that has ended is always handed to the exporters.
 To record nothing, pass no exporters.
 

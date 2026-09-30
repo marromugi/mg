@@ -76,13 +76,12 @@ Provider errors
 
 Estimator errors
   EstimatorBaseError            parent (cannot be created directly)
-  EstimatorHttpError            a failure response came back
-  EstimatorTransportError       the connection itself failed
+  EstimatorRequestError         the request got no answer
   EstimatorResponseError        the response is not JSON, has the wrong shape,
                                 the chosen label is not one of the given
                                 labels, or a probability is out of range
   EstimatorRetryExhaustedError  the retries ran out
-  EstimatorError                union of the 4
+  EstimatorError                union of the 3
   isEstimatorError              type guard
 
 Tool run errors
@@ -114,15 +113,18 @@ Wrapping follows these rules.
 - A stop caused by an abort passes through unwrapped.
 - An exception thrown by a tool's run function also passes through as is.
 
-The Estimator's `EstimatorHttpError`, `EstimatorTransportError` and
-`EstimatorResponseError` have `retryable`, which says whether a retry is
-possible, and `retryAfterMs`, the time to wait in milliseconds.
+The Estimator's `EstimatorRequestError` and `EstimatorResponseError`
+have `retryable`, which says whether a retry is possible, and `retryAfterMs`, the time to wait in milliseconds.
 `retryAfterMs` is optional.
 
 - The Jev implementation treats connection failures and 429 and 5xx
   responses as retryable failures.
 - If the response's Retry-After reads as a number of seconds or as an HTTP
   date, it is written to `retryAfterMs`. If not, it is left out.
+- For a failure response the Jev implementation throws
+  `EstimatorRequestError` with a `JevHttpError` as its cause. The
+  `JevHttpError` holds the `status` and the whole `body`. Its message is
+  the first 200 characters of the body.
 - `EstimatorRetryExhaustedError` says the retries ran out.
   It holds the number of attempts and the last error as its cause. Its
   message ends with the last error's message. It is not retryable.

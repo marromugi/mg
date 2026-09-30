@@ -77,80 +77,95 @@ type WatchedFailure = {
 // Wraps one exporter so every failure it produces, before and after closing
 // starts, is kept under its own label, for TraceShutdownError to report by
 // target and step. A failure recorded after closing started is always part
-// of the outcome; one recorded earlier is included only when OpenTelemetry
-// rethrows that same value while closing. Unclaimed thrown values are
-// attributed elsewhere.
+// of the outcome, under the step the closing sequence was running; one
+// recorded earlier is included only when OpenTelemetry rethrows that same
+// value while closing. Unclaimed thrown values are attributed elsewhere.
 class WatchedExporter implements SpanExporter {
   private readonly recorded: WatchedFailure[] = [];
-  private closingStarted = false;
+  private runningStep: WatchedStep | undefined;
+  private pendingSpans = 0;
+  private shutdownCall: Promise<void> | undefined;
 
   constructor(
     readonly target: string,
     private readonly inner: SpanExporter,
   ) {}
 
-  startClosing(): void {
-    this.closingStarted = true;
+  startStep(step: WatchedStep): void {
+    this.runningStep = step;
   }
 
   export(
     spans: ReadableSpan[],
     resultCallback: ExportResultCallback,
   ): void {
-    this.inner.export(spans, (result) => {
-      if (!isFailedExportCode(result.code)) {
-        resultCallback(result);
-        return;
-      }
-      const error =
-        result.error ??
-        new Error(
-          `${this.target} reported a failed export without an error`,
-        );
-      this.record("flush", error);
-      resultCallback({ code: result.code, error });
-    });
+    this.pendingSpans += spans.length;
+    try {
+      this.inner.export(spans, (result) => {
+        this.pendingSpans -= spans.length;
+        if (!isFailedExportCode(result.code)) {
+          resultCallback(result);
+          return;
+        }
+        const error =
+          result.error ??
+          new Error(
+            `${this.target} reported a failed export without an error`,
+          );
+        this.record(error);
+        resultCallback({ code: result.code, error });
+      });
+    } catch (error) {
+      this.pendingSpans -= spans.length;
+      throw error;
+    }
   }
 
   async forceFlush(): Promise<void> {
     try {
       await (this.inner.forceFlush?.() ?? Promise.resolve());
     } catch (error) {
-      this.record("flush", error);
+      this.record(error);
       throw error;
     }
   }
 
-  async shutdown(): Promise<void> {
+  shutdown(): Promise<void> {
+    this.shutdownCall = this.closeInner();
+    return this.shutdownCall;
+  }
+
+  private async closeInner(): Promise<void> {
     try {
       await this.inner.shutdown();
     } catch (error) {
-      this.record("shutdown", error);
+      this.record(error);
       throw error;
     }
   }
 
-  private record(step: WatchedStep, error: unknown): void {
-    this.recorded.push({
-      step,
-      error,
-      afterClosingStarted: this.closingStarted,
-    });
+  // Resolves once this exporter's own shutdown call has settled, however it
+  // settled. Resolves at once when shutdown was never called.
+  async shutdownSettled(): Promise<void> {
+    try {
+      await this.shutdownCall;
+    } catch {
+      // Already recorded by closeInner.
+    }
   }
 
-  // Whether this exporter recorded a failure for the given step after
-  // closing started, so a step can be judged failed even when OpenTelemetry
-  // itself never threw (its own reporting for that step surfaces only one
-  // of possibly several exporters' failures).
-  recordedDuring(step: WatchedStep): boolean {
-    return this.recorded.some(
-      (failure) => failure.step === step && failure.afterClosingStarted,
-    );
+  private record(error: unknown): void {
+    this.recorded.push({
+      step: this.runningStep ?? "flush",
+      error,
+      afterClosingStarted: this.runningStep !== undefined,
+    });
   }
 
   // Returns, in recorded order, this exporter's own failures for the given
   // step: every one recorded after closing started, plus any recorded
-  // earlier that OpenTelemetry rethrew. Claimed values are removed from
+  // earlier that OpenTelemetry rethrew, then, for the shutdown step, the
+  // exports still without a result. Claimed values are removed from
   // `unclaimed` so they are not also attributed to "trace".
   collect(
     step: WatchedStep,
@@ -170,6 +185,15 @@ class WatchedExporter implements SpanExporter {
           error: failure.error,
         });
       }
+    }
+    if (step === "shutdown" && this.pendingSpans > 0) {
+      collected.push({
+        target: this.target,
+        step,
+        error: new Error(
+          `${this.target} had ${this.pendingSpans} span(s) still being exported when closing finished`,
+        ),
+      });
     }
     return collected;
   }
@@ -232,26 +256,21 @@ export const createTraceSdk = async (
   // Runs one closing step, translating whatever OpenTelemetry throws (if
   // anything) into TraceShutdownFailure entries: each watched exporter's own
   // failures for this step, in exporter order, then any thrown value none of
-  // them claimed. The step is judged to have failed when OpenTelemetry
-  // throws or when a watcher recorded a failure for it, since OpenTelemetry
-  // itself may surface only one of several exporters' failures.
+  // them claimed. OpenTelemetry may surface only one of several exporters'
+  // failures, so the watchers' records are the source.
   const runClosingStep = async (
     step: WatchedStep,
     action: () => Promise<void>,
-  ): Promise<TraceShutdownFailure[] | undefined> => {
+  ): Promise<TraceShutdownFailure[]> => {
+    for (const exporter of watchedExporters) {
+      exporter.startStep(step);
+    }
     const unclaimed: unknown[] = [];
     try {
       await action();
     } catch (thrown) {
       unclaimed.push(...(Array.isArray(thrown) ? thrown : [thrown]));
     }
-
-    const failed =
-      unclaimed.length > 0 ||
-      watchedExporters.some((exporter) =>
-        exporter.recordedDuring(step),
-      );
-    if (!failed) return undefined;
 
     const failures: TraceShutdownFailure[] = [];
     for (const exporter of watchedExporters) {
@@ -263,36 +282,39 @@ export const createTraceSdk = async (
     return failures;
   };
 
+  // OpenTelemetry starts every exporter's shutdown before it settles, but
+  // rejects on the first failure without waiting for the rest, so each
+  // exporter's own shutdown is awaited here before SQLite is closed.
+  const endOpenTelemetry = async (): Promise<void> => {
+    try {
+      await provider.shutdown();
+    } finally {
+      await Promise.all(
+        watchedExporters.map((exporter) => exporter.shutdownSettled()),
+      );
+    }
+  };
+
   return {
     tracer: provider.getTracer(serviceName),
     sessionId,
     shutdown: async () => {
-      for (const exporter of watchedExporters) {
-        exporter.startClosing();
-      }
-
-      const flushFailures = await runClosingStep("flush", () =>
-        provider.forceFlush(),
+      const failures: TraceShutdownFailure[] = [];
+      failures.push(
+        ...(await runClosingStep("flush", () => provider.forceFlush())),
       );
-      if (flushFailures !== undefined) {
-        throw new TraceShutdownError(flushFailures);
-      }
-
-      const shutdownFailures = await runClosingStep("shutdown", () =>
-        provider.shutdown(),
+      failures.push(
+        ...(await runClosingStep("shutdown", endOpenTelemetry)),
       );
-      if (shutdownFailures !== undefined) {
-        throw new TraceShutdownError(shutdownFailures);
-      }
-
       if (sqliteDb !== undefined) {
         try {
           sqliteDb.$client.close();
         } catch (error) {
-          throw new TraceShutdownError([
-            { target: "sqlite", step: "close", error },
-          ]);
+          failures.push({ target: "sqlite", step: "close", error });
         }
+      }
+      if (failures.length > 0) {
+        throw new TraceShutdownError(failures);
       }
     },
   };

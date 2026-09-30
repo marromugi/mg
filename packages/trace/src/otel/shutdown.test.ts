@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createClient } from "@libsql/client";
 import { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
 import type {
@@ -322,6 +323,262 @@ describe("createTraceSdk's shutdown failures", () => {
 
     expect((caught as TraceShutdownError).failures).toEqual([
       { target: "exporters[0]", step: "flush", error },
+    ]);
+  });
+});
+
+// A destination whose export never reports a result.
+class NeverReportingExporter implements SpanExporter {
+  export(): void {
+    // Never calls its result callback.
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const FLUSH_TIMEOUT_MESSAGE =
+  "Span processor did not completed within timeout period of 30000 ms";
+
+const failuresOf = async (
+  sdk: Awaited<ReturnType<typeof createTraceSdk>>,
+): Promise<TraceShutdownError["failures"]> => {
+  try {
+    await sdk.shutdown();
+  } catch (thrown) {
+    return (thrown as TraceShutdownError).failures;
+  }
+  throw new Error("expected shutdown to reject");
+};
+
+type ClientPrototype = {
+  close: () => void;
+  execute: (...args: unknown[]) => Promise<unknown>;
+};
+
+const clientPrototype = (): ClientPrototype =>
+  Object.getPrototypeOf(
+    createClient({ url: "file::memory:" }),
+  ) as ClientPrototype;
+
+// Ends OpenTelemetry the way it does when one processor rejects: every
+// exporter's shutdown starts, then the combined promise rejects at once.
+const rejectShutdownAfterStarting = (value: unknown) => {
+  const original = BasicTracerProvider.prototype.shutdown;
+  return vi
+    .spyOn(BasicTracerProvider.prototype, "shutdown")
+    .mockImplementation(function (this: BasicTracerProvider) {
+      original.call(this).catch(() => undefined);
+      return Promise.reject(value);
+    });
+};
+
+describe("createTraceSdk's shutdown runs every closing step", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "mg-trace-steps-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("lists a failed flush and a failed SQLite close together", async () => {
+    const disk = new Error("disk");
+    const locked = new Error("locked");
+    vi.spyOn(clientPrototype(), "close").mockImplementationOnce(() => {
+      throw locked;
+    });
+    const sdk = await createTraceSdk({
+      sqlitePath: join(dir, "spans.db"),
+      exporters: [new FlushRejectingExporter(disk)],
+    });
+    endOneSpan(sdk);
+
+    let caught: unknown;
+    try {
+      await sdk.shutdown();
+    } catch (thrown) {
+      caught = thrown;
+    }
+
+    expect((caught as TraceShutdownError).failures).toEqual([
+      { target: "exporters[0]", step: "flush", error: disk },
+      { target: "sqlite", step: "close", error: locked },
+    ]);
+    expect((caught as Error).message).toBe(
+      "Closing the trace record failed for 2 targets: exporters[0] (flush): disk; sqlite (close): locked",
+    );
+  });
+
+  it("ends OpenTelemetry after a failed flush", async () => {
+    const disk = new Error("disk");
+    const stuck = new Error("stuck");
+    rejectShutdownAfterStarting(stuck);
+    const sdk = await createTraceSdk({
+      exporters: [new FlushRejectingExporter(disk)],
+    });
+    endOneSpan(sdk);
+
+    expect(await failuresOf(sdk)).toEqual([
+      { target: "exporters[0]", step: "flush", error: disk },
+      { target: "trace", step: "shutdown", error: stuck },
+    ]);
+  });
+
+  it("closes SQLite after ending OpenTelemetry fails", async () => {
+    const stuck = new Error("stuck");
+    const locked = new Error("locked");
+    vi.spyOn(clientPrototype(), "close").mockImplementationOnce(() => {
+      throw locked;
+    });
+    rejectShutdownAfterStarting(stuck);
+    const sdk = await createTraceSdk({
+      sqlitePath: join(dir, "spans.db"),
+    });
+    endOneSpan(sdk);
+
+    expect(await failuresOf(sdk)).toEqual([
+      { target: "trace", step: "shutdown", error: stuck },
+      { target: "sqlite", step: "close", error: locked },
+    ]);
+  });
+
+  it("names a write that fails while OpenTelemetry is ending with the shutdown step", async () => {
+    const busy = new Error("busy");
+    const sdk = await createTraceSdk({
+      sqlitePath: join(dir, "spans.db"),
+    });
+    vi.useFakeTimers();
+    vi.spyOn(clientPrototype(), "execute").mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          setTimeout(() => reject(busy), 40000);
+        }),
+    );
+    endOneSpan(sdk);
+
+    let failures: TraceShutdownError["failures"] = [];
+    const settled = failuresOf(sdk).then((value) => {
+      failures = value;
+    });
+    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(10000);
+    await settled;
+
+    expect(failures).toEqual([
+      {
+        target: "trace",
+        step: "flush",
+        error: expect.objectContaining({
+          message: FLUSH_TIMEOUT_MESSAGE,
+        }),
+      },
+      {
+        target: "sqlite",
+        step: "shutdown",
+        error: expect.objectContaining({ cause: busy }),
+      },
+    ]);
+  });
+
+  it("waits for a pending SQLite write before closing when ending OpenTelemetry rejects", async () => {
+    const stuck = new Error("stuck");
+    const sqlitePath = join(dir, "spans.db");
+    const sdk = await createTraceSdk({ sqlitePath });
+    vi.useFakeTimers();
+    const prototype = clientPrototype();
+    const originalExecute = prototype.execute;
+    const originalClose = prototype.close;
+    let closed = false;
+    vi.spyOn(prototype, "execute").mockImplementation(function (
+      this: unknown,
+      ...args: unknown[]
+    ) {
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          if (closed) {
+            reject(new Error("CLIENT_CLOSED"));
+            return;
+          }
+          resolve(originalExecute.apply(this, args));
+        }, 40000);
+      });
+    });
+    vi.spyOn(prototype, "close").mockImplementation(function (
+      this: unknown,
+    ) {
+      closed = true;
+      originalClose.call(this);
+    });
+    rejectShutdownAfterStarting(stuck);
+    endOneSpan(sdk);
+
+    let failures: TraceShutdownError["failures"] | undefined;
+    const settled = failuresOf(sdk).then((value) => {
+      failures = value;
+    });
+    await vi.advanceTimersByTimeAsync(39999);
+    expect(failures).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    await settled;
+
+    expect(failures).toEqual([
+      {
+        target: "trace",
+        step: "flush",
+        error: expect.objectContaining({
+          message: FLUSH_TIMEOUT_MESSAGE,
+        }),
+      },
+      { target: "trace", step: "shutdown", error: stuck },
+    ]);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    const reader = createClient({
+      url: pathToFileURL(sqlitePath).href,
+    });
+    const rows = await reader.execute(
+      "select count(*) as n from spans",
+    );
+    reader.close();
+    expect(rows.rows[0]?.["n"]).toBe(1);
+  });
+
+  it("names a passed exporter's export still unfinished when closing ends", async () => {
+    vi.useFakeTimers();
+    const sdk = await createTraceSdk({
+      exporters: [new NeverReportingExporter()],
+    });
+    endOneSpan(sdk);
+
+    let failures: TraceShutdownError["failures"] = [];
+    const settled = failuresOf(sdk).then((value) => {
+      failures = value;
+    });
+    await vi.advanceTimersByTimeAsync(30000);
+    await settled;
+
+    expect(failures).toEqual([
+      {
+        target: "trace",
+        step: "flush",
+        error: expect.objectContaining({
+          message: FLUSH_TIMEOUT_MESSAGE,
+        }),
+      },
+      {
+        target: "exporters[0]",
+        step: "shutdown",
+        error: expect.objectContaining({
+          message:
+            "exporters[0] had 1 span(s) still being exported when closing finished",
+        }),
+      },
     ]);
   });
 });

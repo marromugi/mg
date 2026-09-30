@@ -96,6 +96,20 @@ line yet, because the parent has no number:
 3. Run `check-issue.mjs` again on each child body.
 4. Create each child only when it prints no problems.
 5. Fill the parent's `Child issues` list with the real numbers.
+6. Keep parent lines in step. Run
+   `node .claude/skills/architect/scripts/parent-lines.mjs --dir <scratchpad>/parent-lines`
+   with an empty folder. It finds open listed children with no
+   `Parent:` line and writes their new bodies. For each written file:
+   run `check-issue.mjs`; when it prints no problems, run
+   `gh issue edit <n> --body-file <file>`; otherwise leave the issue
+   and report the problems. After each edit, read the body back with
+   `gh issue view <n> --json body` and run `check-issue.mjs` on it
+   again. Put the results in the report, and report every `skip` line.
+
+The script never edits an issue; only architect writes issue bodies. A
+child that is being built with no PR yet cannot be seen by the script and
+may be edited. Its `verify` then fails with "body changed" and waits for
+the developer.
 
 Then invoke `reconciler` with the numbers just created.
 

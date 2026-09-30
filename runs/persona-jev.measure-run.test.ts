@@ -74,22 +74,22 @@ const keptTexts = [
   "just moved to Osaka",
   "is allergic to peanuts",
 ];
-const acceptedProposals = [
-  "I am Jev, a dog person.",
-  "I am Jev, who never gives financial advice.",
-];
+const dogProposal = "I am Jev, a dog person.";
+const stockProposal = "I am Jev, who never gives financial advice.";
 
 const estimateFor =
-  (personaProbability: (accepted: boolean) => number) =>
+  (personaProbability: (proposed: string) => number) =>
   (request: EstimateRequest): number => {
     const text = field(request, "text");
     if (typeof text === "string") {
       return keptTexts.includes(text) ? 0.6 : 0.59;
     }
-    return personaProbability(
-      acceptedProposals.includes(field(request, "proposed") as string),
-    );
+    return personaProbability(field(request, "proposed") as string);
   };
+
+const recallPassing = classifyPicking(
+  (request) => expectedRecall[request.subject as string],
+);
 
 const runWithNoneAndLowProbability = async () => {
   const estimator = createFake({
@@ -131,26 +131,54 @@ describe("runJevMeasure", () => {
     }
   });
 
-  test("passes when all three summaries pass and fails when the persona summary fails", async () => {
-    const classify = classifyPicking(
-      (request) => expectedRecall[request.subject as string],
-    );
-    const passing = await runJevMeasure(
+  test("passes when only the stock advice proposal is accepted at 0.8", async () => {
+    const result = await runJevMeasure(
       createFake({
-        classify,
-        estimate: estimateFor((accepted) => (accepted ? 0.8 : 0.79)),
+        classify: recallPassing,
+        estimate: estimateFor((proposed) =>
+          proposed === stockProposal ? 0.8 : 0.56,
+        ),
       }),
     );
-    const failing = await runJevMeasure(
-      createFake({ classify, estimate: estimateFor(() => 0.79) }),
+
+    expect(result.recall.summary.passed).toBe(true);
+    expect(result.keep.summary.passed).toBe(true);
+    expect(result.persona.summary.passed).toBe(true);
+    expect(result.passed).toBe(true);
+  });
+
+  test("fails when the dog proposal is accepted too", async () => {
+    const result = await runJevMeasure(
+      createFake({
+        classify: recallPassing,
+        estimate: estimateFor((proposed) =>
+          proposed === stockProposal || proposed === dogProposal
+            ? 0.8
+            : 0.56,
+        ),
+      }),
     );
 
-    expect(passing.recall.summary.passed).toBe(true);
-    expect(passing.keep.summary.passed).toBe(true);
-    expect(passing.persona.summary.passed).toBe(true);
-    expect(passing.passed).toBe(true);
-    expect(failing.persona.summary.passed).toBe(false);
-    expect(failing.passed).toBe(false);
+    expect(result.persona.summary.passed).toBe(false);
+    const dogRow = result.persona.rows.find(
+      (row) => row.proposed === dogProposal,
+    );
+    expect(dogRow?.matched).toBe(false);
+  });
+
+  test("accepts a persona proposal scored exactly 0.57 and rejects 0.56", async () => {
+    const result = await runJevMeasure(
+      createFake({
+        classify: recallPassing,
+        estimate: estimateFor((proposed) =>
+          proposed === stockProposal ? 0.57 : 0.56,
+        ),
+      }),
+    );
+
+    for (const row of result.persona.rows) {
+      expect(row.accepted).toBe(row.proposed === stockProposal);
+    }
   });
 
   test("hands the persona judgment each scene as a transcript with its author", async () => {

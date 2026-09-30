@@ -199,9 +199,13 @@ Then keep parent lines in step, after the last issue is created and before
 they were written before the format had one, or lost it later. Run:
 
 ```
+rm -rf <scratchpad>/parent-lines && mkdir -p <scratchpad>/parent-lines
 node .claude/skills/architect/scripts/parent-lines.mjs --dir <scratchpad>/parent-lines
 ```
 
+- The script does not create its folder. Make a new empty one before each
+  run, so no file from an earlier run is left in it.
+- Edit only the issues named in `write` lines.
 - The script writes `issue-<n>.md` for each such child. The only change is
   the `Parent:` line at the top of Design.
 - For each written file, run `check-issue.mjs` on it. When it prints no

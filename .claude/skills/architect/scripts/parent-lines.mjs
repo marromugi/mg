@@ -60,8 +60,13 @@ function withParentLine(body, range, parent) {
   const first = lines.findIndex(
     (line, i) => i > range.heading && i < range.end && line.trim() !== "",
   );
-  const at = first === -1 ? Math.min(range.heading + 2, lines.length) : first;
-  lines.splice(at, 0, `Parent: #${parent}`, "");
+  if (first !== -1) {
+    lines.splice(first, 0, `Parent: #${parent}`, "");
+  } else if (range.heading + 1 < range.end) {
+    lines.splice(range.heading + 2, 0, `Parent: #${parent}`, "");
+  } else {
+    lines.splice(range.heading + 1, 0, "", `Parent: #${parent}`, "");
+  }
   return lines.join("\n");
 }
 

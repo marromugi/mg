@@ -1,9 +1,11 @@
-import { readRetryAfterMs } from "../../http/retry-after.js";
+import { readRetryAfterMs } from "./retry-after.js";
 
 export type RetryMark =
   { retryable: true; retryAfterMs?: number } | { retryable: false };
 
-export const NOT_RETRYABLE: RetryMark = { retryable: false };
+// RFC 9110: 408 and 429 may be repeated, and so may server errors.
+export const isRetryableStatus = (status: number): boolean =>
+  status === 408 || status === 429 || (status >= 500 && status <= 599);
 
 const SEND_RETRYABLE_CODES: ReadonlySet<string> = new Set([
   "ECONNREFUSED",
@@ -24,23 +26,18 @@ const causeCode = (error: unknown): unknown => {
   return (cause as { code?: unknown }).code;
 };
 
-export const sendFailureMark = (error: unknown): RetryMark => {
+export const isRetryableSendFailure = (error: unknown): boolean => {
   const code = causeCode(error);
-  return typeof code === "string" && SEND_RETRYABLE_CODES.has(code)
-    ? { retryable: true }
-    : NOT_RETRYABLE;
+  return typeof code === "string" && SEND_RETRYABLE_CODES.has(code);
 };
 
-export const bodyReadFailureMark = (error: unknown): RetryMark =>
-  causeCode(error) === BODY_CUT_CODE
-    ? { retryable: true }
-    : NOT_RETRYABLE;
+export const isConnectionCut = (error: unknown): boolean =>
+  causeCode(error) === BODY_CUT_CODE;
 
-const isRetryableStatus = (status: number): boolean =>
-  status === 408 || status === 429 || (status >= 500 && status <= 599);
-
-export const statusMark = (response: Response): RetryMark => {
-  if (!isRetryableStatus(response.status)) return NOT_RETRYABLE;
+export const retryMarkForStatus = (response: Response): RetryMark => {
+  if (!isRetryableStatus(response.status)) {
+    return { retryable: false };
+  }
   const retryAfterMs = readRetryAfterMs(
     response.headers.get("Retry-After"),
   );

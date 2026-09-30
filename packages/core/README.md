@@ -119,8 +119,11 @@ The Estimator's `EstimatorRequestError` and `EstimatorResponseError`
 have `retryable`, which says whether a retry is possible, and `retryAfterMs`, the time to wait in milliseconds.
 `retryAfterMs` is optional.
 
-- The Jev implementation treats connection failures and 429 and 5xx
-  responses as retryable failures.
+- The Jev implementation treats 408, 429 and 5xx responses as
+  retryable failures. A request that fails to send is retryable when
+  its cause code is ECONNREFUSED, ECONNRESET, ETIMEDOUT, EAI_AGAIN,
+  UND_ERR_SOCKET or UND_ERR_CONNECT_TIMEOUT. Any other send failure
+  is not retried.
 - A connection cut while reading a successful response's body is
   retried. Any other failure to read that body is an unusable answer
   and is not retried, and so is a body that is not JSON.
@@ -406,7 +409,7 @@ The source is split into 5 folders.
 ```
 src/
 ├── estimators/ types, errors and the Jev implementation for model services that answer with probabilities
-├── http/       reader for the Retry-After header, internal to core
+├── http/       reader for the Retry-After header and the rules for which HTTP failures may be repeated, internal to core
 ├── providers/  provider types, errors, and the OpenRouter and ollama implementations
 ├── retry/      the retry schedule that the retries share
 └── tools/      runnable tool types, the prepare and run functions, and their errors

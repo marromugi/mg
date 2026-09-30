@@ -1,4 +1,5 @@
 import type { Message } from "@mg/core";
+import { assertNewToolCallIds } from "@mg/conversation";
 import type {
   ConversationEntry,
   ConversationStore,
@@ -83,6 +84,9 @@ export const createContinueConversation = (deps: { run: RunEntry }) => {
       conversation.id,
       conversation.history,
     );
+    assertNewToolCallIds(slice.toolCalls, {
+      messages: conversation.messages,
+    });
 
     const built: Message[] = [
       ...slice.entries.flatMap((entry) => entry.messages),

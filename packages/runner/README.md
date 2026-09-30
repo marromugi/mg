@@ -135,12 +135,15 @@ For each call, the entry point works in this order.
 
 1. If the abort signal is already aborted, it rejects with that reason. It does not read the conversation.
 2. Reads the conversation in the given range. If reading fails, it throws that error as is.
-3. Places the new messages after the messages of the entries read, in this order.
+3. Checks the new messages against the tool calls the read returned.
+   If a new message holds a tool-call id that is already stored, it throws `ConversationToolCallIdError`.
+   It does not start the run, and nothing is appended.
+4. Places the new messages after the messages of the entries read, in this order.
    Saved system messages also stay in their positions.
-4. Starts the run with that list. If the run fails, it throws that error as is.
-5. Checks that the start of the resulting conversation equals the list it passed.
-6. Appends the new messages and what the run added as one entry.
-7. Returns the result.
+5. Starts the run with that list. If the run fails, it throws that error as is.
+6. Checks that the start of the resulting conversation equals the list it passed.
+7. Appends the new messages and what the run added as one entry.
+8. Returns the result.
 
 Whatever reason the run ended for, the returned conversation is appended as is.
 This is the same whether it stopped, hit the turn limit, or hit the length limit.

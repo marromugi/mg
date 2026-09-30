@@ -194,6 +194,27 @@ A defect set aside under principle 9 becomes a note issue: Background and
 how it will be handled, no `To Implementer`, so dispatcher leaves it alone.
 Its title ends in "(note)"; that is how `triager` finds it later.
 
+Then keep parent lines in step, after the last issue is created and before
+`reconciler`. Open children that a parent lists may have no `Parent:` line:
+they were written before the format had one, or lost it later. Run:
+
+```
+node .claude/skills/architect/scripts/parent-lines.mjs --dir <scratchpad>/parent-lines
+```
+
+- The script writes `issue-<n>.md` for each such child. The only change is
+  the `Parent:` line at the top of Design.
+- For each written file, run `check-issue.mjs` on it. When it prints no
+  problems, run `gh issue edit <n> --body-file <file>`. Otherwise leave the
+  issue as it is and report the problems.
+- After each edit, read the body back with `gh issue view <n> --json body`
+  and run `check-issue.mjs` on it again. Put the result in the report.
+- Report every `skip` line with its reason.
+- The script never edits an issue. Only architect writes issue bodies.
+- A child that is being built and has no PR yet cannot be seen by the script,
+  so it may be edited. Its `verify` then fails with "body changed" and waits
+  for the developer.
+
 Then invoke `reconciler` with the numbers of the issues just created, so
 they are checked against every other open issue. It may stop to ask the
 developer and may redo issues through "Redoing a design".

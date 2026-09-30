@@ -219,6 +219,7 @@ trace promises when and in what order spans are handed to the exporters.
 - When there are several exporters, each one receives the same spans in the same order.
 - Shutdown finishes only after any in-progress export has finished.
 
+Every closing step runs, even when an earlier one fails.
 If shutdown fails, `shutdown` rejects.
 The rejection value is `TraceShutdownError`.
 Its `failures` holds the exporter, the stage and the failure value.

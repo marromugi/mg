@@ -111,7 +111,7 @@ export const openSqliteConversationStore = async (
 
   const close = (): Promise<void> => {
     closing ??= (async () => {
-      await Promise.allSettled([...inFlight]);
+      await Promise.allSettled(inFlight);
       client.close();
       collectGarbage();
     })();

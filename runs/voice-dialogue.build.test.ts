@@ -44,6 +44,7 @@ const fakeProvider = (
   const requests: Pick<GenerateRequest, "messages">[] = [];
   return {
     requests,
+    toolForcing: true,
     generate: () => Promise.reject(new Error("not used")),
     async *stream(request): AsyncGenerator<StreamEvent> {
       const turn = turns[Math.min(requests.length, turns.length - 1)];

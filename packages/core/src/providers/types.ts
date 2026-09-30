@@ -87,6 +87,13 @@ export type StreamEvent =
 
 export interface Provider {
   readonly name?: string;
+  /**
+   * Whether the provider carries out `toolChoice: "required"` and
+   * `toolChoice: { type: "tool", name }`.
+   */
+  readonly toolForcing: boolean;
   generate(request: GenerateRequest): Promise<GenerateResponse>;
   stream(request: GenerateRequest): AsyncIterable<StreamEvent>;
 }
+
+export type ToolForcingProvider = Provider & { toolForcing: true };

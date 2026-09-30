@@ -89,6 +89,7 @@ const wav = (bits: number): Uint8Array => {
 };
 
 const unusedProvider: Provider = {
+  toolForcing: true,
   generate: () => Promise.reject(new Error("not used")),
   stream: () => {
     throw new Error("not used");

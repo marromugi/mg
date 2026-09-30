@@ -42,7 +42,7 @@ const stubProvider = (
   const stream = vi.fn((): AsyncIterable<StreamEvent> => {
     throw new Error("stubProvider: stream is not scripted");
   });
-  return { generate, stream };
+  return { toolForcing: true, generate, stream };
 };
 
 const input: ExtractorInput = {
@@ -285,7 +285,7 @@ describe("createLlmExtractor", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const extractor = createLlmExtractor({
       provider,
       model: "m",
@@ -460,7 +460,7 @@ describe("createLlmExtractor", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const extractor = createLlmExtractor({
       provider,
       model: "m",

@@ -2,6 +2,7 @@ import type { GenerateResponse, Provider, StreamEvent } from "@mg/core";
 import { defineRun } from "../config.js";
 
 const provider: Provider = {
+  toolForcing: true,
   generate: async (): Promise<GenerateResponse> => ({
     parts: [{ type: "text", text: "hi" }],
     finishReason: "stop",

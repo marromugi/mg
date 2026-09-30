@@ -39,6 +39,7 @@ const verdictResponse = (
 const fakeProvider = (respond: () => GenerateResponse) => {
   const requests: GenerateRequest[] = [];
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       requests.push(request);
       return respond();

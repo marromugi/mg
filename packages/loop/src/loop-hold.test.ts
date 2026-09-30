@@ -33,6 +33,7 @@ const streamProvider = (
 ): Provider => {
   let index = 0;
   return {
+    toolForcing: true,
     generate: vi.fn(async () => {
       throw new Error("generate is not scripted");
     }),

@@ -48,7 +48,7 @@ const stubProvider = (
   const stream = vi.fn((): AsyncIterable<StreamEvent> => {
     throw new Error("stubProvider: stream is not scripted");
   });
-  return { generate, stream };
+  return { toolForcing: true, generate, stream };
 };
 
 const verdictResponse = (
@@ -181,7 +181,7 @@ describe("createLlmGate", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const gate = createLlmGate({
       provider,
       model: "m",
@@ -208,7 +208,7 @@ describe("createLlmGate", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const gate = createLlmGate({
       provider,
       model: "m",
@@ -226,7 +226,7 @@ describe("createLlmGate", () => {
     const stream = vi.fn((): AsyncIterable<StreamEvent> => {
       throw new Error("stubProvider: stream is not scripted");
     });
-    const provider: Provider = { generate, stream };
+    const provider: Provider = { toolForcing: true, generate, stream };
     const gate = createLlmGate({
       provider,
       model: "m",

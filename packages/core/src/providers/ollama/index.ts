@@ -129,7 +129,7 @@ export type OllamaOptions = OllamaRequestOptions & {
 
 export const createOllamaProvider = (
   options: OllamaOptions = {},
-): Provider => {
+): Provider & { toolForcing: false } => {
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(
     /\/$/,
     "",
@@ -263,5 +263,5 @@ export const createOllamaProvider = (
     request: GenerateRequest,
   ): AsyncIterable<StreamEvent> => runStream(request);
 
-  return { name: "ollama", generate, stream };
+  return { name: "ollama", toolForcing: false, generate, stream };
 };

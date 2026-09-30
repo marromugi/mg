@@ -1034,6 +1034,7 @@ describe("continueAsPersona with a hold", () => {
     await store.create("t1");
     const calls: number[] = [];
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         calls.push(1);
         return {

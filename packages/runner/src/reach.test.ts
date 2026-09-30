@@ -7,6 +7,7 @@ describe("subagent reach", () => {
   test("is none for every argument and never calls the provider", async () => {
     let calls = 0;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         calls++;
         throw new Error("the provider must not be called");

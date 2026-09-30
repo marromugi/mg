@@ -155,6 +155,11 @@ These settings can also be passed when the provider is created.
 - Whether to use the thinking behaviour.
 - How long to keep the model in memory.
 
+Each provider states whether it can force a tool call.
+Forcing means requiring any tool call, or one named tool.
+OpenRouter can force. ollama cannot, and refuses such a request.
+Code that needs forcing takes a `ToolForcingProvider`.
+
 A request to a provider can carry a stop signal.
 
 When the signal fires, the provider stops reading the response.

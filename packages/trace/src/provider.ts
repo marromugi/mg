@@ -185,6 +185,7 @@ export const traceProvider = (
   parent: TraceSpan,
 ): Provider => ({
   name: provider.name,
+  toolForcing: provider.toolForcing,
   generate: (request: GenerateRequest): Promise<GenerateResponse> =>
     traceGenerate(provider, parent, request),
   stream: (request: GenerateRequest): AsyncIterable<StreamEvent> =>

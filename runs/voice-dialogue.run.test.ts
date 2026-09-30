@@ -17,6 +17,7 @@ import { runLive } from "./voice-dialogue.run.ts";
 import { createFakeInput, flush } from "./fake-terminal.ts";
 
 const unusedProvider: Provider = {
+  toolForcing: true,
   generate: () => Promise.reject(new Error("not used")),
   stream: () => {
     throw new Error("not used");

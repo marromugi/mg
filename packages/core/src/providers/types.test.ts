@@ -1,14 +1,18 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, expectTypeOf, test } from "vitest";
+import { createOllamaProvider } from "./ollama/index.js";
+import { createOpenRouterProvider } from "./openrouter/index.js";
 import type {
   AssistantMessage,
   FinishReason,
   GenerateRequest,
   Message,
   ReasoningCarry,
+  Provider,
   StreamEvent,
   SystemMessage,
   ToolDefinition,
+  ToolForcingProvider,
   ToolMessage,
   UserMessage,
 } from "./types.js";
@@ -227,5 +231,28 @@ describe("StreamEvent", () => {
         usage: { inputTokens: 12, outputTokens: 34 },
       }),
     ).toBe("finish:tool_calls:34");
+  });
+});
+
+describe("Provider tool forcing declaration", () => {
+  test("is required on every provider", () => {
+    // @ts-expect-error toolForcing is missing
+    const undeclared: Provider = {
+      generate: async () => ({ parts: [], finishReason: "stop" }),
+      stream: async function* () {},
+    };
+
+    expect(undeclared).toBeDefined();
+  });
+
+  test("is assignable to ToolForcingProvider only for providers that can force", () => {
+    const forcing: ToolForcingProvider = createOpenRouterProvider({
+      apiKey: "k",
+    });
+    // @ts-expect-error ollama cannot force a tool call
+    const notForcing: ToolForcingProvider = createOllamaProvider();
+
+    expect(forcing.toolForcing).toBe(true);
+    expect(notForcing.toolForcing).toBe(false);
   });
 });

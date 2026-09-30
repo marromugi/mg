@@ -53,6 +53,7 @@ const trackingProvider = (
   let index = 0;
   const requests: GenerateRequest[] = [];
   const provider: Provider = {
+    toolForcing: true,
     generate: async (request) => {
       requests.push(request);
       const response = responses[index];
@@ -84,6 +85,7 @@ describe("run with subagents in the config", () => {
   test("a subagent call from the parent's provider is answered by the child's provider, as a tool message, and the run stops", async () => {
     let parentTurn = 0;
     const parentProvider: Provider = {
+      toolForcing: true,
       generate: async () => {
         parentTurn++;
         if (parentTurn === 1) {
@@ -106,6 +108,7 @@ describe("run with subagents in the config", () => {
       },
     };
     const childProvider: Provider = {
+      toolForcing: true,
       generate: async () => textResponse("found"),
       stream: () => {
         throw new Error("stream is not scripted");
@@ -144,6 +147,7 @@ describe("run with subagents in the config", () => {
     const exporter = new InMemorySpanExporter();
     let parentTurn = 0;
     const parentProvider: Provider = {
+      toolForcing: true,
       generate: async () => {
         parentTurn++;
         if (parentTurn === 1) {
@@ -166,6 +170,7 @@ describe("run with subagents in the config", () => {
       },
     };
     const childProvider: Provider = {
+      toolForcing: true,
       generate: async () => textResponse("found"),
       stream: () => {
         throw new Error("stream is not scripted");
@@ -231,6 +236,7 @@ describe("run with subagents in the config", () => {
   test("a subagent with a fixed parent workspace source reaches the child's provider with the run workspace's tools", async () => {
     let parentTurn = 0;
     const parentProvider: Provider = {
+      toolForcing: true,
       generate: async () => {
         parentTurn++;
         if (parentTurn === 1) {
@@ -290,6 +296,7 @@ describe("run with subagents in the config", () => {
       throw new Error("should not be called");
     });
     const parentProvider: Provider = {
+      toolForcing: true,
       generate,
       stream: () => {
         throw new Error("stream is not scripted");
@@ -327,6 +334,7 @@ describe("run with subagents in the config", () => {
       throw new Error("should not be called");
     });
     const parentProvider: Provider = {
+      toolForcing: true,
       generate,
       stream: () => {
         throw new Error("stream is not scripted");
@@ -382,6 +390,7 @@ describe("run with subagents in the config", () => {
     const echoTool = stubTool("echo");
     let turn = 0;
     const provider: Provider = {
+      toolForcing: true,
       generate: async () => {
         turn++;
         if (turn === 1) {
@@ -448,6 +457,7 @@ describe("run with subagents and a hold", () => {
 
     let parentTurn = 0;
     const parentProvider: Provider = {
+      toolForcing: true,
       generate: async () => {
         parentTurn++;
         if (parentTurn === 1) {
@@ -471,6 +481,7 @@ describe("run with subagents and a hold", () => {
     };
     let childTurns = 0;
     const childProvider: Provider = {
+      toolForcing: true,
       generate: async () => {
         childTurns++;
         if (childTurns === 1) {

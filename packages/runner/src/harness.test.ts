@@ -40,7 +40,7 @@ const stubProvider = (
   const stream = vi.fn((): AsyncIterable<StreamEvent> => {
     throw new Error("stubProvider: stream is not scripted");
   });
-  return { generate, stream };
+  return { toolForcing: true, generate, stream };
 };
 
 describe("createHarness", () => {

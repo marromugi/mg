@@ -309,6 +309,7 @@ const scriptedProvider = (
   let index = 0;
   return {
     provider: {
+      toolForcing: true,
       generate: async () => {
         const response = responses[index % responses.length];
         index++;

@@ -1067,3 +1067,17 @@ describe("createOpenRouterProvider with an authored user message", () => {
     ]);
   });
 });
+
+describe("createOpenRouterProvider tool forcing", () => {
+  test("declares that it can force a tool call without sending anything", () => {
+    const { fetchStub, calls } = stubFetch(() => new Response("{}"));
+
+    const provider = createOpenRouterProvider({
+      apiKey: "k",
+      fetch: fetchStub,
+    });
+
+    expect(provider.toolForcing).toBe(true);
+    expect(calls).toHaveLength(0);
+  });
+});

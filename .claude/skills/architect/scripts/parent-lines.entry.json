@@ -1,0 +1,5 @@
+{
+  "command": "node .claude/skills/architect/scripts/parent-lines.mjs --dir <dir>",
+  "needs": [],
+  "burdens": ["outside"]
+}

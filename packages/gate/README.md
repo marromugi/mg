@@ -313,22 +313,25 @@ const verdict = await gate.judge({
 
 Calling it with an empty list throws a `RangeError`.
 
-### `gateRunToolCall(gate, run, parent)`
+### `gateRunToolCall(gate, prepare, parent)`
 
-`gateRunToolCall` takes a function that runs tools,
+`gateRunToolCall` takes a function that prepares calls,
 and returns a function that puts a decision before running.
+It prepares the call once, judges the reach of that prepared call,
+and runs that same prepared call only when the decision is "yes".
 
 The tool call is built into the decision's input.
 The kind is `tool-call`, and the description lists the tool's name, description, and arguments.
 The original value holds the call, the tool definition, and `reach`.
-The tool definition leaves out `execute` and `reach`.
-`reach` is the reach the callee declared from the arguments.
-A call whose name is not found gets `any-local`.
+The tool definition leaves out `prepare`.
+`reach` is the reach of the prepared call.
+A call whose name is not found, or whose input is invalid, gets `any-local`.
+When the gate allows it, running it throws the not-found or input error.
 
-When the callee's declaration fails, it neither asks the gate nor runs the tool.
+When preparing throws, it neither asks the gate nor runs the tool.
 It returns the failure as the tool result.
 
-If the decision is "yes", it calls the original run function as it is.
+If the decision is "yes", it runs the prepared call.
 If "no", it does not run the tool and returns the reason as the tool result.
 When the decision itself fails, it also does not run the tool,
 and returns the failure as the tool result.
@@ -339,18 +342,18 @@ If the signal you passed is already aborted, it is thrown again whatever the kin
 The types of the caller and callee are set by type parameters.
 The same wrapper can be used for subagent calls.
 
-For that, you pass the list of subagents and `runSubagentCall` from `@mg/harness`.
+For that, you pass the list of subagents and `prepareSubagentCall` from `@mg/harness`.
 The kind of request passed to the decision is `tool-call`, the same as for tool calls.
 The original value holds the call, the subagent definition, and `reach`.
-The definition leaves out `start` and `reach`.
+The definition leaves out `prepare`.
 
 The `tools` of a rules gate also apply to subagent names.
 You can choose what to deny from the same list as tool names.
 The reach a subagent declares is read with the same table.
 
 `gateRunToolCall` takes a gate.
-You can also pass a run function and a parent span.
-If you leave out the run function, it uses `runToolCall` from `@mg/core`.
+You can also pass a prepare function and a parent span.
+If you leave out the prepare function, it uses `prepareToolCall` from `@mg/core`.
 If you leave out the parent span, decisions are not recorded.
 
 ```ts
@@ -359,7 +362,7 @@ import { gateRunToolCall } from "@mg/gate";
 const runToolCall = gateRunToolCall(gate, undefined, span);
 
 const message = await runToolCall(tools, call, context);
-// if the decision is "no", tools and call are not run
+// if the decision is "no", the prepared call is not run
 // if span is passed, the decision is recorded as mg.gate under span
 ```
 

@@ -57,10 +57,9 @@ describe("createBrowserTools", () => {
     const page = createFakePage();
     const tool = getTool(page, "browser_navigate");
 
-    const result = await tool.execute(
-      { url: "https://example.com" },
-      {},
-    );
+    const result = await (
+      await tool.prepare({ url: "https://example.com" })
+    ).run({});
 
     expect(page.calls.navigate).toEqual(["https://example.com"]);
     expect(result).toBe("Example\nhttps://example.com/");
@@ -70,7 +69,7 @@ describe("createBrowserTools", () => {
     const page = createFakePage();
     const tool = getTool(page, "browser_read");
 
-    await expect(tool.execute({}, {})).resolves.toBe(
+    await expect((await tool.prepare({})).run({})).resolves.toBe(
       "- heading: Example",
     );
   });
@@ -83,7 +82,7 @@ describe("createBrowserTools", () => {
       (t) => t.name === "browser_read",
     )!;
 
-    await expect(tool.execute({}, {})).resolves.toBe(
+    await expect((await tool.prepare({})).run({})).resolves.toBe(
       "abcde\n[output truncated]",
     );
   });
@@ -96,7 +95,7 @@ describe("createBrowserTools", () => {
       (t) => t.name === "browser_read",
     )!;
 
-    const result = await tool.execute({}, {});
+    const result = await (await tool.prepare({})).run({});
 
     expect(result).toBe("あ\n[output truncated]");
     expect(result).not.toContain("�");
@@ -106,10 +105,9 @@ describe("createBrowserTools", () => {
     const page = createFakePage();
     const tool = getTool(page, "browser_click");
 
-    const result = await tool.execute(
-      { role: "button", name: "Submit" },
-      {},
-    );
+    const result = await (
+      await tool.prepare({ role: "button", name: "Submit" })
+    ).run({});
 
     expect(page.calls.click).toEqual([
       { role: "button", name: "Submit" },
@@ -121,10 +119,14 @@ describe("createBrowserTools", () => {
     const page = createFakePage();
     const tool = getTool(page, "browser_type");
 
-    const result = await tool.execute(
-      { role: "textbox", name: "Search", text: "hello", submit: true },
-      {},
-    );
+    const result = await (
+      await tool.prepare({
+        role: "textbox",
+        name: "Search",
+        text: "hello",
+        submit: true,
+      })
+    ).run({});
 
     expect(page.calls.type).toEqual([
       { role: "textbox", name: "Search", text: "hello", submit: true },
@@ -136,10 +138,13 @@ describe("createBrowserTools", () => {
     const page = createFakePage();
     const tool = getTool(page, "browser_type");
 
-    await tool.execute(
-      { role: "textbox", name: "Search", text: "hello" },
-      {},
-    );
+    await (
+      await tool.prepare({
+        role: "textbox",
+        name: "Search",
+        text: "hello",
+      })
+    ).run({});
 
     expect(page.calls.type).toEqual([
       { role: "textbox", name: "Search", text: "hello", submit: false },
@@ -158,7 +163,7 @@ describe("createBrowserTools", () => {
     const tool = getTool(page, "browser_click");
 
     await expect(
-      tool.execute({ role: "button", name: "Submit" }, {}),
+      (await tool.prepare({ role: "button", name: "Submit" })).run({}),
     ).rejects.toBe(cause);
   });
 
@@ -169,10 +174,9 @@ describe("createBrowserTools", () => {
     controller.abort();
 
     await expect(
-      tool.execute(
-        { url: "https://example.com" },
-        { signal: controller.signal },
-      ),
+      (await tool.prepare({ url: "https://example.com" })).run({
+        signal: controller.signal,
+      }),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });

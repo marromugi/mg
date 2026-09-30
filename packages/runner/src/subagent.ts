@@ -239,89 +239,92 @@ export const createSubagent = (
     parentName,
   );
 
+  const run = async (
+    input: { prompt: string; workspace?: string },
+    context: SubagentContext,
+  ): Promise<string> => {
+    const trace = context.trace ?? noopSpan;
+    const messages: Message[] = config.system
+      ? [
+          { role: "system", content: config.system },
+          { role: "user", content: input.prompt },
+        ]
+      : [{ role: "user", content: input.prompt }];
+
+    const runWith = async (
+      merged: readonly Tool[],
+    ): Promise<string> => {
+      const harness = createHarness(
+        config.harness,
+        config.provider,
+        config.gate,
+        merged,
+      );
+      const result = await collect(
+        harness({
+          messages,
+          signal: context.signal,
+          wrapUp: context.wrapUp,
+          hold: context.hold,
+          trace,
+        }),
+      );
+      return finalTextOf(result, config.harness.maxTurns);
+    };
+
+    const source = resolveSource(
+      config.workspace,
+      sourcesByName,
+      input.workspace,
+    );
+
+    if (!source) {
+      return runWith(tools);
+    }
+
+    if (source.kind === "parent") {
+      return runWith(mergeWorkspaceTools(tools, parent));
+    }
+
+    const release = await exclusiveNames.acquire(
+      exclusiveNamesOf(source.workspace),
+      context.signal,
+    );
+    let succeeded = false;
+    let answer = "";
+    try {
+      return await withWorkspace(
+        source.workspace,
+        { trace, signal: context.signal },
+        async (opened) => {
+          const result = await runWith(
+            mergeWorkspaceTools(tools, opened),
+          );
+          succeeded = true;
+          answer = result;
+          return result;
+        },
+      );
+    } catch (error) {
+      if (succeeded) {
+        throw new SubagentCloseError(source.workspace.name, answer, {
+          cause: error,
+        });
+      }
+      throw error;
+    } finally {
+      release();
+    }
+  };
   const subagent: Subagent = {
     name: config.name,
     description: config.description,
     input: inputSchema,
-    async reach() {
-      return { kind: "none" };
-    },
-    async start(
-      input: { prompt: string; workspace?: string },
-      context: SubagentContext,
-    ): Promise<string> {
-      const trace = context.trace ?? noopSpan;
-      const messages: Message[] = config.system
-        ? [
-            { role: "system", content: config.system },
-            { role: "user", content: input.prompt },
-          ]
-        : [{ role: "user", content: input.prompt }];
-
-      const runWith = async (
-        merged: readonly Tool[],
-      ): Promise<string> => {
-        const harness = createHarness(
-          config.harness,
-          config.provider,
-          config.gate,
-          merged,
-        );
-        const result = await collect(
-          harness({
-            messages,
-            signal: context.signal,
-            wrapUp: context.wrapUp,
-            hold: context.hold,
-            trace,
-          }),
-        );
-        return finalTextOf(result, config.harness.maxTurns);
+    async prepare(input: { prompt: string; workspace?: string }) {
+      return {
+        reach: { kind: "none" },
+        run: (context) => run(input, context),
       };
-
-      const source = resolveSource(
-        config.workspace,
-        sourcesByName,
-        input.workspace,
-      );
-
-      if (!source) {
-        return runWith(tools);
-      }
-
-      if (source.kind === "parent") {
-        return runWith(mergeWorkspaceTools(tools, parent));
-      }
-
-      const release = await exclusiveNames.acquire(
-        exclusiveNamesOf(source.workspace),
-        context.signal,
-      );
-      let succeeded = false;
-      let answer = "";
-      try {
-        return await withWorkspace(
-          source.workspace,
-          { trace, signal: context.signal },
-          async (opened) => {
-            const result = await runWith(
-              mergeWorkspaceTools(tools, opened),
-            );
-            succeeded = true;
-            answer = result;
-            return result;
-          },
-        );
-      } catch (error) {
-        if (succeeded) {
-          throw new SubagentCloseError(source.workspace.name, answer, {
-            cause: error,
-          });
-        }
-        throw error;
-      } finally {
-        release();
-      }
     },
   };
   return subagent;

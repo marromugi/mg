@@ -1,9 +1,9 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi, type Mock } from "vitest";
 import type { ToolCall } from "../providers/types.js";
 import { ToolInputError, ToolNotFoundError } from "./errors.js";
 import { runToolCall } from "./run.js";
-import type { Tool, ToolSchema } from "./types.js";
+import type { Tool, ToolContext, ToolSchema } from "./types.js";
 
 const stubSchema = (
   validate: (
@@ -27,15 +27,28 @@ const upperCity = (value: unknown) => ({
   value: { city: (value as { city: string }).city.toUpperCase() },
 });
 
+type Execute = (
+  input: unknown,
+  context: ToolContext,
+) => Promise<string>;
+
 const stubTool = (
   input: ToolSchema,
-  execute: Tool["execute"] = async (value) => JSON.stringify(value),
-): Tool => ({
-  reach: async () => ({ kind: "any-local" }),
-  name: "weather",
-  input,
-  execute: vi.fn(execute),
-});
+  run: Execute = async (value) => JSON.stringify(value),
+): Tool & { execute: Mock<Execute> } => {
+  const execute = vi.fn(run);
+  return {
+    name: "weather",
+    input,
+    async prepare(value) {
+      return {
+        reach: { kind: "any-local" },
+        run: (context) => execute(value, context),
+      };
+    },
+    execute,
+  };
+};
 
 const call: ToolCall = {
   id: "call-1",
@@ -64,7 +77,7 @@ describe("runToolCall", () => {
   });
 
   test("picks the tool whose name matches the call", async () => {
-    const other: Tool = {
+    const other = {
       ...stubTool(stubSchema(upperCity), async () => "other"),
       name: "clock",
     };
@@ -161,7 +174,7 @@ describe("runToolCall", () => {
       { city: "TOKYO" },
       { signal: controller.signal },
     );
-    expect(vi.mocked(tool.execute).mock.calls[0]?.[1].signal).toBe(
+    expect(tool.execute.mock.calls[0]?.[1].signal).toBe(
       controller.signal,
     );
   });

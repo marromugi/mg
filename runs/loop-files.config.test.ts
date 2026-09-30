@@ -7,11 +7,20 @@ import {
   type GenerateRequest,
   type GenerateResponse,
   type ToolForcingProvider,
+  prepareToolCall,
+  type Tool,
   type ToolCall,
 } from "@mg/core";
 import { toToolCallRequest } from "@mg/gate";
 import { run } from "@mg/runner";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+const requestOf = async (tools: readonly Tool[], call: ToolCall) =>
+  toToolCallRequest(
+    tools,
+    call,
+    (await prepareToolCall(tools, call)).reach,
+  );
 
 process.env.OPENROUTER_API_KEY = "test";
 const { buildLoopFilesRun } = await import("./loop-files.config.ts");
@@ -79,9 +88,7 @@ const judge = async (provider: ToolForcingProvider, call: ToolCall) => {
     gateProvider: provider,
     root: process.cwd(),
   });
-  return config.gate.judge(
-    await toToolCallRequest(config.tools ?? [], call),
-  );
+  return config.gate.judge(await requestOf(config.tools ?? [], call));
 };
 
 const denied = { allowed: false, reason: REASON };
@@ -213,7 +220,7 @@ describe("loop-files providers", () => {
       root: process.cwd(),
     });
     const verdict = await config.gate.judge(
-      await toToolCallRequest(config.tools ?? [], {
+      await requestOf(config.tools ?? [], {
         id: "p1",
         name: "read_file",
         arguments: { path: "src/a.ts" },

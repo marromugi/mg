@@ -3,20 +3,29 @@ import type { Subagent } from "./subagent.js";
 
 declare const input: ToolSchema;
 
-const withoutReach = {
+const prepare = async () => ({
+  reach: { kind: "none" as const },
+  run: async () => "done",
+});
+
+export const subagentWithPrepare: Subagent = {
   name: "s",
   input,
-  start: async () => "done",
+  prepare,
 };
 
-const withReach = {
+export const subagentWithReach: Subagent = {
   name: "s",
   input,
+  prepare,
+  // @ts-expect-error a subagent declares its reach through prepare, not itself
   reach: async () => ({ kind: "none" as const }),
-  start: async () => "done",
 };
 
-// @ts-expect-error a subagent needs a reach declaration
-export const subagentWithoutReach: Subagent = withoutReach;
-
-export const subagentWithReach: Subagent = withReach;
+export const subagentWithStart: Subagent = {
+  name: "s",
+  input,
+  prepare,
+  // @ts-expect-error a subagent acts through prepare, not start
+  start: async () => "done",
+};

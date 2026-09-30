@@ -22,20 +22,25 @@ export type Reach =
   | { kind: "outside" }
   | { kind: "none" };
 
-export type Callee<TInput extends ToolSchema = ToolSchema> =
-  ToolDefinition<TInput> & {
-    // method syntax on purpose, same reason as execute
-    reach(args: unknown): Promise<Reach>;
-  };
+// One call, prepared once: the reach it will touch and the action
+// bound to that reach.
+export type PreparedCall<TContext> = {
+  reach: Reach;
+  run(context: TContext): Promise<string>;
+};
 
-export type Tool<TInput extends ToolSchema = ToolSchema> =
-  Callee<TInput> & {
-    // method syntax on purpose: keeps Tool<Specific> assignable to Tool
-    execute(
-      input: ToolInput<TInput>,
-      context: ToolContext,
-    ): Promise<string>;
-  };
+export type Callee<
+  TInput extends ToolSchema = ToolSchema,
+  TContext = unknown,
+> = ToolDefinition<TInput> & {
+  // method syntax on purpose: keeps Callee<Specific> assignable to Callee
+  prepare(input: ToolInput<TInput>): Promise<PreparedCall<TContext>>;
+};
+
+export type Tool<TInput extends ToolSchema = ToolSchema> = Callee<
+  TInput,
+  ToolContext
+>;
 
 export const defineTool = <TInput extends ToolSchema>(
   tool: Tool<TInput>,

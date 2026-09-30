@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { prepareToolCall, type Tool } from "@mg/core";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createBashTool } from "./bash.js";
 import {
@@ -55,6 +56,15 @@ const tree = (path: string) => ({
 });
 const anyLocal = { kind: "any-local" };
 
+const reachOf = async (tool: Tool, args: unknown) =>
+  (
+    await prepareToolCall([tool], {
+      id: "c1",
+      name: tool.name,
+      arguments: args,
+    })
+  ).reach;
+
 const read = () => createReadFileTool({ root: link });
 const write = () => createWriteFileTool({ root: link });
 const edit = () => createEditFileTool({ root: link });
@@ -77,9 +87,11 @@ describe("bash reach", () => {
   test("is any-local for every argument", async () => {
     const tool = createBashTool({ cwd: T });
 
-    expect(await tool.reach({ command: "cat .env" })).toEqual(anyLocal);
-    expect(await tool.reach({})).toEqual(anyLocal);
-    expect(await tool.reach("x")).toEqual(anyLocal);
+    expect(await reachOf(tool, { command: "cat .env" })).toEqual(
+      anyLocal,
+    );
+    expect(await reachOf(tool, {})).toEqual(anyLocal);
+    expect(await reachOf(tool, "x")).toEqual(anyLocal);
   });
 });
 
@@ -89,18 +101,18 @@ describe("file tools reach", () => {
 
     for (const path of ["a.txt", "to-a"]) {
       const args = fileArgs(path);
-      expect(await read().reach(args.read)).toEqual(expected);
-      expect(await write().reach(args.write)).toEqual(expected);
-      expect(await edit().reach(args.edit)).toEqual(expected);
+      expect(await reachOf(read(), args.read)).toEqual(expected);
+      expect(await reachOf(write(), args.write)).toEqual(expected);
+      expect(await reachOf(edit(), args.edit)).toEqual(expected);
     }
   });
 
   test("declares the file extent for a directory path", async () => {
     const expected = paths(join(real, "sub"));
 
-    expect(await read().reach({ path: "sub" })).toEqual(expected);
+    expect(await reachOf(read(), { path: "sub" })).toEqual(expected);
     expect(
-      await edit().reach({
+      await reachOf(edit(), {
         path: "to-sub",
         oldString: "x",
         newString: "x",
@@ -111,44 +123,44 @@ describe("file tools reach", () => {
   test("declares the tree extent of the followed directory for grep", async () => {
     const expected = tree(join(real, "sub"));
 
-    expect(await grep().reach({ pattern: "x", path: "sub" })).toEqual(
-      expected,
-    );
     expect(
-      await grep().reach({ pattern: "x", path: "to-sub" }),
+      await reachOf(grep(), { pattern: "x", path: "sub" }),
+    ).toEqual(expected);
+    expect(
+      await reachOf(grep(), { pattern: "x", path: "to-sub" }),
     ).toEqual(expected);
   });
 
   test("declares the followed existing parent plus the remaining names for a missing path", async () => {
     expect(
-      await write().reach({ path: "new/b.txt", content: "x" }),
+      await reachOf(write(), { path: "new/b.txt", content: "x" }),
     ).toEqual(paths(join(real, "new", "b.txt")));
     expect(
-      await write().reach({ path: "to-sub/c.txt", content: "x" }),
+      await reachOf(write(), { path: "to-sub/c.txt", content: "x" }),
     ).toEqual(paths(join(real, "sub", "c.txt")));
-    expect(await read().reach({ path: "missing.txt" })).toEqual(
+    expect(await reachOf(read(), { path: "missing.txt" })).toEqual(
       paths(join(real, "missing.txt")),
     );
   });
 
   test("declares the followed absolute path for a path outside the root", async () => {
-    expect(await read().reach({ path: "../outside.txt" })).toEqual(
+    expect(await reachOf(read(), { path: "../outside.txt" })).toEqual(
       paths(join(T, "outside.txt")),
     );
   });
 
   test("is any-local when the path cannot be followed", async () => {
-    expect(await read().reach({ path: "dead" })).toEqual(anyLocal);
-    expect(await read().reach({ path: "loop1" })).toEqual(anyLocal);
+    expect(await reachOf(read(), { path: "dead" })).toEqual(anyLocal);
+    expect(await reachOf(read(), { path: "loop1" })).toEqual(anyLocal);
     expect(
-      await write().reach({ path: "dead/y.txt", content: "x" }),
+      await reachOf(write(), { path: "dead/y.txt", content: "x" }),
     ).toEqual(anyLocal);
   });
 
   test.skipIf(process.getuid?.() === 0)(
     "is any-local when a directory on the path is not accessible",
     async () => {
-      expect(await read().reach({ path: "locked/x.txt" })).toEqual(
+      expect(await reachOf(read(), { path: "locked/x.txt" })).toEqual(
         anyLocal,
       );
     },
@@ -157,19 +169,19 @@ describe("file tools reach", () => {
   test("is any-local when the root does not exist", async () => {
     const tool = createReadFileTool({ root: join(T, "gone") });
 
-    expect(await tool.reach({ path: "a.txt" })).toEqual(anyLocal);
+    expect(await reachOf(tool, { path: "a.txt" })).toEqual(anyLocal);
   });
 
   test("is any-local when the arguments do not fit the input type", async () => {
-    expect(await read().reach({})).toEqual(anyLocal);
-    expect(await read().reach({ path: 3 })).toEqual(anyLocal);
-    expect(await read().reach(null)).toEqual(anyLocal);
-    expect(await grep().reach({ path: "sub" })).toEqual(anyLocal);
+    expect(await reachOf(read(), {})).toEqual(anyLocal);
+    expect(await reachOf(read(), { path: 3 })).toEqual(anyLocal);
+    expect(await reachOf(read(), null)).toEqual(anyLocal);
+    expect(await reachOf(grep(), { path: "sub" })).toEqual(anyLocal);
   });
 
   test("declares the tree extent of the followed root for grep without a path", async () => {
-    expect(await grep().reach({ pattern: "x" })).toEqual(tree(real));
-    expect(await grep().reach({ pattern: "x", path: "." })).toEqual(
+    expect(await reachOf(grep(), { pattern: "x" })).toEqual(tree(real));
+    expect(await reachOf(grep(), { pattern: "x", path: "." })).toEqual(
       tree(real),
     );
   });
@@ -177,40 +189,39 @@ describe("file tools reach", () => {
   test("declares the file extent of the followed existing file for grep", async () => {
     const expected = paths(join(real, "a.txt"));
 
-    expect(await grep().reach({ pattern: "x", path: "a.txt" })).toEqual(
-      expected,
-    );
-    expect(await grep().reach({ pattern: "x", path: "to-a" })).toEqual(
-      expected,
-    );
+    expect(
+      await reachOf(grep(), { pattern: "x", path: "a.txt" }),
+    ).toEqual(expected);
+    expect(
+      await reachOf(grep(), { pattern: "x", path: "to-a" }),
+    ).toEqual(expected);
   });
 
   test("is any-local for grep on a path that does not exist yet", async () => {
     expect(
-      await grep().reach({ pattern: "x", path: "missing" }),
+      await reachOf(grep(), { pattern: "x", path: "missing" }),
     ).toEqual(anyLocal);
     expect(
-      await grep().reach({ pattern: "x", path: "sub/new" }),
+      await reachOf(grep(), { pattern: "x", path: "sub/new" }),
     ).toEqual(anyLocal);
   });
 
   test("is any-local for grep when the path cannot be followed", async () => {
-    expect(await grep().reach({ pattern: "x", path: "dead" })).toEqual(
-      anyLocal,
-    );
-    expect(await grep().reach({ pattern: "x", path: "loop1" })).toEqual(
-      anyLocal,
-    );
+    expect(
+      await reachOf(grep(), { pattern: "x", path: "dead" }),
+    ).toEqual(anyLocal);
+    expect(
+      await reachOf(grep(), { pattern: "x", path: "loop1" }),
+    ).toEqual(anyLocal);
   });
 });
 
 describe("web_search reach", () => {
-  test("is outside for every argument and never calls the backend", async () => {
+  test("is outside and never calls the backend", async () => {
     const tool = createWebSearchTool({ backend: failingBackend });
 
-    expect(await tool.reach({ query: "a" })).toEqual({
+    expect(await reachOf(tool, { query: "a" })).toEqual({
       kind: "outside",
     });
-    expect(await tool.reach({})).toEqual({ kind: "outside" });
   });
 });

@@ -27,7 +27,7 @@ describe("createReadFileTool", () => {
     await write("whole.txt", "one\ntwo\nthree");
 
     await expect(
-      readFile.execute({ path: "whole.txt" }, {}),
+      (await readFile.prepare({ path: "whole.txt" })).run({}),
     ).resolves.toBe("1\tone\n2\ttwo\n3\tthree");
   });
 
@@ -35,7 +35,7 @@ describe("createReadFileTool", () => {
     await write("trailing.txt", "one\ntwo\n");
 
     await expect(
-      readFile.execute({ path: "trailing.txt" }, {}),
+      (await readFile.prepare({ path: "trailing.txt" })).run({}),
     ).resolves.toBe("1\tone\n2\ttwo");
   });
 
@@ -43,13 +43,12 @@ describe("createReadFileTool", () => {
     await write("range.txt", "one\ntwo\nthree\nfour");
 
     await expect(
-      readFile.execute(
-        {
+      (
+        await readFile.prepare({
           path: "range.txt",
           range: { start: { line: 2 }, end: { line: 3 } },
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).resolves.toBe("2\ttwo\n3\tthree");
   });
 
@@ -57,10 +56,12 @@ describe("createReadFileTool", () => {
     await write("tail.txt", "one\ntwo\nthree\nfour");
 
     await expect(
-      readFile.execute(
-        { path: "tail.txt", range: { start: { line: 3 } } },
-        {},
-      ),
+      (
+        await readFile.prepare({
+          path: "tail.txt",
+          range: { start: { line: 3 } },
+        })
+      ).run({}),
     ).resolves.toBe("3\tthree\n4\tfour");
   });
 
@@ -68,16 +69,15 @@ describe("createReadFileTool", () => {
     await write("cols.txt", "abcdef\nghijkl\nmnopqr");
 
     await expect(
-      readFile.execute(
-        {
+      (
+        await readFile.prepare({
           path: "cols.txt",
           range: {
             start: { line: 1, col: 3 },
             end: { line: 3, col: 3 },
           },
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).resolves.toBe("1\tcdef\n2\tghijkl\n3\tmn");
   });
 
@@ -85,16 +85,15 @@ describe("createReadFileTool", () => {
     await write("emoji.txt", "a😀bcd");
 
     await expect(
-      readFile.execute(
-        {
+      (
+        await readFile.prepare({
           path: "emoji.txt",
           range: {
             start: { line: 1, col: 2 },
             end: { line: 1, col: 3 },
           },
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).resolves.toBe("1\t😀");
   });
 
@@ -102,16 +101,15 @@ describe("createReadFileTool", () => {
     await write("exclusive.txt", "abcdef");
 
     await expect(
-      readFile.execute(
-        {
+      (
+        await readFile.prepare({
           path: "exclusive.txt",
           range: {
             start: { line: 1, col: 1 },
             end: { line: 1, col: 4 },
           },
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).resolves.toBe("1\tabc");
   });
 
@@ -119,10 +117,12 @@ describe("createReadFileTool", () => {
     await write("short.txt", "ab");
 
     await expect(
-      readFile.execute(
-        { path: "short.txt", range: { start: { line: 1, col: 10 } } },
-        {},
-      ),
+      (
+        await readFile.prepare({
+          path: "short.txt",
+          range: { start: { line: 1, col: 10 } },
+        })
+      ).run({}),
     ).resolves.toBe("1\t");
   });
 
@@ -130,10 +130,12 @@ describe("createReadFileTool", () => {
     await write("oneline.txt", "only");
 
     await expect(
-      readFile.execute(
-        { path: "oneline.txt", range: { start: { line: 5 } } },
-        {},
-      ),
+      (
+        await readFile.prepare({
+          path: "oneline.txt",
+          range: { start: { line: 5 } },
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -141,13 +143,12 @@ describe("createReadFileTool", () => {
     await write("reversed.txt", "a\nb\nc");
 
     await expect(
-      readFile.execute(
-        {
+      (
+        await readFile.prepare({
           path: "reversed.txt",
           range: { start: { line: 3 }, end: { line: 1 } },
-        },
-        {},
-      ),
+        })
+      ).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -155,7 +156,7 @@ describe("createReadFileTool", () => {
     await mkdir(join(root, "adir"), { recursive: true });
 
     await expect(
-      readFile.execute({ path: "adir" }, {}),
+      (await readFile.prepare({ path: "adir" })).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -168,13 +169,13 @@ describe("createReadFileTool", () => {
     }
 
     await expect(
-      readFile.execute({ path: "pipe.fifo" }, {}),
+      (await readFile.prepare({ path: "pipe.fifo" })).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
   test("rejects a missing file", async () => {
     await expect(
-      readFile.execute({ path: "nope.txt" }, {}),
+      (await readFile.prepare({ path: "nope.txt" })).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -182,7 +183,7 @@ describe("createReadFileTool", () => {
     await write("bin.dat", "abc\0def");
 
     await expect(
-      readFile.execute({ path: "bin.dat" }, {}),
+      (await readFile.prepare({ path: "bin.dat" })).run({}),
     ).rejects.toBeInstanceOf(FileToolError);
   });
 
@@ -190,16 +191,16 @@ describe("createReadFileTool", () => {
     const small = createReadFileTool({ root, maxOutputChars: 5 });
     await write("big.txt", "0123456789");
 
-    await expect(small.execute({ path: "big.txt" }, {})).resolves.toBe(
-      "1\t012\n[output truncated]",
-    );
+    await expect(
+      (await small.prepare({ path: "big.txt" })).run({}),
+    ).resolves.toBe("1\t012\n[output truncated]");
   });
 
   test("returns a placeholder for an empty file", async () => {
     await write("empty.txt", "");
 
     await expect(
-      readFile.execute({ path: "empty.txt" }, {}),
+      (await readFile.prepare({ path: "empty.txt" })).run({}),
     ).resolves.toBe("(empty file)");
   });
 
@@ -209,10 +210,9 @@ describe("createReadFileTool", () => {
     controller.abort();
 
     await expect(
-      readFile.execute(
-        { path: "aborted.txt" },
-        { signal: controller.signal },
-      ),
+      (await readFile.prepare({ path: "aborted.txt" })).run({
+        signal: controller.signal,
+      }),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });

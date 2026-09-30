@@ -220,11 +220,14 @@ Carries, the vendor data that only one provider reads, are left out of the recor
 The request and the response the caller receives keep them.
 When a response, or the finish event of a stream, lists omissions, the span records that list as it was given in `mg.llm.omitted`.
 
-The record of a tool run is written by a wrapper around the run function.
-That wrapper is `traceRunToolCall`.
+The record of a tool run is written by a wrapper around the prepare function.
+That wrapper is `tracePrepareToolCall`.
+Its span starts when the prepared call runs, not when it is prepared.
+`traceRunToolCall` is the same wrapper for the run function without a gate.
 
-The record of a subagent call is written by a wrapper around the run function.
-That wrapper is `traceRunSubagentCall`.
+The record of a subagent call is written by a wrapper around the prepare function.
+That wrapper is `tracePrepareSubagentCall`.
+`traceRunSubagentCall` is the same wrapper for the run function without a gate.
 It puts the call span under the parent span it was given, and creates a new
 thread span that becomes the root of the child conversation.
 Both spans carry the same thread ID as an attribute.

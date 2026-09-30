@@ -353,10 +353,14 @@ describe("createRunQueue with a hold", () => {
       gate: { judge: async () => ({ allowed: true, reason: "ok" }) },
       tools: [
         defineTool({
-          reach: async () => ({ kind: "any-local" }),
           name: "noop",
           input: noopSchema(),
-          execute: async () => "ok",
+          async prepare() {
+            return {
+              reach: { kind: "any-local" },
+              run: async () => "ok",
+            };
+          },
         }),
       ],
     };

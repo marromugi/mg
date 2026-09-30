@@ -1,6 +1,5 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
@@ -34,49 +33,51 @@ export const createWriteFileTool = (
       "creating parent directories and overwriting without asking. " +
       "For partial changes use edit_file.",
     input: writeFileInput,
-    async reach(args) {
-      const parsed = await validateToolInput(this.input, args);
-      if (!parsed.ok) return { kind: "any-local" };
-      return reachOfFile(root, parsed.value.path);
-    },
-    async execute({ path: inputPath, content }, context) {
-      context.signal?.throwIfAborted();
+    async prepare({ path: inputPath, content }) {
+      return {
+        reach: await reachOfFile(root, inputPath),
+        run: async (context) => {
+          context.signal?.throwIfAborted();
 
-      const resolved = await resolveWritablePath(root, inputPath);
+          const resolved = await resolveWritablePath(root, inputPath);
 
-      try {
-        const stat = await fs.stat(resolved.absolute);
-        if (!stat.isFile()) {
-          throw new FileToolError(`not a file: ${resolved.relative}`);
-        }
-      } catch (error) {
-        if (error instanceof FileToolError) throw error;
-        if (!isErrnoException(error) || error.code !== "ENOENT") {
-          throw new FileToolError(
-            `cannot write file: ${resolved.relative}`,
-            { cause: error },
-          );
-        }
-      }
+          try {
+            const stat = await fs.stat(resolved.absolute);
+            if (!stat.isFile()) {
+              throw new FileToolError(
+                `not a file: ${resolved.relative}`,
+              );
+            }
+          } catch (error) {
+            if (error instanceof FileToolError) throw error;
+            if (!isErrnoException(error) || error.code !== "ENOENT") {
+              throw new FileToolError(
+                `cannot write file: ${resolved.relative}`,
+                { cause: error },
+              );
+            }
+          }
 
-      try {
-        await fs.mkdir(path.dirname(resolved.absolute), {
-          recursive: true,
-        });
-        await fs.writeFile(resolved.absolute, content, {
-          encoding: "utf8",
-          signal: context.signal,
-        });
-      } catch (error) {
-        if (isAbortError(error)) throw error;
-        throw new FileToolError(
-          `cannot write file: ${resolved.relative}`,
-          { cause: error },
-        );
-      }
+          try {
+            await fs.mkdir(path.dirname(resolved.absolute), {
+              recursive: true,
+            });
+            await fs.writeFile(resolved.absolute, content, {
+              encoding: "utf8",
+              signal: context.signal,
+            });
+          } catch (error) {
+            if (isAbortError(error)) throw error;
+            throw new FileToolError(
+              `cannot write file: ${resolved.relative}`,
+              { cause: error },
+            );
+          }
 
-      const lines = splitLines(content).length;
-      return `Wrote ${resolved.relative} (${lines} lines).`;
+          const lines = splitLines(content).length;
+          return `Wrote ${resolved.relative} (${lines} lines).`;
+        },
+      };
     },
   };
 };

@@ -67,10 +67,14 @@ describe("createHarness", () => {
 
   test("tools are passed through to the provider's request", async () => {
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute: async () => "a-result",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "a-result",
+        };
+      },
     });
     const provider = stubProvider([
       { parts: [{ type: "text", text: "hi" }], finishReason: "stop" },
@@ -108,10 +112,14 @@ describe("createHarness", () => {
     };
     const execute = vi.fn(async () => "a-result");
     const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "a",
       input: stubSchema(),
-      execute,
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => execute(),
+        };
+      },
     });
     const provider = stubProvider([
       {

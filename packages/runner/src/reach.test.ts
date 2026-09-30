@@ -1,10 +1,20 @@
 import type { Provider } from "@mg/core";
+import { prepareSubagentCall, type Subagent } from "@mg/harness";
 import { describe, expect, test } from "vitest";
 import { createExclusiveNames } from "./exclusive-names.js";
 import { createSubagent } from "./subagent.js";
 
+const reachOf = async (subagent: Subagent, args: unknown) =>
+  (
+    await prepareSubagentCall([subagent], {
+      id: "c1",
+      name: subagent.name,
+      arguments: args,
+    })
+  ).reach;
+
 describe("subagent reach", () => {
-  test("is none for every argument and never calls the provider", async () => {
+  test("is none and never calls the provider", async () => {
     let calls = 0;
     const provider: Provider = {
       toolForcing: true,
@@ -35,10 +45,9 @@ describe("subagent reach", () => {
       },
     );
 
-    expect(await subagent.reach({ prompt: "hi" })).toEqual({
+    expect(await reachOf(subagent, { prompt: "hi" })).toEqual({
       kind: "none",
     });
-    expect(await subagent.reach({})).toEqual({ kind: "none" });
     expect(calls).toBe(0);
   });
 });

@@ -59,35 +59,37 @@ export const createBashTool = (
       `Runs a shell command with ${shell} in the working directory ${cwd}. ` +
       "Returns stdout, stderr and the exit code as one text.",
     input: bashInput,
-    async reach() {
-      return { kind: "any-local" };
-    },
-    async execute({ command }, context) {
-      const { stdout, stderr, error } = await run(shell, command, {
-        cwd,
-        timeout: timeoutMs,
-        maxBuffer: maxOutputBytes,
-        signal: context.signal,
-      });
+    async prepare({ command }) {
+      return {
+        reach: { kind: "any-local" },
+        run: async (context) => {
+          const { stdout, stderr, error } = await run(shell, command, {
+            cwd,
+            timeout: timeoutMs,
+            maxBuffer: maxOutputBytes,
+            signal: context.signal,
+          });
 
-      const parts: string[] = [];
-      const out = trimNewline(stdout);
-      const err = trimNewline(stderr);
-      if (out !== "") parts.push(out);
-      if (err !== "") parts.push(`[stderr]\n${err}`);
+          const parts: string[] = [];
+          const out = trimNewline(stdout);
+          const err = trimNewline(stderr);
+          if (out !== "") parts.push(out);
+          if (err !== "") parts.push(`[stderr]\n${err}`);
 
-      if (error === null) return parts.join("\n");
-      if (error.name === "AbortError") throw error;
-      if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-        parts.push("[output truncated]");
-      } else if (error.killed === true) {
-        parts.push(`[timed out after ${timeoutMs} ms]`);
-      } else if (typeof error.code === "number") {
-        parts.push(`[exit code: ${error.code}]`);
-      } else {
-        throw error;
-      }
-      return parts.join("\n");
+          if (error === null) return parts.join("\n");
+          if (error.name === "AbortError") throw error;
+          if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+            parts.push("[output truncated]");
+          } else if (error.killed === true) {
+            parts.push(`[timed out after ${timeoutMs} ms]`);
+          } else if (typeof error.code === "number") {
+            parts.push(`[exit code: ${error.code}]`);
+          } else {
+            throw error;
+          }
+          return parts.join("\n");
+        },
+      };
     },
   };
 };

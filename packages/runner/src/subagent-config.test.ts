@@ -37,10 +37,14 @@ const stubSchema = (): ToolSchema => ({
 
 const stubTool = (name: string): Tool =>
   defineTool({
-    reach: async () => ({ kind: "any-local" }),
     name,
     input: stubSchema(),
-    execute: async () => `${name}-result`,
+    async prepare() {
+      return {
+        reach: { kind: "any-local" },
+        run: async () => `${name}-result`,
+      };
+    },
   });
 
 const stubGate = (): Gate => ({

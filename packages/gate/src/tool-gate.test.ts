@@ -1,11 +1,14 @@
 import {
   defineTool,
+  ToolInputError,
+  ToolNotFoundError,
+  type Reach,
   type Tool,
   type ToolCall,
-  type ToolMessage,
   type ToolSchema,
 } from "@mg/core";
-import type { TraceSpan } from "@mg/harness";
+import type { TraceAttributes, TraceSpan } from "@mg/harness";
+import { SPAN, ATTR, tracePrepareToolCall } from "@mg/trace";
 import { describe, expect, it, vi } from "vitest";
 import { GateError } from "./errors.js";
 import { createRulesGate } from "./rules/index.js";
@@ -36,60 +39,91 @@ const schema: ToolSchema = {
   },
 };
 
-const weatherTool: Tool = defineTool({
-  reach: async () => ({ kind: "any-local" }),
-  name: "weather",
-  description: "Reports the weather for a city.",
-  input: schema,
-  execute: async () => "sunny",
-});
-
-const call: ToolCall = {
-  id: "call-1",
-  name: "weather",
-  arguments: { city: "tokyo" },
+const numberSchema: ToolSchema = {
+  "~standard": {
+    version: 1,
+    vendor: "mg-test",
+    validate: ((value) => {
+      const a = (value as { a?: unknown }).a;
+      return typeof a === "number"
+        ? { value }
+        : { issues: [{ message: "Expected number" }] };
+    }) satisfies Validate,
+    jsonSchema: {
+      input: () => ({ type: "object" }),
+      output: () => ({ type: "object" }),
+    },
+  },
 };
 
-const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
+const allow: Gate = {
+  judge: async (): Promise<Verdict> => ({
+    allowed: true,
+    reason: "ok",
+  }),
+};
 
-describe("toToolCallRequest", () => {
-  it("builds a tool-call request with name, description and arguments", async () => {
-    const request = await toToolCallRequest([weatherTool], call);
+const recordingGate = (
+  seen: GateRequest[],
+  verdict: Verdict = { allowed: true, reason: "ok" },
+): Gate => ({
+  judge: async (request): Promise<Verdict> => {
+    seen.push(request);
+    return verdict;
+  },
+});
 
-    expect(request.kind).toBe(TOOL_CALL_KIND);
-    expect(request.description).toContain("Tool: weather");
-    expect(request.description).toContain(
-      "Description: Reports the weather for a city.",
-    );
-    expect(request.description).toContain(
-      JSON.stringify(call.arguments, null, 2),
-    );
+const fileReach: Reach = {
+  kind: "paths",
+  paths: [{ path: "/x/a.txt", extent: "file" }],
+};
 
-    const payload = request.payload as ToolCallPayload;
-    expect(payload.call).toBe(call);
-    expect(payload.tool).toEqual({
-      name: "weather",
-      description: "Reports the weather for a city.",
-      input: schema,
-    });
-    expect(payload.tool).not.toHaveProperty("execute");
+const fakeTool = (
+  overrides: Partial<Tool> & {
+    prepare?: Tool["prepare"];
+  } = {},
+): Tool =>
+  defineTool({
+    name: "t",
+    description: "d",
+    input: schema,
+    async prepare() {
+      return { reach: fileReach, run: async () => "ran-1" };
+    },
+    ...overrides,
   });
 
-  it("describes a tool without a description as (none)", async () => {
-    const tool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
-      name: "weather",
-      input: schema,
-      execute: async () => "sunny",
-    });
+const call: ToolCall = { id: "c1", name: "t", arguments: { a: 1 } };
 
-    const request = await toToolCallRequest([tool], call);
+describe("toToolCallRequest", () => {
+  it("builds a tool-call request from the call, the definition and the reach", () => {
+    const request = toToolCallRequest([fakeTool()], call, fileReach);
+
+    expect(request.kind).toBe(TOOL_CALL_KIND);
+    expect(request.description).toBe(
+      'Tool: t\nDescription: d\nArguments:\n{\n  "a": 1\n}',
+    );
+    const payload = request.payload as ToolCallPayload;
+    expect(payload.call).toBe(call);
+    expect(payload.reach).toBe(fileReach);
+    expect(payload.tool).toEqual({
+      name: "t",
+      description: "d",
+      input: schema,
+    });
+    expect(payload.tool).not.toHaveProperty("prepare");
+  });
+
+  it("describes a tool without a description as (none)", () => {
+    const tool = fakeTool({ description: undefined });
+
+    const request = toToolCallRequest([tool], call, fileReach);
 
     expect(request.description).toContain("Description: (none)");
   });
 
-  it("describes an unknown tool as (unknown tool) with payload.tool undefined", async () => {
-    const request = await toToolCallRequest([], call);
+  it("describes an unknown tool as (unknown tool) with payload.tool undefined", () => {
+    const request = toToolCallRequest([], call, { kind: "any-local" });
 
     expect(request.description).toContain(
       "Description: (unknown tool)",
@@ -100,178 +134,254 @@ describe("toToolCallRequest", () => {
 });
 
 describe("gateRunToolCall", () => {
-  it("calls run with the same arguments and returns its result when allowed", async () => {
-    const judge = vi.fn(async (): Promise<Verdict> => ({
-      allowed: true,
-      reason: "ok",
-    }));
-    const gate = stubGate(judge);
-    const message: ToolMessage = {
-      role: "tool",
-      toolCallId: "call-1",
-      content: "sunny",
-    };
-    const run = vi.fn(async () => message);
-
-    const result = await gateRunToolCall(gate, run)(
-      [weatherTool],
-      call,
-      undefined,
-    );
-
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledWith([weatherTool], call, undefined);
-    expect(result).toBe(message);
-  });
-
-  it("does not call run and returns the reason when denied", async () => {
-    const gate = stubGate(async (): Promise<Verdict> => ({
-      allowed: false,
-      reason: "writes to disk",
-    }));
-    const run = vi.fn();
-
-    const result = await gateRunToolCall(gate, run)(
-      [weatherTool],
-      call,
-    );
-
-    expect(run).not.toHaveBeenCalled();
-    expect(result.toolCallId).toBe(call.id);
-    expect(result.content).toContain("[denied]");
-    expect(result.content).toContain("writes to disk");
-  });
-
-  it("does not call run and returns a failure message when the gate throws", async () => {
-    const gate = stubGate(async () => {
-      throw new Error("provider down");
-    });
-    const run = vi.fn();
-    const controller = new AbortController();
-
-    const result = await gateRunToolCall(gate, run)(
-      [weatherTool],
-      call,
-      {
-        signal: controller.signal,
+  it("judges the reach of the prepared call and returns that same call's result, preparing once", async () => {
+    const seen: GateRequest[] = [];
+    let prepared = 0;
+    const tool = fakeTool({
+      async prepare() {
+        prepared += 1;
+        return { reach: fileReach, run: async () => "ran-1" };
       },
-    );
-
-    expect(run).not.toHaveBeenCalled();
-    expect(result.toolCallId).toBe(call.id);
-    expect(result.content).toContain("[denied]");
-    expect(result.content).toContain("provider down");
-  });
-
-  it("shows the callerMessage of a GateError and does not call run", async () => {
-    const gate = stubGate(async () => {
-      throw new GateError(
-        "Gate judgement failed: Jev request failed: 503 upstream busy",
-        {
-          callerMessage:
-            "Gate judgement failed: Jev request failed: 503 (text from the service left out)",
-        },
-      );
     });
-    const run = vi.fn();
 
-    const result = await gateRunToolCall(gate, run)(
-      [weatherTool],
+    const message = await gateRunToolCall(recordingGate(seen))(
+      [tool],
       call,
     );
 
-    expect(run).not.toHaveBeenCalled();
-    expect(result.content).toBe(
+    expect(seen).toHaveLength(1);
+    expect((seen[0].payload as ToolCallPayload).reach).toEqual({
+      kind: "paths",
+      paths: [{ path: "/x/a.txt", extent: "file" }],
+    });
+    expect(message).toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content: "ran-1",
+    });
+    expect(prepared).toBe(1);
+  });
+
+  it("sends the gate a tool-call request whose tool has no prepare", async () => {
+    const seen: GateRequest[] = [];
+
+    await gateRunToolCall(recordingGate(seen))([fakeTool()], call);
+
+    expect(seen[0].kind).toBe("tool-call");
+    const payload = seen[0].payload as ToolCallPayload;
+    expect(payload.tool).toEqual({
+      name: "t",
+      description: "d",
+      input: schema,
+    });
+    expect(payload.tool).not.toHaveProperty("prepare");
+    expect(seen[0].description).toBe(
+      'Tool: t\nDescription: d\nArguments:\n{\n  "a": 1\n}',
+    );
+  });
+
+  it("judges any-local without a tool definition and rejects with ToolNotFoundError when the name is not found", async () => {
+    const seen: GateRequest[] = [];
+
+    const outcome = gateRunToolCall(recordingGate(seen))([fakeTool()], {
+      id: "c1",
+      name: "nope",
+      arguments: {},
+    });
+
+    await expect(outcome).rejects.toBeInstanceOf(ToolNotFoundError);
+    await expect(outcome).rejects.toThrow(
+      "No tool named nope for tool call c1",
+    );
+    const payload = seen[0].payload as ToolCallPayload;
+    expect(payload.reach).toEqual({ kind: "any-local" });
+    expect(payload.tool).toBeUndefined();
+    expect(seen[0].description.split("\n")[1]).toBe(
+      "Description: (unknown tool)",
+    );
+  });
+
+  it("judges any-local, rejects with ToolInputError and prepares nothing when the input is invalid", async () => {
+    const seen: GateRequest[] = [];
+    let prepared = 0;
+    const tool = fakeTool({
+      input: numberSchema,
+      async prepare() {
+        prepared += 1;
+        return { reach: fileReach, run: async () => "ran-1" };
+      },
+    });
+
+    const outcome = gateRunToolCall(recordingGate(seen))([tool], {
+      id: "c1",
+      name: "t",
+      arguments: { a: "x" },
+    });
+
+    await expect(outcome).rejects.toBeInstanceOf(ToolInputError);
+    await expect(outcome).rejects.toThrow(
+      "Invalid arguments for tool call c1 (t)",
+    );
+    expect((seen[0].payload as ToolCallPayload).reach).toEqual({
+      kind: "any-local",
+    });
+    expect(prepared).toBe(0);
+  });
+
+  it("returns the failed message without asking the gate when preparing throws", async () => {
+    const seen: GateRequest[] = [];
+    const tool = fakeTool({
+      async prepare() {
+        throw new Error("boom");
+      },
+    });
+
+    const message = await gateRunToolCall(recordingGate(seen))(
+      [tool],
+      call,
+    );
+
+    expect(message.content).toBe(
+      "[denied] Not executed. The policy check failed: boom",
+    );
+    expect(seen).toHaveLength(0);
+  });
+
+  it("returns the denial reason without running the prepared action when the gate denies", async () => {
+    let ran = 0;
+    const tool = fakeTool({
+      async prepare() {
+        return {
+          reach: fileReach,
+          run: async () => {
+            ran += 1;
+            return "ran-1";
+          },
+        };
+      },
+    });
+
+    const message = await gateRunToolCall(
+      recordingGate([], { allowed: false, reason: "no" }),
+    )([tool], call);
+
+    expect(message).toEqual({
+      role: "tool",
+      toolCallId: "c1",
+      content:
+        "[denied] Not executed. The policy gate rejected this action: no",
+    });
+    expect(ran).toBe(0);
+  });
+
+  it("returns the failed message and does not run when the gate throws", async () => {
+    let ran = 0;
+    const tool = fakeTool({
+      async prepare() {
+        return {
+          reach: fileReach,
+          run: async () => {
+            ran += 1;
+            return "ran-1";
+          },
+        };
+      },
+    });
+    const gate: Gate = {
+      judge: async () => {
+        throw new Error("provider down");
+      },
+    };
+
+    const message = await gateRunToolCall(gate)([tool], call);
+
+    expect(message.content).toBe(
+      "[denied] Not executed. The policy check failed: provider down",
+    );
+    expect(ran).toBe(0);
+  });
+
+  it("shows the callerMessage of a GateError", async () => {
+    const gate: Gate = {
+      judge: async () => {
+        throw new GateError(
+          "Gate judgement failed: Jev request failed: 503 upstream busy",
+          {
+            callerMessage:
+              "Gate judgement failed: Jev request failed: 503 (text from the service left out)",
+          },
+        );
+      },
+    };
+
+    const message = await gateRunToolCall(gate)([fakeTool()], call);
+
+    expect(message.content).toBe(
       "[denied] Not executed. The policy check failed: Gate judgement failed: Jev request failed: 503 (text from the service left out)",
     );
   });
 
-  it("shows the message of an error that is not a GateError", async () => {
-    const gate = stubGate(async () => {
-      throw new Error("reach could not be resolved");
-    });
-
-    const result = await gateRunToolCall(gate, vi.fn())(
-      [weatherTool],
-      call,
-    );
-
-    expect(result.content).toBe(
-      "[denied] Not executed. The policy check failed: reach could not be resolved",
-    );
-  });
-
-  it("rethrows an AbortError from the gate unchanged without calling run", async () => {
+  it("rethrows an AbortError from the gate unchanged", async () => {
     const abortError = new DOMException("aborted", "AbortError");
-    const gate = stubGate(async () => {
-      throw abortError;
-    });
-    const run = vi.fn();
+    const gate: Gate = {
+      judge: async () => {
+        throw abortError;
+      },
+    };
 
     await expect(
-      gateRunToolCall(gate, run)([weatherTool], call),
+      gateRunToolCall(gate)([fakeTool()], call),
     ).rejects.toBe(abortError);
-    expect(run).not.toHaveBeenCalled();
   });
 
   it("rethrows a non-AbortError from the gate unchanged when the signal is already aborted", async () => {
     const timeoutError = new DOMException("timed out", "TimeoutError");
-    const gate = stubGate(async () => {
-      throw timeoutError;
-    });
-    const run = vi.fn();
+    const gate: Gate = {
+      judge: async () => {
+        throw timeoutError;
+      },
+    };
     const controller = new AbortController();
     controller.abort();
 
     await expect(
-      gateRunToolCall(gate, run)([weatherTool], call, {
+      gateRunToolCall(gate)([fakeTool()], call, {
         signal: controller.signal,
       }),
     ).rejects.toBe(timeoutError);
-    expect(run).not.toHaveBeenCalled();
   });
 
-  it("passes the context signal to the gate", async () => {
+  it("passes the context signal to the gate and to the prepared action", async () => {
     const controller = new AbortController();
-    let seenContext: GateContext | undefined;
-    const gate = stubGate(
-      async (
-        _request: GateRequest,
-        context?: GateContext,
-      ): Promise<Verdict> => {
-        seenContext = context;
+    let gateContext: GateContext | undefined;
+    let runContext: { signal?: AbortSignal } | undefined;
+    const gate: Gate = {
+      judge: async (_request, context): Promise<Verdict> => {
+        gateContext = context;
         return { allowed: true, reason: "ok" };
       },
-    );
-    const run = vi.fn(async (): Promise<ToolMessage> => ({
-      role: "tool",
-      toolCallId: call.id,
-      content: "sunny",
-    }));
+    };
+    const tool = fakeTool({
+      async prepare() {
+        return {
+          reach: fileReach,
+          run: async (context) => {
+            runContext = context;
+            return "ran-1";
+          },
+        };
+      },
+    });
 
-    await gateRunToolCall(gate, run)([weatherTool], call, {
+    await gateRunToolCall(gate)([tool], call, {
       signal: controller.signal,
     });
 
-    expect(seenContext?.signal).toBe(controller.signal);
+    expect(gateContext?.signal).toBe(controller.signal);
+    expect(runContext?.signal).toBe(controller.signal);
   });
 
-  it("uses runToolCall by default", async () => {
-    const gate = stubGate(async (): Promise<Verdict> => ({
-      allowed: true,
-      reason: "ok",
-    }));
-
-    const result = await gateRunToolCall(gate)([weatherTool], call);
-
-    expect(result).toEqual({
-      role: "tool",
-      toolCallId: call.id,
-      content: "sunny",
-    });
-  });
-
-  it("passes parent as context.trace to the gate", async () => {
+  it("passes parent as context.trace to the gate, and no trace when parent is missing", async () => {
     const parent: TraceSpan = {
       startSpan: () => parent,
       startRoot: () => parent,
@@ -279,74 +389,107 @@ describe("gateRunToolCall", () => {
       addEvent: (): void => {},
       end: (): void => {},
     };
-    let seenContext: GateContext | undefined;
-    const gate = stubGate(
-      async (
-        _request: GateRequest,
-        context?: GateContext,
-      ): Promise<Verdict> => {
-        seenContext = context;
+    const contexts: (GateContext | undefined)[] = [];
+    const gate: Gate = {
+      judge: async (_request, context): Promise<Verdict> => {
+        contexts.push(context);
         return { allowed: true, reason: "ok" };
       },
-    );
-    const run = vi.fn(async (): Promise<ToolMessage> => ({
-      role: "tool",
-      toolCallId: call.id,
-      content: "sunny",
-    }));
+    };
 
-    await gateRunToolCall(gate, run, parent)([weatherTool], call);
+    await gateRunToolCall(gate, undefined, parent)([fakeTool()], call);
+    await gateRunToolCall(gate)([fakeTool()], call);
 
-    expect(seenContext?.trace).toBe(parent);
+    expect(contexts[0]?.trace).toBe(parent);
+    expect(contexts[1]).not.toHaveProperty("trace");
   });
 
-  it("does not pass trace to the gate when parent is missing", async () => {
-    let seenContext: GateContext | undefined;
-    const gate = stubGate(
-      async (
-        _request: GateRequest,
-        context?: GateContext,
-      ): Promise<Verdict> => {
-        seenContext = context;
-        return { allowed: true, reason: "ok" };
-      },
-    );
-    const run = vi.fn(async (): Promise<ToolMessage> => ({
+  it("gives the same message as running the tool without a gate", async () => {
+    const message = await gateRunToolCall(allow)([fakeTool()], call);
+
+    expect(message).toEqual({
       role: "tool",
-      toolCallId: call.id,
-      content: "sunny",
-    }));
+      toolCallId: "c1",
+      content: "ran-1",
+    });
+  });
+});
 
-    await gateRunToolCall(gate, run)([weatherTool], call);
+describe("gateRunToolCall over trace", () => {
+  class Span implements TraceSpan {
+    readonly children: Span[] = [];
+    readonly attributes: TraceAttributes = {};
+    constructor(readonly name: string) {}
+    startSpan(name: string, attributes?: TraceAttributes): TraceSpan {
+      const child = new Span(name);
+      Object.assign(child.attributes, attributes);
+      this.children.push(child);
+      return child;
+    }
+    startRoot(name: string): TraceSpan {
+      return new Span(name);
+    }
+    setAttributes(attributes: TraceAttributes): void {
+      Object.assign(this.attributes, attributes);
+    }
+    addEvent(): void {}
+    end(): void {}
+  }
 
-    expect(seenContext).not.toHaveProperty("trace");
+  it("records no tool span for a denied call and one tool span with the result for an allowed call", async () => {
+    const root = new Span("root");
+    const gate: Gate = {
+      judge: vi.fn(async (request): Promise<Verdict> => {
+        const denied =
+          (request.payload as ToolCallPayload).call.id === "denied";
+        return denied
+          ? { allowed: false, reason: "no" }
+          : { allowed: true, reason: "ok" };
+      }),
+    };
+    const run = gateRunToolCall(gate, tracePrepareToolCall(root), root);
+
+    await run([fakeTool()], { id: "denied", name: "t", arguments: {} });
+    await run([fakeTool()], {
+      id: "allowed",
+      name: "t",
+      arguments: {},
+    });
+
+    const toolSpans = root.children.filter(
+      (span) => span.name === SPAN.tool,
+    );
+    expect(toolSpans).toHaveLength(1);
+    expect(toolSpans[0].attributes[ATTR.toolResult]).toBe("ran-1");
   });
 });
 
 describe("gateRunToolCall with a rules gate", () => {
   it("does not run a tool that declares a relative path", async () => {
-    const execute = vi.fn(async () => "read");
-    const tool: Tool = defineTool({
-      reach: async () => ({
-        kind: "paths",
-        paths: [{ path: "src/a.ts", extent: "file" }],
-      }),
+    let ran = 0;
+    const tool = fakeTool({
       name: "read_file",
-      description: "Reads a file.",
-      input: schema,
-      execute,
+      async prepare() {
+        return {
+          reach: {
+            kind: "paths",
+            paths: [{ path: "src/a.ts", extent: "file" }],
+          },
+          run: async () => {
+            ran += 1;
+            return "read";
+          },
+        };
+      },
     });
-    const run = vi.fn();
 
     const result = await gateRunToolCall(
       createRulesGate({ root: process.cwd(), rules: [] }),
-      run,
     )([tool], { id: "call-1", name: "read_file", arguments: {} });
 
     expect(result.content).toBe(
       '[denied] Not executed. The policy check failed: Rules gate payload has a malformed reach: reach.paths[0].path must be an absolute path, got "src/a.ts"',
     );
-    expect(run).not.toHaveBeenCalled();
-    expect(execute).not.toHaveBeenCalled();
+    expect(ran).toBe(0);
   });
 });

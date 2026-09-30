@@ -168,10 +168,14 @@ const fakeContinueConversation = (
 
 const stubTool = (name: string): Tool =>
   defineTool({
-    reach: async () => ({ kind: "any-local" }),
     name,
     input: z.object({}),
-    execute: async () => `${name}-result`,
+    async prepare() {
+      return {
+        reach: { kind: "any-local" },
+        run: async () => `${name}-result`,
+      };
+    },
   });
 
 const countingContinueConversation = (): {
@@ -332,10 +336,14 @@ describe("continueAsPersona", () => {
     await store.create("t1");
     const controller = new AbortController();
     const askTool: Tool = defineTool({
-      reach: async () => ({ kind: "any-local" }),
       name: "ask",
       input: z.object({}),
-      execute: async () => "queued: w1",
+      async prepare() {
+        return {
+          reach: { kind: "any-local" },
+          run: async () => "queued: w1",
+        };
+      },
     });
     const optionsSeen: (RunOptions | undefined)[] = [];
     const fakeRun = async (

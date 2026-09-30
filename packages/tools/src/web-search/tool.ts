@@ -52,19 +52,21 @@ export const createWebSearchTool = (
       "and short snippets, not full pages. Returns at most " +
       `${maxResults} results.`,
     input: webSearchInput,
-    async reach() {
-      return { kind: "outside" };
-    },
-    async execute({ query }, context) {
-      const results = await backend.search(
-        { query, maxResults },
-        { signal: context.signal },
-      );
-      const sliced = results.slice(0, maxResults);
+    async prepare({ query }) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          const results = await backend.search(
+            { query, maxResults },
+            { signal: context.signal },
+          );
+          const sliced = results.slice(0, maxResults);
 
-      if (sliced.length === 0) return `No results for "${query}".`;
+          if (sliced.length === 0) return `No results for "${query}".`;
 
-      return formatResults(sliced, maxSnippetChars);
+          return formatResults(sliced, maxSnippetChars);
+        },
+      };
     },
   };
 };

@@ -1,7 +1,6 @@
 import { execFile, type ExecFileException } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { validateToolInput } from "@mg/core";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import { FileToolError } from "./errors.js";
@@ -262,122 +261,131 @@ export const createGrepTool = (
       "binary files. At most " +
       `${maxResults} matches.`,
     input: grepInput,
-    async reach(args) {
-      const parsed = await validateToolInput(this.input, args);
-      if (!parsed.ok) return { kind: "any-local" };
-      return reachOfSearchPath(root, parsed.value.path ?? ".");
-    },
-    async execute(
-      { pattern, path: inputPath, glob, ignoreCase },
-      context,
-    ) {
-      context.signal?.throwIfAborted();
+    async prepare({ pattern, path: inputPath, glob, ignoreCase }) {
+      return {
+        reach: await reachOfSearchPath(root, inputPath ?? "."),
+        run: async (context) => {
+          context.signal?.throwIfAborted();
 
-      const rootReal = await fs.realpath(root);
-      const resolved = await resolveExistingPath(
-        root,
-        inputPath ?? ".",
-      );
+          const rootReal = await fs.realpath(root);
+          const resolved = await resolveExistingPath(
+            root,
+            inputPath ?? ".",
+          );
 
-      let directContent: string | undefined;
-      try {
-        const resolvedStat = await fs.stat(resolved.absolute);
-        if (resolvedStat.isFile()) {
-          directContent = await fs.readFile(resolved.absolute, {
-            encoding: "utf-8",
+          let directContent: string | undefined;
+          try {
+            const resolvedStat = await fs.stat(resolved.absolute);
+            if (resolvedStat.isFile()) {
+              directContent = await fs.readFile(resolved.absolute, {
+                encoding: "utf-8",
+              });
+            }
+          } catch {
+            directContent = undefined;
+          }
+          if (directContent !== undefined && isBinary(directContent)) {
+            throw new FileToolError(
+              `binary file: ${resolved.relative}`,
+            );
+          }
+
+          const args = [
+            "--json",
+            "--hidden",
+            "-e",
+            pattern,
+            ...(glob !== undefined ? ["-g", glob] : []),
+            ...(ignoreCase === true ? ["-i"] : []),
+            "--",
+            resolved.absolute,
+          ];
+
+          const { stdout, stderr, error } = await run(rgPath, args, {
+            cwd: rootReal,
+            timeout: timeoutMs,
+            maxBuffer: maxOutputBytes,
+            signal: context.signal,
           });
-        }
-      } catch {
-        directContent = undefined;
-      }
-      if (directContent !== undefined && isBinary(directContent)) {
-        throw new FileToolError(`binary file: ${resolved.relative}`);
-      }
 
-      const args = [
-        "--json",
-        "--hidden",
-        "-e",
-        pattern,
-        ...(glob !== undefined ? ["-g", glob] : []),
-        ...(ignoreCase === true ? ["-i"] : []),
-        "--",
-        resolved.absolute,
-      ];
+          if (error === null) {
+            const { lines, truncated, invalidUtf8, binary } =
+              formatMatches(stdout, rootReal, maxResults, maxLineChars);
+            return formatOutput(lines, truncated, invalidUtf8, binary);
+          }
 
-      const { stdout, stderr, error } = await run(rgPath, args, {
-        cwd: rootReal,
-        timeout: timeoutMs,
-        maxBuffer: maxOutputBytes,
-        signal: context.signal,
-      });
+          if (isAbortError(error)) throw error;
 
-      if (error === null) {
-        const { lines, truncated, invalidUtf8, binary } = formatMatches(
-          stdout,
-          rootReal,
-          maxResults,
-          maxLineChars,
-        );
-        return formatOutput(lines, truncated, invalidUtf8, binary);
-      }
+          if (error.code === "ENOENT") {
+            throw new FileToolError(
+              "ripgrep (rg) is not installed or not on PATH",
+            );
+          }
 
-      if (isAbortError(error)) throw error;
+          if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+            const { lines, invalidUtf8, binary } = formatMatches(
+              dropTrailingPartialLine(stdout),
+              rootReal,
+              maxResults,
+              maxLineChars,
+            );
+            const body = formatOutput(lines, true, invalidUtf8, binary);
+            return stderr.trim() === ""
+              ? body
+              : `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
+          }
 
-      if (error.code === "ENOENT") {
-        throw new FileToolError(
-          "ripgrep (rg) is not installed or not on PATH",
-        );
-      }
+          if (error.killed === true) {
+            throw new FileToolError(
+              `search timed out after ${timeoutMs} ms`,
+            );
+          }
 
-      if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-        const { lines, invalidUtf8, binary } = formatMatches(
-          dropTrailingPartialLine(stdout),
-          rootReal,
-          maxResults,
-          maxLineChars,
-        );
-        const body = formatOutput(lines, true, invalidUtf8, binary);
-        return stderr.trim() === ""
-          ? body
-          : `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
-      }
+          if (error.code === 1) {
+            const location =
+              resolved.relative === "."
+                ? "the root"
+                : resolved.relative;
+            return `No matches for /${pattern}/ in ${location}.`;
+          }
 
-      if (error.killed === true) {
-        throw new FileToolError(
-          `search timed out after ${timeoutMs} ms`,
-        );
-      }
+          if (error.code === 2) {
+            const {
+              lines,
+              truncated,
+              invalidUtf8,
+              binary,
+              sawSummary,
+            } = formatMatches(
+              stdout,
+              rootReal,
+              maxResults,
+              maxLineChars,
+            );
 
-      if (error.code === 1) {
-        const location =
-          resolved.relative === "." ? "the root" : resolved.relative;
-        return `No matches for /${pattern}/ in ${location}.`;
-      }
+            if (sawSummary) {
+              const location =
+                resolved.relative === "."
+                  ? "the root"
+                  : resolved.relative;
+              const body =
+                lines.length === 0 &&
+                !truncated &&
+                invalidUtf8 === 0 &&
+                binary === 0
+                  ? `No matches for /${pattern}/ in ${location}.`
+                  : formatOutput(lines, truncated, invalidUtf8, binary);
+              return `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
+            }
+          }
 
-      if (error.code === 2) {
-        const { lines, truncated, invalidUtf8, binary, sawSummary } =
-          formatMatches(stdout, rootReal, maxResults, maxLineChars);
-
-        if (sawSummary) {
-          const location =
-            resolved.relative === "." ? "the root" : resolved.relative;
-          const body =
-            lines.length === 0 &&
-            !truncated &&
-            invalidUtf8 === 0 &&
-            binary === 0
-              ? `No matches for /${pattern}/ in ${location}.`
-              : formatOutput(lines, truncated, invalidUtf8, binary);
-          return `${body}\n${buildIncompleteNote(stderr, rootReal)}`;
-        }
-      }
-
-      const detail =
-        stderr.trim() !== ""
-          ? stderr.trim()
-          : (error.code ?? error.message);
-      throw new FileToolError(`ripgrep failed: ${detail}`);
+          const detail =
+            stderr.trim() !== ""
+              ? stderr.trim()
+              : (error.code ?? error.message);
+          throw new FileToolError(`ripgrep failed: ${detail}`);
+        },
+      };
     },
   };
 };

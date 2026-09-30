@@ -37,40 +37,42 @@ export const createShellTool = (
       "Runs a shell command on the remote machine over SSH. " +
       "Returns stdout, stderr and the exit code as one text.",
     input: shellInput,
-    async reach() {
-      return { kind: "outside" };
-    },
-    async execute({ command }, context) {
-      const fullCommand =
-        cwd === undefined
-          ? command
-          : `cd ${quoteForShell(cwd)} && ${command}`;
+    async prepare({ command }) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          const fullCommand =
+            cwd === undefined
+              ? command
+              : `cd ${quoteForShell(cwd)} && ${command}`;
 
-      const result = await client.exec(fullCommand, {
-        timeoutMs,
-        maxOutputBytes,
-        signal: context.signal,
-      });
+          const result = await client.exec(fullCommand, {
+            timeoutMs,
+            maxOutputBytes,
+            signal: context.signal,
+          });
 
-      const parts: string[] = [];
-      const out = trimNewline(result.stdout);
-      const err = trimNewline(result.stderr);
-      if (out !== "") parts.push(out);
-      if (err !== "") parts.push(`[stderr]\n${err}`);
+          const parts: string[] = [];
+          const out = trimNewline(result.stdout);
+          const err = trimNewline(result.stderr);
+          if (out !== "") parts.push(out);
+          if (err !== "") parts.push(`[stderr]\n${err}`);
 
-      if (result.signal !== null) {
-        parts.push(`[killed by ${result.signal}]`);
-      } else if (result.code !== null && result.code !== 0) {
-        parts.push(`[exit code: ${result.code}]`);
-      }
-      if (result.timedOut) {
-        parts.push(`[timed out after ${timeoutMs} ms]`);
-      }
-      if (result.truncated) {
-        parts.push("[output truncated]");
-      }
+          if (result.signal !== null) {
+            parts.push(`[killed by ${result.signal}]`);
+          } else if (result.code !== null && result.code !== 0) {
+            parts.push(`[exit code: ${result.code}]`);
+          }
+          if (result.timedOut) {
+            parts.push(`[timed out after ${timeoutMs} ms]`);
+          }
+          if (result.truncated) {
+            parts.push("[output truncated]");
+          }
 
-      return parts.join("\n");
+          return parts.join("\n");
+        },
+      };
     },
   };
 };

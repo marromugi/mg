@@ -118,10 +118,12 @@ The subagent type has these fields.
 - The name shown to the LLM.
 - The description shown to the LLM.
 - The input schema.
-- The start function.
+- The prepare function.
 
-The start function receives the validated input.
-It also receives a context (`SubagentContext`).
+The prepare function receives the validated input.
+It gives back a prepared call that holds the reach the call declares
+and the run function bound to that reach.
+The run function receives a context (`SubagentContext`).
 It returns a string.
 
 The context has these four things.
@@ -135,24 +137,28 @@ The wrap-up signal is a different signal from the abort signal.
 It is passed from the parent harness and can be left out.
 How the child stops is up to the subagent implementation.
 
-### `runSubagentCall(subagents, call, context)`
+### `prepareSubagentCall(subagents, call)`
 
-`runSubagentCall` is a function that runs one call.
+`prepareSubagentCall` is a function that prepares one call.
 It works in this order.
 
 1. Finds the subagent whose name matches.
 2. Validates the input.
-3. Calls the start function.
-4. Turns the returned string into a tool message and returns it.
+3. Calls the subagent's prepare function.
 
-If you call it without a context, the start function receives an empty context.
-
-When no subagent has a matching name, it throws.
-When input validation fails, it throws too.
+It gives back a prepared call for every call.
+For an unknown name or invalid input, the prepared call declares `any-local`,
+and its run function throws the errors below.
 These do not extend the core tool errors.
 
 - `SubagentNotFoundError` is thrown when no name matches.
 - `SubagentInputError` is thrown when validation fails. It also carries the issues found.
+
+### `runSubagentCall(subagents, call, context)`
+
+`runSubagentCall` prepares the call, runs it,
+turns the returned string into a tool message and returns it.
+If you call it without a context, the run function receives an empty context.
 
 ## Non-goals
 

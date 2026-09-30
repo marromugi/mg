@@ -13,7 +13,7 @@ export type WebSearchContext = { signal?: AbortSignal };
 
 export type WebSearchBackend = {
   name: string;
-  // method syntax on purpose, same reason as Tool.execute in @mg/core
+  // method syntax on purpose, same reason as Callee.prepare in @mg/core
   search(
     request: WebSearchRequest,
     context: WebSearchContext,

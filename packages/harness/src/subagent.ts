@@ -1,7 +1,7 @@
 import type {
   Callee,
+  PreparedCall,
   ToolCall,
-  ToolInput,
   ToolMessage,
   ToolSchema,
 } from "@mg/core";
@@ -20,25 +20,27 @@ export type SubagentContext = {
   trace?: TraceSpan;
 };
 
-export type Subagent<TInput extends ToolSchema = ToolSchema> =
-  Callee<TInput> & {
-    // method syntax on purpose: keeps Subagent<Specific> assignable to Subagent
-    start(
-      input: ToolInput<TInput>,
-      context: SubagentContext,
-    ): Promise<string>;
-  };
+export type Subagent<TInput extends ToolSchema = ToolSchema> = Callee<
+  TInput,
+  SubagentContext
+>;
 
-export const runSubagentCall = async (
+const failing = (error: Error): PreparedCall<SubagentContext> => ({
+  reach: { kind: "any-local" },
+  run: async () => {
+    throw error;
+  },
+});
+
+export const prepareSubagentCall = async (
   subagents: readonly Subagent[],
   call: ToolCall,
-  context?: SubagentContext,
-): Promise<ToolMessage> => {
+): Promise<PreparedCall<SubagentContext>> => {
   const subagent = subagents.find(
     (candidate) => candidate.name === call.name,
   );
   if (!subagent) {
-    throw new SubagentNotFoundError(call.id, call.name);
+    return failing(new SubagentNotFoundError(call.id, call.name));
   }
 
   const result = await validateToolInput(
@@ -46,10 +48,23 @@ export const runSubagentCall = async (
     call.arguments,
   );
   if (!result.ok) {
-    throw new SubagentInputError(call.id, call.name, result.issues);
+    return failing(
+      new SubagentInputError(call.id, call.name, result.issues),
+    );
   }
 
-  const content = await subagent.start(result.value, context ?? {});
+  return subagent.prepare(result.value);
+};
+
+export type PrepareSubagentCall = typeof prepareSubagentCall;
+
+export const runSubagentCall = async (
+  subagents: readonly Subagent[],
+  call: ToolCall,
+  context?: SubagentContext,
+): Promise<ToolMessage> => {
+  const prepared = await prepareSubagentCall(subagents, call);
+  const content = await prepared.run(context ?? {});
   return { role: "tool", toolCallId: call.id, content };
 };
 

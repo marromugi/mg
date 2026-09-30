@@ -2,10 +2,13 @@ import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { ToolCall, ToolSchema } from "@mg/core";
 import {
-  runSubagentCall,
+  prepareSubagentCall,
+  SubagentNotFoundError,
   type Subagent,
+  type SubagentContext,
   type TraceSpan,
 } from "@mg/harness";
+import { SPAN, tracePrepareSubagentCall } from "@mg/trace";
 import { describe, expect, it, vi } from "vitest";
 import { createRulesGate } from "./rules/index.js";
 import { gateRunToolCall, type ToolCallPayload } from "./tool-gate.js";
@@ -31,13 +34,28 @@ const promptSchema: ToolSchema = {
   },
 };
 
-const stubResearcher = (start: Subagent["start"]): Subagent => ({
-  reach: async () => ({ kind: "any-local" }),
-  name: "researcher",
-  description: "Finds things out.",
-  input: promptSchema,
-  start: vi.fn(start),
-});
+type Start = (
+  input: unknown,
+  context: SubagentContext,
+) => Promise<string>;
+
+const stubResearcher = (
+  run: Start,
+): Subagent & { start: ReturnType<typeof vi.fn<Start>> } => {
+  const start = vi.fn(run);
+  return {
+    name: "researcher",
+    description: "Finds things out.",
+    input: promptSchema,
+    async prepare(input) {
+      return {
+        reach: { kind: "none" },
+        run: (context) => start(input, context),
+      };
+    },
+    start,
+  };
+};
 
 const stubGate = (judge: Gate["judge"]): Gate => ({ judge });
 
@@ -47,7 +65,7 @@ const call: ToolCall = {
   arguments: { prompt: "x" },
 };
 
-describe("gateRunToolCall with runSubagentCall", () => {
+describe("gateRunToolCall with prepareSubagentCall", () => {
   it("starts the subagent with the given context and returns its result when the gate allows it", async () => {
     const gate = stubGate(async (): Promise<Verdict> => ({
       allowed: true,
@@ -61,7 +79,7 @@ describe("gateRunToolCall with runSubagentCall", () => {
     const controller = new AbortController();
     const trace = stubSpan();
 
-    const result = await gateRunToolCall(gate, runSubagentCall)(
+    const result = await gateRunToolCall(gate, prepareSubagentCall)(
       [researcher],
       call,
       { signal: controller.signal, trace },
@@ -78,7 +96,7 @@ describe("gateRunToolCall with runSubagentCall", () => {
     }));
     const researcher = stubResearcher(async () => "done");
 
-    const result = await gateRunToolCall(gate, runSubagentCall)(
+    const result = await gateRunToolCall(gate, prepareSubagentCall)(
       [researcher],
       call,
     );
@@ -92,6 +110,44 @@ describe("gateRunToolCall with runSubagentCall", () => {
     expect(researcher.start).not.toHaveBeenCalled();
   });
 
+  it("sends the gate the reach the subagent declared", async () => {
+    let seenRequest: GateRequest | undefined;
+    const gate = stubGate(async (request): Promise<Verdict> => {
+      seenRequest = request;
+      return { allowed: true, reason: "ok" };
+    });
+
+    await gateRunToolCall(gate, prepareSubagentCall)(
+      [stubResearcher(async () => "done")],
+      call,
+    );
+
+    expect(seenRequest).toMatchObject({
+      payload: { reach: { kind: "none" } },
+    });
+  });
+
+  it("judges any-local and rejects with SubagentNotFoundError when the name is not found", async () => {
+    let seenRequest: GateRequest | undefined;
+    const gate = stubGate(async (request): Promise<Verdict> => {
+      seenRequest = request;
+      return { allowed: true, reason: "ok" };
+    });
+
+    const outcome = gateRunToolCall(gate, prepareSubagentCall)(
+      [stubResearcher(async () => "done")],
+      { id: "c2", name: "nope", arguments: {} },
+    );
+
+    await expect(outcome).rejects.toBeInstanceOf(SubagentNotFoundError);
+    await expect(outcome).rejects.toThrow(
+      "No subagent named nope for call c2",
+    );
+    expect(seenRequest).toMatchObject({
+      payload: { reach: { kind: "any-local" } },
+    });
+  });
+
   it("sends the gate a tool-call request naming the subagent", async () => {
     let seenRequest: GateRequest | undefined;
     const gate = stubGate(async (request): Promise<Verdict> => {
@@ -100,7 +156,10 @@ describe("gateRunToolCall with runSubagentCall", () => {
     });
     const researcher = stubResearcher(async () => "done");
 
-    await gateRunToolCall(gate, runSubagentCall)([researcher], call);
+    await gateRunToolCall(gate, prepareSubagentCall)(
+      [researcher],
+      call,
+    );
 
     expect(seenRequest?.kind).toBe("tool-call");
     const payload = seenRequest?.payload as ToolCallPayload;
@@ -121,7 +180,7 @@ describe("gateRunToolCall with runSubagentCall", () => {
     });
     const researcher = stubResearcher(async () => "done");
 
-    const result = await gateRunToolCall(gate, runSubagentCall)(
+    const result = await gateRunToolCall(gate, prepareSubagentCall)(
       [researcher],
       call,
     );
@@ -129,5 +188,51 @@ describe("gateRunToolCall with runSubagentCall", () => {
     expect(result.content).toBe(
       "[denied] Not executed. The policy gate rejected this action: no delegation",
     );
+  });
+});
+
+describe("gateRunToolCall over trace with a subagent", () => {
+  class Span implements TraceSpan {
+    readonly children: Span[] = [];
+    readonly roots: Span[] = [];
+    constructor(readonly name: string) {}
+    startSpan(name: string): TraceSpan {
+      const child = new Span(name);
+      this.children.push(child);
+      return child;
+    }
+    startRoot(name: string): TraceSpan {
+      const root = new Span(name);
+      this.roots.push(root);
+      return root;
+    }
+    setAttributes(): void {}
+    addEvent(): void {}
+    end(): void {}
+  }
+
+  it("records a subagent span with a thread span under it and hands the thread span to the subagent", async () => {
+    const root = new Span("root");
+    const gate = stubGate(async (): Promise<Verdict> => ({
+      allowed: true,
+      reason: "ok",
+    }));
+    const researcher = stubResearcher(
+      async (_input, context) => (context.trace as Span).name,
+    );
+
+    const result = await gateRunToolCall(
+      gate,
+      tracePrepareSubagentCall(root),
+      root,
+    )([researcher], call);
+
+    expect(result.content).toBe(SPAN.thread);
+    expect(root.children.map((span) => span.name)).toEqual([
+      SPAN.subagent,
+    ]);
+    expect(root.children[0].roots.map((span) => span.name)).toEqual([
+      SPAN.thread,
+    ]);
   });
 });

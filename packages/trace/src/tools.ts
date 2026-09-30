@@ -1,5 +1,8 @@
 import {
+  prepareToolCall,
   runToolCall,
+  type PreparedCall,
+  type PrepareToolCall,
   type Tool,
   type ToolCall,
   type ToolContext,
@@ -28,32 +31,50 @@ const startToolSpan = (
   }
 };
 
-const setResultAttribute = (
-  span: TraceSpan,
-  message: ToolMessage,
-): void => {
-  setSpanAttributes(span, { [ATTR.toolResult]: message.content });
+const setResultAttribute = (span: TraceSpan, content: string): void => {
+  setSpanAttributes(span, { [ATTR.toolResult]: content });
+};
+
+export const tracePrepareToolCall = (
+  parent: TraceSpan,
+  prepare: PrepareToolCall = prepareToolCall,
+): PrepareToolCall => {
+  return async (
+    tools: readonly Tool[],
+    call: ToolCall,
+  ): Promise<PreparedCall<ToolContext>> => {
+    const prepared = await prepare(tools, call);
+    return {
+      reach: prepared.reach,
+      run: async (context) => {
+        const span = startToolSpan(parent, call);
+
+        try {
+          const content = await prepared.run(context);
+          setResultAttribute(span, content);
+          endSpan(span);
+          return content;
+        } catch (error) {
+          endSpan(span, error);
+          throw error;
+        }
+      },
+    };
+  };
 };
 
 export const traceRunToolCall = (
   parent: TraceSpan,
-  run: RunToolCall = runToolCall,
+  prepare: PrepareToolCall = prepareToolCall,
 ): RunToolCall => {
+  const prepareTraced = tracePrepareToolCall(parent, prepare);
   return async (
     tools: readonly Tool[],
     call: ToolCall,
     context?: ToolContext,
   ): Promise<ToolMessage> => {
-    const span = startToolSpan(parent, call);
-
-    try {
-      const message = await run(tools, call, context);
-      setResultAttribute(span, message);
-      endSpan(span);
-      return message;
-    } catch (error) {
-      endSpan(span, error);
-      throw error;
-    }
+    const prepared = await prepareTraced(tools, call);
+    const content = await prepared.run(context ?? {});
+    return { role: "tool", toolCallId: call.id, content };
   };
 };

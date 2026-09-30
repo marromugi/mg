@@ -58,6 +58,7 @@ export default defineRun({
     connectors: [
       createSshConnector(sshConnection),
       createCdpConnector({
+        browser: `${sshHost}:${cdpPort}`,
         endpoint: createSshEndpoint({
           ...sshConnection,
           remotePort: cdpPort,

@@ -18,6 +18,13 @@ export const createCdpConnector = (
 ): Connector => {
   const connect = deps?.connect ?? connectCdp;
   const { endpoint, timeoutMs } = options;
+  if (endpoint === undefined) {
+    void new URL(options.url);
+  }
+  if (options.browser.trim() === "") {
+    throw new TypeError("browser name must not be empty");
+  }
+  const exclusive = [options.browser];
   const connectionOf = (
     session: BrowserSession,
     close: () => Promise<void>,
@@ -32,7 +39,7 @@ export const createCdpConnector = (
     const url = options.url;
     return {
       kind: "cdp",
-      exclusive: [`cdp:${new URL(url).host}`],
+      exclusive,
       async open(context) {
         const session = await connect({ url, timeoutMs }, context);
         return connectionOf(session, () => session.close());
@@ -42,7 +49,7 @@ export const createCdpConnector = (
 
   return {
     kind: "cdp",
-    exclusive: endpoint.exclusive,
+    exclusive,
     async open(context) {
       const opened = await endpoint.open(context);
       let session: BrowserSession;

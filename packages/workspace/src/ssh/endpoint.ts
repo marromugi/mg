@@ -13,7 +13,6 @@ export type SshEndpointOptions = SshConnectionOptions & {
   remotePort: number;
 };
 
-const DEFAULT_SSH_PORT = 22;
 const DEFAULT_REMOTE_HOST = "127.0.0.1";
 const LOCAL_HOST = "127.0.0.1";
 
@@ -76,9 +75,6 @@ export const createSshEndpoint = (
   };
 
   return {
-    exclusive: [
-      `ssh-forward:${options.host}:${options.port ?? DEFAULT_SSH_PORT}:${remoteHost}:${remotePort}`,
-    ],
     async open(context): Promise<OpenEndpoint> {
       context?.signal?.throwIfAborted();
       const forwarder = await connect(options, context);

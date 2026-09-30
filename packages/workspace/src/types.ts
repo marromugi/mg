@@ -14,7 +14,6 @@ export interface Connection {
 }
 
 export interface Endpoint {
-  readonly exclusive: readonly string[];
   open(context?: ConnectorContext): Promise<OpenEndpoint>;
 }
 

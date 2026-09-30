@@ -250,6 +250,7 @@ export default defineRun({
     connectors: [
       createSshConnector(sshConnection),
       createCdpConnector({
+        browser: `${sshHost}:${cdpPort}`,
         endpoint: createSshEndpoint({
           ...sshConnection,
           remotePort: cdpPort,
@@ -376,6 +377,7 @@ const buildMachine = defineWorkspace({
   connectors: [
     createSshConnector(sshConnection),
     createCdpConnector({
+      browser: `${sshHost}:${cdpPort}`,
       endpoint: createSshEndpoint({
         ...sshConnection,
         remotePort: cdpPort,
@@ -388,6 +390,7 @@ const cleanBrowser = defineWorkspace({
   name: "clean-browser",
   connectors: [
     createCdpConnector({
+      browser: `${sshHost}:${cleanCdpPort}`,
       endpoint: createSshEndpoint({
         ...sshConnection,
         remotePort: cleanCdpPort,
@@ -685,7 +688,7 @@ declare as held exclusively (see `packages/workspace/README.md`). If none of the
 anything exclusively, cases run in parallel as usual. If any of them do, `concurrency` must
 be 1 (or left unset); passing 2 or more throws a `RangeError` before any case runs, naming
 the workspace and the exclusive names, e.g. `workspace "build-machine" holds
-"cdp:localhost:9222" exclusively; concurrency must be 1, got 2`.
+"pi-01.local:9333" exclusively; concurrency must be 1, got 2`.
 
 Picking a config by path instead of a static import, with `loadRun`. Because the loaded
 value skips the type check, `loadRun` rejects with `InvalidRunConfigError` when the

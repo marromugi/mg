@@ -51,6 +51,7 @@ const buildMachine = defineWorkspace({
   connectors: [
     createSshConnector(sshConnection),
     createCdpConnector({
+      browser: `${sshHost}:${cdpPort}`,
       endpoint: createSshEndpoint({
         ...sshConnection,
         remotePort: cdpPort,
@@ -63,6 +64,7 @@ const cleanBrowser = defineWorkspace({
   name: "clean-browser",
   connectors: [
     createCdpConnector({
+      browser: `${sshHost}:${cleanCdpPort}`,
       endpoint: createSshEndpoint({
         ...sshConnection,
         remotePort: cleanCdpPort,

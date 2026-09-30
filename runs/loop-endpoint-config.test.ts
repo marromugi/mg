@@ -73,7 +73,7 @@ describe("loop-workspace config", () => {
       "cdp",
     ]);
     expect(workspace.connectors[1]?.exclusive).toEqual([
-      "ssh-forward:pi-01.local:22:127.0.0.1:9333",
+      "pi-01.local:9333",
     ]);
   });
 });
@@ -108,11 +108,26 @@ describe("loop-subagent config", () => {
     if (own?.kind !== "own") throw new Error("expected own source");
     expect(config.name).toBe("loop-subagent-deepseek-endpoint");
     expect(exclusiveNamesOf(config.workspace as Workspace)).toEqual([
-      "ssh-forward:pi-01.local:22:127.0.0.1:9333",
+      "pi-01.local:9333",
     ]);
     expect(own.workspace.name).toBe("clean-browser");
     expect(exclusiveNamesOf(own.workspace)).toEqual([
-      "ssh-forward:pi-01.local:22:127.0.0.1:9334",
+      "pi-01.local:9334",
+    ]);
+  });
+
+  it("declares the same browser name for both workspaces when the ports are equal", async () => {
+    vi.stubEnv("MG_CLEAN_CDP_PORT", "9333");
+    const config = await loadSubagent();
+    const clean = config.subagents?.[0]?.workspace;
+    if (clean?.pick !== "caller") throw new Error("expected caller");
+    const own = clean.sources.find((s) => s.kind === "own");
+    if (own?.kind !== "own") throw new Error("expected own source");
+    expect(exclusiveNamesOf(config.workspace as Workspace)).toEqual([
+      "pi-01.local:9333",
+    ]);
+    expect(exclusiveNamesOf(own.workspace)).toEqual([
+      "pi-01.local:9333",
     ]);
   });
 });

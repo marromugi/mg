@@ -171,20 +171,6 @@ describe("createSshEndpoint", () => {
     }
   });
 
-  test("declares one exclusive name, with defaults and with explicit values", () => {
-    const connect = async () => fakeForwarder(opens).forwarder;
-
-    expect(createSshEndpoint(base, { connect }).exclusive).toEqual([
-      "ssh-forward:pi-01.local:22:127.0.0.1:9333",
-    ]);
-    expect(
-      createSshEndpoint(
-        { ...base, port: 2222, remoteHost: "localhost" },
-        { connect },
-      ).exclusive,
-    ).toEqual(["ssh-forward:pi-01.local:2222:localhost:9333"]);
-  });
-
   test("throws the signal's reason without connecting when already aborted", async () => {
     let connects = 0;
     const endpoint = createSshEndpoint(base, {

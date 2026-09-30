@@ -4,13 +4,12 @@ import type {
   EstimateRequest,
   Estimator,
 } from "@mg/core";
-import {
-  EstimatorHttpError,
-  EstimatorResponseError,
-  EstimatorTransportError,
-} from "@mg/core";
+import { EstimatorResponseError } from "@mg/core";
+import { ATTR, SPAN } from "@mg/trace";
+import { buildSessionTree } from "@mg/trace/store";
 import type { SessionTree } from "@mg/trace/store";
 import { describe, expect, it, vi } from "vitest";
+import { evaluate } from "./evaluate.js";
 import { createEstimatorChecker } from "./estimator.js";
 import { EstimatorCheckError } from "./errors.js";
 import { transcribe } from "./transcript.js";
@@ -227,11 +226,9 @@ describe("createEstimatorChecker", () => {
     ).not.toThrow();
   });
 
-  it("wraps an HTTP error from the estimator with the original as cause", async () => {
-    const original = new EstimatorHttpError(
-      "Estimator request failed: 500",
-      500,
-      "",
+  it("rejects with the Estimator error's message after the check's own words, keeping the Estimator error as cause", async () => {
+    const original = new EstimatorResponseError(
+      "Jev response failed validation",
     );
     const checker = createEstimatorChecker({
       estimator: createFakeEstimator(async () => {
@@ -249,44 +246,17 @@ describe("createEstimatorChecker", () => {
 
     expect(error).toBeInstanceOf(EstimatorCheckError);
     expect((error as EstimatorCheckError).message).toBe(
-      "Estimator request failed",
-    );
-    expect((error as EstimatorCheckError).cause).toBe(original);
-    expect((error as EstimatorCheckError).name).toBe(
-      "EstimatorCheckError",
-    );
-  });
-
-  it("wraps a transport error from the estimator with the original as cause", async () => {
-    const original = new EstimatorTransportError("transport failed", {
-      cause: new Error("network down"),
-    });
-    const checker = createEstimatorChecker({
-      estimator: createFakeEstimator(async () => {
-        throw original;
-      }),
-    });
-    const check = checker({
-      name: "polite",
-      question: "Is it polite?",
-    });
-
-    const error = await check
-      .evaluate(makeInput(makeView()))
-      .catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(EstimatorCheckError);
-    expect((error as EstimatorCheckError).message).toBe(
-      "Estimator request failed",
+      "Estimator request failed: Jev response failed validation",
     );
     expect((error as EstimatorCheckError).cause).toBe(original);
   });
 
-  it("wraps a response error from the estimator with the original as cause", async () => {
-    const original = new EstimatorResponseError("response invalid");
+  it("includes the Estimator error's own cause text in the message", async () => {
     const checker = createEstimatorChecker({
       estimator: createFakeEstimator(async () => {
-        throw original;
+        throw new EstimatorResponseError("Jev response is not JSON", {
+          cause: new SyntaxError("Unexpected token '<'"),
+        });
       }),
     });
     const check = checker({
@@ -298,11 +268,49 @@ describe("createEstimatorChecker", () => {
       .evaluate(makeInput(makeView()))
       .catch((thrown: unknown) => thrown);
 
-    expect(error).toBeInstanceOf(EstimatorCheckError);
     expect((error as EstimatorCheckError).message).toBe(
-      "Estimator request failed",
+      "Estimator request failed: Jev response is not JSON: Unexpected token '<'",
     );
-    expect((error as EstimatorCheckError).cause).toBe(original);
+  });
+
+  it("gives an error result with the same message when the checks run over a session", async () => {
+    const checker = createEstimatorChecker({
+      estimator: createFakeEstimator(async () => {
+        throw new EstimatorResponseError(
+          "Jev response failed validation",
+        );
+      }),
+    });
+    const check = checker({
+      name: "polite",
+      question: "Is it polite?",
+    });
+
+    const session = buildSessionTree([
+      {
+        sessionId: "session-1",
+        serviceName: "svc",
+        traceId: "trace-1",
+        parentSpanId: undefined,
+        spanId: "run",
+        name: SPAN.run,
+        startTime: "2026-01-01T00:00:00.000Z",
+        endTime: "2026-01-01T00:00:01.000Z",
+        attributes: { [ATTR.op]: "run" },
+        events: [],
+        status: { code: 0 },
+      },
+    ]);
+    if (session === undefined) throw new Error("session not built");
+
+    const verdict = await evaluate(session, [check]);
+
+    expect(verdict.checks[0]).toMatchObject({
+      name: "polite",
+      status: "error",
+      message:
+        "Estimator request failed: Jev response failed validation",
+    });
   });
 
   it("rejects without calling the estimator when the signal is already aborted, throwing the abort reason", async () => {

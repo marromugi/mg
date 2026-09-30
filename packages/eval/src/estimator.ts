@@ -65,9 +65,10 @@ export const createEstimatorChecker = (
           ));
         } catch (error) {
           if (isEstimatorError(error)) {
-            throw new EstimatorCheckError("Estimator request failed", {
-              cause: error,
-            });
+            throw new EstimatorCheckError(
+              `Estimator request failed: ${error.message}`,
+              { cause: error },
+            );
           }
           throw error;
         }

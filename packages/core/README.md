@@ -169,6 +169,18 @@ Neither the OpenRouter nor the ollama implementation sends the author to the
 LLM.
 Adding an author leaves the request the same as without one.
 
+A tool call can have a carry.
+The carry holds what one provider needs back about that call.
+It has the provider's name and its data, and other providers ignore it.
+The tool call itself stays free of vendor data.
+The streaming tool-call event can hold the same carry,
+and the parts built from a stream keep it.
+
+A response, and the finish event of a stream, can list omissions.
+An omission says what the provider could not give back faithfully.
+The only kind today is `outside-tool-call-id`.
+It names the tool calls whose outside id was not sent back.
+
 ### Estimator
 
 A type for model services that take a subject and a question and return a

@@ -132,4 +132,45 @@ describe("createPartsAccumulator", () => {
       { type: "text", text: "hello" },
     ]);
   });
+
+  test("keeps the carry of a tool-call event on its part", () => {
+    const accumulator = createPartsAccumulator();
+
+    accumulator.push({
+      type: "tool-call",
+      toolCall: { id: "u1", name: "echo", arguments: { text: "ping" } },
+      carry: { provider: "openrouter", data: { id: "call_1" } },
+    });
+    accumulator.push({ type: "finish", finishReason: "tool_calls" });
+
+    expect(accumulator.parts()).toEqual<AssistantPart[]>([
+      {
+        type: "tool-call",
+        id: "u1",
+        name: "echo",
+        arguments: { text: "ping" },
+        carry: { provider: "openrouter", data: { id: "call_1" } },
+      },
+    ]);
+  });
+
+  test("builds a tool-call part without a carry key when the event has none", () => {
+    const accumulator = createPartsAccumulator();
+
+    accumulator.push({
+      type: "tool-call",
+      toolCall: { id: "u1", name: "echo", arguments: { text: "ping" } },
+    });
+    accumulator.push({ type: "finish", finishReason: "tool_calls" });
+
+    expect(accumulator.parts()).toEqual<AssistantPart[]>([
+      {
+        type: "tool-call",
+        id: "u1",
+        name: "echo",
+        arguments: { text: "ping" },
+      },
+    ]);
+    expect("carry" in accumulator.parts()[0]).toBe(false);
+  });
 });

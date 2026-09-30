@@ -64,7 +64,11 @@ export const createPartsAccumulator = (): {
         }
         case "tool-call": {
           closeOpen();
-          closed.push({ type: "tool-call", ...event.toolCall });
+          closed.push({
+            type: "tool-call",
+            ...event.toolCall,
+            ...(event.carry !== undefined && { carry: event.carry }),
+          });
           break;
         }
         case "finish":

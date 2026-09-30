@@ -60,9 +60,9 @@ export const buildLoopFilesRun = ({
               "bash",
             ],
             paths: [
-              "**/.env",
-              "**/.env.*",
-              "**/*.lock",
+              ".env",
+              ".env.*",
+              "pnpm-lock.yaml",
               ".git/**",
               ".git",
             ],

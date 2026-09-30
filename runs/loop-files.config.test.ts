@@ -111,13 +111,13 @@ describe("loop-files gate", () => {
       {
         id: "c2a",
         name: "write_file",
-        arguments: { path: "sub/.env.local", content: "x" },
+        arguments: { path: ".env.local", content: "x" },
       },
       {
         id: "c2b",
         name: "edit_file",
         arguments: {
-          path: "yarn.lock",
+          path: "pnpm-lock.yaml",
           oldString: "a",
           newString: "b",
         },

@@ -162,17 +162,192 @@ export const openDeclared = async (
   }
 
   try {
-    const after = await walk(fs, located, "after");
-    const opened = await handle.stat({ bigint: true });
-    if (after === undefined || after.ino === 0n || opened.ino === 0n) {
-      throw cannotCheck(located.relative, NO_INODE);
-    }
-    if (after.dev !== opened.dev || after.ino !== opened.ino) {
-      throw changed(located.relative);
-    }
+    await assertSameFile(fs, located, handle);
   } catch (error) {
     await handle.close();
     throw error;
   }
   return handle;
+};
+
+// The file behind the handle must be the entry now at the declared path.
+const assertSameFile = async (
+  fs: CheckedFs,
+  located: Located,
+  handle: FileHandle,
+): Promise<void> => {
+  const after = await walk(fs, located, "after");
+  let opened: BigIntStats;
+  try {
+    opened = await handle.stat({ bigint: true });
+  } catch (error) {
+    throw cannotCheck(
+      located.relative,
+      error instanceof Error ? error.message : String(error),
+      error,
+    );
+  }
+  if (after === undefined || after.ino === 0n || opened.ino === 0n) {
+    throw cannotCheck(located.relative, NO_INODE);
+  }
+  if (after.dev !== opened.dev || after.ino !== opened.ino) {
+    throw changed(located.relative);
+  }
+};
+
+export type CheckedWriteFs = CheckedFs & {
+  mkdir(path: string): Promise<unknown>;
+};
+
+export type CheckedWriteOptions = Omit<CheckedOpenOptions, "fs"> & {
+  fs?: CheckedWriteFs;
+};
+
+const cannotWrite = (
+  relative: string,
+  cause?: unknown,
+): FileToolError =>
+  new FileToolError(`cannot write file: ${relative}`, { cause });
+
+// lstat of one part; undefined when it is absent.
+const lstatPart = async (
+  fs: CheckedFs,
+  located: Located,
+  index: number,
+): Promise<BigIntStats | undefined> => {
+  const target = path.join(
+    located.base,
+    ...located.parts.slice(0, index + 1),
+  );
+  try {
+    return await fs.lstat(target, { bigint: true });
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+    throw cannotCheck(
+      located.relative,
+      error instanceof Error ? error.message : String(error),
+      error,
+    );
+  }
+};
+
+// The first `count` parts must still be real folders.
+const checkAbove = async (
+  fs: CheckedFs,
+  located: Located,
+  count: number,
+): Promise<void> => {
+  for (let index = 0; index < count; index++) {
+    const stat = await lstatPart(fs, located, index);
+    if (stat === undefined || !stat.isDirectory()) {
+      throw changed(located.relative);
+    }
+  }
+};
+
+const openForWrite = async (
+  fs: CheckedWriteFs,
+  noFollow: number | undefined,
+  declared: string,
+  located: Located,
+  created: string[],
+): Promise<FileHandle> => {
+  const last = located.parts.length - 1;
+
+  let missing = located.parts.length;
+  for (let index = 0; index <= last; index++) {
+    const stat = await lstatPart(fs, located, index);
+    if (stat === undefined) {
+      missing = index;
+      break;
+    }
+    if (stat.isSymbolicLink()) throw changed(located.relative);
+    if (index < last && !stat.isDirectory()) {
+      throw cannotWrite(located.relative);
+    }
+    if (index === last && !stat.isFile()) {
+      throw new FileToolError(`not a file: ${located.relative}`);
+    }
+  }
+
+  for (let index = missing; index < last; index++) {
+    await checkAbove(fs, located, index);
+    const level = path.join(
+      located.base,
+      ...located.parts.slice(0, index + 1),
+    );
+    try {
+      await fs.mkdir(level);
+      created.push(located.parts.slice(0, index + 1).join("/"));
+    } catch (error) {
+      if (!isErrnoException(error) || error.code !== "EEXIST") {
+        throw cannotWrite(located.relative, error);
+      }
+      const stat = await lstatPart(fs, located, index);
+      if (stat === undefined || stat.isSymbolicLink()) {
+        throw changed(located.relative);
+      }
+      if (!stat.isDirectory()) {
+        throw cannotWrite(located.relative, error);
+      }
+    }
+    await checkAbove(fs, located, index + 1);
+  }
+
+  let handle: FileHandle;
+  try {
+    handle = await fs.open(
+      declared,
+      constants.O_WRONLY | constants.O_CREAT | (noFollow ?? 0),
+    );
+  } catch (error) {
+    if (
+      isErrnoException(error) &&
+      (error.code === "ELOOP" ||
+        error.code === "ENOENT" ||
+        error.code === "ENOTDIR")
+    ) {
+      throw changed(located.relative);
+    }
+    throw cannotWrite(located.relative, error);
+  }
+
+  try {
+    await assertSameFile(fs, located, handle);
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+  return handle;
+};
+
+// Opens the declared absolute path for writing, creating missing
+// folders one level at a time. It neither creates the file empty nor
+// clears it; the caller truncates once this has returned.
+export const openDeclaredForWrite = async (
+  declared: string,
+  options: CheckedWriteOptions,
+): Promise<FileHandle> => {
+  const fs = options.fs ?? nodeFs;
+  const noFollow =
+    "noFollow" in options ? options.noFollow : constants.O_NOFOLLOW;
+  const located = await locate(declared, options.root, options.named);
+  if (located.parts.length === 0) {
+    throw new FileToolError(`not a file: ${located.relative}`);
+  }
+
+  const created: string[] = [];
+  try {
+    return await openForWrite(fs, noFollow, declared, located, created);
+  } catch (error) {
+    if (error instanceof PathCheckError && created.length > 0) {
+      throw new PathCheckError(
+        `${error.message} (created before stopping: ${created.join(", ")})`,
+        { cause: error.cause },
+      );
+    }
+    throw error;
+  }
 };

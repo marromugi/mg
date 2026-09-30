@@ -1,12 +1,23 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import type { FileHandle } from "node:fs/promises";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
+import {
+  openDeclaredForWrite,
+  type CheckedWriteFs,
+} from "./checked.js";
 import { FileToolError } from "./errors.js";
-import { resolveWritablePath, reachOfFile } from "./root.js";
+import {
+  declaredTarget,
+  reachOfFile,
+  resolveWritablePath,
+} from "./root.js";
 import { splitLines } from "./text.js";
 
-export type WriteFileToolOptions = { root: string };
+export type WriteFileToolOptions = {
+  root: string;
+  fs?: CheckedWriteFs;
+  noFollow?: number | undefined;
+};
 
 const writeFileInput = z.object({
   path: z.string().min(1).describe("File path relative to the root"),
@@ -16,10 +27,14 @@ const writeFileInput = z.object({
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && error.name === "AbortError";
 
-const isErrnoException = (
-  error: unknown,
-): error is NodeJS.ErrnoException =>
-  error instanceof Error && "code" in error;
+const overwrite = async (
+  handle: FileHandle,
+  content: string,
+  signal: AbortSignal | undefined,
+): Promise<void> => {
+  await handle.truncate(0);
+  await handle.writeFile(content, { encoding: "utf8", signal });
+};
 
 export const createWriteFileTool = (
   options: WriteFileToolOptions,
@@ -34,44 +49,32 @@ export const createWriteFileTool = (
       "For partial changes use edit_file.",
     input: writeFileInput,
     async prepare({ path: inputPath, content }) {
+      const reach = await reachOfFile(root, inputPath);
       return {
-        reach: await reachOfFile(root, inputPath),
+        reach,
         run: async (context) => {
           context.signal?.throwIfAborted();
 
-          const resolved = await resolveWritablePath(root, inputPath);
-
+          const resolved = await declaredTarget(
+            root,
+            inputPath,
+            reach,
+            resolveWritablePath,
+          );
+          const handle = await openDeclaredForWrite(resolved.absolute, {
+            ...options,
+            named: inputPath,
+          });
           try {
-            const stat = await fs.stat(resolved.absolute);
-            if (!stat.isFile()) {
-              throw new FileToolError(
-                `not a file: ${resolved.relative}`,
-              );
-            }
-          } catch (error) {
-            if (error instanceof FileToolError) throw error;
-            if (!isErrnoException(error) || error.code !== "ENOENT") {
-              throw new FileToolError(
-                `cannot write file: ${resolved.relative}`,
-                { cause: error },
-              );
-            }
-          }
-
-          try {
-            await fs.mkdir(path.dirname(resolved.absolute), {
-              recursive: true,
-            });
-            await fs.writeFile(resolved.absolute, content, {
-              encoding: "utf8",
-              signal: context.signal,
-            });
+            await overwrite(handle, content, context.signal);
           } catch (error) {
             if (isAbortError(error)) throw error;
             throw new FileToolError(
               `cannot write file: ${resolved.relative}`,
               { cause: error },
             );
+          } finally {
+            await handle.close();
           }
 
           const lines = splitLines(content).length;

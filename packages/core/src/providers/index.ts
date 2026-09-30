@@ -4,5 +4,6 @@ export * from "./ndjson.js";
 export * from "./ollama/index.js";
 export * from "./openrouter/index.js";
 export * from "./parts.js";
+export * from "./retry.js";
 export * from "./sse.js";
 export * from "./types.js";

@@ -234,6 +234,31 @@ Stopping is not treated as an exception.
 The signal is optional.
 Abort errors not related to the signal are thrown as is.
 
+`createRetryingProvider` is a provider implementation that takes a provider
+and returns a provider. It hands each attempt to the given provider, and for
+retryable failures only, it waits and then tries again. It has the given
+provider's name and tool-forcing declaration, so a provider that can force
+stays a `ToolForcingProvider`.
+
+The caller passes the retry schedule as arguments. There are no defaults.
+The schedule is the same one `createRetryingEstimator` takes, and a wrong
+schedule is refused at creation with `RangeError`.
+
+- All at once: a retryable failure is tried again after the wait. The
+  error's wait time comes first. Without one, the schedule's waits are used
+  in order.
+- Streaming: a retryable failure is tried again only while no event has been
+  passed on. After one event, any failure is thrown as it is.
+- A failure that is not retryable, and anything that is not a provider
+  error, is thrown at once as it is.
+- When the attempts run out, or an error's wait time is over the bound, it
+  throws `ProviderRetryExhaustedError`. A wait over the bound is not
+  shortened.
+- When the request's stop signal fires during a wait, it answers the way a
+  provider does: an empty reply with the finish reason `halted`, or one
+  finish event with `halted`. It does not throw.
+- A wait that fails for another reason is thrown as it is.
+
 A user message can carry an author.
 The author is a non-empty string that points at a participant.
 When it is left out, it means the author is unknown.
@@ -397,6 +422,7 @@ providers/
   Provider                  shared type for providers
   createOpenRouterProvider  creates the OpenRouter provider
   createOllamaProvider      creates the ollama provider
+  createRetryingProvider    creates a Provider that retries
   readSseData               reads a streaming response
 
 retry/

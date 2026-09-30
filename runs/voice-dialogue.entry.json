@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/voice-dialogue.ts",
+  "needs": ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "TYPESAFE_API_KEY"],
+  "burdens": ["cost"]
+}

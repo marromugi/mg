@@ -3,6 +3,14 @@ import { ProviderHttpError } from "../errors.js";
 import type { StreamEvent } from "../types.js";
 import { toStreamEvents } from "./stream.js";
 
+const sequentialIds = (): (() => string) => {
+  let count = 0;
+  return () => {
+    count += 1;
+    return `u${count}`;
+  };
+};
+
 const linesOf = async function* (
   chunks: unknown[],
 ): AsyncGenerator<string> {
@@ -13,7 +21,10 @@ const linesOf = async function* (
 
 const collect = async (chunks: unknown[]): Promise<StreamEvent[]> => {
   const events: StreamEvent[] = [];
-  for await (const event of toStreamEvents(linesOf(chunks))) {
+  for await (const event of toStreamEvents(
+    linesOf(chunks),
+    sequentialIds(),
+  )) {
     events.push(event);
   }
   return events;
@@ -106,17 +117,17 @@ describe("toStreamEvents", () => {
     expect(events[0]).toEqual({
       type: "tool-call",
       toolCall: {
-        id: "call-1",
+        id: "u1",
         name: "weather",
         arguments: { city: "Tokyo" },
       },
     });
   });
 
-  test("yields two tool calls arriving in separate chunks, then finish with tool_calls", async () => {
+  test("gives each tool call the next generated id, whether or not the chunk had one, when two arrive in separate chunks, then finish with tool_calls", async () => {
     const events = await collect([
       toolCallChunk("weather", { city: "Tokyo" }, "call-1"),
-      toolCallChunk("clock", { tz: "UTC" }, "call-2"),
+      toolCallChunk("clock", { tz: "UTC" }),
       doneChunk("stop"),
     ]);
 
@@ -124,7 +135,7 @@ describe("toStreamEvents", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call-1",
+          id: "u1",
           name: "weather",
           arguments: { city: "Tokyo" },
         },
@@ -132,27 +143,13 @@ describe("toStreamEvents", () => {
       {
         type: "tool-call",
         toolCall: {
-          id: "call-2",
+          id: "u2",
           name: "clock",
           arguments: { tz: "UTC" },
         },
       },
       { type: "finish", finishReason: "tool_calls" },
     ]);
-  });
-
-  test("falls back to a running index when a tool call has no id", async () => {
-    const events = await collect([
-      toolCallChunk("weather", { city: "Tokyo" }),
-      toolCallChunk("clock", { tz: "UTC" }),
-    ]);
-
-    expect(events[0]).toMatchObject({
-      toolCall: { id: "call_0" },
-    });
-    expect(events[1]).toMatchObject({
-      toolCall: { id: "call_1" },
-    });
   });
 
   test("yields usage on finish when present", async () => {

@@ -49,7 +49,6 @@ type OllamaTool = {
 };
 
 type OllamaResponseToolCall = {
-  id?: string;
   function?: { index?: number; name?: string; arguments?: unknown };
 };
 
@@ -233,9 +232,8 @@ export const toUsage = (body: {
 
 export const toToolCall = (
   raw: OllamaResponseToolCall,
-  fallbackIndex: number,
+  id: string,
 ): ToolCall => {
-  const id = raw.id ?? `call_${fallbackIndex}`;
   const name = raw.function?.name ?? "";
   const args = raw.function?.arguments;
 
@@ -253,7 +251,10 @@ export const toToolCall = (
 const stringifyBody = (body: unknown): string =>
   JSON.stringify(body) ?? String(body);
 
-export const fromOllamaResponse = (body: unknown): GenerateResponse => {
+export const fromOllamaResponse = (
+  body: unknown,
+  newToolCallId: () => string,
+): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
     throw new ProviderHttpError(
       "Ollama response has no message",
@@ -273,8 +274,8 @@ export const fromOllamaResponse = (body: unknown): GenerateResponse => {
     );
   }
 
-  const toolCalls = (message.tool_calls ?? []).map((toolCall, index) =>
-    toToolCall(toolCall, index),
+  const toolCalls = (message.tool_calls ?? []).map((toolCall) =>
+    toToolCall(toolCall, newToolCallId()),
   );
 
   const parts: AssistantPart[] = [];

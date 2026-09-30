@@ -125,6 +125,7 @@ export type OllamaOptions = OllamaRequestOptions & {
   baseUrl?: string;
   headers?: Record<string, string>;
   fetch?: typeof fetch;
+  newToolCallId?: () => string;
 };
 
 export const createOllamaProvider = (
@@ -135,6 +136,8 @@ export const createOllamaProvider = (
     "",
   );
   const url = `${baseUrl}/api/chat`;
+  const newToolCallId =
+    options.newToolCallId ?? (() => globalThis.crypto.randomUUID());
 
   const buildHeaders = (): Headers => {
     const headers = new Headers(options.headers);
@@ -213,7 +216,7 @@ export const createOllamaProvider = (
       );
     }
 
-    return fromOllamaResponse(body);
+    return fromOllamaResponse(body, newToolCallId);
   };
 
   async function* readLines(
@@ -256,7 +259,11 @@ export const createOllamaProvider = (
     const readableBody =
       request.halt === undefined ? body : withHalt(body, request.halt);
 
-    yield* toStreamEvents(readLines(readableBody), request.halt);
+    yield* toStreamEvents(
+      readLines(readableBody),
+      newToolCallId,
+      request.halt,
+    );
   }
 
   const stream = (

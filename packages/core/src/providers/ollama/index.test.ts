@@ -273,7 +273,10 @@ describe("createOllamaProvider", () => {
         done_reason: "tool_calls",
       }),
     );
-    const provider = createOllamaProvider({ fetch: fetchStub });
+    const provider = createOllamaProvider({
+      fetch: fetchStub,
+      newToolCallId: () => "u1",
+    });
 
     const error = await provider
       .generate(request)
@@ -281,8 +284,81 @@ describe("createOllamaProvider", () => {
 
     expect(error).toBeInstanceOf(ToolArgumentsError);
     const toolArgumentsError = error as ToolArgumentsError;
-    expect(toolArgumentsError.toolCallId).toBe("call-1");
+    expect(toolArgumentsError.toolCallId).toBe("u1");
     expect(toolArgumentsError.toolName).toBe("weather");
+  });
+});
+
+const sequentialIds = (): (() => string) => {
+  let count = 0;
+  return () => {
+    count += 1;
+    return `u${count}`;
+  };
+};
+
+const oneToolCallBody = {
+  message: {
+    role: "assistant",
+    content: "",
+    tool_calls: [
+      { function: { name: "weather", arguments: { city: "Tokyo" } } },
+    ],
+  },
+  done: true,
+  done_reason: "stop",
+};
+
+describe("createOllamaProvider tool call ids", () => {
+  test("continues the generator across two generate calls", async () => {
+    const { fetchStub } = stubFetch(() =>
+      jsonResponse(oneToolCallBody),
+    );
+    const provider = createOllamaProvider({
+      fetch: fetchStub,
+      newToolCallId: sequentialIds(),
+    });
+
+    const first = await provider.generate(request);
+    const second = await provider.generate(request);
+
+    expect(
+      [first, second].map((response) =>
+        response.parts.map((part) =>
+          part.type === "tool-call" ? part.id : undefined,
+        ),
+      ),
+    ).toEqual([["u1"], ["u2"]]);
+  });
+
+  test("gives distinct UUIDs without a generator", async () => {
+    const { fetchStub } = stubFetch(() =>
+      jsonResponse({
+        ...oneToolCallBody,
+        message: {
+          ...oneToolCallBody.message,
+          tool_calls: [
+            {
+              id: "call_ab12cd34",
+              function: { name: "a", arguments: {} },
+            },
+            { function: { name: "b", arguments: {} } },
+          ],
+        },
+      }),
+    );
+    const provider = createOllamaProvider({ fetch: fetchStub });
+
+    const response = await provider.generate(request);
+    const ids = response.parts.map((part) =>
+      part.type === "tool-call" ? part.id : "",
+    );
+
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    expect(ids[0]).toMatch(uuid);
+    expect(ids[1]).toMatch(uuid);
+    expect(ids[0]).not.toBe(ids[1]);
   });
 });
 
@@ -569,7 +645,10 @@ describe("createOllamaProvider halt", () => {
       },
     ]);
     const { fetchStub } = stubFetch(() => response);
-    const provider = createOllamaProvider({ fetch: fetchStub });
+    const provider = createOllamaProvider({
+      fetch: fetchStub,
+      newToolCallId: () => "u1",
+    });
     const controller = new AbortController();
 
     const stream = provider.stream({
@@ -588,7 +667,7 @@ describe("createOllamaProvider halt", () => {
       { type: "text-delta", delta: "a" },
       {
         type: "tool-call",
-        toolCall: { id: "call_0", name: "ls", arguments: {} },
+        toolCall: { id: "u1", name: "ls", arguments: {} },
       },
       { type: "finish", finishReason: "halted" },
     ]);

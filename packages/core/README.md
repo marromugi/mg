@@ -154,6 +154,13 @@ These settings can also be passed when the provider is created.
 - The context length the model can read.
 - Whether to use the thinking behaviour.
 - How long to keep the model in memory.
+- A function that makes tool-call ids.
+
+Every tool call from ollama gets an id the provider makes.
+The id is a UUID, unless a function is passed when the provider is created.
+The function is called once per tool call, in the order of the response.
+An id that ollama gives is not used.
+ollama gets the tool name back with a result, so the tool call has no carry.
 
 Each provider states whether it can force a tool call.
 Forcing means requiring any tool call, or one named tool.

@@ -58,6 +58,7 @@ describe("ATTR", () => {
     expect(ATTR.llmOutputTokens).toBe("mg.llm.usage.output_tokens");
     expect(ATTR.llmInputMessages).toBe("mg.llm.messages.input");
     expect(ATTR.llmOutputMessages).toBe("mg.llm.messages.output");
+    expect(ATTR.llmOmitted).toBe("mg.llm.omitted");
   });
 
   it("has the llm system message attributes", () => {

@@ -639,3 +639,158 @@ describe("traceProvider / system messages", () => {
     expect(seen?.events).toEqual(expectedEvents);
   });
 });
+
+describe("traceProvider / tool-call carry and omissions", () => {
+  const carry = { provider: "openrouter", data: { id: "call_1" } };
+  const bare = {
+    type: "tool-call",
+    id: "u1",
+    name: "echo",
+    arguments: { text: "ping" },
+  } as const;
+  const part = { ...bare, carry };
+
+  const generating = (response: GenerateResponse): Provider => ({
+    generate: async () => response,
+    stream: async function* () {},
+  });
+  const streaming = (events: StreamEvent[]): Provider => ({
+    generate: async () => {
+      throw new Error("unused");
+    },
+    stream: async function* () {
+      for (const event of events) {
+        yield event;
+      }
+    },
+  });
+  const drain = async (
+    iterable: AsyncIterable<StreamEvent>,
+  ): Promise<StreamEvent[]> => {
+    const events: StreamEvent[] = [];
+    for await (const event of iterable) {
+      events.push(event);
+    }
+    return events;
+  };
+
+  it("records input tool-call parts without carry and leaves the request unchanged", async () => {
+    const root = new RecordingSpan("root");
+    const messages: Message[] = [
+      { role: "user", content: "hi" },
+      assistantMessage([part]),
+      { role: "tool", toolCallId: "u1", content: "pong" },
+    ];
+
+    await traceProvider(
+      generating({ parts: [], finishReason: "stop" }),
+      root,
+    ).generate({ model: "test-model", messages });
+
+    const recorded = JSON.parse(
+      String(root.children[0]?.attributes[ATTR.llmInputMessages]),
+    );
+    expect(recorded[1]).toEqual(assistantMessage([bare]));
+    expect(messages[1]).toEqual(assistantMessage([part]));
+  });
+
+  it("generate records output tool-call parts without carry and returns the carry", async () => {
+    const root = new RecordingSpan("root");
+
+    const response = await traceProvider(
+      generating({ parts: [part], finishReason: "tool_calls" }),
+      root,
+    ).generate(request);
+
+    const recorded = JSON.parse(
+      String(
+        root.children[0]?.mergedAttributes[ATTR.llmOutputMessages],
+      ),
+    );
+    expect(recorded[0]).toEqual(assistantMessage([bare]));
+    expect(response.parts).toEqual([part]);
+  });
+
+  it("stream records output tool-call parts without carry and yields the carry", async () => {
+    const root = new RecordingSpan("root");
+    const events: StreamEvent[] = [
+      {
+        type: "tool-call",
+        toolCall: {
+          id: "u1",
+          name: "echo",
+          arguments: { text: "ping" },
+        },
+        carry,
+      },
+      { type: "finish", finishReason: "tool_calls" },
+    ];
+
+    const received = await drain(
+      traceProvider(streaming(events), root).stream(request),
+    );
+
+    const recorded = JSON.parse(
+      String(
+        root.children[0]?.mergedAttributes[ATTR.llmOutputMessages],
+      ),
+    );
+    expect(recorded[0]).toEqual(assistantMessage([bare]));
+    expect(received).toEqual(events);
+  });
+
+  it("generate records the omissions the response lists", async () => {
+    const root = new RecordingSpan("root");
+
+    await traceProvider(
+      generating({
+        parts: [],
+        finishReason: "stop",
+        omitted: [
+          { kind: "outside-tool-call-id", toolCallIds: ["u1", "u2"] },
+        ],
+      }),
+      root,
+    ).generate(request);
+
+    expect(root.children[0]?.mergedAttributes[ATTR.llmOmitted]).toBe(
+      '[{"kind":"outside-tool-call-id","toolCallIds":["u1","u2"]}]',
+    );
+  });
+
+  it("stream records the omissions the finish event lists", async () => {
+    const root = new RecordingSpan("root");
+
+    await drain(
+      traceProvider(
+        streaming([
+          {
+            type: "finish",
+            finishReason: "stop",
+            omitted: [
+              { kind: "outside-tool-call-id", toolCallIds: ["u1"] },
+            ],
+          },
+        ]),
+        root,
+      ).stream(request),
+    );
+
+    expect(root.children[0]?.mergedAttributes[ATTR.llmOmitted]).toBe(
+      '[{"kind":"outside-tool-call-id","toolCallIds":["u1"]}]',
+    );
+  });
+
+  it("leaves mg.llm.omitted off the span when the response lists none", async () => {
+    const root = new RecordingSpan("root");
+
+    await traceProvider(
+      generating({ parts: [], finishReason: "stop" }),
+      root,
+    ).generate(request);
+
+    expect(
+      ATTR.llmOmitted in (root.children[0]?.mergedAttributes ?? {}),
+    ).toBe(false);
+  });
+});

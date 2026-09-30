@@ -476,3 +476,180 @@ describe("createRulesGate glob validation", () => {
     ).not.toThrow();
   });
 });
+
+describe("rules gate refuses a malformed reach", () => {
+  const M = "Rules gate payload has a malformed reach: ";
+  const KIND =
+    "reach.kind must be one of paths, any-local, outside, none";
+  const rawRequest = (reach: unknown): GateRequest => ({
+    kind: TOOL_CALL_KIND,
+    description: "raw",
+    payload: {
+      call: { id: "call-1", name: "read_file", arguments: {} },
+      reach,
+    },
+  });
+  const refusal = async (
+    reach: unknown,
+    rules: PathRule[] = denyEnv,
+  ): Promise<unknown> => {
+    const gate = createRulesGate({ root: realDir, rules });
+    const error = await gate
+      .judge(rawRequest(reach))
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(GateError);
+    return (error as Error).message;
+  };
+  const selfRef: Record<string, unknown> = {};
+  selfRef.self = selfRef;
+
+  test("an undefined reach keeps the missing reach text", async () => {
+    expect(await refusal(undefined)).toBe(
+      "Rules gate payload is missing reach",
+    );
+  });
+
+  test.each([
+    [null, "reach must be an object, got null"],
+    ["paths", 'reach must be an object, got "paths"'],
+    [[{ kind: "none" }], "reach must be an object, got an array"],
+    [{}, `${KIND}, got undefined`],
+    [{ kind: "files" }, `${KIND}, got "files"`],
+    [{ kind: 3 }, `${KIND}, got a number`],
+    [{ kind: Symbol("k") }, `${KIND}, got a symbol`],
+    [{ kind: () => "paths" }, `${KIND}, got a function`],
+    [{ kind: true }, `${KIND}, got a boolean`],
+    [{ kind: "paths" }, "reach.paths must be an array, got undefined"],
+    [
+      { kind: "paths", paths: "/tmp/a.txt" },
+      'reach.paths must be an array, got "/tmp/a.txt"',
+    ],
+    [
+      { kind: "paths", paths: { 0: 1 } },
+      "reach.paths must be an array, got an object",
+    ],
+    [
+      { kind: "paths", paths: selfRef },
+      "reach.paths must be an array, got an object",
+    ],
+    [
+      { kind: "paths", paths: [null] },
+      "reach.paths[0] must be an object, got null",
+    ],
+    [
+      { kind: "paths", paths: [["/tmp/a.txt", "file"]] },
+      "reach.paths[0] must be an object, got an array",
+    ],
+  ])("reach case %# is refused", async (reach, text) => {
+    expect(await refusal(reach)).toBe(M + text);
+  });
+
+  test.each([
+    [{ path: 3, extent: "file" }, "must be a string, got a number"],
+    [
+      { path: new Date(0), extent: "file" },
+      "must be a string, got an object",
+    ],
+    [{ path: 1n, extent: "file" }, "must be a string, got a bigint"],
+    [{ extent: "file" }, "must be a string, got undefined"],
+    [
+      { path: "src/a.ts", extent: "file" },
+      'must be an absolute path, got "src/a.ts"',
+    ],
+    [{ path: "", extent: "file" }, 'must be an absolute path, got ""'],
+    [
+      { path: "./a.txt", extent: "tree" },
+      'must be an absolute path, got "./a.txt"',
+    ],
+  ])("path entry case %# is refused", async (entry, text) => {
+    expect(await refusal({ kind: "paths", paths: [entry] })).toBe(
+      `${M}reach.paths[0].path ${text}`,
+    );
+  });
+
+  test.each([
+    [{ path: "/tmp/a.txt", extent: "dir" }, 'got "dir"'],
+    [{ path: "/tmp/a.txt" }, "got undefined"],
+  ])("extent entry case %# is refused", async (entry, text) => {
+    expect(await refusal({ kind: "paths", paths: [entry] })).toBe(
+      `${M}reach.paths[0].extent must be "file" or "tree", ${text}`,
+    );
+  });
+
+  test("names only the first broken part", async () => {
+    const at = (path: unknown, extent: unknown) => ({ path, extent });
+    expect(
+      await refusal({
+        kind: "paths",
+        paths: [at("src/a.ts", "dir"), at(3, "file")],
+      }),
+    ).toBe(
+      `${M}reach.paths[0].path must be an absolute path, got "src/a.ts"`,
+    );
+    expect(
+      await refusal({
+        kind: "paths",
+        paths: [at("/tmp/a.txt", "file"), at("b.txt", "file")],
+      }),
+    ).toBe(
+      `${M}reach.paths[1].path must be an absolute path, got "b.txt"`,
+    );
+    expect(
+      await refusal({
+        kind: "paths",
+        paths: [at("/tmp/a.txt", "dir"), at("b.txt", "file")],
+      }),
+    ).toBe(
+      `${M}reach.paths[0].extent must be "file" or "tree", got "dir"`,
+    );
+  });
+
+  test.each([
+    ["no rules", []],
+    [
+      "a tools-only allow rule",
+      [{ tools: ["read_file"], allowed: true }],
+    ],
+    ["a catch-all deny rule", [{ allowed: false, reason: "no" }]],
+  ] satisfies [string, PathRule[]][])(
+    "refuses a relative path under %s",
+    async (_name, rules) => {
+      expect(
+        await refusal(
+          {
+            kind: "paths",
+            paths: [{ path: "src/a.ts", extent: "file" }],
+          },
+          rules,
+        ),
+      ).toBe(
+        `${M}reach.paths[0].path must be an absolute path, got "src/a.ts"`,
+      );
+    },
+  );
+
+  test("judges fields the gate does not read as before", async () => {
+    const gate = createRulesGate({ root: realDir, rules: denyEnv });
+    expect(
+      await gate.judge(
+        rawRequest({
+          kind: "paths",
+          note: "x",
+          paths: [
+            {
+              path: join(realDir, "sub/.env"),
+              extent: "file",
+              why: "y",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({
+      allowed: false,
+      reason: "Rule 0 denied read_file on sub/.env",
+    });
+    expect(
+      await gate.judge(rawRequest({ kind: "none", extra: 1 })),
+    ).toEqual({ allowed: true, reason: "No rule matched." });
+  });
+});

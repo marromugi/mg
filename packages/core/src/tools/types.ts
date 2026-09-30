@@ -13,6 +13,7 @@ export type ToolInputIssue = StandardSchemaV1.Issue;
 
 export type ToolContext = { signal?: AbortSignal };
 
+// A ReachPath.path is absolute, with links followed.
 export type ReachPath = { path: string; extent: "file" | "tree" };
 
 export type Reach =

@@ -246,6 +246,19 @@ It must support both validation and conversion to JSON Schema.
 Settings like the working directory and the time limit are passed when the
 tool is created.
 
+### Reach
+
+A tool declares what a call touches as a `reach`.
+It has one of four kinds.
+
+- `paths` is a list of local paths.
+  Each entry has an extent of `file` (that path only) or `tree` (everything under it).
+- `any-local` could touch anywhere locally.
+- `outside` touches no local path.
+- `none` touches nothing.
+
+Each `paths` entry names an absolute path with links followed.
+
 ### Run function
 
 The run function takes a list of tools and a call request.

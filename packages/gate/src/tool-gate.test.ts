@@ -7,6 +7,7 @@ import {
 } from "@mg/core";
 import type { TraceSpan } from "@mg/harness";
 import { describe, expect, it, vi } from "vitest";
+import { createRulesGate } from "./rules/index.js";
 import type {
   Gate,
   GateContext,
@@ -280,5 +281,33 @@ describe("gateRunToolCall", () => {
     await gateRunToolCall(gate, run)([weatherTool], call);
 
     expect(seenContext).not.toHaveProperty("trace");
+  });
+});
+
+describe("gateRunToolCall with a rules gate", () => {
+  it("does not run a tool that declares a relative path", async () => {
+    const execute = vi.fn(async () => "read");
+    const tool: Tool = defineTool({
+      reach: async () => ({
+        kind: "paths",
+        paths: [{ path: "src/a.ts", extent: "file" }],
+      }),
+      name: "read_file",
+      description: "Reads a file.",
+      input: schema,
+      execute,
+    });
+    const run = vi.fn();
+
+    const result = await gateRunToolCall(
+      createRulesGate({ root: process.cwd(), rules: [] }),
+      run,
+    )([tool], { id: "call-1", name: "read_file", arguments: {} });
+
+    expect(result.content).toBe(
+      '[denied] Not executed. The policy check failed: Rules gate payload has a malformed reach: reach.paths[0].path must be an absolute path, got "src/a.ts"',
+    );
+    expect(run).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
   });
 });

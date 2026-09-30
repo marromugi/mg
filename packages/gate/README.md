@@ -191,6 +191,9 @@ The request contains the reach that the callee declared it touches.
 The rules implementation looks only at this reach.
 A call whose name is not found arrives as `any-local`.
 A request with no reach attached is rejected with `GateError`.
+A reach that breaks the shape `@mg/core` describes is also rejected with `GateError`, whatever the rules are.
+The text names the first broken part and what was found there.
+For example, a relative path reads `... reach.paths[0].path must be an absolute path, got "src/a.ts"`.
 
 Before comparing, the root is made into an absolute path with links followed.
 The root must be a path that exists.

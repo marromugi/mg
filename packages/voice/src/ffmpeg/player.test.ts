@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { AudioChunk } from "../audio.js";
 import { createFfmpegPlayer } from "./player.js";
-import type { SpawnProcess } from "./player.js";
+import type { ProcessExit, SpawnProcess } from "./process.js";
 
 type FakeProcess = {
   command: string;
@@ -10,14 +10,17 @@ type FakeProcess = {
   stdinClosed: boolean;
   killed: boolean;
   exit(code: number): void;
+  exitBySignal(signal: string): void;
 };
+
+async function* noOutput(): AsyncIterable<Uint8Array> {}
 
 const setup = (options: { throwOnSpawn?: Error } = {}) => {
   const processes: FakeProcess[] = [];
   const spawn: SpawnProcess = (command, args) => {
     if (options.throwOnSpawn !== undefined) throw options.throwOnSpawn;
-    let resolveExit: (code: number) => void = () => {};
-    const exit = new Promise<number>((resolve) => {
+    let resolveExit: (exit: ProcessExit) => void = () => {};
+    const exit = new Promise<ProcessExit>((resolve) => {
       resolveExit = resolve;
     });
     const fake: FakeProcess = {
@@ -26,7 +29,8 @@ const setup = (options: { throwOnSpawn?: Error } = {}) => {
       written: [],
       stdinClosed: false,
       killed: false,
-      exit: (code) => resolveExit(code),
+      exit: (code) => resolveExit({ code }),
+      exitBySignal: (signal) => resolveExit({ signal }),
     };
     processes.push(fake);
     return {
@@ -38,10 +42,11 @@ const setup = (options: { throwOnSpawn?: Error } = {}) => {
           fake.stdinClosed = true;
         },
       },
+      stdout: noOutput(),
       exit,
       kill: () => {
         fake.killed = true;
-        resolveExit(143);
+        resolveExit({ code: 143 });
       },
     };
   };
@@ -218,6 +223,14 @@ describe("ffmpeg player", () => {
       await vi.waitFor(() => expect(processes).toHaveLength(1));
       processes[0].exit(1);
       await expect(done).rejects.toThrow(/exit code 1/);
+    });
+
+    test("a process ended by SIGKILL rejects naming SIGKILL", async () => {
+      const { processes, player } = setup();
+      const done = player.play(0, audioOf(chunk([1, 2])));
+      await vi.waitFor(() => expect(processes).toHaveLength(1));
+      processes[0].exitBySignal("SIGKILL");
+      await expect(done).rejects.toThrow(/SIGKILL/);
     });
 
     test("a start that throws ENOENT rejects naming ENOENT", async () => {

@@ -75,7 +75,7 @@ For example, you can pass core's `createJevEstimator`.
 
 It sends the question exactly as you give it, and adds nothing to it.
 The wording of the question is up to the caller.
-For a measured one, see `runs/bash-policy.ts`.
+A question for a real use lives in runs. See `runs/bash-policy.ts`.
 An empty question, or one made only of whitespace, throws `RangeError` when the gate is built.
 If the returned probability is at or above the threshold, it allows. If below, it denies.
 

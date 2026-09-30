@@ -88,7 +88,7 @@ type RememberCall = {
 };
 
 const fakePersona = (options?: {
-  recall?: () => Promise<Recall<FakeRead>>;
+  recall?: (context?: PersonaContext) => Promise<Recall<FakeRead>>;
   remember?: (
     request: RememberRequest<FakeRead>,
     context?: PersonaContext,
@@ -105,7 +105,7 @@ const fakePersona = (options?: {
       id: "jev",
       recall: async (request, context) => {
         recallCalls.push({ request, context });
-        if (options?.recall) return options.recall();
+        if (options?.recall) return options.recall(context);
         return { instruction: "I am Jev.", read: { token: 1 } };
       },
       remember: async (request, context) => {
@@ -195,6 +195,32 @@ const countingContinueConversation = (): {
 };
 
 type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
+
+// A destination that fails only its first export, at once.
+class FirstFailingExporter implements SpanExporter {
+  private failed = false;
+
+  constructor(private readonly error: Error) {}
+
+  export(
+    _spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
+    if (this.failed) {
+      resultCallback({ code: 0 });
+      return;
+    }
+    this.failed = true;
+    resultCallback({ code: 1, error: this.error });
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const nextImmediate = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
 
 class FlushFailingExporter implements SpanExporter {
   constructor(private readonly error: Error) {}
@@ -756,6 +782,47 @@ describe("continueAsPersona", () => {
     const shutdownError = outcome.recorded.error as TraceShutdownError;
     expect(shutdownError.failures).toEqual([
       { target: "exporters[0]", step: "flush", error: diskError },
+    ]);
+  });
+
+  test("a span lost during the run is reported as a TraceShutdownError in recorded", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t1");
+    const lost = new Error("lost");
+    const { persona } = fakePersona({
+      recall: async (context) => {
+        context?.trace?.startSpan("probe").end();
+        await nextImmediate();
+        return { instruction: "I am Jev.", read: { token: 1 } };
+      },
+      remember: async () => ({
+        updated: true,
+        added: [],
+        personaChanged: false,
+        forgotten: [],
+      }),
+    });
+    const { continueConversation } = fakeContinueConversation();
+    const entrance = createContinueAsPersona({ continueConversation });
+
+    const outcome = await entrance(
+      runConfig(),
+      conversationTarget(store),
+      {
+        persona,
+        counterparts: [{ id: "alice", name: "Alice" }],
+        input: "hi",
+        trace: { exporters: [new FirstFailingExporter(lost)] },
+      },
+    );
+
+    expect(outcome.recorded.ok).toBe(false);
+    if (outcome.recorded.ok) throw new Error("unreachable");
+    expect(outcome.recorded.error).toBeInstanceOf(TraceShutdownError);
+    expect(
+      (outcome.recorded.error as TraceShutdownError).failures,
+    ).toEqual([
+      { target: "exporters[0]", step: "export", error: lost },
     ]);
   });
 

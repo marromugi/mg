@@ -152,6 +152,32 @@ class FlushFailingExporter implements SpanExporter {
   }
 }
 
+// A destination that fails only its first export, at once.
+class FirstFailingExporter implements SpanExporter {
+  private failed = false;
+
+  constructor(private readonly error: Error) {}
+
+  export(
+    _spans: ReadableSpan[],
+    resultCallback: ExportResultCallback,
+  ): void {
+    if (this.failed) {
+      resultCallback({ code: 0 });
+      return;
+    }
+    this.failed = true;
+    resultCallback({ code: 1, error: this.error });
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+const nextImmediate = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
+
 describe("runOnTrigger", () => {
   test("when the trigger does not fire, returns the unfired outcome and records the input without a run reference", async () => {
     const judgeExporter = new InMemorySpanExporter();
@@ -424,6 +450,37 @@ describe("runOnTrigger", () => {
     expect((caught as TraceShutdownError).failures[0]?.error).toBe(
       flushError,
     );
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a span lost while the trigger decided rejects a fired trigger with a TraceShutdownError, and never calls the provider", async () => {
+    const lost = new Error("lost");
+    const { trigger } = fakeTrigger(async (_input, context) => {
+      context?.trace?.startSpan("probe").end();
+      await nextImmediate();
+      return { fired: true, reason: "yes" };
+    });
+    const { provider, calls } = fakeProvider();
+
+    let caught: unknown;
+    try {
+      await runOnTrigger(
+        {
+          trigger,
+          start: startRun(runConfig(provider)),
+          toMessages,
+          trace: { exporters: [new FirstFailingExporter(lost)] },
+        },
+        INPUT,
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TraceShutdownError);
+    expect((caught as TraceShutdownError).failures).toEqual([
+      { target: "exporters[0]", step: "export", error: lost },
+    ]);
     expect(calls).toHaveLength(0);
   });
 

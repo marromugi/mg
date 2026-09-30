@@ -1,4 +1,5 @@
-export type TraceShutdownStep = "flush" | "shutdown" | "close";
+export type TraceShutdownStep =
+  "export" | "flush" | "shutdown" | "close";
 
 export type TraceShutdownFailure = {
   readonly target: string;

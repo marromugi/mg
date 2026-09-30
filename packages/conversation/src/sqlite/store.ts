@@ -1,6 +1,8 @@
 import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 import { LibsqlError, createClient } from "@libsql/client";
 import { count, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
@@ -16,6 +18,7 @@ import {
   ConversationExistsError,
   ConversationNotFoundError,
   ConversationRangeError,
+  ConversationStoreClosedError,
 } from "../errors.js";
 import { collectToolCalls } from "../tool-calls.js";
 import type {
@@ -57,9 +60,21 @@ const toEntry = (
   }
 };
 
+// libsql は、クエリごとに作った文レコードが回収されるまで、閉じた
+// 接続のファイルを手放しません。回収を待たずにファイルを手放すため、
+// 閉じた直後に回収を走らせます。
+const collectGarbage = ((): (() => void) => {
+  setFlagsFromString("--expose-gc");
+  return runInNewContext("gc") as () => void;
+})();
+
+export interface SqliteConversationStore extends ConversationStore {
+  close(): Promise<void>;
+}
+
 export const openSqliteConversationStore = async (
   path: string,
-): Promise<ConversationStore> => {
+): Promise<SqliteConversationStore> => {
   const url =
     path === ":memory:"
       ? "file::memory:"
@@ -69,7 +84,40 @@ export const openSqliteConversationStore = async (
   }
   const client = createClient({ url, timeout: 5000 });
   const db = drizzle(client);
-  await migrate(db, { migrationsFolder });
+  try {
+    await migrate(db, { migrationsFolder });
+  } catch (error) {
+    client.close();
+    collectGarbage();
+    throw error;
+  }
+
+  let closing: Promise<void> | undefined;
+  const inFlight = new Set<Promise<unknown>>();
+
+  const guarded =
+    <A extends unknown[], T>(operation: (...args: A) => Promise<T>) =>
+    (...args: A): Promise<T> => {
+      if (closing !== undefined) {
+        return Promise.reject(new ConversationStoreClosedError());
+      }
+      const call = operation(...args);
+      const forget = (): void => {
+        inFlight.delete(call);
+      };
+      inFlight.add(call);
+      call.then(forget, forget);
+      return call;
+    };
+
+  const close = (): Promise<void> => {
+    closing ??= (async () => {
+      await Promise.allSettled(inFlight);
+      client.close();
+      collectGarbage();
+    })();
+    return closing;
+  };
 
   const countEntries = async (id: string): Promise<number> => {
     const [row] = await db
@@ -199,5 +247,10 @@ export const openSqliteConversationStore = async (
     );
   };
 
-  return { create, read, append };
+  return {
+    create: guarded(create),
+    read: guarded(read),
+    append: guarded(append),
+    close,
+  };
 };

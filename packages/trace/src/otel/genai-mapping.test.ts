@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { jsonAttribute } from "../json.js";
-import { ATTR } from "../vocabulary.js";
-import { mapGenAiAttributes } from "./genai-mapping.js";
+import { ATTR, EVENT } from "../vocabulary.js";
+import { mapGenAiSpan } from "./genai-mapping.js";
 
 const messages = [
   { role: "user", content: "what's the weather in Paris?" },
@@ -19,22 +19,27 @@ const messages = [
   { role: "tool", toolCallId: "call1", content: "rainy, 57F" },
 ];
 
-describe("mapGenAiAttributes", () => {
+describe("mapGenAiSpan", () => {
   it("maps all seven rows plus provider.name for an mg.llm span", () => {
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmProvider]: "openrouter",
-      [ATTR.llmModel]: "gpt-4",
-      [ATTR.llmInputTokens]: 10,
-      [ATTR.llmOutputTokens]: 20,
-      [ATTR.llmFinishReason]: "stop",
-      [ATTR.llmInputMessages]: jsonAttribute(messages),
-      [ATTR.llmOutputMessages]: jsonAttribute([
-        { role: "assistant", content: "it's rainy" },
-      ]),
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmProvider]: "openrouter",
+        [ATTR.llmModel]: "gpt-4",
+        [ATTR.llmInputTokens]: 10,
+        [ATTR.llmOutputTokens]: 20,
+        [ATTR.llmFinishReason]: "stop",
+        [ATTR.llmInputMessages]: jsonAttribute(messages),
+        [ATTR.llmOutputMessages]: jsonAttribute([
+          { role: "assistant", content: "it's rainy" },
+        ]),
+      },
+      events: [],
     });
 
     expect(mapped["gen_ai.operation.name"]).toBe("chat");
+    expect(mapped["gen_ai.system_instructions"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.unreadable"]).toBeUndefined();
     expect(mapped["gen_ai.provider.name"]).toBe("openrouter");
     expect(mapped["gen_ai.request.model"]).toBe("gpt-4");
     expect(mapped["gen_ai.usage.input_tokens"]).toBe(10);
@@ -86,27 +91,36 @@ describe("mapGenAiAttributes", () => {
   });
 
   it("omits gen_ai.response.finish_reasons when mg.llm.finish_reason is absent", () => {
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmModel]: "gpt-4",
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmModel]: "gpt-4",
+      },
+      events: [],
     });
 
     expect(mapped["gen_ai.response.finish_reasons"]).toBeUndefined();
   });
 
   it("maps only operation.name for an mg.harness span", () => {
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "harness",
-      [ATTR.harnessName]: "my-harness",
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "harness",
+        [ATTR.harnessName]: "my-harness",
+      },
+      events: [],
     });
 
     expect(mapped).toEqual({ "gen_ai.operation.name": "invoke_agent" });
   });
 
   it("maps operation.name and tool.name for an mg.tool span", () => {
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "tool",
-      [ATTR.toolName]: "get_weather",
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "tool",
+        [ATTR.toolName]: "get_weather",
+      },
+      events: [],
     });
 
     expect(mapped).toEqual({
@@ -116,86 +130,178 @@ describe("mapGenAiAttributes", () => {
   });
 
   it("returns no attributes for an unknown mg.op", () => {
-    expect(mapGenAiAttributes({ [ATTR.op]: "unknown" })).toEqual({});
+    expect(
+      mapGenAiSpan({
+        attributes: { [ATTR.op]: "unknown" },
+        events: [],
+      }),
+    ).toEqual({});
   });
 
   it("returns no attributes when mg.op is absent", () => {
-    expect(mapGenAiAttributes({ [ATTR.llmModel]: "gpt-4" })).toEqual(
-      {},
-    );
+    expect(
+      mapGenAiSpan({
+        attributes: { [ATTR.llmModel]: "gpt-4" },
+        events: [],
+      }),
+    ).toEqual({});
   });
 
-  it("skips message mapping when the JSON is unparseable, without throwing", () => {
-    expect(() =>
-      mapGenAiAttributes({
+  it("leaves out input messages and gives the reason when the input attribute is not JSON, without throwing", () => {
+    const span = {
+      attributes: {
         [ATTR.op]: "llm",
         [ATTR.llmModel]: "gpt-4",
         [ATTR.llmInputMessages]: "not json",
-      }),
-    ).not.toThrow();
+      },
+      events: [],
+    };
 
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmProvider]: "openrouter",
-      [ATTR.llmInputMessages]: "not json",
-    });
+    expect(() => mapGenAiSpan(span)).not.toThrow();
+    const mapped = mapGenAiSpan(span);
     expect(mapped["gen_ai.input.messages"]).toBeUndefined();
-    expect(mapped["gen_ai.provider.name"]).toBe("openrouter");
+    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+      "input messages are not a JSON array",
+    );
+    expect(mapped["gen_ai.request.model"]).toBe("gpt-4");
+  });
+
+  it("gives the reason when the input attribute is missing", () => {
+    const mapped = mapGenAiSpan({
+      attributes: { [ATTR.op]: "llm", [ATTR.llmModel]: "gpt-4" },
+      events: [],
+    });
+
+    expect(mapped["gen_ai.input.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+      "input messages are missing",
+    );
+  });
+
+  it("puts system events at their positions in the input messages", () => {
+    const expected = [
+      {
+        role: "system",
+        parts: [{ type: "text", content: "be brief" }],
+      },
+      { role: "user", parts: [{ type: "text", content: "hi" }] },
+    ];
+
+    const fromEvent = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmInputMessages]: jsonAttribute([
+          { role: "user", content: "hi" },
+        ]),
+        [ATTR.llmSystemCount]: 1,
+      },
+      events: [
+        {
+          name: EVENT.llmSystem,
+          attributes: {
+            [ATTR.llmSystemContent]: "be brief",
+            [ATTR.llmSystemIndex]: 0,
+          },
+        },
+      ],
+    });
+    const fromAttribute = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmInputMessages]: jsonAttribute([
+          { role: "system", content: "be brief" },
+          { role: "user", content: "hi" },
+        ]),
+      },
+      events: [],
+    });
+
+    for (const mapped of [fromEvent, fromAttribute]) {
+      expect(
+        JSON.parse(mapped["gen_ai.input.messages"] as string),
+      ).toEqual(expected);
+      expect(mapped["gen_ai.system_instructions"]).toBeUndefined();
+      expect(mapped["mg.llm.messages.unreadable"]).toBeUndefined();
+    }
+  });
+
+  it("gives the reason when a system event is missing", () => {
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmInputMessages]: jsonAttribute([
+          { role: "user", content: "a" },
+        ]),
+        [ATTR.llmSystemCount]: 2,
+      },
+      events: [
+        {
+          name: EVENT.llmSystem,
+          attributes: {
+            [ATTR.llmSystemContent]: "s",
+            [ATTR.llmSystemIndex]: 0,
+          },
+        },
+      ],
+    });
+
+    expect(mapped["gen_ai.input.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+      "expected 2 system events, found 1",
+    );
   });
 
   it("omits gen_ai.provider.name when mg.llm.provider is absent", () => {
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmModel]: "gpt-4",
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmModel]: "gpt-4",
+      },
+      events: [],
     });
 
     expect(mapped["gen_ai.provider.name"]).toBeUndefined();
     expect("gen_ai.provider.name" in mapped).toBe(false);
   });
 
-  it("drops null and non-object elements from the message array without throwing", () => {
-    const raw = JSON.stringify([
-      null,
-      { role: "user", content: "hi" },
-      "x",
-      42,
-    ]);
-
-    expect(() =>
-      mapGenAiAttributes({
+  it("marks the record unreadable when the input array holds elements that are not messages, without throwing", () => {
+    const span = {
+      attributes: {
         [ATTR.op]: "llm",
-        [ATTR.llmInputMessages]: raw,
-      }),
-    ).not.toThrow();
+        [ATTR.llmInputMessages]: JSON.stringify([
+          null,
+          { role: "user", content: "hi" },
+          "x",
+          42,
+        ]),
+      },
+      events: [],
+    };
 
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmInputMessages]: raw,
-    });
-    expect(
-      JSON.parse(mapped["gen_ai.input.messages"] as string),
-    ).toEqual([
-      { role: "user", parts: [{ type: "text", content: "hi" }] },
-    ]);
+    expect(() => mapGenAiSpan(span)).not.toThrow();
+    const mapped = mapGenAiSpan(span);
+    expect(mapped["gen_ai.input.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+      "input message at 0 is not a message",
+    );
   });
 
-  it("emits a text part for an unknown role when content is a string, and no parts otherwise", () => {
-    const raw = JSON.stringify([
-      { role: "developer", content: "x" },
-      { role: "developer" },
-    ]);
-
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmInputMessages]: raw,
+  it("marks the record unreadable when an input message has an unknown role", () => {
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmInputMessages]: JSON.stringify([
+          { role: "developer", content: "x" },
+          { role: "developer" },
+        ]),
+      },
+      events: [],
     });
 
-    expect(
-      JSON.parse(mapped["gen_ai.input.messages"] as string),
-    ).toEqual([
-      { role: "developer", parts: [{ type: "text", content: "x" }] },
-      { role: "developer", parts: [] },
-    ]);
+    expect(mapped["gen_ai.input.messages"]).toBeUndefined();
+    expect(mapped["mg.llm.messages.unreadable"]).toBe(
+      "input message at 0 is not a message",
+    );
   });
 
   it("maps an assistant message with a parts array, keeping reasoning, text and tool calls in order", () => {
@@ -215,9 +321,12 @@ describe("mapGenAiAttributes", () => {
       },
     ]);
 
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmOutputMessages]: raw,
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmOutputMessages]: raw,
+      },
+      events: [],
     });
 
     expect(
@@ -253,9 +362,12 @@ describe("mapGenAiAttributes", () => {
       },
     ]);
 
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmOutputMessages]: raw,
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmOutputMessages]: raw,
+      },
+      events: [],
     });
 
     const serialized = mapped["gen_ai.output.messages"] as string;
@@ -286,15 +398,21 @@ describe("mapGenAiAttributes", () => {
     ]);
 
     expect(() =>
-      mapGenAiAttributes({
-        [ATTR.op]: "llm",
-        [ATTR.llmOutputMessages]: raw,
+      mapGenAiSpan({
+        attributes: {
+          [ATTR.op]: "llm",
+          [ATTR.llmOutputMessages]: raw,
+        },
+        events: [],
       }),
     ).not.toThrow();
 
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmOutputMessages]: raw,
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmOutputMessages]: raw,
+      },
+      events: [],
     });
 
     expect(
@@ -316,17 +434,20 @@ describe("mapGenAiAttributes", () => {
   });
 
   it("still maps an old-shape assistant message with content and toolCalls when no parts array is present", () => {
-    const mapped = mapGenAiAttributes({
-      [ATTR.op]: "llm",
-      [ATTR.llmOutputMessages]: jsonAttribute([
-        {
-          role: "assistant",
-          content: "it's rainy",
-          toolCalls: [
-            { id: "call1", name: "get_weather", arguments: {} },
-          ],
-        },
-      ]),
+    const mapped = mapGenAiSpan({
+      attributes: {
+        [ATTR.op]: "llm",
+        [ATTR.llmOutputMessages]: jsonAttribute([
+          {
+            role: "assistant",
+            content: "it's rainy",
+            toolCalls: [
+              { id: "call1", name: "get_weather", arguments: {} },
+            ],
+          },
+        ]),
+      },
+      events: [],
     });
 
     expect(

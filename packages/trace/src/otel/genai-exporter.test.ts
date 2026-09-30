@@ -9,7 +9,7 @@ import type {
 } from "@opentelemetry/sdk-trace-base";
 import { describe, expect, it } from "vitest";
 import { jsonAttribute } from "../json.js";
-import { ATTR, SPAN } from "../vocabulary.js";
+import { ATTR, EVENT, SPAN } from "../vocabulary.js";
 import { startRootSpan } from "../otel-span.js";
 import { GenAiMappingExporter } from "./genai-exporter.js";
 
@@ -62,6 +62,7 @@ const buildLlmSpan = (inputMessages: unknown): ReadableSpan =>
       [ATTR.op]: "llm",
       [ATTR.llmInputMessages]: jsonAttribute(inputMessages),
     },
+    events: [],
   }) as unknown as ReadableSpan;
 
 const readInputMessages = (span: ReadableSpan): unknown =>
@@ -118,6 +119,42 @@ describe("GenAiMappingExporter", () => {
     expect(exported.attributes["gen_ai.usage.output_tokens"]).toBe(20);
     expect(exported.attributes["gen_ai.input.messages"]).toBeDefined();
     expect(exported.attributes["gen_ai.output.messages"]).toBeDefined();
+  });
+
+  it("adds the input messages rebuilt from a system event, keeping mg.* attributes and events unchanged", () => {
+    const { inner, tracer } = setup();
+    const mgAttributes = {
+      [ATTR.op]: "llm",
+      [ATTR.llmInputMessages]: jsonAttribute([
+        { role: "user", content: "hi" },
+      ]),
+      [ATTR.llmSystemCount]: 1,
+    };
+
+    const span = startRootSpan(tracer, SPAN.llm, mgAttributes);
+    span.addEvent(EVENT.llmSystem, {
+      [ATTR.llmSystemContent]: "be brief",
+      [ATTR.llmSystemIndex]: 0,
+    });
+    span.end();
+
+    const [exported] = inner.getFinishedSpans();
+    expect(readInputMessages(exported)).toEqual([
+      {
+        role: "system",
+        parts: [{ type: "text", content: "be brief" }],
+      },
+      { role: "user", parts: [{ type: "text", content: "hi" }] },
+    ]);
+    for (const [key, value] of Object.entries(mgAttributes)) {
+      expect(exported.attributes[key]).toEqual(value);
+    }
+    expect(exported.events).toHaveLength(1);
+    expect(exported.events[0].name).toBe(EVENT.llmSystem);
+    expect(exported.events[0].attributes).toEqual({
+      [ATTR.llmSystemContent]: "be brief",
+      [ATTR.llmSystemIndex]: 0,
+    });
   });
 
   it("leaves attributes unchanged for a span with an unknown mg.op", async () => {

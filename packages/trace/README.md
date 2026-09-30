@@ -257,6 +257,9 @@ trace passes a sampler and span limits to the SDK.
 OpenTelemetry has environment variables that change the sampler and span limits.
 They have no effect on trace's recording.
 
+Every limit is the SDK's default except the event count.
+The event count is unlimited, so a span keeps every event added to it.
+
 OTLP エクスポーターも、環境変数を読みません。
 
 - 送信先の URL、ヘッダー、タイムアウトは、呼び出し側が渡します。

@@ -492,18 +492,20 @@ describe("createTraceSdk's recording, regardless of OpenTelemetry environment va
     await sdk.shutdown();
   });
 
-  it("keeps 128 events on a span when no limit env var is set", async () => {
+  it("keeps 200 events on a span in order when no limit env var is set", async () => {
     const inMemory = new InMemorySpanExporter();
     const sdk = await createTraceSdk({ exporters: [inMemory] });
 
     const root = startRootSpan(sdk.tracer, "a");
-    for (let i = 0; i <= 128; i++) {
+    for (let i = 0; i < 200; i++) {
       root.addEvent(`e${i}`);
     }
     root.end();
 
     const [span] = inMemory.getFinishedSpans();
-    expect(span?.events).toHaveLength(128);
+    expect(span?.events).toHaveLength(200);
+    expect(span?.events[0]?.name).toBe("e0");
+    expect(span?.events[199]?.name).toBe("e199");
 
     await sdk.shutdown();
   });

@@ -14,6 +14,7 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Defines the player interface `Player`.
 - Holds `createGeminiTranscriber`, a transcriber built on Gemini's Live API.
 - Holds `createFfmpegPlayer`, a player that plays through ffmpeg's AudioToolbox output.
+- Holds `createFfmpegKeyListener`, a listener that records the microphone through ffmpeg, one utterance per pair of key presses.
 - Holds `createRecordedListener`, a listener that yields recorded utterances at given times.
 - Holds `createRecordingPlayer`, a player that writes each sentence to a WAV file.
 - Defines `Clock`, the time source both of them wait on.
@@ -340,6 +341,43 @@ It plays a one-second 440 Hz tone and prints `played: true`.
 node runs/ffmpeg-player.ts
 ```
 
+### ffmpeg key listener
+
+One implementation of `Listener`.
+It records the microphone through ffmpeg's AVFoundation input.
+An utterance starts and ends on a key press, since detecting speech by loudness would pick up the player's own voice.
+
+It is created from the following.
+
+- The function that starts a process, described in `ffmpeg/process.ts`.
+- The key presses, as a stream. It does not read the terminal itself.
+- The AVFoundation audio device.
+- The audio format to produce.
+
+A key press yields one utterance and starts one ffmpeg process.
+The process writes raw 16-bit little-endian audio at the format's rate and channel count.
+The utterance's audio carries the process's output as chunks in that format.
+The next key press kills the process and ends the audio.
+No conversion is made.
+The ffmpeg command line lives only inside this implementation.
+
+Aborting stops the process and ends the audio and the listening without error.
+
+| Situation                                  | Audio and listening         |
+| ------------------------------------------ | --------------------------- |
+| The process exits with a non-zero code     | Throws with the exit code   |
+| A signal the listener did not send ends it | Throws naming the signal    |
+| The process cannot start                   | Throws with the start error |
+| The listener's own kill ends it            | Ends, nothing thrown        |
+
+To try it, run the sample entry.
+It presses a key, waits 2 seconds, presses again, and prints the chunk count and the format.
+The terminal needs microphone permission.
+
+```
+node runs/ffmpeg-listener.ts
+```
+
 ### Recorded listener and recording player
 
 Two implementations that let a dialogue run without a person.
@@ -375,7 +413,7 @@ The index rules are those of `Player`.
 ## Non-goals
 
 - It does not open the device's microphone or speakers itself.
-  The ffmpeg player plays through them by way of a process that is passed in.
+  The ffmpeg player and listener use them by way of a process that is passed in.
 - It does not put together voice conversations.
 - It does not decide whether something may run.
 - It does not decide when to speak.

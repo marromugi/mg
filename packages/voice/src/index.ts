@@ -7,6 +7,7 @@ export * from "./sentences.js";
 export * from "./gemini/index.js";
 export * from "./gemini-live/index.js";
 export * from "./ffmpeg/player.js";
+export * from "./ffmpeg/listener.js";
 export * from "./ffmpeg/process.js";
 export * from "./clock.js";
 export * from "./recorded/listener.js";

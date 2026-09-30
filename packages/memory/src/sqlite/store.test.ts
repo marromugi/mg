@@ -1,4 +1,5 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { mkdtemp, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -7,9 +8,12 @@ import { createClient } from "@libsql/client";
 import { describe, expect, test } from "vitest";
 import { describeMemoryStoreContract } from "../store-contract.test-helper.js";
 import {
+  MemoryArgumentError,
   MemoryConflictError,
   MemoryItemNotFoundError,
+  PersonaNotFoundError,
 } from "../errors.js";
+import { MemoryStoreClosedError } from "./errors.js";
 import { openSqliteMemoryStore } from "./store.js";
 
 const newDbDir = async (): Promise<string> =>
@@ -274,4 +278,186 @@ describe("openSqliteMemoryStore", () => {
     const view = await store.read("jev", { counterparts: [] });
     expect(view.persona).toEqual({ text: "I am Jev.", version: 1 });
   }, 10000);
+});
+
+describe("close", () => {
+  const tempPath = async (): Promise<string> =>
+    join(await newDbDir(), "memory.db");
+
+  const closedMessage =
+    "The memory store is closed. Open it again to keep using it.";
+
+  const openDescriptors = (path: string): number => {
+    const real = realpathSync(path);
+    return execFileSync("lsof", ["-p", String(process.pid), "-Fn"], {
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((line) => line === `n${real}`).length;
+  };
+
+  const track = (
+    order: string[],
+    label: string,
+    promise: Promise<unknown>,
+  ) =>
+    promise.then(
+      (value) => {
+        order.push(label);
+        return value;
+      },
+      (error: unknown) => {
+        order.push(label);
+        throw error;
+      },
+    );
+
+  test("waits for a pending write, keeps what it wrote, and resolves to undefined", async () => {
+    const path = await tempPath();
+    const store = await openSqliteMemoryStore(path);
+    await store.create("jev", "I am Jev.");
+    const order: string[] = [];
+
+    const write = track(
+      order,
+      "write",
+      store.write("jev", { add: [itemA()] }),
+    );
+    const close = track(order, "close", store.close());
+
+    expect(await write).toEqual({});
+    expect(await close).toBeUndefined();
+    expect(order).toEqual(["write", "close"]);
+    const other = await openSqliteMemoryStore(path);
+    expect(
+      (await other.read("jev", { counterparts: ["alice"] })).items,
+    ).toEqual([{ ...itemA(), misses: 0 }]);
+  });
+
+  test("waits for a pending read that rejects", async () => {
+    const store = await openSqliteMemoryStore(await tempPath());
+    await store.create("jev", "I am Jev.");
+    const order: string[] = [];
+
+    const read = track(
+      order,
+      "read",
+      store.read("nobody", { counterparts: [] }),
+    );
+    const close = track(order, "close", store.close());
+
+    expect(await thrown(read)).toBeInstanceOf(PersonaNotFoundError);
+    expect(await close).toBeUndefined();
+    expect(order).toEqual(["read", "close"]);
+  });
+
+  test("rejects every operation with the closed error after close", async () => {
+    const store = await openSqliteMemoryStore(":memory:");
+    await store.create("jev", "I am Jev.");
+    await store.close();
+
+    for (const call of [
+      store.create("amy", "I am Amy."),
+      store.read("jev", { counterparts: [] }),
+      store.write("jev", { add: [itemA()] }),
+      store.delete("jev", ["m1"]),
+    ]) {
+      const error = await thrown(call);
+      expect(error).toBeInstanceOf(MemoryStoreClosedError);
+      expect((error as Error).name).toBe("MemoryStoreClosedError");
+      expect((error as Error).message).toBe(closedMessage);
+    }
+  });
+
+  test("rejects with the closed error, not an argument error, for invalid arguments after close", async () => {
+    const store = await openSqliteMemoryStore(":memory:");
+    const before = await thrown(store.create("", "I am Amy."));
+    expect(before).toBeInstanceOf(MemoryArgumentError);
+    expect((before as MemoryArgumentError).kind).toBe("empty-id");
+    await store.close();
+
+    expect(await thrown(store.create("", "I am Amy."))).toBeInstanceOf(
+      MemoryStoreClosedError,
+    );
+  });
+
+  test("does not reach the file for a call made after close", async () => {
+    const path = await tempPath();
+    const store = await openSqliteMemoryStore(path);
+    await store.create("jev", "I am Jev.");
+    await store.close();
+
+    await thrown(store.create("amy", "I am Amy."));
+
+    const other = await openSqliteMemoryStore(path);
+    expect(
+      await thrown(other.read("amy", { counterparts: [] })),
+    ).toBeInstanceOf(PersonaNotFoundError);
+  });
+
+  test("rejects a call made while close is still pending", async () => {
+    const store = await openSqliteMemoryStore(await tempPath());
+    await store.create("jev", "I am Jev.");
+
+    const close = store.close();
+    const read = store.read("jev", { counterparts: [] });
+
+    expect(await thrown(read)).toBeInstanceOf(MemoryStoreClosedError);
+    expect(await close).toBeUndefined();
+  });
+
+  test("resolves a repeated close after the first one", async () => {
+    const store = await openSqliteMemoryStore(await tempPath());
+    await store.create("jev", "I am Jev.");
+    const order: string[] = [];
+
+    const write = track(
+      order,
+      "write",
+      store.write("jev", { add: [itemA()] }),
+    );
+    const first = track(order, "first", store.close());
+    const second = track(order, "second", store.close());
+
+    expect(await write).toEqual({});
+    expect(await first).toBeUndefined();
+    expect(await second).toBeUndefined();
+    expect(order).toEqual(["write", "first", "second"]);
+    expect(await store.close()).toBeUndefined();
+  });
+
+  test("releases the closed store's file but not another file's", async () => {
+    const pathP = await tempPath();
+    const pathQ = await tempPath();
+    const storeP = await openSqliteMemoryStore(pathP);
+    const storeQ = await openSqliteMemoryStore(pathQ);
+    for (const store of [storeP, storeQ]) {
+      await store.create("jev", "I am Jev.");
+      await store.read("jev", { counterparts: [] });
+    }
+    expect(openDescriptors(pathP)).toBeGreaterThanOrEqual(1);
+
+    await storeP.close();
+    const deadline = Date.now() + 2000;
+    while (openDescriptors(pathP) > 0 && Date.now() < deadline) {
+      await new Promise((done) => setTimeout(done, 100));
+    }
+
+    expect(openDescriptors(pathP)).toBe(0);
+    expect(openDescriptors(pathQ)).toBeGreaterThanOrEqual(1);
+    await storeQ.close();
+  });
+
+  test("keeps another store on the same file working", async () => {
+    const path = await tempPath();
+    const closed = await openSqliteMemoryStore(path);
+    const open = await openSqliteMemoryStore(path);
+    await closed.create("jev", "I am Jev.");
+    await closed.close();
+
+    expect(await open.write("jev", { add: [itemA()] })).toEqual({});
+    expect(
+      (await open.read("jev", { counterparts: ["alice"] })).items,
+    ).toEqual([{ ...itemA(), misses: 0 }]);
+  });
 });

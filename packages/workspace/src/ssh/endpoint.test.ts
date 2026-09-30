@@ -18,6 +18,7 @@ const fakeForwarder = (
   const forwards: { host: string; port: number }[] = [];
   const state = { ends: 0 };
   const forwarder: SshForwarder = {
+    lost: new AbortController().signal,
     async forwardOut(host, port) {
       forwards.push({ host, port });
       const result = respond(forwards.length);

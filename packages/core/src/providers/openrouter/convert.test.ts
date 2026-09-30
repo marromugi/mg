@@ -472,20 +472,6 @@ describe("toOpenRouterRequest", () => {
     ]);
   });
 
-  test("reports no omissions when no model id is shared", () => {
-    const built = toOpenRouterRequest(
-      request({
-        messages: [
-          weatherCall("u1", orCarry("call_1")),
-          sunnyResult("u1"),
-        ],
-      }),
-      false,
-    );
-
-    expect(built.omitted).toEqual([]);
-  });
-
   test("rejects a tool message that matches no call", () => {
     let thrown: unknown;
     try {

@@ -660,6 +660,36 @@ describe("createOpenRouterProvider stream", () => {
     ]);
   });
 
+  test("leaves omitted out of the response when no model id is shared", async () => {
+    const { fetchStub } = stubFetch(() => jsonResponse(okBody));
+    const provider = createOpenRouterProvider({
+      apiKey: "test-key",
+      fetch: fetchStub,
+    });
+
+    const response = await provider.generate({
+      model: "openai/gpt-4o",
+      messages: [
+        { role: "user", content: "hi" },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              id: "u1",
+              name: "weather",
+              arguments: {},
+              carry: { provider: "openrouter", data: { id: "call_1" } },
+            },
+          ],
+        },
+        { role: "tool", toolCallId: "u1", content: "Sunny" },
+      ],
+    });
+
+    expect("omitted" in response).toBe(false);
+  });
+
   test("does not fetch when a tool message has no call", async () => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
     const provider = createOpenRouterProvider({

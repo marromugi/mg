@@ -98,7 +98,10 @@ export const createRecall = (
             { signal: context?.signal },
           );
         } catch (error) {
-          if (isAbortError(error)) {
+          if (
+            context?.signal?.aborted === true ||
+            isAbortError(error)
+          ) {
             throw error;
           }
           throw new RecallError(

@@ -296,7 +296,8 @@ argument validation.
 | The arguments fail validation             | The validation result    |
 | The answer breaks the promise             | `ExtractorContractError` |
 
-Abort errors are rethrown as is.
+An error is rethrown as is when the context's signal has fired or its
+`name` is `AbortError`.
 
 ### Errors
 
@@ -309,7 +310,8 @@ The table lists the exceptions thrown.
 | `RangeError`     | `transcribe` receives an author that is empty or only whitespace  |
 
 `RecallError` and `ExtractorError` hold the thrown value in `cause`.
-Errors thrown by the store and abort errors (`name` is `AbortError`) are
+Errors thrown by the store, and errors thrown after the context's signal
+has fired or named `AbortError`, are
 also thrown as is by the function `createRecall` creates.
 
 `ExtractorContractError` is not thrown.

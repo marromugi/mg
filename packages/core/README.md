@@ -291,6 +291,12 @@ schedule is refused at creation with `RangeError`.
   provider does: an empty reply with the finish reason `halted`, or one
   finish event with `halted`. It does not throw.
 - A wait that fails for another reason is thrown as it is.
+- The request may carry `onRetry`. For each failed attempt that will be
+  tried again, it is called with `{ attempt, error, waitMs }` after the
+  wait is chosen and before it starts. `attempt` counts from 1 and `waitMs`
+  is in milliseconds. An attempt after which the retries run out, or whose
+  error is not retryable, is not reported. A listener that throws fails the
+  call with that error. Providers that do not retry never call it.
 
 `findToolPairingProblem(messages)` finds the first place where tool calls
 and results do not pair up, in message order. It returns

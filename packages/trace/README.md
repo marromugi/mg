@@ -99,9 +99,10 @@ Spans specific to one harness start with `mg.<harness name>.`.
 An event is a record added to a span while it is open.
 The table lists the event names.
 
-| Constant          | Name            | Meaning                                                                           |
-| ----------------- | --------------- | --------------------------------------------------------------------------------- |
-| `EVENT.llmSystem` | `mg.llm.system` | One system message sent in an LLM call, with its content and its position (index) |
+| Constant          | Name            | Meaning                                                                                                 |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
+| `EVENT.llmSystem` | `mg.llm.system` | One system message sent in an LLM call, with its content and its position (index)                       |
+| `EVENT.llmRetry`  | `mg.llm.retry`  | One failed attempt of an LLM call that is tried again, with the attempt number, the reason and the wait |
 
 A call span sits under the parent span it was given.
 A thread span is a new root in the same session.
@@ -128,6 +129,9 @@ The table below lists the attribute names.
 | `ATTR.llmOutputTokens`          | `mg.llm.usage.output_tokens`        | Number of output tokens                                                                                                            |
 | `ATTR.llmInputMessages`         | `mg.llm.messages.input`             | Messages sent, other than system messages for new records (JSON string)                                                            |
 | `ATTR.llmSystemContent`         | `mg.llm.system.content`             | Text of the system message (on an `mg.llm.system` event)                                                                           |
+| `ATTR.llmRetryAttempt`          | `mg.llm.retry.attempt`              | Number of the failed attempt, from 1 (on an `mg.llm.retry` event)                                                                  |
+| `ATTR.llmRetryReason`           | `mg.llm.retry.reason`               | Message of the error that failed the attempt (on an `mg.llm.retry` event)                                                          |
+| `ATTR.llmRetryWaitMs`           | `mg.llm.retry.wait_ms`              | Wait before the next attempt, in milliseconds (on an `mg.llm.retry` event)                                                         |
 | `ATTR.llmSystemIndex`           | `mg.llm.system.index`               | Zero-based position of the system message in the sent list (on an `mg.llm.system` event)                                           |
 | `ATTR.llmSystemCount`           | `mg.llm.system.count`               | Number of system messages sent                                                                                                     |
 | `ATTR.llmInputUnreadable`       | `mg.llm.messages.input.unreadable`  | Why the sent messages cannot be rebuilt (on the exported span)                                                                     |

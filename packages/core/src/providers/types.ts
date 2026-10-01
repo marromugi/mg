@@ -1,4 +1,5 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
+import type { ProviderError } from "./errors.js";
 
 export type SystemMessage = { role: "system"; content: string };
 export type UserMessage = {
@@ -47,6 +48,14 @@ export type ToolDefinition<
 export type ToolChoice =
   "auto" | "none" | "required" | { type: "tool"; name: string };
 
+// One failed attempt that will be tried again. `attempt` counts from 1;
+// `waitMs` is the wait before the next attempt.
+export type ProviderRetry = {
+  attempt: number;
+  error: ProviderError;
+  waitMs: number;
+};
+
 export type GenerateRequest = {
   model: string;
   messages: Message[];
@@ -55,6 +64,10 @@ export type GenerateRequest = {
   temperature?: number;
   maxTokens?: number;
   halt?: AbortSignal;
+  // Called for each failed attempt that will be tried again, after the
+  // wait is chosen and before it starts. A listener that throws fails
+  // the call with that error.
+  onRetry?: (retry: ProviderRetry) => void;
 };
 
 export type FinishReason =

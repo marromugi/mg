@@ -3,12 +3,14 @@ import {
   assistantMessage,
   createOllamaProvider,
   createOpenRouterProvider,
+  createRetryingProvider,
   type GenerateRequest,
   type GenerateResponse,
   type Message,
   type Provider,
   type StreamEvent,
   type ToolForcingProvider,
+  ProviderRequestError,
 } from "@mg/core";
 import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 import {
@@ -859,5 +861,111 @@ describe("traceProvider / tool forcing", () => {
 
     expect(forcing.toolForcing).toBe(true);
     expect(notForcing.toolForcing).toBe(false);
+  });
+});
+
+describe("traceProvider / retried attempts", () => {
+  const failure = (message: string) =>
+    new ProviderRequestError(message, { retryable: true });
+  const retrying = (inner: Provider): Provider =>
+    createRetryingProvider({
+      provider: inner,
+      maxAttempts: 3,
+      delaysMs: [10, 20],
+      maxDelayMs: 1000,
+      sleep: async () => {},
+    });
+
+  it("generate records one event per retried attempt and returns the answer", async () => {
+    const root = new RecordingSpan("root");
+    let calls = 0;
+    const inner: Provider = {
+      toolForcing: true,
+      generate: async () => {
+        calls++;
+        if (calls === 1) throw failure("busy");
+        if (calls === 2) throw failure("overloaded");
+        return { parts: [], finishReason: "stop" };
+      },
+      stream: async function* () {},
+    };
+
+    const response = await traceProvider(
+      retrying(inner),
+      root,
+    ).generate(request);
+
+    expect(response.finishReason).toBe("stop");
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0]?.events).toEqual([
+      {
+        name: EVENT.llmRetry,
+        attributes: {
+          [ATTR.llmRetryAttempt]: 1,
+          [ATTR.llmRetryReason]: "busy",
+          [ATTR.llmRetryWaitMs]: 10,
+        },
+      },
+      {
+        name: EVENT.llmRetry,
+        attributes: {
+          [ATTR.llmRetryAttempt]: 2,
+          [ATTR.llmRetryReason]: "overloaded",
+          [ATTR.llmRetryWaitMs]: 20,
+        },
+      },
+    ]);
+  });
+
+  it("stream records the retried attempt and still calls the caller's listener", async () => {
+    const root = new RecordingSpan("root");
+    let calls = 0;
+    const inner: Provider = {
+      toolForcing: true,
+      generate: async () => ({ parts: [], finishReason: "stop" }),
+      stream: async function* () {
+        calls++;
+        if (calls === 1) throw failure("busy");
+        yield { type: "finish", finishReason: "stop" };
+      },
+    };
+    const heard: number[] = [];
+
+    const events: StreamEvent[] = [];
+    for await (const event of traceProvider(
+      retrying(inner),
+      root,
+    ).stream({
+      ...request,
+      onRetry: (retry) => heard.push(retry.attempt),
+    })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([{ type: "finish", finishReason: "stop" }]);
+    expect(heard).toEqual([1]);
+    expect(root.children[0]?.events).toEqual([
+      {
+        name: EVENT.llmRetry,
+        attributes: {
+          [ATTR.llmRetryAttempt]: 1,
+          [ATTR.llmRetryReason]: "busy",
+          [ATTR.llmRetryWaitMs]: 10,
+        },
+      },
+    ]);
+  });
+
+  it("records no retry event when the call is not retried", async () => {
+    const root = new RecordingSpan("root");
+    const inner: Provider = {
+      toolForcing: true,
+      generate: async () => ({ parts: [], finishReason: "stop" }),
+      stream: async function* () {},
+    };
+
+    await traceProvider(retrying(inner), root).generate(request);
+
+    expect(root.children[0]?.events).toEqual([]);
   });
 });

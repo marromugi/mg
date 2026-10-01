@@ -19,6 +19,7 @@ export const SPAN = {
 
 export const EVENT = {
   llmSystem: "mg.llm.system",
+  llmRetry: "mg.llm.retry",
 } as const;
 
 export const ATTR = {
@@ -44,6 +45,9 @@ export const ATTR = {
   llmInputUnreadable: "mg.llm.messages.input.unreadable", // why the sent messages cannot be rebuilt
   llmOutputMessages: "mg.llm.messages.output", // jsonAttribute(AssistantMessage[])
   llmOutputUnreadable: "mg.llm.messages.output.unreadable", // why the received messages cannot be rebuilt
+  llmRetryAttempt: "mg.llm.retry.attempt", // number, from 1, on an EVENT.llmRetry event
+  llmRetryReason: "mg.llm.retry.reason", // the failed attempt's error message, on an EVENT.llmRetry event
+  llmRetryWaitMs: "mg.llm.retry.wait_ms", // number, the wait before the next attempt, on an EVENT.llmRetry event
   llmOmitted: "mg.llm.omitted", // jsonAttribute(Omission[]), what the provider reports it could not give back
   toolName: "mg.tool.name",
   toolCallId: "mg.tool.call_id",

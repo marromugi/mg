@@ -37,8 +37,11 @@ describe("EVENT", () => {
     }
   });
 
-  it("has the llm system event", () => {
-    expect(EVENT).toEqual({ llmSystem: "mg.llm.system" });
+  it("has the llm system and llm retry events", () => {
+    expect(EVENT).toEqual({
+      llmSystem: "mg.llm.system",
+      llmRetry: "mg.llm.retry",
+    });
   });
 });
 

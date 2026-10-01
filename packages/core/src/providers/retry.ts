@@ -48,6 +48,12 @@ export const createRetryingProvider = <P extends Provider>(
       throw new ProviderRetryExhaustedError(attempts, { cause: error });
     }
 
+    request.onRetry?.({
+      attempt: attempts,
+      error,
+      waitMs: step.wait,
+    });
+
     try {
       await sleep(step.wait, request.halt);
     } catch (sleepError) {

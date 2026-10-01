@@ -64,6 +64,10 @@ There is no fallback to an unforced request.
 If the decision itself fails, it throws `GateError`.
 The original exception is kept in `cause`.
 
+When the provider fails with a provider error, the `message` is `Gate judgement failed: ` followed by the provider error's `message`.
+The `callerMessage` is the same, but with the provider error's `messageWithoutServiceText`, so text the service sent is left out.
+Any other error keeps `Gate judgement failed` for both.
+
 Only an abort signal is passed through as it is, without wrapping.
 If you pass an already aborted signal in `context.signal`, it throws without calling the provider.
 

@@ -10,7 +10,7 @@ export class RecallError extends Error {
 export class ExtractorError extends Error {
   override readonly name: "ExtractorError";
 
-  constructor(message: string, options: { cause: unknown }) {
+  constructor(message: string, options?: { cause: unknown }) {
     super(message, options);
     this.name = "ExtractorError";
   }

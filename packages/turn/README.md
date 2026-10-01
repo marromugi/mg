@@ -84,7 +84,7 @@ When the Estimator classification fails, it becomes a `JudgeError`.
 The message starts like this.
 
 ```
-Judgment "<judgment name>" failed
+Judgment "<judgment name>" failed: <the Estimator error's message>
 ```
 
 The underlying error is kept in `cause`.

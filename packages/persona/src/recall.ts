@@ -1,3 +1,4 @@
+import { isEstimatorError } from "@mg/core";
 import type { Estimator, EstimatorSubject } from "@mg/core";
 import type { MemoryStore } from "@mg/memory";
 import { isAbortError } from "./abort.js";
@@ -105,7 +106,9 @@ export const createRecall = (
             throw error;
           }
           throw new RecallError(
-            "Estimator.classify failed during recall.",
+            isEstimatorError(error)
+              ? `Estimator.classify failed during recall: ${error.message}`
+              : "Estimator.classify failed during recall.",
             { cause: error },
           );
         }

@@ -88,9 +88,11 @@ export const classifyJudge = async <TAnswer>(
         ));
       } catch (error) {
         if (isEstimatorError(error)) {
-          throw new JudgeError(name, `Judgment "${name}" failed`, {
-            cause: error,
-          });
+          throw new JudgeError(
+            name,
+            `Judgment "${name}" failed: ${error.message}`,
+            { cause: error },
+          );
         }
         throw error;
       }

@@ -8,8 +8,10 @@ import type {
 import {
   createOllamaProvider,
   createOpenRouterProvider,
+  ProviderRequestError,
 } from "@mg/core";
 import { ATTR, SPAN } from "@mg/trace";
+import { ZodError } from "zod";
 import { describe, expect, test, vi } from "vitest";
 import { ExtractorContractError, ExtractorError } from "./errors.js";
 import { createLlmExtractor } from "./llm-extractor.js";
@@ -305,6 +307,37 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
+    expect((error as ExtractorError).message).toBe("Extraction failed");
+    expect((error as ExtractorError).cause).toBe(original);
+  });
+
+  test("states the provider's reason in ExtractorError when the failure is a provider error", async () => {
+    const original = new ProviderRequestError(
+      "OpenRouter request failed: 401",
+    );
+    const generate = vi.fn(async () => {
+      throw original;
+    });
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream: vi.fn((): AsyncIterable<StreamEvent> => {
+        throw new Error("stubProvider: stream is not scripted");
+      }),
+    };
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+
+    const error = await extractor
+      .extract(input)
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as ExtractorError).message).toBe(
+      "Extraction failed: OpenRouter request failed: 401",
+    );
     expect((error as ExtractorError).cause).toBe(original);
   });
 
@@ -324,6 +357,9 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
+    expect((error as ExtractorError).message).toBe(
+      "Extraction failed: expected one remember call, got 0",
+    );
     expect((error as ExtractorError).cause).toBeUndefined();
   });
 
@@ -362,10 +398,13 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
+    expect((error as ExtractorError).message).toBe(
+      "Extraction failed: expected one remember call, got 2",
+    );
     expect((error as ExtractorError).cause).toBeUndefined();
   });
 
-  test("rejects with ExtractorError whose cause is the failed validation result when the arguments fail validation", async () => {
+  test("rejects with ExtractorError whose cause is the validation error when the arguments fail validation", async () => {
     const provider = stubProvider(() => ({
       parts: [
         {
@@ -388,9 +427,10 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
-    expect((error as ExtractorError).cause).toMatchObject({
-      success: false,
-    });
+    expect((error as ExtractorError).message).toBe(
+      "Extraction failed: remember arguments failed validation",
+    );
+    expect((error as ExtractorError).cause).toBeInstanceOf(ZodError);
   });
 
   test("rejects with ExtractorError whose cause is an empty-text ExtractorContractError when an item's text is blank", async () => {
@@ -419,6 +459,9 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
+    expect((error as ExtractorError).message).toBe(
+      'Extraction failed: The text for counterpart "alice" is empty.',
+    );
     expect(
       ((error as ExtractorError).cause as ExtractorContractError).kind,
     ).toBe("empty-text");
@@ -692,9 +735,7 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
-    expect((error as ExtractorError).cause).toMatchObject({
-      success: false,
-    });
+    expect((error as ExtractorError).cause).toBeInstanceOf(ZodError);
   });
 
   test("rejects a counterpart outside the enum as a failed validation, not a contract-error, with the issue pointing at the item", async () => {
@@ -728,16 +769,9 @@ describe("createLlmExtractor", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(ExtractorError);
-    const cause = (error as ExtractorError).cause as {
-      success: false;
-      error: { issues: { path: unknown[] }[] };
-    };
-    expect(cause.success).toBe(false);
-    expect(cause.error.issues[0]?.path).toEqual([
-      "items",
-      0,
-      "counterpart",
-    ]);
+    const cause = (error as ExtractorError).cause as ZodError;
+    expect(cause).toBeInstanceOf(ZodError);
+    expect(cause.issues[0]?.path).toEqual(["items", 0, "counterpart"]);
     expect(cause).not.toBeInstanceOf(ExtractorContractError);
   });
 });

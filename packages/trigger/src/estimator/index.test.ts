@@ -220,7 +220,7 @@ describe("createEstimatorTrigger", () => {
     expect(error).toBeInstanceOf(TriggerError);
     expect((error as TriggerError).name).toBe("TriggerError");
     expect((error as TriggerError).message).toBe(
-      "Trigger judgement failed",
+      "Trigger judgement failed: Estimator request failed: network down",
     );
     expect((error as TriggerError).cause).toBe(original);
   });

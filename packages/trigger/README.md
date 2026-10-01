@@ -101,6 +101,7 @@ It fires when the probability is at or above the threshold.
 The reason text states the probability and the threshold as they are.
 
 Errors thrown by the Estimator are wrapped in a trigger error and thrown.
+Its message is `Trigger judgement failed: ` followed by the Estimator error's `message`.
 Other errors are thrown as they are.
 
 When it receives a parent span, it also writes the model, the probability, and the threshold.

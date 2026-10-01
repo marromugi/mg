@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { Reach } from "@mg/core";
+import type { AbsolutePath, Reach } from "@mg/core";
+import { toAbsolutePath } from "@mg/local-path";
 import { FileToolError } from "./errors.js";
 
 export type ResolvedPath = { absolute: string; relative: string };
@@ -131,7 +132,7 @@ const entryExists = async (target: string): Promise<boolean> => {
 const followedPath = async (
   root: string,
   input: string,
-): Promise<string> => {
+): Promise<AbsolutePath> => {
   const abs = path.resolve(await fs.realpath(root), input);
 
   let existing = abs;
@@ -139,7 +140,9 @@ const followedPath = async (
   for (;;) {
     try {
       const real = await fs.realpath(existing);
-      return rest.length > 0 ? path.join(real, ...rest) : real;
+      return toAbsolutePath(
+        rest.length > 0 ? path.join(real, ...rest) : real,
+      );
     } catch (error) {
       if (!isErrnoException(error) || error.code !== "ENOENT") {
         throw error;

@@ -13,8 +13,19 @@ export type ToolInputIssue = StandardSchemaV1.Issue;
 
 export type ToolContext = { signal?: AbortSignal };
 
-// A ReachPath.path is absolute, with links followed.
-export type ReachPath = { path: string; extent: "file" | "tree" };
+declare const absolutePathBrand: unique symbol;
+
+// A path that does not depend on the working directory. A plain string
+// does not fit; a checked one comes from @mg/local-path.
+export type AbsolutePath = string & {
+  readonly [absolutePathBrand]: true;
+};
+
+// A ReachPath.path has its links followed.
+export type ReachPath = {
+  path: AbsolutePath;
+  extent: "file" | "tree";
+};
 
 export type Reach =
   | { kind: "paths"; paths: readonly ReachPath[] }

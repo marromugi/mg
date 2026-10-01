@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Reach, ToolCall } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
+import { toAbsolutePath } from "@mg/local-path";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, test } from "vitest";
 import { GateError } from "../errors.js";
@@ -52,7 +53,7 @@ const root = realpathSync(tmpdir());
 
 const fileReach = (rel: string): Reach => ({
   kind: "paths",
-  paths: [{ path: join(root, rel), extent: "file" }],
+  paths: [{ path: toAbsolutePath(join(root, rel)), extent: "file" }],
 });
 
 const toolCallRequest = (
@@ -156,7 +157,12 @@ describe("createRulesGate", () => {
     const verdict = await gate.judge(
       toolCallRequest(call("write_file"), {
         kind: "paths",
-        paths: [{ path: `${root}/sub/../.env`, extent: "file" }],
+        paths: [
+          {
+            path: toAbsolutePath(`${root}/sub/../.env`),
+            extent: "file",
+          },
+        ],
       }),
     );
 

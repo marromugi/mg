@@ -39,3 +39,9 @@ export const bareStringPath: Reach = {
   // @ts-expect-error a paths entry is a path with an extent, not a string
   paths: ["/a"],
 };
+
+export const plainStringPath: Reach = {
+  kind: "paths",
+  // @ts-expect-error a declared path is an AbsolutePath, not a plain string
+  paths: [{ path: "/a", extent: "file" }],
+};

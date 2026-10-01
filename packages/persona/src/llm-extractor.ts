@@ -125,6 +125,9 @@ export const createLlmExtractor = (
         ],
         tools: [rememberTool],
         toolChoice: { type: "tool", name: "remember" },
+        ...(context?.signal !== undefined
+          ? { halt: context.signal }
+          : {}),
       };
 
       let response: GenerateResponse;
@@ -140,6 +143,13 @@ export const createLlmExtractor = (
             : "Extraction failed",
           { cause: error },
         );
+      }
+
+      if (
+        response.finishReason === "halted" &&
+        context?.signal?.aborted === true
+      ) {
+        throw context.signal.reason;
       }
 
       const calls = toolCallsOf(response).filter(

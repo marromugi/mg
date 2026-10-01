@@ -410,6 +410,9 @@ The built `extract` calls the provider's `generate` only once per call.
 Before calling, it checks the context's signal.
 If already aborted, it refuses with that reason and does not call the
 provider.
+Otherwise the signal is handed to the provider as the request's halt.
+If the signal fires during the call, the provider stops the request and
+the extractor throws the signal's reason, the caller's own abort.
 
 The system message joins a fixed framing text and the given instruction
 with a blank line between them. Only this implementation holds the framing

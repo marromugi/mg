@@ -550,6 +550,38 @@ describe("createLlmExtractor", () => {
     ).rejects.toBe(reason);
   });
 
+  test("rejects with the abort reason while the provider call is running, once the signal fires", async () => {
+    const controller = new AbortController();
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate: vi.fn(
+        (request: GenerateRequest): Promise<GenerateResponse> =>
+          new Promise((resolve) => {
+            request.halt?.addEventListener("abort", () =>
+              resolve({ parts: [], finishReason: "halted" }),
+            );
+          }),
+      ),
+      stream: vi.fn((): AsyncIterable<StreamEvent> => {
+        throw new Error("stubProvider: stream is not scripted");
+      }),
+    };
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+
+    const pending = extractor
+      .extract(input, {
+        signal: controller.signal,
+      })
+      .catch((error: unknown) => error);
+    controller.abort("stopped");
+
+    expect(await pending).toBe("stopped");
+  });
+
   test("records mg.llm under the given span, with the model attribute set", async () => {
     const provider = stubProvider(() => correctResponse);
     const extractor = createLlmExtractor({

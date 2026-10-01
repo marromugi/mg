@@ -76,6 +76,9 @@ Any other error keeps `Gate judgement failed` for both.
 
 Only an abort signal is passed through as it is, without wrapping.
 If you pass an already aborted signal in `context.signal`, it throws without calling the provider.
+The signal is also handed to the provider as the request's halt, so an abort during the call stops the request at once.
+It comes back as the caller's own abort reason.
+An error thrown by the provider is passed through as it is when the signal has fired or its `name` is `AbortError`.
 
 ### `createEstimatorGate(options)`
 

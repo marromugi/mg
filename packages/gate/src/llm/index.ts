@@ -70,13 +70,21 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
             ],
             tools: [verdictTool],
             toolChoice: { type: "tool", name: "verdict" },
+            ...(context?.signal !== undefined
+              ? { halt: context.signal }
+              : {}),
           };
 
           let response: GenerateResponse;
           try {
             response = await tracedProvider.generate(generateRequest);
           } catch (error) {
-            if (isAbortError(error)) throw error;
+            if (
+              context?.signal?.aborted === true ||
+              isAbortError(error)
+            ) {
+              throw error;
+            }
             if (isProviderError(error)) {
               throw new GateError(
                 `Gate judgement failed: ${error.message}`,
@@ -89,6 +97,13 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
             throw new GateError("Gate judgement failed", {
               cause: error,
             });
+          }
+
+          if (
+            response.finishReason === "halted" &&
+            context?.signal?.aborted === true
+          ) {
+            throw context.signal.reason;
           }
 
           const call = toolCallsOf(response).find(

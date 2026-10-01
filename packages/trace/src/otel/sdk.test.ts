@@ -240,6 +240,7 @@ describe("createTraceSdk", () => {
       inMemory.getFinishedSpans().map((span) => span.name),
     ).toEqual(["b"]);
 
+    a.end();
     await sdk.shutdown();
   });
 

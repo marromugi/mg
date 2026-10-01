@@ -35,3 +35,26 @@ export class TraceShutdownError extends AggregateError {
     this.failures = failures;
   }
 }
+
+export type TraceMissingSpan = {
+  readonly name: string;
+  readonly traceId: string;
+  readonly spanId: string;
+};
+
+// Thrown, as one failure of closing, when spans had not ended by the time
+// the record stopped taking spans. Those spans are not in the record.
+export class TraceSpansNotEndedError extends Error {
+  readonly spans: readonly TraceMissingSpan[];
+
+  constructor(spans: readonly TraceMissingSpan[]) {
+    const details = spans
+      .map((span) => `${span.name} (span ${span.spanId})`)
+      .join(", ");
+    super(
+      `${spans.length} span(s) had not ended when the record stopped taking spans, so they are not in the record: ${details}`,
+    );
+    this.name = "TraceSpansNotEndedError";
+    this.spans = spans;
+  }
+}

@@ -17,7 +17,11 @@ import {
   vi,
 } from "vitest";
 import { startRootSpan } from "../otel-span.js";
-import { TraceShutdownError } from "./errors.js";
+import {
+  TraceShutdownError,
+  TraceSpansNotEndedError,
+} from "./errors.js";
+import { JsonlSpanExporter } from "./jsonl-exporter.js";
 import { createTraceSdk } from "./sdk.js";
 
 type ExportResultCallback = Parameters<SpanExporter["export"]>[1];
@@ -719,5 +723,87 @@ describe("createTraceSdk's shutdown runs every closing step", () => {
         }),
       },
     ]);
+  });
+});
+
+describe("createTraceSdk's shutdown reports spans that had not ended", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "mg-trace-open-"));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("names each span still open at closing, in start order, as one failure of the whole record", async () => {
+    const sdk = await createTraceSdk({
+      exporters: [new SucceedingExporter()],
+    });
+    startRootSpan(sdk.tracer, "first");
+    startRootSpan(sdk.tracer, "second");
+    startRootSpan(sdk.tracer, "ended").end();
+
+    const failures = await failuresOf(sdk);
+
+    const error = failures[0]?.error as TraceSpansNotEndedError;
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      target: "trace",
+      step: "shutdown",
+    });
+    expect(error).toBeInstanceOf(TraceSpansNotEndedError);
+    expect(error.spans).toEqual([
+      {
+        name: "first",
+        traceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+        spanId: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+      {
+        name: "second",
+        traceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+        spanId: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+    ]);
+    expect(error.message).toBe(
+      `2 span(s) had not ended when the record stopped taking spans, so they are not in the record: first (span ${error.spans[0]?.spanId}), second (span ${error.spans[1]?.spanId})`,
+    );
+  });
+
+  it("names a span started after the writers stopped taking spans while closing was still running", async () => {
+    const sdk = await createTraceSdk({
+      jsonlPath: join(dir, "spans.jsonl"),
+    });
+    const close = JsonlSpanExporter.prototype.shutdown;
+    vi.spyOn(
+      JsonlSpanExporter.prototype,
+      "shutdown",
+    ).mockImplementation(async function (this: JsonlSpanExporter) {
+      await close.call(this);
+      startRootSpan(sdk.tracer, "late");
+    });
+
+    const failures = await failuresOf(sdk);
+
+    const error = failures[0]?.error as TraceSpansNotEndedError;
+    expect(failures).toHaveLength(1);
+    expect(error.spans).toEqual([
+      {
+        name: "late",
+        traceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+        spanId: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+    ]);
+  });
+
+  it("closes without failure when every span ended before closing", async () => {
+    const sdk = await createTraceSdk({
+      exporters: [new SucceedingExporter()],
+    });
+    endOneSpan(sdk);
+
+    await expect(sdk.shutdown()).resolves.toBeUndefined();
   });
 });

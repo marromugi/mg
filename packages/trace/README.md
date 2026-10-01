@@ -280,6 +280,12 @@ Shutdown rejects when any span could not be written, during the run or while clo
 The rejection value is `TraceShutdownError`.
 Its `failures` holds the exporter, the stage and the failure value.
 
+A span that has not ended when the exporters stop taking spans is not in the record.
+Shutdown reports those spans as one failure, with target `trace` and step `shutdown`.
+Its error is `TraceSpansNotEndedError`, and its `spans` holds each span's `name`, `traceId` and `spanId` in start order.
+A span started after shutdown has returned is not reported.
+Shutdown does not wait for open spans, so end them before closing.
+
 A root span is not exported unless it is closed with `end`.
 
 Environment variables do not change how recording works.

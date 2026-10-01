@@ -10,13 +10,18 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import type {
   ReadableSpan,
+  Span,
   SpanExporter,
+  SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { nanoid } from "nanoid";
 import type { TraceDb } from "../store/sqlite.js";
 import { openTraceDb } from "../store/sqlite.js";
 import type { TraceShutdownFailure } from "./errors.js";
-import { TraceShutdownError } from "./errors.js";
+import {
+  TraceShutdownError,
+  TraceSpansNotEndedError,
+} from "./errors.js";
 import { JsonlSpanExporter } from "./jsonl-exporter.js";
 import { generalLimits, spanLimits } from "./limits.js";
 import { SqliteSpanExporter } from "./sqlite-exporter.js";
@@ -197,6 +202,53 @@ class WatchedExporter implements SpanExporter {
   }
 }
 
+// Sees every span start and end, and notes the spans that are not in the
+// record: those still open when the writers stop taking spans (this
+// processor's shutdown runs in the same synchronous loop as theirs), and
+// those started after that while closing is still running.
+class OpenSpanWatcher implements SpanProcessor {
+  private readonly open = new Set<ReadableSpan>();
+  private readonly missing: ReadableSpan[] = [];
+  private stopped = false;
+
+  onStart(span: Span): void {
+    if (this.stopped) {
+      this.missing.push(span);
+      return;
+    }
+    this.open.add(span);
+  }
+
+  onEnd(span: ReadableSpan): void {
+    if (this.stopped) return;
+    this.open.delete(span);
+  }
+
+  forceFlush(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  shutdown(): Promise<void> {
+    if (!this.stopped) {
+      this.stopped = true;
+      this.missing.unshift(...this.open);
+      this.open.clear();
+    }
+    return Promise.resolve();
+  }
+
+  notEnded(): TraceSpansNotEndedError | undefined {
+    if (this.missing.length === 0) return undefined;
+    return new TraceSpansNotEndedError(
+      this.missing.map((span) => ({
+        name: span.name,
+        traceId: span.spanContext().traceId,
+        spanId: span.spanContext().spanId,
+      })),
+    );
+  }
+}
+
 export const createTraceSdk = async (
   options: TraceSdkOptions = {},
 ): Promise<TraceSdk> => {
@@ -236,6 +288,8 @@ export const createTraceSdk = async (
   const serviceName = options.serviceName ?? "mg";
   const sessionId = options.sessionId ?? nanoid();
 
+  const openSpans = new OpenSpanWatcher();
+
   const provider = new BasicTracerProvider({
     resource: defaultResource().merge(
       resourceFromAttributes({
@@ -243,9 +297,12 @@ export const createTraceSdk = async (
         [ATTR_SESSION_ID]: sessionId,
       }),
     ),
-    spanProcessors: watchedExporters.map(
-      (exporter) => new SimpleSpanProcessor(exporter),
-    ),
+    spanProcessors: [
+      ...watchedExporters.map(
+        (exporter) => new SimpleSpanProcessor(exporter),
+      ),
+      openSpans,
+    ],
     sampler: new AlwaysOnSampler(),
     spanLimits,
     generalLimits,
@@ -321,6 +378,14 @@ export const createTraceSdk = async (
           endOpenTelemetry,
         )),
       );
+      const notEnded = openSpans.notEnded();
+      if (notEnded !== undefined) {
+        failures.push({
+          target: "trace",
+          step: "shutdown",
+          error: notEnded,
+        });
+      }
       if (sqliteDb !== undefined) {
         try {
           sqliteDb.$client.close();

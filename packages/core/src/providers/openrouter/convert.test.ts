@@ -1,7 +1,8 @@
+import { OpenRouterHttpError } from "./http-error.js";
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, test } from "vitest";
 import {
-  ProviderHttpError,
+  ProviderResponseError,
   ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
@@ -954,15 +955,17 @@ describe("fromOpenRouterResponse", () => {
       "a choice with a null message",
       { choices: [{ message: null, finish_reason: "stop" }] },
     ],
-  ])("throws a ProviderHttpError for %s", (_label, body) => {
+  ])("throws a ProviderResponseError for %s", (_label, body) => {
     const error = thrownBy(body);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const providerError = error as ProviderHttpError;
-    expect(providerError.message).toBe(
-      "OpenRouter response has no choices",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const providerError = error as ProviderResponseError;
+    expect(providerError.messageWithoutServiceText).toBe(
+      "OpenRouter response has no choices: (text from the service left out)",
     );
-    expect(providerError.status).toBe(200);
-    expect(providerError.body).toBe(JSON.stringify(body));
+    const httpError = providerError.cause as OpenRouterHttpError;
+    expect(httpError).toBeInstanceOf(OpenRouterHttpError);
+    expect(httpError.status).toBe(200);
+    expect(httpError.body).toBe(JSON.stringify(body));
   });
 });

@@ -1,4 +1,4 @@
-import { ProviderHttpError } from "../errors.js";
+import { unusableOpenRouterResponse } from "./http-error.js";
 import type { FinishReason, StreamEvent, Usage } from "../types.js";
 import {
   toFinishReason,
@@ -41,16 +41,16 @@ const parseChunk = (payload: string): OpenRouterChunk => {
   try {
     parsed = JSON.parse(payload);
   } catch (cause) {
-    throw new ProviderHttpError(
+    throw unusableOpenRouterResponse(
       "OpenRouter stream chunk is not JSON",
       200,
       payload,
-      { cause },
+      cause,
     );
   }
 
   if (typeof parsed !== "object" || parsed === null) {
-    throw new ProviderHttpError(
+    throw unusableOpenRouterResponse(
       "OpenRouter stream chunk is not JSON",
       200,
       payload,
@@ -88,7 +88,7 @@ export async function* toStreamEvents(
     }
     const chunk = parseChunk(payload);
     if (chunk.choices === undefined || chunk.choices === null) {
-      throw new ProviderHttpError(
+      throw unusableOpenRouterResponse(
         "OpenRouter stream chunk has no choices",
         200,
         payload,
@@ -129,7 +129,7 @@ export async function* toStreamEvents(
         if (toolCall.vendorId === undefined) {
           toolCall.vendorId = fragmentId;
         } else if (toolCall.vendorId !== fragmentId) {
-          throw new ProviderHttpError(
+          throw unusableOpenRouterResponse(
             "OpenRouter stream gave two ids for one tool call",
             200,
             payload,

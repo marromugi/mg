@@ -1,4 +1,4 @@
-import { ProviderHttpError } from "../errors.js";
+import { unusableOllamaResponse } from "./http-error.js";
 import type { StreamEvent } from "../types.js";
 import { toFinishReason, toToolCall, toUsage } from "./convert.js";
 
@@ -26,11 +26,11 @@ const parseLine = (line: string): OllamaStreamChunk => {
   try {
     parsed = JSON.parse(line);
   } catch (cause) {
-    throw new ProviderHttpError(
+    throw unusableOllamaResponse(
       "Ollama stream chunk is not JSON",
       200,
       line,
-      { cause },
+      cause,
     );
   }
 
@@ -39,7 +39,7 @@ const parseLine = (line: string): OllamaStreamChunk => {
     parsed === null ||
     Array.isArray(parsed)
   ) {
-    throw new ProviderHttpError(
+    throw unusableOllamaResponse(
       "Ollama stream chunk is not JSON",
       200,
       line,
@@ -48,7 +48,7 @@ const parseLine = (line: string): OllamaStreamChunk => {
 
   const chunk = parsed as OllamaStreamChunk;
   if (typeof chunk.error === "string") {
-    throw new ProviderHttpError("Ollama stream failed", 200, line);
+    throw unusableOllamaResponse("Ollama stream failed", 200, line);
   }
 
   return chunk;

@@ -1,7 +1,11 @@
 import {
-  ProviderHttpError,
-  ProviderTransportError,
+  ProviderRequestError,
+  ProviderResponseError,
 } from "../errors.js";
+import {
+  OllamaHttpError,
+  unusableOllamaResponse,
+} from "./http-error.js";
 import { readNdjsonLines } from "../ndjson.js";
 import type {
   GenerateRequest,
@@ -29,14 +33,25 @@ const isAbortError = (cause: unknown): boolean =>
   cause !== null &&
   (cause as { name?: unknown }).name === "AbortError";
 
-const transportFailure = (
+const requestFailure = (
   cause: unknown,
   message: string,
   mark: RetryMark,
 ): unknown =>
   isAbortError(cause)
     ? cause
-    : new ProviderTransportError(message, { cause, ...mark });
+    : new ProviderRequestError(message, { cause, ...mark });
+
+// 応答の本文を読み切れなかったときの失敗です。
+// 接続が切れたなら応答が来なかったことで、再試行できます。
+const bodyReadFailure = (cause: unknown): unknown => {
+  if (isAbortError(cause)) return cause;
+  const message = "Ollama response body could not be read";
+  const mark = bodyReadFailureMark(cause);
+  return mark.retryable
+    ? new ProviderRequestError(message, { cause, ...mark })
+    : new ProviderResponseError(message, { cause });
+};
 
 const HALTED = "halted" as const;
 
@@ -92,11 +107,7 @@ const readGenerateBody = async (
     try {
       return { text: await response.text() };
     } catch (cause) {
-      throw transportFailure(
-        cause,
-        "Ollama response failed to read",
-        bodyReadFailureMark(cause),
-      );
+      throw bodyReadFailure(cause);
     }
   }
 
@@ -128,16 +139,14 @@ const readGenerateBody = async (
     if (halted) {
       return HALTED;
     }
-    throw transportFailure(
-      cause,
-      "Ollama response failed to read",
-      bodyReadFailureMark(cause),
-    );
+    throw bodyReadFailure(cause);
   } finally {
     halt.removeEventListener("abort", onAbort);
     reader.releaseLock();
   }
 };
+
+export { OllamaHttpError };
 
 export type OllamaOptions = OllamaRequestOptions & {
   baseUrl?: string;
@@ -181,7 +190,7 @@ export const createOllamaProvider = (
       if (halt?.aborted === true && isAbortError(cause)) {
         return HALTED;
       }
-      throw transportFailure(
+      throw requestFailure(
         cause,
         "Ollama request failed to send",
         sendFailureMark(cause),
@@ -193,17 +202,19 @@ export const createOllamaProvider = (
       try {
         text = await response.text();
       } catch (cause) {
-        throw transportFailure(
+        throw requestFailure(
           cause,
-          "Ollama response failed to read",
+          `Ollama request failed: ${response.status}; the body could not be read`,
           statusMark(response),
         );
       }
-      throw new ProviderHttpError(
+      throw new ProviderRequestError(
         `Ollama request failed: ${response.status}`,
-        response.status,
-        text,
-        statusMark(response),
+        {
+          cause: new OllamaHttpError(response.status, text),
+          ...(text !== "" && { causeQuotesService: true as const }),
+          ...statusMark(response),
+        },
       );
     }
 
@@ -235,11 +246,12 @@ export const createOllamaProvider = (
     let body: unknown;
     try {
       body = JSON.parse(text);
-    } catch {
-      throw new ProviderHttpError(
+    } catch (cause) {
+      throw unusableOllamaResponse(
         "Ollama response is not JSON",
         response.status,
         text,
+        cause,
       );
     }
 
@@ -252,11 +264,7 @@ export const createOllamaProvider = (
     try {
       yield* readNdjsonLines(body);
     } catch (cause) {
-      throw transportFailure(
-        cause,
-        "Ollama response failed to read",
-        bodyReadFailureMark(cause),
-      );
+      throw bodyReadFailure(cause);
     }
   }
 
@@ -280,11 +288,7 @@ export const createOllamaProvider = (
 
     const body = response.body;
     if (body === null) {
-      throw new ProviderHttpError(
-        "Ollama response has no body",
-        response.status,
-        "",
-      );
+      throw new ProviderResponseError("Ollama response has no body");
     }
 
     const readableBody =

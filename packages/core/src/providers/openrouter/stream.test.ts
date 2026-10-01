@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { ProviderHttpError, ToolArgumentsError } from "../errors.js";
+import {
+  ProviderResponseError,
+  ToolArgumentsError,
+} from "../errors.js";
+import { OpenRouterHttpError } from "./http-error.js";
 import type { StreamEvent } from "../types.js";
 import { toStreamEvents } from "./stream.js";
 
@@ -232,15 +236,18 @@ describe("toStreamEvents", () => {
     ]);
   });
 
-  test("throws a ProviderHttpError when fragments of one call carry two ids", async () => {
+  test("throws a ProviderResponseError when fragments of one call carry two ids", async () => {
     const error = await collect([
       toolFragment(0, { id: "call_1", name: "weather" }),
       toolFragment(0, { id: "call_2", arguments: "{}" }),
       finishChunk("tool_calls"),
     ]).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    expect((error as ProviderHttpError).status).toBe(200);
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    expect(
+      ((error as ProviderResponseError).cause as OpenRouterHttpError)
+        .status,
+    ).toBe(200);
   });
 
   test("emits the pending carry before finish when no text or tool call follows", async () => {
@@ -456,22 +463,24 @@ describe("toStreamEvents", () => {
     expect(toolArgumentsError.cause).toBeInstanceOf(SyntaxError);
   });
 
-  test("throws a ProviderHttpError when a payload is not JSON", async () => {
+  test("throws a ProviderResponseError when a payload is not JSON", async () => {
     const error = await collect([textChunk("hi"), "<html>"]).catch(
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe(
-      "OpenRouter stream chunk is not JSON",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.messageWithoutServiceText).toBe(
+      "OpenRouter stream chunk is not JSON: (text from the service left out)",
     );
+    const httpError = responseError.cause as OpenRouterHttpError;
+    expect(httpError).toBeInstanceOf(OpenRouterHttpError);
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe("<html>");
     expect(httpError.cause).toBeInstanceOf(SyntaxError);
   });
 
-  test("throws a ProviderHttpError when a payload carries an error instead of choices", async () => {
+  test("throws a ProviderResponseError when a payload carries an error instead of choices", async () => {
     const payload = JSON.stringify({
       error: { code: 502, message: "upstream is down" },
     });
@@ -480,11 +489,12 @@ describe("toStreamEvents", () => {
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe(
-      "OpenRouter stream chunk has no choices",
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      `OpenRouter stream chunk has no choices: ${payload}`,
     );
+    const httpError = responseError.cause as OpenRouterHttpError;
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe(payload);
   });

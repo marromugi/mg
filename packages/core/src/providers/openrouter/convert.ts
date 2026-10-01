@@ -1,9 +1,9 @@
 import {
-  ProviderHttpError,
   ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
 } from "../errors.js";
+import { unusableOpenRouterResponse } from "./http-error.js";
 import { partsOf, reasoningOf, textOf, toolCallsOf } from "../parts.js";
 import type {
   AssistantMessage,
@@ -327,7 +327,7 @@ export const fromOpenRouterResponse = (
   newToolCallId: () => string,
 ): GenerateResponse => {
   if (typeof body !== "object" || body === null) {
-    throw new ProviderHttpError(
+    throw unusableOpenRouterResponse(
       "OpenRouter response has no choices",
       200,
       JSON.stringify(body),
@@ -339,7 +339,7 @@ export const fromOpenRouterResponse = (
   const message = choice?.message;
 
   if (message === undefined || message === null) {
-    throw new ProviderHttpError(
+    throw unusableOpenRouterResponse(
       "OpenRouter response has no choices",
       200,
       JSON.stringify(body),

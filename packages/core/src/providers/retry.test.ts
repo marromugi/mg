@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  ProviderHttpError,
+  ProviderRequestError,
   ProviderRetryExhaustedError,
 } from "./errors.js";
 import { createOllamaProvider } from "./ollama/index.js";
@@ -54,7 +54,7 @@ const fakeProvider = (
 };
 
 const retryable = (ms?: number) =>
-  new ProviderHttpError("busy", 503, "", {
+  new ProviderRequestError("busy", {
     retryable: true,
     retryAfterMs: ms,
   });
@@ -135,7 +135,7 @@ describe("createRetryingProvider", () => {
 
   test("throws a failure that cannot be retried after one attempt", async () => {
     const failures = [
-      new ProviderHttpError("bad", 400, ""),
+      new ProviderRequestError("bad"),
       new RangeError("x"),
       new DOMException("aborted", "AbortError"),
     ];

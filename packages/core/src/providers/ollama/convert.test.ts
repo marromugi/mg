@@ -1,7 +1,8 @@
 import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
+import { OllamaHttpError } from "./http-error.js";
 import { describe, expect, test } from "vitest";
 import {
-  ProviderHttpError,
+  ProviderResponseError,
   ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
@@ -796,20 +797,25 @@ describe("fromOllamaResponse", () => {
     ["a null body", null],
     ["a body without a message", { done: true }],
     ["a body with a null message", { message: null }],
-  ])("throws a ProviderHttpError for %s", (_description, body) => {
+  ])("throws a ProviderResponseError for %s", (_description, body) => {
     const error = thrownBy(body);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama response has no message");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.messageWithoutServiceText).toBe(
+      "Ollama response has no message: (text from the service left out)",
+    );
+    const httpError = responseError.cause as OllamaHttpError;
+    expect(httpError).toBeInstanceOf(OllamaHttpError);
     expect(httpError.status).toBe(200);
   });
 
   test("keeps the body a string when the response body is undefined", () => {
     const error = thrownBy(undefined);
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const httpError = (error as ProviderResponseError)
+      .cause as OllamaHttpError;
     expect(typeof httpError.body).toBe("string");
     expect(httpError.body).toBe("undefined");
   });

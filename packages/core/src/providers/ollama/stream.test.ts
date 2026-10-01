@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { ProviderHttpError } from "../errors.js";
+import { ProviderResponseError } from "../errors.js";
+import { OllamaHttpError } from "./http-error.js";
 import type { StreamEvent } from "../types.js";
 import { toStreamEvents } from "./stream.js";
 
@@ -197,40 +198,51 @@ describe("toStreamEvents", () => {
     expect(events[1]).not.toHaveProperty("usage");
   });
 
-  test("throws a ProviderHttpError when a line is not JSON", async () => {
+  test("throws a ProviderResponseError when a line is not JSON", async () => {
     const error = await collect([textChunk("hi"), "<html>"]).catch(
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama stream chunk is not JSON");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.messageWithoutServiceText).toBe(
+      "Ollama stream chunk is not JSON: (text from the service left out)",
+    );
+    const httpError = responseError.cause as OllamaHttpError;
+    expect(httpError).toBeInstanceOf(OllamaHttpError);
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe("<html>");
     expect(httpError.cause).toBeInstanceOf(SyntaxError);
   });
 
-  test("throws a ProviderHttpError when a line is JSON but not an object", async () => {
+  test("throws a ProviderResponseError when a line is JSON but not an object", async () => {
     const error = await collect(["[1, 2, 3]"]).catch(
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama stream chunk is not JSON");
-    expect(httpError.body).toBe("[1, 2, 3]");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      "Ollama stream chunk is not JSON: [1, 2, 3]",
+    );
+    expect((responseError.cause as OllamaHttpError).body).toBe(
+      "[1, 2, 3]",
+    );
   });
 
-  test("throws a ProviderHttpError when a line carries an error field", async () => {
+  test("throws a ProviderResponseError when a line carries an error field", async () => {
     const payload = JSON.stringify({ error: "model not found" });
 
     const error = await collect([textChunk("hi"), payload]).catch(
       (caught: unknown) => caught,
     );
 
-    expect(error).toBeInstanceOf(ProviderHttpError);
-    const httpError = error as ProviderHttpError;
-    expect(httpError.message).toBe("Ollama stream failed");
+    expect(error).toBeInstanceOf(ProviderResponseError);
+    const responseError = error as ProviderResponseError;
+    expect(responseError.message).toBe(
+      `Ollama stream failed: ${payload}`,
+    );
+    const httpError = responseError.cause as OllamaHttpError;
     expect(httpError.status).toBe(200);
     expect(httpError.body).toBe(payload);
   });

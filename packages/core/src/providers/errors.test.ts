@@ -3,45 +3,60 @@ import type { ProviderError } from "./errors.js";
 import {
   isProviderError,
   ProviderBaseError,
-  ProviderHttpError,
+  ProviderRequestError,
+  ProviderResponseError,
   ProviderRetryExhaustedError,
-  ProviderTransportError,
   ProviderUnsupportedError,
   ToolArgumentsError,
   ToolSchemaError,
 } from "./errors.js";
 
-describe("ProviderHttpError", () => {
-  test("carries the status and body", () => {
-    const error = new ProviderHttpError("x", 500, "body");
+describe("ProviderRequestError", () => {
+  test("ends its message with the reason from its cause", () => {
+    const cause = new TypeError("fetch failed", {
+      cause: new Error("ECONNREFUSED"),
+    });
+    const error = new ProviderRequestError("x", { cause });
 
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(ProviderBaseError);
-    expect(error.name).toBe("ProviderHttpError");
-    expect(error.message).toBe("x");
-    expect(error.status).toBe(500);
-    expect(error.body).toBe("body");
-    expect(error.cause).toBeUndefined();
+    expect(error.name).toBe("ProviderRequestError");
+    expect(error.message).toBe("x: fetch failed: ECONNREFUSED");
+    expect(error.messageWithoutServiceText).toBe(
+      "x: fetch failed: ECONNREFUSED",
+    );
+    expect(error.cause).toBe(cause);
   });
 
-  test("keeps the original exception when given one", () => {
-    const cause = new Error("boom");
-    const error = new ProviderHttpError("x", 500, "body", { cause });
+  test("leaves out the text the cause quotes from the service", () => {
+    const error = new ProviderRequestError("failed: 503", {
+      cause: new Error("upstream busy"),
+      causeQuotesService: true,
+    });
 
-    expect(error.cause).toBe(cause);
+    expect(error.message).toBe("failed: 503: upstream busy");
+    expect(error.messageWithoutServiceText).toBe(
+      "failed: 503: (text from the service left out)",
+    );
   });
 });
 
-describe("ProviderTransportError", () => {
-  test("carries the original exception", () => {
-    const cause = new TypeError("fetch failed");
-    const error = new ProviderTransportError("x", { cause });
+describe("ProviderResponseError", () => {
+  test("is not retryable and composes its two texts", () => {
+    const error = new ProviderResponseError("not JSON", {
+      cause: new Error("<html>"),
+      withoutServiceText: "not JSON!",
+      causeQuotesService: true,
+    });
 
-    expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(ProviderBaseError);
-    expect(error.name).toBe("ProviderTransportError");
-    expect(error.message).toBe("x");
-    expect(error.cause).toBe(cause);
+    expect(error.name).toBe("ProviderResponseError");
+    expect(error.message).toBe("not JSON: <html>");
+    expect(error.messageWithoutServiceText).toBe(
+      "not JSON!: (text from the service left out)",
+    );
+    expect(error.retryable).toBe(false);
+    expect(error.retryAfterMs).toBeUndefined();
   });
 });
 
@@ -62,7 +77,7 @@ describe("ToolArgumentsError", () => {
     expect(error.cause).toBeUndefined();
   });
 
-  test("keeps the original exception when given one", () => {
+  test("keeps the original exception and leaves its text out of the second text", () => {
     const cause = new SyntaxError("Unexpected token");
     const error = new ToolArgumentsError(
       "call-1",
@@ -72,6 +87,12 @@ describe("ToolArgumentsError", () => {
     );
 
     expect(error.cause).toBe(cause);
+    expect(error.message).toBe(
+      "Failed to parse arguments for tool call call-1 (weather): Unexpected token",
+    );
+    expect(error.messageWithoutServiceText).toBe(
+      "Failed to parse arguments for tool call call-1 (weather): (text from the service left out)",
+    );
   });
 });
 
@@ -85,6 +106,10 @@ describe("ToolSchemaError", () => {
     expect(error.name).toBe("ToolSchemaError");
     expect(error.toolName).toBe("weather");
     expect(error.cause).toBe(cause);
+    expect(error.message).toBe(
+      "Failed to convert the schema for tool weather: unsupported schema",
+    );
+    expect(error.messageWithoutServiceText).toBe(error.message);
   });
 });
 
@@ -111,8 +136,8 @@ describe("retry mark", () => {
 
   test("is off, with no wait time, when not given", () => {
     const errors = [
-      new ProviderHttpError("x", 400, ""),
-      new ProviderTransportError("x", { cause }),
+      new ProviderRequestError("x"),
+      new ProviderResponseError("x", { cause }),
       new ToolArgumentsError("id", "tool", "{"),
       new ToolSchemaError("tool", { cause }),
       new ProviderUnsupportedError("x", "tool-choice"),
@@ -125,28 +150,28 @@ describe("retry mark", () => {
   });
 
   test("is carried with the wait time given", () => {
-    const http = new ProviderHttpError("x", 503, "", {
+    const waiting = new ProviderRequestError("x", {
       retryable: true,
       retryAfterMs: 3000,
     });
-    const transport = new ProviderTransportError("x", {
+    const immediate = new ProviderRequestError("x", {
       cause,
       retryable: true,
     });
-    const notRetryable = new ProviderHttpError("x", 400, "", {
+    const notRetryable = new ProviderRequestError("x", {
       retryable: false,
     });
 
-    expect(http.retryable).toBe(true);
-    expect(http.retryAfterMs).toBe(3000);
-    expect(transport.retryable).toBe(true);
-    expect(transport.retryAfterMs).toBeUndefined();
+    expect(waiting.retryable).toBe(true);
+    expect(waiting.retryAfterMs).toBe(3000);
+    expect(immediate.retryable).toBe(true);
+    expect(immediate.retryAfterMs).toBeUndefined();
     expect(notRetryable.retryable).toBe(false);
   });
 
   test("refuses a wait time on an error that is not retryable", () => {
     const construct = () =>
-      new ProviderHttpError("x", 400, "", {
+      new ProviderRequestError("x", {
         retryable: false,
         // @ts-expect-error a wait time needs retryable: true
         retryAfterMs: 1,
@@ -163,7 +188,7 @@ describe("ProviderRetryExhaustedError", () => {
 
     expect(error.name).toBe("ProviderRetryExhaustedError");
     expect(error.message).toBe(
-      "Provider retries exhausted (attempts: 3)",
+      "Provider retries exhausted (attempts: 3): inner",
     );
     expect(error.attempts).toBe(3);
     expect(error.cause).toBe(cause);
@@ -184,12 +209,12 @@ describe("ProviderBaseError", () => {
   test("narrows to the subclass in a switch on name", () => {
     const describeError = (error: ProviderError): string => {
       switch (error.name) {
-        case "ProviderHttpError":
-          expectTypeOf(error).toEqualTypeOf<ProviderHttpError>();
-          return `http:${error.status}`;
-        case "ProviderTransportError":
-          expectTypeOf(error).toEqualTypeOf<ProviderTransportError>();
-          return `transport:${error.message}`;
+        case "ProviderRequestError":
+          expectTypeOf(error).toEqualTypeOf<ProviderRequestError>();
+          return `request:${error.message}`;
+        case "ProviderResponseError":
+          expectTypeOf(error).toEqualTypeOf<ProviderResponseError>();
+          return `response:${error.message}`;
         case "ToolArgumentsError":
           expectTypeOf(error).toEqualTypeOf<ToolArgumentsError>();
           return `arguments:${error.toolCallId}`;
@@ -209,12 +234,12 @@ describe("ProviderBaseError", () => {
 
     const cause = new Error("boom");
 
-    expect(describeError(new ProviderHttpError("x", 429, "body"))).toBe(
-      "http:429",
+    expect(describeError(new ProviderRequestError("offline"))).toBe(
+      "request:offline",
     );
-    expect(
-      describeError(new ProviderTransportError("offline", { cause })),
-    ).toBe("transport:offline");
+    expect(describeError(new ProviderResponseError("garbled"))).toBe(
+      "response:garbled",
+    );
     expect(
       describeError(new ToolArgumentsError("call-1", "weather", "{")),
     ).toBe("arguments:call-1");
@@ -231,12 +256,8 @@ describe("isProviderError", () => {
   test("accepts every subclass", () => {
     const cause = new Error("boom");
 
-    expect(
-      isProviderError(new ProviderHttpError("x", 500, "body")),
-    ).toBe(true);
-    expect(
-      isProviderError(new ProviderTransportError("x", { cause })),
-    ).toBe(true);
+    expect(isProviderError(new ProviderRequestError("x"))).toBe(true);
+    expect(isProviderError(new ProviderResponseError("x"))).toBe(true);
     expect(
       isProviderError(new ToolArgumentsError("call-1", "weather", "{")),
     ).toBe(true);
@@ -260,14 +281,14 @@ describe("isProviderError", () => {
       } catch (error) {
         if (isProviderError(error)) {
           switch (error.name) {
-            case "ProviderHttpError":
-              expectTypeOf(error).toEqualTypeOf<ProviderHttpError>();
-              return `http:${error.status}`;
-            case "ProviderTransportError":
+            case "ProviderRequestError":
+              expectTypeOf(error).toEqualTypeOf<ProviderRequestError>();
+              return `request:${error.message}`;
+            case "ProviderResponseError":
               expectTypeOf(
                 error,
-              ).toEqualTypeOf<ProviderTransportError>();
-              return `transport:${error.message}`;
+              ).toEqualTypeOf<ProviderResponseError>();
+              return `response:${error.message}`;
             case "ToolArgumentsError":
               expectTypeOf(error).toEqualTypeOf<ToolArgumentsError>();
               return `arguments:${error.toolCallId}`;
@@ -294,12 +315,12 @@ describe("isProviderError", () => {
 
     const cause = new Error("boom");
 
-    expect(
-      describeThrown(new ProviderHttpError("x", 503, "body")),
-    ).toBe("http:503");
-    expect(
-      describeThrown(new ProviderTransportError("offline", { cause })),
-    ).toBe("transport:offline");
+    expect(describeThrown(new ProviderRequestError("offline"))).toBe(
+      "request:offline",
+    );
+    expect(describeThrown(new ProviderResponseError("garbled"))).toBe(
+      "response:garbled",
+    );
     expect(
       describeThrown(new ToolArgumentsError("call-1", "weather", "{")),
     ).toBe("arguments:call-1");

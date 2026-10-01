@@ -291,6 +291,55 @@ describe("createLlmGate", () => {
     await expect(gate.judge(request)).rejects.toBe(abortError);
   });
 
+  test("rejects with the abort reason while the provider call is running, once the signal fires", async () => {
+    const controller = new AbortController();
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate: vi.fn(
+        (sent: GenerateRequest): Promise<GenerateResponse> =>
+          new Promise((resolve) => {
+            sent.halt?.addEventListener("abort", () =>
+              resolve({ parts: [], finishReason: "halted" }),
+            );
+          }),
+      ),
+      stream: vi.fn((): AsyncIterable<StreamEvent> => {
+        throw new Error("stubProvider: stream is not scripted");
+      }),
+    };
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      instruction: "policy",
+    });
+
+    const pending = gate
+      .judge(request, {
+        signal: controller.signal,
+      })
+      .catch((error: unknown) => error);
+    controller.abort("stopped");
+
+    expect(await pending).toBe("stopped");
+  });
+
+  test("sends no halt when the context has no signal", async () => {
+    let seen: GenerateRequest | undefined;
+    const provider = stubProvider((req) => {
+      seen = req;
+      return verdictResponse({ allowed: true, reason: "ok" });
+    });
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      instruction: "policy",
+    });
+
+    await gate.judge(request);
+
+    expect(seen?.halt).toBeUndefined();
+  });
+
   test("sends the instruction exactly as given, surrounding whitespace included", async () => {
     let seen: GenerateRequest | undefined;
     const provider = stubProvider((generateRequest) => {

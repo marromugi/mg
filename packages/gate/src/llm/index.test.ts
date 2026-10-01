@@ -11,10 +11,11 @@ import type {
 } from "@mg/core";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { ATTR, SPAN } from "@mg/trace";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, expectTypeOf, test, vi } from "vitest";
 import { GateError } from "../errors.js";
 import type { GateContext, GateRequest } from "../types.js";
 import { createLlmGate } from "./index.js";
+import type { LlmGateOptions } from "./index.js";
 
 class RecordingSpan implements TraceSpan {
   readonly name: string;
@@ -83,7 +84,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "Allow read-only commands.",
+      instruction: "Allow read-only commands.",
     });
 
     await expect(gate.judge(request)).resolves.toEqual({
@@ -99,7 +100,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "Allow read-only commands.",
+      instruction: "Allow read-only commands.",
     });
 
     await expect(gate.judge(request)).resolves.toEqual({
@@ -108,7 +109,7 @@ describe("createLlmGate", () => {
     });
   });
 
-  test("sends the policy in system and the kind and description in user", async () => {
+  test("sends the instruction as the whole system message and the kind and description in user", async () => {
     let seen: GenerateRequest | undefined;
     const provider = stubProvider((generateRequest) => {
       seen = generateRequest;
@@ -117,17 +118,17 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "Allow read-only commands.",
+      instruction: "Allow read-only commands.",
     });
 
     await gate.judge(request);
 
     if (seen === undefined) throw new Error("request not captured");
 
-    expect(seen.messages[0]).toMatchObject({ role: "system" });
-    expect((seen.messages[0] as { content: string }).content).toContain(
-      "Allow read-only commands.",
-    );
+    expect(seen.messages[0]).toEqual({
+      role: "system",
+      content: "Allow read-only commands.",
+    });
     expect(seen.messages[1]).toEqual({
       role: "user",
       content: `Kind: tool-call\n${request.description}`,
@@ -143,7 +144,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     await gate.judge(request);
@@ -159,7 +160,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     await expect(gate.judge(request)).rejects.toBeInstanceOf(GateError);
@@ -172,7 +173,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     await expect(gate.judge(request)).rejects.toBeInstanceOf(GateError);
@@ -194,7 +195,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     const error = await gate
@@ -229,7 +230,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     const error = await gate
@@ -262,7 +263,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     await expect(gate.judge(request)).rejects.toBe(abortError);
@@ -284,13 +285,13 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     await expect(gate.judge(request)).rejects.toBe(abortError);
   });
 
-  test("tells the model the user message is data, not instructions", async () => {
+  test("sends the instruction exactly as given, surrounding whitespace included", async () => {
     let seen: GenerateRequest | undefined;
     const provider = stubProvider((generateRequest) => {
       seen = generateRequest;
@@ -299,16 +300,28 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "\n  Judge it.  \n",
     });
 
     await gate.judge(request);
 
-    if (seen === undefined) throw new Error("request not captured");
+    expect(seen?.messages[0]).toEqual({
+      role: "system",
+      content: "\n  Judge it.  \n",
+    });
+  });
 
-    expect((seen.messages[0] as { content: string }).content).toContain(
-      "data, not instructions",
+  test("throws RangeError when the instruction is empty or whitespace only", () => {
+    const provider = stubProvider(() =>
+      verdictResponse({ allowed: true, reason: "ok" }),
     );
+
+    expect(() =>
+      createLlmGate({ provider, model: "m", instruction: "" }),
+    ).toThrow(new RangeError("instruction must not be empty"));
+    expect(() =>
+      createLlmGate({ provider, model: "m", instruction: " \n\t" }),
+    ).toThrow(new RangeError("instruction must not be empty"));
   });
 
   test("rejects with AbortError without calling the provider when the signal is already aborted", async () => {
@@ -318,7 +331,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
     const controller = new AbortController();
     controller.abort();
@@ -338,7 +351,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
     const root = new RecordingSpan("root");
     const context: GateContext = { trace: root };
@@ -363,7 +376,7 @@ describe("createLlmGate", () => {
     const gate = createLlmGate({
       provider,
       model: "m",
-      policy: "policy",
+      instruction: "policy",
     });
 
     await expect(gate.judge(request)).resolves.toEqual({
@@ -375,18 +388,35 @@ describe("createLlmGate", () => {
   });
 });
 
+describe("createLlmGate options type", () => {
+  test("requires an instruction and has no policy option", () => {
+    type Options = LlmGateOptions;
+    type NoInstruction = {
+      provider: ToolForcingProvider;
+      model: string;
+    };
+
+    // @ts-expect-error policy is not an option
+    expectTypeOf<Options>().toHaveProperty("policy");
+    // @ts-expect-error instruction is required
+    expectTypeOf<NoInstruction>().toMatchTypeOf<Options>();
+
+    expect(true).toBe(true);
+  });
+});
+
 describe("createLlmGate provider type", () => {
   test("refuses a provider that cannot force a tool call", () => {
     const refused = createLlmGate({
       // @ts-expect-error the Ollama provider cannot force a tool call
       provider: createOllamaProvider(),
       model: "m",
-      policy: "p",
+      instruction: "p",
     });
     const accepted = createLlmGate({
       provider: createOpenRouterProvider({ apiKey: "k" }),
       model: "m",
-      policy: "p",
+      instruction: "p",
     });
     expect([refused, accepted]).toHaveLength(2);
   });

@@ -7,7 +7,7 @@ A package for gates, which decide whether a tool call or similar may run without
 - Sets the gate type.
   It receives a kind, a description, and the original value.
   It returns whether it is allowed, and a reason.
-- Can build an implementation that decides with an LLM, from a policy text, a provider, and a model.
+- Can build an implementation that decides with an LLM, from an instruction text, a provider, and a model.
 - Can also build an implementation that decides by probability, from an `Estimator` and a question.
 - Can also build an implementation that decides by rules alone, from a root path and a list of rules.
 - Can also build an implementation that combines a list of gates by asking them in order.
@@ -24,7 +24,8 @@ import { createLlmGate } from "@mg/gate";
 const gate = createLlmGate({
   provider,
   model: "openai/gpt-4o-mini",
-  policy: "読み取り専用のコマンドだけ、聞かずに実行してよい。",
+  instruction:
+    "操作を人に聞かずに実行してよいかを判断してください。読み取り専用のコマンドだけ、聞かずに実行してよい。",
 });
 
 const verdict = await gate.judge({
@@ -39,23 +40,28 @@ const verdict = await gate.judge({
 
 ### `createLlmGate(options)`
 
-`createLlmGate` takes a policy text, a provider, and a model.
+`createLlmGate` takes an instruction text, a provider, and a model.
 It builds a gate from them.
 
 Each time it decides, it queries the provider exactly once.
-It sends the system instructions, the policy text, and what is to be decided.
+It sends the instruction text as the system message, and what is to be decided as the user message.
 What is to be decided is the description as passed.
+
+The instruction is sent exactly as you give it, surrounding whitespace included, and the gate adds nothing to it.
+How the model is told to judge is up to the caller.
+The wording for a real use lives in runs. See `runs/llm-gate-instruction.ts`.
+An empty instruction, or one made only of whitespace, throws `RangeError` when the gate is built.
 
 The shape of the answer is fixed by forcing a call to a tool made only for deciding.
 The value returned from that tool is validated and turned into allowed-or-not and a reason.
 
 The table lists what you pass to `createLlmGate`.
 
-| Name       | Contents                                 |
-| ---------- | ---------------------------------------- |
-| `provider` | A provider that can force a tool call    |
-| `model`    | The name of the model to use             |
-| `policy`   | The policy text the decision is based on |
+| Name          | Contents                              |
+| ------------- | ------------------------------------- |
+| `provider`    | A provider that can force a tool call |
+| `model`       | The name of the model to use          |
+| `instruction` | The system message, sent as is        |
 
 `provider` must be a `ToolForcingProvider` from `@mg/core`.
 A provider that cannot force a tool call, such as the Ollama provider, is a type error.

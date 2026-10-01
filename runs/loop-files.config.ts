@@ -13,6 +13,7 @@ import {
   createEditFileTool,
 } from "@mg/tools";
 import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -75,10 +76,11 @@ export const buildLoopFilesRun = ({
       createLlmGate({
         provider: gateProvider,
         model: "deepseek/deepseek-v4-flash",
-        policy:
+        instruction: llmGateInstruction(
           "Reading and editing project files is allowed. Reading or " +
-          "changing secrets (.env files), lockfiles or anything under " +
-          ".git is not. Running shell commands is not.",
+            "changing secrets (.env files), lockfiles or anything under " +
+            ".git is not. Running shell commands is not.",
+        ),
       }),
     ]),
     trace,

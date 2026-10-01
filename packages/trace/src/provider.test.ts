@@ -431,6 +431,71 @@ describe("traceProvider / stream", () => {
     expect(span?.endCalls).toEqual([undefined]);
   });
 
+  it("records the received parts and the stop mark when the caller stops before the finish event", async () => {
+    const root = new RecordingSpan("root");
+    const provider: Provider = {
+      toolForcing: true,
+      generate: async () => {
+        throw new Error("unused");
+      },
+      stream: async function* () {
+        for (const event of streamEvents) {
+          yield event;
+        }
+      },
+    };
+
+    for await (const event of traceProvider(provider, root).stream(
+      request,
+    )) {
+      if (event.type === "text-delta" && event.delta === "lo") break;
+    }
+    const span = root.children[0];
+
+    expect(span?.mergedAttributes[ATTR.llmOutputMessages]).toBe(
+      JSON.stringify([
+        assistantMessage([{ type: "text", text: "hello" }]),
+      ]),
+    );
+    expect(span?.mergedAttributes[ATTR.llmStoppedByCaller]).toBe(true);
+    expect(
+      span?.mergedAttributes[ATTR.llmFinishReason],
+    ).toBeUndefined();
+    expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBeUndefined();
+    expect(span?.endCalls).toEqual([undefined]);
+  });
+
+  it("records a caller that stops at the finish event like a stream read to the end", async () => {
+    const root = new RecordingSpan("root");
+    const provider: Provider = {
+      toolForcing: true,
+      generate: async () => {
+        throw new Error("unused");
+      },
+      stream: async function* () {
+        for (const event of streamEvents) {
+          yield event;
+        }
+      },
+    };
+
+    for await (const event of traceProvider(provider, root).stream(
+      request,
+    )) {
+      if (event.type === "finish") break;
+    }
+    const span = root.children[0];
+
+    expect(span?.mergedAttributes[ATTR.llmFinishReason]).toBe(
+      "tool_calls",
+    );
+    expect(span?.mergedAttributes[ATTR.llmInputTokens]).toBe(2);
+    expect(
+      span?.mergedAttributes[ATTR.llmStoppedByCaller],
+    ).toBeUndefined();
+    expect(span?.endCalls).toEqual([undefined]);
+  });
+
   it("ends the span with a stream-incomplete error when the inner iterable ends without a finish event", async () => {
     const root = new RecordingSpan("root");
     const provider: Provider = {

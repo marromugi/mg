@@ -201,6 +201,17 @@ async function* traceStream(
     throw error;
   } finally {
     if (!ended) {
+      // The caller stopped reading. After the finish event it has the
+      // whole answer; before it, only the parts it received.
+      setOutputAttributes(
+        span,
+        finished
+          ? { parts: accumulator.parts(), finishReason, usage, omitted }
+          : { parts: accumulator.parts() },
+      );
+      if (!finished) {
+        setSpanAttributes(span, { [ATTR.llmStoppedByCaller]: true });
+      }
       endSpan(span);
     }
   }

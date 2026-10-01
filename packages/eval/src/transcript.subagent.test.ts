@@ -26,7 +26,7 @@ const viewWithSubagentStep = (step: SubagentStep): RunView => ({
   gateSteps: [],
   subagentSteps: [step],
   turnCount: 0,
-  finalText: undefined,
+  finalText: { kind: "none" },
   usage: { inputTokens: 0, outputTokens: 0 },
   ...baseTimes,
 });

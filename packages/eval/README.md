@@ -29,7 +29,7 @@ const estimatorCheck = createEstimatorChecker({
 });
 
 const checks = [
-  rule("has-final-text", (view) => view.finalText !== undefined),
+  rule("has-final-text", (view) => view.finalText.kind === "text"),
   estimatorCheck({
     name: "answers-with-listing",
     question:
@@ -63,7 +63,7 @@ const view = viewRun(sessionTree);
 
 view.steps; // llm / tool / gate / subagent steps in time order
 view.turnCount; // number of harness turns
-view.finalText; // text of the final reply
+view.finalText; // { kind: "text", text } | { kind: "none" } | { kind: "unreadable", reason }
 view.usage; // total token usage
 ```
 
@@ -84,7 +84,9 @@ import type { Check } from "@mg/eval";
 const myCheck: Check = {
   name: "no-secrets-in-output",
   async evaluate({ session, view }) {
-    const ok = !view.finalText?.includes("SECRET");
+    const ok =
+      view.finalText.kind !== "text" ||
+      !view.finalText.text.includes("SECRET");
     return {
       passed: ok,
       reason: ok ? "no problem" : "contains a secret value",
@@ -147,7 +149,7 @@ const withinToolLimit = rule("bash-within-3", (view) => {
 });
 
 const hasFinalText = rule("has-final-text", (view) => {
-  const passed = view.finalText !== undefined;
+  const passed = view.finalText.kind === "text";
   return {
     passed,
     reason: passed ? "has a final reply" : "final reply is empty",
@@ -257,7 +259,8 @@ To replace the transcription, pass your own to `createEstimatorChecker`.
 ```ts
 const estimatorCheck = createEstimatorChecker({
   estimator: createJevEstimator({ apiKey: process.env.JEV_API_KEY! }),
-  transcribe: (view) => view.finalText ?? "",
+  transcribe: (view) =>
+    view.finalText.kind === "text" ? view.finalText.text : "",
 });
 ```
 

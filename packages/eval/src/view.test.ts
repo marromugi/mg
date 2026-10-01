@@ -207,7 +207,10 @@ describe("viewRun", () => {
     expect(view.toolSteps).toHaveLength(1);
     expect(view.gateSteps).toHaveLength(1);
 
-    expect(view.finalText).toBe("Done, I listed the files.");
+    expect(view.finalText).toEqual({
+      kind: "text",
+      text: "Done, I listed the files.",
+    });
     expect(view.usage).toEqual({ inputTokens: 30, outputTokens: 13 });
     expect(view.error).toBeUndefined();
     expect(view.startTime).toBe("2026-01-01T00:00:00.000Z");
@@ -467,5 +470,48 @@ describe("viewRun", () => {
         reason: "input messages are not a JSON array",
       });
     });
+  });
+});
+
+describe("viewRun final text", () => {
+  const viewWithLlm = (attributes: Record<string, string | number>) => {
+    const session = buildSessionTree([
+      record({
+        spanId: "run",
+        name: SPAN.run,
+        attributes: { [ATTR.op]: "run" },
+      }),
+      record({
+        spanId: "llm-1",
+        parentSpanId: "run",
+        name: SPAN.llm,
+        attributes: { [ATTR.op]: "llm", ...attributes },
+      }),
+    ]);
+    if (session === undefined) throw new Error("session not built");
+    return viewRun(session);
+  };
+
+  it("is unreadable with the reason when the last call recorded no output", () => {
+    expect(viewWithLlm({}).finalText).toEqual({
+      kind: "unreadable",
+      reason: "output messages are missing",
+    });
+  });
+
+  it("is none when the last call received no messages", () => {
+    expect(
+      viewWithLlm({ [ATTR.llmOutputMessages]: "[]" }).finalText,
+    ).toEqual({ kind: "none" });
+  });
+
+  it("is none when the last received message has empty text", () => {
+    expect(
+      viewWithLlm({
+        [ATTR.llmOutputMessages]: json([
+          { role: "assistant", parts: [] },
+        ]),
+      }).finalText,
+    ).toEqual({ kind: "none" });
   });
 });

@@ -109,70 +109,71 @@ It does not sit under the parent's tree.
 
 The table below lists the attribute names.
 
-| Constant                        | Name                            | Meaning                                                                                                                            |
-| ------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `ATTR.op`                       | `mg.op`                         | Kind of span (harness / llm / tool / run / gate / workspace / subagent / thread / input / trigger / persona / recall / reflection) |
-| `ATTR.harnessName`              | `mg.harness.name`               | Name of the harness                                                                                                                |
-| `ATTR.harnessStopReason`        | `mg.harness.stop_reason`        | Why the harness stopped (stop / max-turns / length / wrapped-up)                                                                   |
-| `ATTR.runName`                  | `mg.run.name`                   | Name of the config                                                                                                                 |
-| `ATTR.runCase`                  | `mg.run.case`                   | ID of the case                                                                                                                     |
-| `ATTR.runSession`               | `mg.run.session`                | ID of the session passed to the started run (written on the input span)                                                            |
-| `ATTR.workspaceName`            | `mg.workspace.name`             | Name of the workspace                                                                                                              |
-| `ATTR.workspaceConnectors`      | `mg.workspace.connectors`       | List of connector kinds (JSON string)                                                                                              |
-| `ATTR.workspaceTools`           | `mg.workspace.tools`            | List of names of the tools it produced (JSON string)                                                                               |
-| `ATTR.llmModel`                 | `mg.llm.model`                  | Name of the model used                                                                                                             |
-| `ATTR.llmProvider`              | `mg.llm.provider`               | Name of the provider (left out when there is no name)                                                                              |
-| `ATTR.llmStream`                | `mg.llm.stream`                 | Whether the response was streamed                                                                                                  |
-| `ATTR.llmFinishReason`          | `mg.llm.finish_reason`          | Why the call finished                                                                                                              |
-| `ATTR.llmInputTokens`           | `mg.llm.usage.input_tokens`     | Number of input tokens                                                                                                             |
-| `ATTR.llmOutputTokens`          | `mg.llm.usage.output_tokens`    | Number of output tokens                                                                                                            |
-| `ATTR.llmInputMessages`         | `mg.llm.messages.input`         | Messages sent, other than system messages for new records (JSON string)                                                            |
-| `ATTR.llmSystemContent`         | `mg.llm.system.content`         | Text of the system message (on an `mg.llm.system` event)                                                                           |
-| `ATTR.llmSystemIndex`           | `mg.llm.system.index`           | Zero-based position of the system message in the sent list (on an `mg.llm.system` event)                                           |
-| `ATTR.llmSystemCount`           | `mg.llm.system.count`           | Number of system messages sent                                                                                                     |
-| `ATTR.llmMessagesUnreadable`    | `mg.llm.messages.unreadable`    | Why the sent messages cannot be rebuilt                                                                                            |
-| `ATTR.llmOutputMessages`        | `mg.llm.messages.output`        | Messages returned (JSON string)                                                                                                    |
-| `ATTR.llmOmitted`               | `mg.llm.omitted`                | What the provider says it could not give back, as it reported it (JSON string; absent when it reported none)                       |
-| `ATTR.toolName`                 | `mg.tool.name`                  | Name of the tool                                                                                                                   |
-| `ATTR.toolCallId`               | `mg.tool.call_id`               | ID of the call                                                                                                                     |
-| `ATTR.toolArguments`            | `mg.tool.arguments`             | Arguments passed (JSON string)                                                                                                     |
-| `ATTR.toolResult`               | `mg.tool.result`                | Result of the run                                                                                                                  |
-| `ATTR.gateKind`                 | `mg.gate.kind`                  | Kind of thing checked                                                                                                              |
-| `ATTR.gateDescription`          | `mg.gate.description`           | Description of the thing checked                                                                                                   |
-| `ATTR.gateAllowed`              | `mg.gate.allowed`               | Whether it was allowed                                                                                                             |
-| `ATTR.gateReason`               | `mg.gate.reason`                | Reason for the decision                                                                                                            |
-| `ATTR.gateModel`                | `mg.gate.model`                 | Name of the model used for the check (LLM implementation only)                                                                     |
-| `ATTR.subagentName`             | `mg.subagent.name`              | Name of the subagent                                                                                                               |
-| `ATTR.subagentCallId`           | `mg.subagent.call_id`           | ID of the call                                                                                                                     |
-| `ATTR.subagentArguments`        | `mg.subagent.arguments`         | Arguments passed (JSON string)                                                                                                     |
-| `ATTR.subagentResult`           | `mg.subagent.result`            | String the child returned                                                                                                          |
-| `ATTR.threadId`                 | `mg.thread.id`                  | ID of the thread                                                                                                                   |
-| `ATTR.inputValue`               | `mg.input.value`                | The input (JSON string)                                                                                                            |
-| `ATTR.triggerFired`             | `mg.trigger.fired`              | Whether it fired                                                                                                                   |
-| `ATTR.triggerReason`            | `mg.trigger.reason`             | Reason for the decision                                                                                                            |
-| `ATTR.triggerModel`             | `mg.trigger.model`              | Name of the model used for the check                                                                                               |
-| `ATTR.triggerProbability`       | `mg.trigger.probability`        | Probability                                                                                                                        |
-| `ATTR.triggerThreshold`         | `mg.trigger.threshold`          | Threshold                                                                                                                          |
-| `ATTR.personaId`                | `mg.persona.id`                 | ID of the persona                                                                                                                  |
-| `ATTR.personaConversation`      | `mg.persona.conversation`       | ID of the conversation                                                                                                             |
-| `ATTR.personaCounterparts`      | `mg.persona.counterparts`       | List of counterpart IDs (JSON string)                                                                                              |
-| `ATTR.personaSaved`             | `mg.persona.saved`              | Whether the conversation was saved                                                                                                 |
-| `ATTR.personaUpdated`           | `mg.persona.updated`            | Whether memory was updated                                                                                                         |
-| `ATTR.personaReferenced`        | `mg.persona.referenced`         | Whether the reference to the run's session was kept                                                                                |
-| `ATTR.recallModel`              | `mg.recall.model`               | Name of the model used for the check                                                                                               |
-| `ATTR.recallCandidates`         | `mg.recall.candidates`          | Number of candidate items                                                                                                          |
-| `ATTR.recallSelected`           | `mg.recall.selected`            | List of IDs of the selected items (JSON string)                                                                                    |
-| `ATTR.recallProbabilities`      | `mg.recall.probabilities`       | Probability per label (JSON string)                                                                                                |
-| `ATTR.reflectionModel`          | `mg.reflection.model`           | Name of the model used for the check                                                                                               |
-| `ATTR.reflectionCandidates`     | `mg.reflection.candidates`      | Number of candidates                                                                                                               |
-| `ATTR.reflectionKept`           | `mg.reflection.kept`            | Number kept                                                                                                                        |
-| `ATTR.reflectionPersonaChanged` | `mg.reflection.persona_changed` | Whether the persona was rewritten                                                                                                  |
-| `ATTR.reflectionForgotten`      | `mg.reflection.forgotten`       | List of IDs of the removed items (JSON string)                                                                                     |
+| Constant                        | Name                                | Meaning                                                                                                                            |
+| ------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `ATTR.op`                       | `mg.op`                             | Kind of span (harness / llm / tool / run / gate / workspace / subagent / thread / input / trigger / persona / recall / reflection) |
+| `ATTR.harnessName`              | `mg.harness.name`                   | Name of the harness                                                                                                                |
+| `ATTR.harnessStopReason`        | `mg.harness.stop_reason`            | Why the harness stopped (stop / max-turns / length / wrapped-up)                                                                   |
+| `ATTR.runName`                  | `mg.run.name`                       | Name of the config                                                                                                                 |
+| `ATTR.runCase`                  | `mg.run.case`                       | ID of the case                                                                                                                     |
+| `ATTR.runSession`               | `mg.run.session`                    | ID of the session passed to the started run (written on the input span)                                                            |
+| `ATTR.workspaceName`            | `mg.workspace.name`                 | Name of the workspace                                                                                                              |
+| `ATTR.workspaceConnectors`      | `mg.workspace.connectors`           | List of connector kinds (JSON string)                                                                                              |
+| `ATTR.workspaceTools`           | `mg.workspace.tools`                | List of names of the tools it produced (JSON string)                                                                               |
+| `ATTR.llmModel`                 | `mg.llm.model`                      | Name of the model used                                                                                                             |
+| `ATTR.llmProvider`              | `mg.llm.provider`                   | Name of the provider (left out when there is no name)                                                                              |
+| `ATTR.llmStream`                | `mg.llm.stream`                     | Whether the response was streamed                                                                                                  |
+| `ATTR.llmFinishReason`          | `mg.llm.finish_reason`              | Why the call finished                                                                                                              |
+| `ATTR.llmInputTokens`           | `mg.llm.usage.input_tokens`         | Number of input tokens                                                                                                             |
+| `ATTR.llmOutputTokens`          | `mg.llm.usage.output_tokens`        | Number of output tokens                                                                                                            |
+| `ATTR.llmInputMessages`         | `mg.llm.messages.input`             | Messages sent, other than system messages for new records (JSON string)                                                            |
+| `ATTR.llmSystemContent`         | `mg.llm.system.content`             | Text of the system message (on an `mg.llm.system` event)                                                                           |
+| `ATTR.llmSystemIndex`           | `mg.llm.system.index`               | Zero-based position of the system message in the sent list (on an `mg.llm.system` event)                                           |
+| `ATTR.llmSystemCount`           | `mg.llm.system.count`               | Number of system messages sent                                                                                                     |
+| `ATTR.llmInputUnreadable`       | `mg.llm.messages.input.unreadable`  | Why the sent messages cannot be rebuilt (on the exported span)                                                                     |
+| `ATTR.llmOutputMessages`        | `mg.llm.messages.output`            | Messages returned (JSON string)                                                                                                    |
+| `ATTR.llmOutputUnreadable`      | `mg.llm.messages.output.unreadable` | Why the received messages cannot be rebuilt (on the exported span)                                                                 |
+| `ATTR.llmOmitted`               | `mg.llm.omitted`                    | What the provider says it could not give back, as it reported it (JSON string; absent when it reported none)                       |
+| `ATTR.toolName`                 | `mg.tool.name`                      | Name of the tool                                                                                                                   |
+| `ATTR.toolCallId`               | `mg.tool.call_id`                   | ID of the call                                                                                                                     |
+| `ATTR.toolArguments`            | `mg.tool.arguments`                 | Arguments passed (JSON string)                                                                                                     |
+| `ATTR.toolResult`               | `mg.tool.result`                    | Result of the run                                                                                                                  |
+| `ATTR.gateKind`                 | `mg.gate.kind`                      | Kind of thing checked                                                                                                              |
+| `ATTR.gateDescription`          | `mg.gate.description`               | Description of the thing checked                                                                                                   |
+| `ATTR.gateAllowed`              | `mg.gate.allowed`                   | Whether it was allowed                                                                                                             |
+| `ATTR.gateReason`               | `mg.gate.reason`                    | Reason for the decision                                                                                                            |
+| `ATTR.gateModel`                | `mg.gate.model`                     | Name of the model used for the check (LLM implementation only)                                                                     |
+| `ATTR.subagentName`             | `mg.subagent.name`                  | Name of the subagent                                                                                                               |
+| `ATTR.subagentCallId`           | `mg.subagent.call_id`               | ID of the call                                                                                                                     |
+| `ATTR.subagentArguments`        | `mg.subagent.arguments`             | Arguments passed (JSON string)                                                                                                     |
+| `ATTR.subagentResult`           | `mg.subagent.result`                | String the child returned                                                                                                          |
+| `ATTR.threadId`                 | `mg.thread.id`                      | ID of the thread                                                                                                                   |
+| `ATTR.inputValue`               | `mg.input.value`                    | The input (JSON string)                                                                                                            |
+| `ATTR.triggerFired`             | `mg.trigger.fired`                  | Whether it fired                                                                                                                   |
+| `ATTR.triggerReason`            | `mg.trigger.reason`                 | Reason for the decision                                                                                                            |
+| `ATTR.triggerModel`             | `mg.trigger.model`                  | Name of the model used for the check                                                                                               |
+| `ATTR.triggerProbability`       | `mg.trigger.probability`            | Probability                                                                                                                        |
+| `ATTR.triggerThreshold`         | `mg.trigger.threshold`              | Threshold                                                                                                                          |
+| `ATTR.personaId`                | `mg.persona.id`                     | ID of the persona                                                                                                                  |
+| `ATTR.personaConversation`      | `mg.persona.conversation`           | ID of the conversation                                                                                                             |
+| `ATTR.personaCounterparts`      | `mg.persona.counterparts`           | List of counterpart IDs (JSON string)                                                                                              |
+| `ATTR.personaSaved`             | `mg.persona.saved`                  | Whether the conversation was saved                                                                                                 |
+| `ATTR.personaUpdated`           | `mg.persona.updated`                | Whether memory was updated                                                                                                         |
+| `ATTR.personaReferenced`        | `mg.persona.referenced`             | Whether the reference to the run's session was kept                                                                                |
+| `ATTR.recallModel`              | `mg.recall.model`                   | Name of the model used for the check                                                                                               |
+| `ATTR.recallCandidates`         | `mg.recall.candidates`              | Number of candidate items                                                                                                          |
+| `ATTR.recallSelected`           | `mg.recall.selected`                | List of IDs of the selected items (JSON string)                                                                                    |
+| `ATTR.recallProbabilities`      | `mg.recall.probabilities`           | Probability per label (JSON string)                                                                                                |
+| `ATTR.reflectionModel`          | `mg.reflection.model`               | Name of the model used for the check                                                                                               |
+| `ATTR.reflectionCandidates`     | `mg.reflection.candidates`          | Number of candidates                                                                                                               |
+| `ATTR.reflectionKept`           | `mg.reflection.kept`                | Number kept                                                                                                                        |
+| `ATTR.reflectionPersonaChanged` | `mg.reflection.persona_changed`     | Whether the persona was rewritten                                                                                                  |
+| `ATTR.reflectionForgotten`      | `mg.reflection.forgotten`           | List of IDs of the removed items (JSON string)                                                                                     |
 
 Attribute values are strings, numbers and booleans only.
 A value with structure is stored as a JSON string.
 
-### Rebuilding the sent messages
+### Rebuilding the sent and received messages
 
 `sentMessagesOf` rebuilds the list of messages an LLM call sent.
 It takes a span's attributes and events.
@@ -185,6 +186,14 @@ It returns `{ kind: "messages", messages }` or `{ kind: "unreadable", reason }`.
 It never guesses.
 A record that contradicts itself, or holds something that is not a message, is unreadable.
 The reason says where.
+
+`receivedMessagesOf` rebuilds the list of messages an LLM call received.
+It reads `mg.llm.messages.output`, and accepts assistant messages in the current form or the older form.
+It returns `{ kind: "messages", messages }` or `{ kind: "unreadable", reason }`.
+A readable list may be empty.
+A call that failed records no output, so its reason is `output messages are missing`.
+
+Both readers share one rule for what counts as a recorded message.
 
 ## How it works
 
@@ -249,7 +258,13 @@ It writes a check as `mg.gate` only when it receives a parent span.
 - For an `mg.llm` span, `gen_ai.input.messages` is the rebuilt list of sent messages.
 - System messages stay in it at their positions. `gen_ai.system_instructions` is not written.
 - When the record cannot be read, `gen_ai.input.messages` is left out.
-- Then `mg.llm.messages.unreadable` on the exported span carries the reason.
+- Then `mg.llm.messages.input.unreadable` on the exported span carries the reason.
+
+### gen_ai output messages
+
+- For an `mg.llm` span, `gen_ai.output.messages` is the rebuilt list of received messages.
+- When the record cannot be read, `gen_ai.output.messages` is left out.
+- Then `mg.llm.messages.output.unreadable` on the exported span carries the reason.
 
 ### Export
 

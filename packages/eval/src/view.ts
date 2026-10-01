@@ -1,7 +1,12 @@
-import type { AssistantMessage, Usage } from "@mg/core";
+import type { Usage } from "@mg/core";
 import { textOf } from "@mg/core";
-import { ATTR, SPAN, sentMessagesOf } from "@mg/trace";
-import type { SentMessages } from "@mg/trace";
+import {
+  ATTR,
+  SPAN,
+  receivedMessagesOf,
+  sentMessagesOf,
+} from "@mg/trace";
+import type { ReceivedMessages, SentMessages } from "@mg/trace";
 import type { SessionTree, SpanNode, TraceTree } from "@mg/trace/store";
 import { NoRunInSessionError } from "./errors.js";
 
@@ -14,7 +19,7 @@ export type LlmStep = {
   provider?: string;
   finishReason?: string;
   input: SentMessages;
-  output: AssistantMessage[];
+  output: ReceivedMessages;
   usage?: Usage;
 };
 
@@ -57,6 +62,11 @@ export type SubagentStep = {
   threadId?: string;
 };
 
+export type FinalText =
+  | { kind: "text"; text: string }
+  | { kind: "none" }
+  | { kind: "unreadable"; reason: string };
+
 export type RunStep = LlmStep | ToolStep | GateStep | SubagentStep;
 
 export type RunView = {
@@ -70,7 +80,7 @@ export type RunView = {
   gateSteps: GateStep[];
   subagentSteps: SubagentStep[];
   turnCount: number;
-  finalText: string | undefined;
+  finalText: FinalText;
   usage: Usage;
   error?: string;
   startTime: string;
@@ -143,18 +153,6 @@ const getBoolean = (
   return typeof value === "boolean" ? value : undefined;
 };
 
-const parseMessageArray = <T>(value: string | undefined): T[] => {
-  if (value === undefined) {
-    return [];
-  }
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
-};
-
 const parseToolArguments = (value: string | undefined): unknown => {
   if (value === undefined) {
     return undefined;
@@ -180,9 +178,7 @@ const toLlmStep = (node: SpanNode): LlmStep => {
     provider: getString(attributes, ATTR.llmProvider),
     finishReason: getString(attributes, ATTR.llmFinishReason),
     input: sentMessagesOf(node),
-    output: parseMessageArray<AssistantMessage>(
-      getString(attributes, ATTR.llmOutputMessages),
-    ),
+    output: receivedMessagesOf(node),
     usage:
       inputTokens !== undefined && outputTokens !== undefined
         ? { inputTokens, outputTokens }
@@ -292,6 +288,17 @@ const isGateStep = (step: RunStep): step is GateStep =>
 const isSubagentStep = (step: RunStep): step is SubagentStep =>
   step.type === "subagent";
 
+const finalTextOf = (step: LlmStep | undefined): FinalText => {
+  if (step === undefined) return { kind: "none" };
+  if (step.output.kind === "unreadable") {
+    return { kind: "unreadable", reason: step.output.reason };
+  }
+  const last = step.output.messages[step.output.messages.length - 1];
+  if (last === undefined) return { kind: "none" };
+  const text = textOf(last);
+  return text === "" ? { kind: "none" } : { kind: "text", text };
+};
+
 export const viewRun = (session: SessionTree): RunView => {
   const [firstTrace] = session.traces;
   if (firstTrace === undefined) {
@@ -309,16 +316,7 @@ export const viewRun = (session: SessionTree): RunView => {
   const subagentSteps = state.steps.filter(isSubagentStep);
 
   const lastLlmStep = llmSteps[llmSteps.length - 1];
-  const lastOutputMessage =
-    lastLlmStep?.output[lastLlmStep.output.length - 1];
-  const finalTextCandidate =
-    lastOutputMessage === undefined
-      ? undefined
-      : textOf(lastOutputMessage);
-  const finalText =
-    finalTextCandidate === undefined || finalTextCandidate === ""
-      ? undefined
-      : finalTextCandidate;
+  const finalText = finalTextOf(lastLlmStep);
 
   const usage = llmSteps.reduce<Usage>(
     (total, step) =>

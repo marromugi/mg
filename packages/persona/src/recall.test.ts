@@ -323,6 +323,24 @@ describe("recall", () => {
     ).rejects.toBe(abortError);
   });
 
+  test("passes the estimator's failure through unchanged when the signal has fired with a plain object reason", async () => {
+    const reason = { why: "stop" };
+    const controller = new AbortController();
+    const store = createFakeStore(() => Promise.resolve(fullView()));
+    const estimator = createFakeEstimator(() => {
+      controller.abort(reason);
+      return Promise.reject(reason);
+    });
+    const recall = createRecall({ ...baseOptions, store, estimator });
+
+    await expect(
+      recall(
+        { counterparts, conversation, input },
+        { signal: controller.signal },
+      ),
+    ).rejects.toBe(reason);
+  });
+
   test("passes a store failure through unchanged", async () => {
     const storeError = new PersonaNotFoundError("jev");
     const store = createFakeStore(() => Promise.reject(storeError));

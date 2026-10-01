@@ -482,6 +482,31 @@ describe("createLlmExtractor", () => {
     await expect(extractor.extract(input)).rejects.toBe(abortError);
   });
 
+  test("lets the provider's failure through unchanged when the signal has fired with a plain object reason", async () => {
+    const reason = { why: "stop" };
+    const controller = new AbortController();
+    const generate = vi.fn(async () => {
+      controller.abort(reason);
+      throw reason;
+    });
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate,
+      stream: vi.fn((): AsyncIterable<StreamEvent> => {
+        throw new Error("stubProvider: stream is not scripted");
+      }),
+    };
+    const extractor = createLlmExtractor({
+      provider,
+      model: "m",
+      instruction: "Remember facts about counterparts.",
+    });
+
+    await expect(
+      extractor.extract(input, { signal: controller.signal }),
+    ).rejects.toBe(reason);
+  });
+
   test("records mg.llm under the given span, with the model attribute set", async () => {
     const provider = stubProvider(() => correctResponse);
     const extractor = createLlmExtractor({

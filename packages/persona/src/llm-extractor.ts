@@ -131,7 +131,9 @@ export const createLlmExtractor = (
       try {
         response = await tracedProvider.generate(generateRequest);
       } catch (error) {
-        if (isAbortError(error)) throw error;
+        if (context?.signal?.aborted === true || isAbortError(error)) {
+          throw error;
+        }
         throw new ExtractorError("Extraction failed", { cause: error });
       }
 

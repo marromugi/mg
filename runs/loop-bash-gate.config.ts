@@ -3,6 +3,7 @@ import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createLlmGate } from "@mg/gate";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -23,9 +24,10 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Read-only commands are allowed. Deleting files or " +
-      "sending data outside the machine is not.",
+        "sending data outside the machine is not.",
+    ),
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

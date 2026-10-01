@@ -7,6 +7,7 @@ import {
   createWebSearchTool,
   createOllamaWebSearchBackend,
 } from "@mg/tools";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -36,9 +37,10 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Read-only commands and web searches are allowed. Deleting " +
-      "files or sending data outside the machine is not.",
+        "files or sending data outside the machine is not.",
+    ),
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

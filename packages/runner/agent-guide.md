@@ -13,6 +13,7 @@ import { defineRun } from "@mg/runner";
 import { createOpenRouterProvider } from "@mg/core";
 import { createBashTool } from "@mg/tools";
 import { createLlmGate } from "@mg/gate";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -33,9 +34,10 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Read-only commands are allowed. Deleting files or " +
-      "sending data outside the machine is not.",
+        "sending data outside the machine is not.",
+    ),
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });
@@ -103,6 +105,7 @@ import {
   createEditFileTool,
 } from "@mg/tools";
 import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -165,10 +168,11 @@ export const buildLoopFilesRun = ({
       createLlmGate({
         provider: gateProvider,
         model: "deepseek/deepseek-v4-flash",
-        policy:
+        instruction: llmGateInstruction(
           "Reading and editing project files is allowed. Reading or " +
-          "changing secrets (.env files), lockfiles or anything under " +
-          ".git is not. Running shell commands is not.",
+            "changing secrets (.env files), lockfiles or anything under " +
+            ".git is not. Running shell commands is not.",
+        ),
       }),
     ]),
     trace,
@@ -201,6 +205,7 @@ import {
   createSshEndpoint,
   defineWorkspace,
 } from "@mg/workspace";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -261,9 +266,10 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Reading files and browsing pages are allowed. Changing " +
-      "files, installing software, or typing into forms is not.",
+        "files, installing software, or typing into forms is not.",
+    ),
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });
@@ -281,6 +287,7 @@ import {
   createWebSearchTool,
   createOllamaWebSearchBackend,
 } from "@mg/tools";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -310,9 +317,10 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Read-only commands and web searches are allowed. Deleting " +
-      "files or sending data outside the machine is not.",
+        "files or sending data outside the machine is not.",
+    ),
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });
@@ -335,6 +343,7 @@ import {
   createSshEndpoint,
   defineWorkspace,
 } from "@mg/workspace";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -411,10 +420,11 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Calling the researcher subagent is allowed. Reading files " +
-      "and browsing pages are allowed. Changing files, installing " +
-      "software, or typing into forms is not.",
+        "and browsing pages are allowed. Changing files, installing " +
+        "software, or typing into forms is not.",
+    ),
   }),
   subagents: [
     {

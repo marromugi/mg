@@ -9,6 +9,7 @@ import {
   createSshEndpoint,
   defineWorkspace,
 } from "@mg/workspace";
+import { llmGateInstruction } from "./llm-gate-instruction.ts";
 import { outputPath } from "./outputs.ts";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -69,9 +70,10 @@ export default defineRun({
   gate: createLlmGate({
     provider,
     model: "deepseek/deepseek-v4-flash",
-    policy:
+    instruction: llmGateInstruction(
       "Reading files and browsing pages are allowed. Changing " +
-      "files, installing software, or typing into forms is not.",
+        "files, installing software, or typing into forms is not.",
+    ),
   }),
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });

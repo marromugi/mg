@@ -70,7 +70,7 @@ This table lists the exceptions it throws.
 | `DuplicateToolNameError` | Tool names overlapped                      |
 | `WorkspaceCloseError`    | A connection failed while closing          |
 | `ConnectorCloseError`    | Both of a connector's 2 close steps failed |
-| `SshConnectionLostError` | An SSH endpoint's SSH connection was lost  |
+| `SshConnectionLostError` | An SSH connection was lost                 |
 | `EndpointCloseError`     | Both of an endpoint's 2 close steps failed |
 
 `ConnectorOpenError` has `kind` and `index`.
@@ -120,7 +120,15 @@ Standard output comes first, followed only by the markers needed.
 Timeouts and output over the limit are not exceptions.
 Both are written as markers in the result string.
 
-When the command itself cannot run, such as when the connection is lost, it throws.
+The connection sends a keepalive every 15 seconds.
+It counts as lost after 3 unanswered, so a silent peer is noticed within about 60 seconds.
+
+When the connection is lost, every command that was running or is started afterwards throws `SshConnectionLostError`.
+The message names the SSH host and port and the reason, such as `SSH connection to <SSH host>:<SSH port> was lost: Keepalive timeout`.
+Output received before the loss is not shown, because whether the command finished is unknown.
+Closing the connector after a loss does nothing more and succeeds.
+
+When the command cannot run for another reason, it also throws.
 The harness side returns that to the LLM as a result.
 
 #### Prerequisites on the machine side

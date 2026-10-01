@@ -59,6 +59,10 @@ Options:
 
 The function returned by `createLoopHarness` repeats these steps.
 
+- Checks that the messages pair up, right before every request.
+  Each tool call needs one tool result after it, and each call id may
+  appear once. If not, it throws `MessageListError` with the `kind`,
+  the `toolCallId` and the `turn`, and the provider is not called.
 - Calls the provider and emits the returned text and tool calls as events.
 - If there are no tool calls, emits the finish event and ends.
 - If there are tool calls, runs each one and adds the results to the

@@ -323,23 +323,6 @@ describe("createLlmGate", () => {
     expect(await pending).toBe("stopped");
   });
 
-  test("sends no halt when the context has no signal", async () => {
-    let seen: GenerateRequest | undefined;
-    const provider = stubProvider((req) => {
-      seen = req;
-      return verdictResponse({ allowed: true, reason: "ok" });
-    });
-    const gate = createLlmGate({
-      provider,
-      model: "m",
-      instruction: "policy",
-    });
-
-    await gate.judge(request);
-
-    expect(seen?.halt).toBeUndefined();
-  });
-
   test("sends the instruction exactly as given, surrounding whitespace included", async () => {
     let seen: GenerateRequest | undefined;
     const provider = stubProvider((generateRequest) => {

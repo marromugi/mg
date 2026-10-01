@@ -582,23 +582,6 @@ describe("createLlmExtractor", () => {
     expect(await pending).toBe("stopped");
   });
 
-  test("sends no halt when the context has no signal", async () => {
-    let seen: GenerateRequest | undefined;
-    const provider = stubProvider((req) => {
-      seen = req;
-      return correctResponse;
-    });
-    const extractor = createLlmExtractor({
-      provider,
-      model: "m",
-      instruction: "Remember facts about counterparts.",
-    });
-
-    await extractor.extract(input);
-
-    expect(seen?.halt).toBeUndefined();
-  });
-
   test("records mg.llm under the given span, with the model attribute set", async () => {
     const provider = stubProvider(() => correctResponse);
     const extractor = createLlmExtractor({

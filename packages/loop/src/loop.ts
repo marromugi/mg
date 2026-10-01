@@ -13,6 +13,7 @@ import type {
 import {
   assistantMessage,
   createPartsAccumulator,
+  findToolPairingProblem,
   partsOf,
   prepareToolCall,
   runToolCall,
@@ -47,6 +48,7 @@ import {
 import {
   DuplicateCallableNameError,
   GateRequiredError,
+  MessageListError,
   StreamIncompleteError,
 } from "./errors.js";
 import { toolErrorToMessage } from "./tool-error.js";
@@ -410,6 +412,11 @@ export const createLoopHarness = (
         if (wrapUp?.aborted) {
           yield* wrappedUpDone();
           return;
+        }
+
+        const problem = findToolPairingProblem(messages);
+        if (problem !== undefined) {
+          throw new MessageListError(problem, turn);
         }
 
         const request: GenerateRequest = {

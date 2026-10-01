@@ -292,6 +292,14 @@ schedule is refused at creation with `RangeError`.
   finish event with `halted`. It does not throw.
 - A wait that fails for another reason is thrown as it is.
 
+`findToolPairingProblem(messages)` finds the first place where tool calls
+and results do not pair up, in message order. It returns
+`{ kind, toolCallId }`, or nothing when the list is fine.
+
+- `duplicate-call`: a tool call id appears more than once.
+- `orphan-result`: a tool result has no call before it.
+- `unanswered-call`: a tool call has no result after it.
+
 A user message can carry an author.
 The author is a non-empty string that points at a participant.
 When it is left out, it means the author is unknown.

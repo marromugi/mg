@@ -1,3 +1,4 @@
+import { findToolPairingProblem } from "@mg/core";
 import {
   ConversationToolCallIdError,
   EntryNotJsonError,
@@ -98,34 +99,9 @@ export const assertJsonEntry = (entry: ConversationEntry): void => {
 };
 
 export const assertToolPairing = (entry: ConversationEntry): void => {
-  const seen = new Set<string>();
-  const pending = new Set<string>();
-
-  for (const message of entry.messages) {
-    if (message.role === "assistant") {
-      for (const part of message.parts) {
-        if (part.type === "tool-call") {
-          if (seen.has(part.id)) {
-            throw new EntryToolPairingError("duplicate-call", part.id);
-          }
-          seen.add(part.id);
-          pending.add(part.id);
-        }
-      }
-    } else if (message.role === "tool") {
-      if (!pending.has(message.toolCallId)) {
-        throw new EntryToolPairingError(
-          "orphan-result",
-          message.toolCallId,
-        );
-      }
-      pending.delete(message.toolCallId);
-    }
-  }
-
-  const [firstUnanswered] = pending;
-  if (firstUnanswered !== undefined) {
-    throw new EntryToolPairingError("unanswered-call", firstUnanswered);
+  const problem = findToolPairingProblem(entry.messages);
+  if (problem !== undefined) {
+    throw new EntryToolPairingError(problem.kind, problem.toolCallId);
   }
 };
 

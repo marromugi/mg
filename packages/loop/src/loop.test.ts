@@ -20,7 +20,11 @@ import type {
 } from "@mg/harness";
 import { traceProvider, traceRunToolCall } from "@mg/trace";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { GateRequiredError, StreamIncompleteError } from "./errors.js";
+import {
+  GateRequiredError,
+  MessageListError,
+  StreamIncompleteError,
+} from "./errors.js";
 import type { LoopHarnessOptions } from "./loop.js";
 import { createLoopHarness } from "./loop.js";
 
@@ -1251,6 +1255,102 @@ describe("createLoopHarness", () => {
     expect(error).toBe(boom);
     const harnessSpan = root.children[0];
     expect(harnessSpan.endCalls).toEqual([boom]);
+  });
+
+  test("a tool result with no call in the input fails the run before the provider is called", async () => {
+    const provider = stubProvider([]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+    const root = new RecordingSpan("root");
+
+    const error = await collect(
+      harness({
+        messages: [{ role: "tool", toolCallId: "t1", content: "ok" }],
+        trace: root,
+      }),
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(MessageListError);
+    expect((error as MessageListError).message).toBe(
+      'Tool result "t1" has no tool call before it in the messages for turn 1.',
+    );
+    expect((error as MessageListError).kind).toBe("orphan-result");
+    expect((error as MessageListError).toolCallId).toBe("t1");
+    expect((error as MessageListError).turn).toBe(1);
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(root.children[0].endCalls).toEqual([error]);
+  });
+
+  test("a call with no result in the input fails the run with unanswered-call", async () => {
+    const provider = stubProvider([]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      maxTurns: 1,
+      stream: false,
+    });
+
+    const error = await collect(
+      harness({
+        messages: [
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-call",
+                id: "t1",
+                name: "echo",
+                arguments: {},
+              },
+            ],
+          },
+        ],
+      }),
+    ).catch((thrown: unknown) => thrown);
+
+    expect((error as MessageListError).message).toBe(
+      'Tool call "t1" has no tool result after it in the messages for turn 1.',
+    );
+    expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  test("an id the provider repeats fails the run before the third request", async () => {
+    const tool: Tool = defineTool({
+      name: "echo",
+      input: stubSchema(),
+      async prepare() {
+        return { reach: { kind: "any-local" }, run: async () => "x" };
+      },
+    });
+    const repeated: GenerateResponse = {
+      parts: [
+        { type: "tool-call", id: "t1", name: "echo", arguments: {} },
+      ],
+      finishReason: "tool_calls",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    };
+    const provider = stubProvider([repeated, repeated]);
+    const harness = createLoopHarness({
+      provider,
+      model: "m",
+      tools: [tool],
+      gate: allowAll,
+      maxTurns: 3,
+      stream: false,
+    });
+
+    const error = await collect(harness({ messages: [] })).catch(
+      (thrown: unknown) => thrown,
+    );
+
+    expect((error as MessageListError).message).toBe(
+      'Tool call "t1" appears more than once in the messages for turn 3.',
+    );
+    expect(provider.generate).toHaveBeenCalledTimes(2);
   });
 
   test("input.trace omitted leaves the loop's result unchanged from the traced case", async () => {

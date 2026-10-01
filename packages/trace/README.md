@@ -138,6 +138,7 @@ The table below lists the attribute names.
 | `ATTR.llmOutputMessages`        | `mg.llm.messages.output`            | Messages returned (JSON string)                                                                                                    |
 | `ATTR.llmOutputUnreadable`      | `mg.llm.messages.output.unreadable` | Why the received messages cannot be rebuilt (on the exported span)                                                                 |
 | `ATTR.llmOmitted`               | `mg.llm.omitted`                    | What the provider says it could not give back, as it reported it (JSON string; absent when it reported none)                       |
+| `ATTR.llmStoppedByCaller`       | `mg.llm.stopped_by_caller`          | `true` when the caller stopped reading a stream before its finish event (absent otherwise)                                         |
 | `ATTR.toolName`                 | `mg.tool.name`                      | Name of the tool                                                                                                                   |
 | `ATTR.toolCallId`               | `mg.tool.call_id`                   | ID of the call                                                                                                                     |
 | `ATTR.toolArguments`            | `mg.tool.arguments`                 | Arguments passed (JSON string)                                                                                                     |

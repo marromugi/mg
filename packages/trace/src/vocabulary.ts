@@ -48,6 +48,7 @@ export const ATTR = {
   llmRetryAttempt: "mg.llm.retry.attempt", // number, from 1, on an EVENT.llmRetry event
   llmRetryReason: "mg.llm.retry.reason", // the failed attempt's error message, on an EVENT.llmRetry event
   llmRetryWaitMs: "mg.llm.retry.wait_ms", // number, the wait before the next attempt, on an EVENT.llmRetry event
+  llmStoppedByCaller: "mg.llm.stopped_by_caller", // true, only on a stream the caller stopped reading before its finish event
   llmOmitted: "mg.llm.omitted", // jsonAttribute(Omission[]), what the provider reports it could not give back
   toolName: "mg.tool.name",
   toolCallId: "mg.tool.call_id",

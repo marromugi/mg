@@ -9,6 +9,16 @@ export const setSpanAttributes = (
   } catch {}
 };
 
+export const addSpanEvent = (
+  span: TraceSpan,
+  name: string,
+  attributes?: TraceAttributes,
+): void => {
+  try {
+    span.addEvent(name, attributes);
+  } catch {}
+};
+
 export const endSpan = (span: TraceSpan, error?: unknown): void => {
   try {
     span.end(error);

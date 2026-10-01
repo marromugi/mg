@@ -497,3 +497,54 @@ describe("createRetryingProvider", () => {
     expect(notForcing.toolForcing).toBe(false);
   });
 });
+
+describe("createRetryingProvider / onRetry", () => {
+  test("reports each attempt that will be tried again and not the one that exhausts", async () => {
+    const { sleep } = recordingSleep();
+    const first = retryable();
+    const second = retryable();
+    const inner = fakeProvider([
+      { error: first },
+      { error: second },
+      { error: retryable() },
+    ]);
+    const heard: unknown[] = [];
+
+    await caught(() =>
+      createRetryingProvider({
+        provider: inner,
+        ...schedule,
+        sleep,
+      }).generate({
+        ...request,
+        onRetry: (retry) => heard.push(retry),
+      }),
+    );
+
+    expect(heard).toEqual([
+      { attempt: 1, error: first, waitMs: 1000 },
+      { attempt: 2, error: second, waitMs: 2000 },
+    ]);
+  });
+
+  test("fails the call with the error a listener throws", async () => {
+    const { sleep } = recordingSleep();
+    const inner = fakeProvider([{ error: retryable() }, { reply: ok }]);
+    const boom = new Error("listener failed");
+
+    const error = await caught(() =>
+      createRetryingProvider({
+        provider: inner,
+        ...schedule,
+        sleep,
+      }).generate({
+        ...request,
+        onRetry: () => {
+          throw boom;
+        },
+      }),
+    );
+
+    expect(error).toBe(boom);
+  });
+});

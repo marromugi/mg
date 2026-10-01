@@ -9,6 +9,7 @@ import {
   type Message,
   type Omission,
   type Provider,
+  type ProviderRetry,
   type StreamEvent,
   type Usage,
 } from "@mg/core";
@@ -18,7 +19,11 @@ import {
   type TraceSpan,
 } from "@mg/harness";
 import { jsonAttribute } from "./json.js";
-import { endSpan, setSpanAttributes } from "./span-guard.js";
+import {
+  addSpanEvent,
+  endSpan,
+  setSpanAttributes,
+} from "./span-guard.js";
 import { ATTR, EVENT, SPAN } from "./vocabulary.js";
 
 export const STREAM_INCOMPLETE_MESSAGE = "stream ended without finish";
@@ -79,6 +84,23 @@ const startLlmSpan = (
   }
 };
 
+// Records each retried attempt on the call's span, then reports it to
+// the listener the caller set.
+const withRetryEvents = (
+  span: TraceSpan,
+  request: GenerateRequest,
+): GenerateRequest => ({
+  ...request,
+  onRetry: (retry: ProviderRetry): void => {
+    addSpanEvent(span, EVENT.llmRetry, {
+      [ATTR.llmRetryAttempt]: retry.attempt,
+      [ATTR.llmRetryReason]: retry.error.message,
+      [ATTR.llmRetryWaitMs]: retry.waitMs,
+    });
+    request.onRetry?.(retry);
+  },
+});
+
 const setOutputAttributes = (
   span: TraceSpan,
   outcome: {
@@ -117,7 +139,9 @@ const traceGenerate = async (
   const span = startLlmSpan(parent, provider, request, false);
 
   try {
-    const response = await provider.generate(request);
+    const response = await provider.generate(
+      withRetryEvents(span, request),
+    );
     setOutputAttributes(span, {
       parts: partsOf(response),
       finishReason: response.finishReason,
@@ -147,7 +171,9 @@ async function* traceStream(
   let ended = false;
 
   try {
-    for await (const event of provider.stream(request)) {
+    for await (const event of provider.stream(
+      withRetryEvents(span, request),
+    )) {
       accumulator.push(event);
       if (event.type === "finish") {
         finished = true;

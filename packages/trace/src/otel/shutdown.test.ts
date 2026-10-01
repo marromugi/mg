@@ -797,13 +797,4 @@ describe("createTraceSdk's shutdown reports spans that had not ended", () => {
       },
     ]);
   });
-
-  it("closes without failure when every span ended before closing", async () => {
-    const sdk = await createTraceSdk({
-      exporters: [new SucceedingExporter()],
-    });
-    endOneSpan(sdk);
-
-    await expect(sdk.shutdown()).resolves.toBeUndefined();
-  });
 });

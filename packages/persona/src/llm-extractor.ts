@@ -4,7 +4,7 @@ import type {
   ToolDefinition,
   ToolForcingProvider,
 } from "@mg/core";
-import { toolCallsOf } from "@mg/core";
+import { isProviderError, toolCallsOf } from "@mg/core";
 import { traceProvider } from "@mg/trace";
 import { z } from "zod";
 import { isAbortError } from "./abort.js";
@@ -134,23 +134,29 @@ export const createLlmExtractor = (
         if (context?.signal?.aborted === true || isAbortError(error)) {
           throw error;
         }
-        throw new ExtractorError("Extraction failed", { cause: error });
+        throw new ExtractorError(
+          isProviderError(error)
+            ? `Extraction failed: ${error.message}`
+            : "Extraction failed",
+          { cause: error },
+        );
       }
 
       const calls = toolCallsOf(response).filter(
         (toolCall) => toolCall.name === "remember",
       );
       if (calls.length !== 1) {
-        throw new ExtractorError("Extraction failed", {
-          cause: undefined,
-        });
+        throw new ExtractorError(
+          `Extraction failed: expected one remember call, got ${calls.length}`,
+        );
       }
 
       const parsed = rememberInput.safeParse(calls[0].arguments);
       if (!parsed.success) {
-        throw new ExtractorError("Extraction failed", {
-          cause: parsed,
-        });
+        throw new ExtractorError(
+          "Extraction failed: remember arguments failed validation",
+          { cause: parsed.error },
+        );
       }
 
       const extraction: Extraction =
@@ -167,9 +173,10 @@ export const createLlmExtractor = (
         input.counterparts,
       );
       if (contractError !== undefined) {
-        throw new ExtractorError("Extraction failed", {
-          cause: contractError,
-        });
+        throw new ExtractorError(
+          `Extraction failed: ${contractError.message}`,
+          { cause: contractError },
+        );
       }
 
       return extraction;

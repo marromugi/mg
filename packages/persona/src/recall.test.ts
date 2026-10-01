@@ -14,6 +14,7 @@ import type {
   MemoryView,
   PersonaDocument,
 } from "@mg/memory";
+import { EstimatorRequestError } from "@mg/core";
 import { PersonaNotFoundError } from "@mg/memory";
 import { ATTR, SPAN } from "@mg/trace";
 import { describe, expect, test, vi } from "vitest";
@@ -305,6 +306,27 @@ describe("recall", () => {
     }).catch((error: unknown) => error);
 
     expect(rejection).toBeInstanceOf(RecallError);
+    expect((rejection as RecallError).message).toBe(
+      "Estimator.classify failed during recall.",
+    );
+    expect((rejection as RecallError).cause).toBe(cause);
+  });
+
+  test("states the estimator's reason in RecallError when the failure is an estimator error", async () => {
+    const store = createFakeStore(() => Promise.resolve(fullView()));
+    const cause = new EstimatorRequestError("Jev request failed: 401");
+    const estimator = createFakeEstimator(() => Promise.reject(cause));
+    const recall = createRecall({ ...baseOptions, store, estimator });
+
+    const rejection: unknown = await recall({
+      counterparts,
+      conversation,
+      input,
+    }).catch((error: unknown) => error);
+
+    expect((rejection as RecallError).message).toBe(
+      "Estimator.classify failed during recall: Jev request failed: 401",
+    );
     expect((rejection as RecallError).cause).toBe(cause);
   });
 

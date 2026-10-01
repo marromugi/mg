@@ -58,9 +58,10 @@ export const createEstimatorTrigger = (
             ));
           } catch (error) {
             if (isEstimatorError(error)) {
-              throw new TriggerError("Trigger judgement failed", {
-                cause: error,
-              });
+              throw new TriggerError(
+                `Trigger judgement failed: ${error.message}`,
+                { cause: error },
+              );
             }
             throw error;
           }

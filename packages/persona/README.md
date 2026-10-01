@@ -289,12 +289,13 @@ It throws `ExtractorError` in these cases.
 An answer that names a counterpart not in the enum is included in failing
 argument validation.
 
-| When                                      | `cause`                  |
-| ----------------------------------------- | ------------------------ |
-| The provider fails                        | The thrown value         |
-| `remember` is called 0 times or 2 or more | None (`undefined`)       |
-| The arguments fail validation             | The validation result    |
-| The answer breaks the promise             | `ExtractorContractError` |
+| When                                     | `message`                                                 | `cause`                  |
+| ---------------------------------------- | --------------------------------------------------------- | ------------------------ |
+| The provider fails with a provider error | `Extraction failed: ` and the provider error's `message`  | The provider error       |
+| The provider fails otherwise             | `Extraction failed`                                       | The thrown value         |
+| `remember` is not called exactly once    | `Extraction failed: expected one remember call, got <n>`  | None (`undefined`)       |
+| The arguments fail validation            | `Extraction failed: remember arguments failed validation` | The validation error     |
+| The answer breaks the promise            | `Extraction failed: ` and the contract error's text       | `ExtractorContractError` |
 
 An error is rethrown as is when the context's signal has fired or its
 `name` is `AbortError`.
@@ -310,6 +311,9 @@ The table lists the exceptions thrown.
 | `RangeError`     | `transcribe` receives an author that is empty or only whitespace  |
 
 `RecallError` and `ExtractorError` hold the thrown value in `cause`.
+When the Estimator fails with an Estimator error, the `RecallError` message
+is `Estimator.classify failed during recall: ` and the Estimator error's
+`message`. Any other error gives `Estimator.classify failed during recall.`
 Errors thrown by the store, and errors thrown after the context's signal
 has fired or named `AbortError`, are
 also thrown as is by the function `createRecall` creates.

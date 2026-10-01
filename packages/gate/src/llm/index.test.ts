@@ -1,6 +1,7 @@
 import {
   createOllamaProvider,
   createOpenRouterProvider,
+  ProviderResponseError,
 } from "@mg/core";
 import type {
   GenerateRequest,
@@ -204,6 +205,43 @@ describe("createLlmGate", () => {
     expect((error as GateError).message).toBe("Gate judgement failed");
     expect((error as GateError).callerMessage).toBe(
       "Gate judgement failed",
+    );
+    expect((error as GateError).cause).toBe(original);
+  });
+
+  test("states the provider's reason in message and leaves the service text out of callerMessage", async () => {
+    const original = new ProviderResponseError(
+      "Provider response is not JSON",
+      {
+        cause: new SyntaxError("Unexpected token '<'"),
+        causeQuotesService: true,
+      },
+    );
+    const provider: ToolForcingProvider = {
+      toolForcing: true,
+      generate: vi.fn(async () => {
+        throw original;
+      }),
+      stream: vi.fn((): AsyncIterable<StreamEvent> => {
+        throw new Error("stubProvider: stream is not scripted");
+      }),
+    };
+    const gate = createLlmGate({
+      provider,
+      model: "m",
+      policy: "policy",
+    });
+
+    const error = await gate
+      .judge(request)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(GateError);
+    expect((error as GateError).message).toBe(
+      "Gate judgement failed: Provider response is not JSON: Unexpected token '<'",
+    );
+    expect((error as GateError).callerMessage).toBe(
+      "Gate judgement failed: Provider response is not JSON: (text from the service left out)",
     );
     expect((error as GateError).cause).toBe(original);
   });

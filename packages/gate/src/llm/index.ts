@@ -4,7 +4,7 @@ import type {
   ToolDefinition,
   ToolForcingProvider,
 } from "@mg/core";
-import { toolCallsOf } from "@mg/core";
+import { isProviderError, toolCallsOf } from "@mg/core";
 import { noopSpan } from "@mg/harness";
 import { ATTR, traceProvider } from "@mg/trace";
 import { z } from "zod";
@@ -80,6 +80,15 @@ export const createLlmGate = (options: LlmGateOptions): Gate => {
             response = await tracedProvider.generate(generateRequest);
           } catch (error) {
             if (isAbortError(error)) throw error;
+            if (isProviderError(error)) {
+              throw new GateError(
+                `Gate judgement failed: ${error.message}`,
+                {
+                  cause: error,
+                  callerMessage: `Gate judgement failed: ${error.messageWithoutServiceText}`,
+                },
+              );
+            }
             throw new GateError("Gate judgement failed", {
               cause: error,
             });

@@ -166,7 +166,7 @@ describe("createEstimatorStopJudge", () => {
     expect(error).toBeInstanceOf(JudgeError);
     expect((error as JudgeError).judge).toBe("stop");
     expect((error as JudgeError).message).toBe(
-      'Judgment "stop" failed',
+      'Judgment "stop" failed: request failed: network down',
     );
     expect((error as JudgeError).cause).toBe(original);
   });

@@ -90,6 +90,9 @@ importers:
       '@mg/harness':
         specifier: workspace:*
         version: link:../harness
+      '@mg/local-path':
+        specifier: workspace:*
+        version: link:../local-path
       '@mg/trace':
         specifier: workspace:*
         version: link:../trace
@@ -98,6 +101,12 @@ importers:
         version: 4.6.2
 
   packages/harness:
+    dependencies:
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/local-path:
     dependencies:
       '@mg/core':
         specifier: workspace:*
@@ -202,6 +211,9 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../core
+      '@mg/local-path':
+        specifier: workspace:*
+        version: link:../local-path
       zod:
         specifier: ^4.6.2
         version: 4.6.2

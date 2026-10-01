@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareToolCall, type Tool } from "@mg/core";
+import { toAbsolutePath } from "@mg/local-path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createBashTool } from "./bash.js";
 import {
@@ -48,11 +49,14 @@ afterAll(() => {
 
 const paths = (...values: string[]) => ({
   kind: "paths",
-  paths: values.map((path) => ({ path, extent: "file" })),
+  paths: values.map((path) => ({
+    path: toAbsolutePath(path),
+    extent: "file",
+  })),
 });
 const tree = (path: string) => ({
   kind: "paths",
-  paths: [{ path, extent: "tree" }],
+  paths: [{ path: toAbsolutePath(path), extent: "tree" }],
 });
 const anyLocal = { kind: "any-local" };
 

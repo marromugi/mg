@@ -420,6 +420,8 @@ The `reach` has one of four kinds.
 - `none` touches nothing.
 
 Each `paths` entry names an absolute path with links followed.
+The path has its own type, `AbsolutePath`, which a plain string does not fit.
+A checked one comes from `@mg/local-path`.
 
 ### Prepare function and run function
 

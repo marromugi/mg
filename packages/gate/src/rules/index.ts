@@ -2,11 +2,11 @@ import { realpath } from "node:fs/promises";
 import {
   isAbsolute,
   matchesGlob,
-  parse,
   relative as relativePath,
   sep,
 } from "node:path";
 import type { Reach } from "@mg/core";
+import { isAbsolutePath } from "@mg/local-path";
 import { GateError } from "../errors.js";
 import { TOOL_CALL_KIND, type ToolCallPayload } from "../tool-gate.js";
 import { withGateSpan } from "../trace.js";
@@ -74,15 +74,6 @@ const found = (value: unknown): string =>
     ? JSON.stringify(value)
     : describeType(value);
 
-// Absolute means independent of the working directory and, on Windows,
-// of the current drive.
-const isAnchoredPath = (value: string): boolean => {
-  if (!isAbsolute(value)) return false;
-  if (sep !== "\\") return true;
-  const { root } = parse(value);
-  return /^[A-Za-z]:[\\/]/.test(root) || /^[\\/]{2}/.test(root);
-};
-
 const malformed = (
   field: "call" | "reach",
   part: string,
@@ -119,7 +110,7 @@ const checkReach = (reach: unknown): void => {
     if (typeof path !== "string") {
       throw malformed("reach", `${at}.path`, "a string", path);
     }
-    if (!isAnchoredPath(path)) {
+    if (!isAbsolutePath(path)) {
       throw malformed("reach", `${at}.path`, "an absolute path", path);
     }
     if (extent !== "file" && extent !== "tree") {

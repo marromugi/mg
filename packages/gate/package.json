@@ -15,6 +15,7 @@
   "dependencies": {
     "@mg/core": "workspace:*",
     "@mg/harness": "workspace:*",
+    "@mg/local-path": "workspace:*",
     "@mg/trace": "workspace:*",
     "zod": "^4.6.2"
   }

@@ -7,6 +7,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Reach, ReachPath, ToolCall } from "@mg/core";
+import { toAbsolutePath } from "@mg/local-path";
 import { beforeAll, describe, expect, test } from "vitest";
 import { GateError } from "../errors.js";
 import { TOOL_CALL_KIND, type ToolCallPayload } from "../tool-gate.js";
@@ -45,7 +46,7 @@ const paths = (...entries: ReachPath[]): Reach => ({
 });
 
 const inside = (rel: string, extent: "file" | "tree"): ReachPath => ({
-  path: join(realDir, rel),
+  path: toAbsolutePath(join(realDir, rel)),
   extent,
 });
 
@@ -155,16 +156,19 @@ describe("rules gate deny rules read the declared reach", () => {
     const file = await gate.judge(
       request(
         "read_file",
-        paths({ path: "/etc/hosts", extent: "file" }),
+        paths({ path: toAbsolutePath("/etc/hosts"), extent: "file" }),
       ),
     );
     const tree = await gate.judge(
-      request("read_file", paths({ path: "/etc", extent: "tree" })),
+      request(
+        "read_file",
+        paths({ path: toAbsolutePath("/etc"), extent: "tree" }),
+      ),
     );
     const custom = await withReason.judge(
       request(
         "read_file",
-        paths({ path: "/etc/hosts", extent: "file" }),
+        paths({ path: toAbsolutePath("/etc/hosts"), extent: "file" }),
       ),
     );
 
@@ -343,14 +347,14 @@ describe("rules gate allow rules match only what is certainly covered", () => {
     const alone = await gate.judge(
       request(
         "read_file",
-        paths({ path: "/etc/hosts", extent: "file" }),
+        paths({ path: toAbsolutePath("/etc/hosts"), extent: "file" }),
       ),
     );
     const mixed = await gate.judge(
       request(
         "read_file",
         paths(inside("docs/a.md", "file"), {
-          path: "/etc/hosts",
+          path: toAbsolutePath("/etc/hosts"),
           extent: "file",
         }),
       ),

@@ -1,5 +1,6 @@
 import {
   defineTool,
+  type AbsolutePath,
   ToolInputError,
   ToolNotFoundError,
   type Reach,
@@ -7,6 +8,7 @@ import {
   type ToolCall,
   type ToolSchema,
 } from "@mg/core";
+import { toAbsolutePath } from "@mg/local-path";
 import type { TraceAttributes, TraceSpan } from "@mg/harness";
 import { SPAN, ATTR, tracePrepareToolCall } from "@mg/trace";
 import { describe, expect, it, vi } from "vitest";
@@ -67,7 +69,7 @@ const recordingGate = (
 
 const fileReach: Reach = {
   kind: "paths",
-  paths: [{ path: "/x/a.txt", extent: "file" }],
+  paths: [{ path: toAbsolutePath("/x/a.txt"), extent: "file" }],
 };
 
 const fakeTool = (
@@ -126,7 +128,7 @@ describe("gateRunToolCall", () => {
     expect(seen).toHaveLength(1);
     expect((seen[0].payload as ToolCallPayload).reach).toEqual({
       kind: "paths",
-      paths: [{ path: "/x/a.txt", extent: "file" }],
+      paths: [{ path: toAbsolutePath("/x/a.txt"), extent: "file" }],
     });
     expect(message).toEqual({
       role: "tool",
@@ -437,7 +439,12 @@ describe("gateRunToolCall with a rules gate", () => {
         return {
           reach: {
             kind: "paths",
-            paths: [{ path: "src/a.ts", extent: "file" }],
+            paths: [
+              {
+                path: "src/a.ts" as AbsolutePath,
+                extent: "file",
+              },
+            ],
           },
           run: async () => {
             ran += 1;

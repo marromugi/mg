@@ -351,7 +351,7 @@ It is created from the following.
 
 - The function that starts a process, described in `ffmpeg/process.ts`.
 - The key presses, as a stream. It does not read the terminal itself.
-- The AVFoundation audio device.
+- Optionally, the microphone's name as macOS shows it. ffmpeg matches the name, so a leading part of it works too. Without a name, the system's default input is used.
 - The audio format to produce.
 
 A key press yields one utterance and starts one ffmpeg process.
@@ -375,7 +375,7 @@ It presses a key, waits 2 seconds, presses again, and prints the chunk count and
 The terminal needs microphone permission.
 
 ```
-node runs/ffmpeg-listener.ts
+node runs/ffmpeg-listener.ts [microphone]
 ```
 
 ### Recorded listener and recording player

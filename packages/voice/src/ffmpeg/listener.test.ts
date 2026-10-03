@@ -21,7 +21,9 @@ type FakeProcess = {
 
 type OnKill = "signal" | "reject";
 
-const setup = (options: { onKill?: OnKill } = {}) => {
+const setup = (
+  options: { onKill?: OnKill; microphone?: string } = {},
+) => {
   const processes: FakeProcess[] = [];
   const spawn: SpawnProcess = (command, args) => {
     let resolveExit: (exit: ProcessExit) => void = () => {};
@@ -99,7 +101,7 @@ const setup = (options: { onKill?: OnKill } = {}) => {
   const listener = createFfmpegKeyListener({
     spawn,
     keys,
-    device: ":1",
+    microphone: options.microphone,
     format,
   });
   return { processes, press, listener };
@@ -138,7 +140,7 @@ describe("ffmpeg key listener", () => {
       "-f",
       "avfoundation",
       "-i",
-      ":1",
+      ":default",
       "-f",
       "s16le",
       "-ar",
@@ -158,6 +160,21 @@ describe("ffmpeg key listener", () => {
       { format, data: new Uint8Array([3, 4]) },
     ]);
     expect(processes[0].killed).toBe(true);
+    controller.abort();
+  });
+
+  test("a named microphone is passed to ffmpeg as the audio input", async () => {
+    const { processes, press, listener } = setup({
+      microphone: "MacBook Proのマイク",
+    });
+    const controller = new AbortController();
+    press();
+    await firstUtterance(listener, controller.signal);
+    expect(processes[0].args.slice(4, 7)).toEqual([
+      "avfoundation",
+      "-i",
+      ":MacBook Proのマイク",
+    ]);
     controller.abort();
   });
 

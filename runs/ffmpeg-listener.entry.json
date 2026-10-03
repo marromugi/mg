@@ -1,5 +1,5 @@
 {
-  "command": "node runs/ffmpeg-listener.ts",
+  "command": "node runs/ffmpeg-listener.ts [microphone]",
   "needs": [],
   "burdens": []
 }

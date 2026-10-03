@@ -14,9 +14,6 @@ export const TRIGGER_THRESHOLD = 0.7;
 
 export { bashReadOnlyQuestion as workerQuestion } from "./bash-policy.ts";
 
-// AVFoundation's built-in microphone on this machine.
-export const MICROPHONE_DEVICE = ":1";
-
 // The format the Gemini Live transcriber accepts.
 export const LISTENER_FORMAT: AudioFormat = {
   encoding: "pcm-s16le",

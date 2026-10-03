@@ -279,6 +279,33 @@ describe("createGeminiTranscriber", () => {
     expect(call.events).toEqual([]);
   });
 
+  test("rejects with a response error and closes the session when Gemini sends no completion after the audio ends", async () => {
+    vi.useFakeTimers();
+    try {
+      const { sockets, Ctor } = fakeWebSocket();
+      const call = run({ WebSocket: Ctor, completionWaitMs: 3000 });
+      call.source.push(mono16k());
+      await vi.waitFor(() => expect(sockets.length).toBe(1));
+      await acknowledgeSetup(() => sockets[0]);
+      call.source.end();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sockets[0].sent.length).toBe(4);
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(sockets[0].closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const error = await call.rejection();
+      expect((error as Error).name).toBe(
+        "GeminiTranscriptionResponseError",
+      );
+      expect((error as Error).message).toBe(
+        "Gemini did not complete the transcription within 3000 ms after the audio ended",
+      );
+      expect(sockets[0].closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("yields one empty final and opens no connection when the audio ends with no chunks", async () => {
     const { sockets, Ctor } = fakeWebSocket();
     const call = run({ WebSocket: Ctor });

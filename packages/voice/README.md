@@ -255,6 +255,7 @@ It is created from the following.
 - A model name. It can be omitted.
 - A server URL. It can be omitted.
 - A replacement WebSocket constructor. It can be omitted.
+- How long to wait for the completion after the audio ends, in milliseconds. It can be omitted, and then it is 3000.
 
 The defaults for the model name and server live only inside this implementation.
 The name is `gemini`.
@@ -279,19 +280,25 @@ An error it had received before the signal fired is thrown as that error.
 
 Failures end the call and close the session.
 
-| Cause                                             | Failure                                                             |
-| ------------------------------------------------- | ------------------------------------------------------------------- |
-| A language code that is not a well-formed tag     | `RangeError`, before any connection                                 |
-| A chunk in another format, or a format change     | `RangeError` that names the format                                  |
-| The connection fails, or the session closes early | `GeminiTranscriptionTransportError`, with the close code and reason |
-| A message that is not valid JSON                  | `GeminiTranscriptionResponseError`                                  |
-| A second completed transcription                  | `GeminiTranscriptionResponseError`                                  |
-| The abort signal fires                            | The signal's reason, unchanged                                      |
-| The audio stream throws                           | That error, unchanged                                               |
+| Cause                                              | Failure                                                             |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| A language code that is not a well-formed tag      | `RangeError`, before any connection                                 |
+| A chunk in another format, or a format change      | `RangeError` that names the format                                  |
+| The connection fails, or the session closes early  | `GeminiTranscriptionTransportError`, with the close code and reason |
+| A message that is not valid JSON                   | `GeminiTranscriptionResponseError`                                  |
+| A second completed transcription                   | `GeminiTranscriptionResponseError`                                  |
+| No completion within the wait after the audio ends | `GeminiTranscriptionResponseError`                                  |
+| The abort signal fires                             | The signal's reason, unchanged                                      |
+| The audio stream throws                            | That error, unchanged                                               |
 
 The transcription errors do not share a base class with the speech synthesis errors.
 `isGeminiTranscriptionError` tells them apart.
-The call sets no timeout of its own; the abort signal is the only limit on waiting.
+Gemini may never complete on audio with no speech.
+The wait starts when the end of the audio has been sent, and it is cleared when the call ends for any reason.
+When it runs out, the call throws the error with the message `Gemini did not complete the transcription within <wait> ms after the audio ended`.
+Partials already yielded are not turned into a final.
+Before the audio ends, the abort signal is the only limit on waiting.
+An abort still wins and shows as described above.
 
 To try it by hand on a WAV file, run the sample entry.
 It feeds the audio in 100 ms chunks at real-time pace.

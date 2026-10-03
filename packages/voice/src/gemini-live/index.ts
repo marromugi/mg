@@ -20,6 +20,7 @@ const NAME = "gemini";
 const DEFAULT_MODEL = "gemini-3.5-transcribe-live";
 const DEFAULT_BASE_URL =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+const DEFAULT_COMPLETION_WAIT_MS = 3000;
 const ACCEPTED_FORMAT: AudioFormat = {
   encoding: "pcm-s16le",
   sampleRate: 16000,
@@ -31,6 +32,7 @@ export type GeminiTranscriberOptions = {
   model?: string;
   baseUrl?: string;
   WebSocket?: typeof WebSocket;
+  completionWaitMs?: number;
 };
 
 type Item =
@@ -135,6 +137,8 @@ export const createGeminiTranscriber = (
 ): Transcriber => {
   const model = options.model ?? DEFAULT_MODEL;
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+  const completionWaitMs =
+    options.completionWaitMs ?? DEFAULT_COMPLETION_WAIT_MS;
   const WebSocketConstructor =
     options.WebSocket ?? globalThis.WebSocket;
 
@@ -156,7 +160,10 @@ export const createGeminiTranscriber = (
         stopped.promise.then((): typeof STOP => STOP),
       ]);
 
+    let completionTimer: ReturnType<typeof setTimeout> | undefined;
+
     const onAbort = () => {
+      clearTimeout(completionTimer);
       mailbox.stop(signal?.reason);
       stopped.resolve();
       socket?.close();
@@ -288,6 +295,13 @@ export const createGeminiTranscriber = (
       }
       if (chunk === STOP) return;
       send({ realtimeInput: { activityEnd: {} } });
+      completionTimer = setTimeout(() => {
+        mailbox.fail(
+          new GeminiTranscriptionResponseError(
+            `Gemini did not complete the transcription within ${completionWaitMs} ms after the audio ended`,
+          ),
+        );
+      }, completionWaitMs);
     };
 
     pump().catch((error: unknown) => mailbox.fail(error));
@@ -300,6 +314,7 @@ export const createGeminiTranscriber = (
         else return;
       }
     } finally {
+      clearTimeout(completionTimer);
       stopped.resolve();
       signal?.removeEventListener("abort", onAbort);
       socket?.close();

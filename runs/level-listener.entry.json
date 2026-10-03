@@ -1,0 +1,5 @@
+{
+  "command": "node runs/level-listener.ts \"<wav>\" [level]",
+  "needs": [],
+  "burdens": []
+}

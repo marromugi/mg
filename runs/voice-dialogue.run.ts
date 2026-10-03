@@ -1,19 +1,27 @@
 import type { RunDialogue } from "@mg/dialogue";
-import { createFfmpegKeyListener, createFfmpegPlayer } from "@mg/voice";
+import {
+  createFfmpegMicrophone,
+  createFfmpegPlayer,
+  createLevelListener,
+} from "@mg/voice";
 import type { SpawnProcess } from "@mg/voice";
 import type {
   DialogueCollaborators,
   SessionTrace,
 } from "./voice-dialogue.build.ts";
 import { printEvent } from "./voice-dialogue.build.ts";
-import { keyPresses } from "./voice-dialogue.keys.ts";
-import type { TerminalInput } from "./voice-dialogue.keys.ts";
-import { LISTENER_FORMAT } from "./voice-dialogue.values.ts";
+import {
+  LISTENER_END_MS,
+  LISTENER_FORMAT,
+  LISTENER_LEAD_MS,
+  LISTENER_START_MS,
+} from "./voice-dialogue.values.ts";
 
 export type LiveOptions = {
-  input: TerminalInput;
   spawn: SpawnProcess;
   microphone?: string | undefined;
+  levelDb: number;
+  signal: AbortSignal;
   createCollaborators: () => Promise<DialogueCollaborators>;
   dialogue: RunDialogue;
   openTrace: () => Promise<SessionTrace>;
@@ -48,16 +56,25 @@ export const runLive = async (
   out(`trace: ${trace.path}`);
 
   const abort = new AbortController();
+  const interrupt = () => abort.abort();
+  if (options.signal.aborted) interrupt();
+  else
+    options.signal.addEventListener("abort", interrupt, { once: true });
   let failure: { error: unknown } | undefined;
   try {
     await options.dialogue(
       {
         ...collaborators,
-        listener: createFfmpegKeyListener({
-          spawn: options.spawn,
-          keys: keyPresses(options.input, abort),
-          microphone: options.microphone,
-          format: LISTENER_FORMAT,
+        listener: createLevelListener({
+          microphone: createFfmpegMicrophone({
+            spawn: options.spawn,
+            microphone: options.microphone,
+            format: LISTENER_FORMAT,
+          }),
+          levelDb: options.levelDb,
+          startMs: LISTENER_START_MS,
+          endMs: LISTENER_END_MS,
+          leadMs: LISTENER_LEAD_MS,
         }),
         player: createFfmpegPlayer({ spawn: options.spawn }),
       },
@@ -71,9 +88,9 @@ export const runLive = async (
     failure = { error };
   }
 
-  // Ctrl-C is the only thing that aborts the controller before this point.
-  const interrupted = abort.signal.aborted;
-  // Ends the key stream, which restores the terminal.
+  const interrupted = options.signal.aborted;
+  options.signal.removeEventListener("abort", interrupt);
+  // Stops the microphone.
   abort.abort();
 
   try {

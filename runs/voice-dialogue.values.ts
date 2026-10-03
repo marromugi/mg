@@ -21,6 +21,14 @@ export const LISTENER_FORMAT: AudioFormat = {
   channels: 1,
 };
 
+// The loudness at which sound counts as speech, in dB relative to full
+// scale, and how long it must hold, in ms, to start and to end an
+// utterance. An utterance carries the LISTENER_LEAD_MS before it.
+export const LISTENER_LEVEL_DB = -40;
+export const LISTENER_START_MS = 100;
+export const LISTENER_END_MS = 800;
+export const LISTENER_LEAD_MS = 300;
+
 // Tool activity in the status block: how many calls, and how many
 // characters of each call's arguments and result.
 const TOOL_COUNT = 5;

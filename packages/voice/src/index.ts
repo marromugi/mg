@@ -12,3 +12,6 @@ export * from "./ffmpeg/process.js";
 export * from "./clock.js";
 export * from "./recorded/listener.js";
 export * from "./recorded/player.js";
+export * from "./microphone.js";
+export * from "./level-listener.js";
+export * from "./ffmpeg/microphone.js";

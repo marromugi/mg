@@ -12,9 +12,12 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Defines the transcription interface `Transcriber`.
 - Defines the listener interface `Listener`.
 - Defines the player interface `Player`.
+- Defines the microphone interface `Microphone`.
 - Holds `createGeminiTranscriber`, a transcriber built on Gemini's Live API.
 - Holds `createFfmpegPlayer`, a player that plays through ffmpeg's AudioToolbox output.
 - Holds `createFfmpegKeyListener`, a listener that records the microphone through ffmpeg, one utterance per pair of key presses.
+- Holds `createFfmpegMicrophone`, a microphone that reads the input device through ffmpeg.
+- Holds `createLevelListener`, a listener that cuts a microphone's stream into utterances by loudness.
 - Holds `createRecordedListener`, a listener that yields recorded utterances at given times.
 - Holds `createRecordingPlayer`, a player that writes each sentence to a WAV file.
 - Defines `Clock`, the time source both of them wait on.
@@ -116,6 +119,18 @@ A failure the listener had already reached before that is thrown by the stream i
 
 When the stream ends, the listener is finished.
 When it throws, the listener has failed.
+
+### `Microphone`
+
+An interface that gives one continuous stream of audio.
+
+| Type         | Takes        | Returns          |
+| ------------ | ------------ | ---------------- |
+| `Microphone` | Abort signal | Stream of chunks |
+
+`open(signal)` streams audio chunks from the moment it is opened.
+Once the signal has fired, the stream ends without error.
+A failure of the microphone is thrown by the stream.
 
 ### `Player`
 
@@ -376,6 +391,50 @@ The terminal needs microphone permission.
 
 ```
 node runs/ffmpeg-listener.ts [microphone]
+```
+
+### ffmpeg microphone
+
+One implementation of `Microphone`.
+It reads the input device through ffmpeg's AVFoundation input, and uses the same ffmpeg command line and exit handling as the key listener.
+
+It is created from the function that starts a process, the audio format to produce, and optionally the microphone's name as macOS shows it.
+Without a name, the system's default input is used.
+
+Opening starts one ffmpeg process.
+The signal firing kills it and ends the stream without error.
+
+| Situation                                    | Stream                      |
+| -------------------------------------------- | --------------------------- |
+| The process exits with a non-zero code       | Throws with the exit code   |
+| A signal the microphone did not send ends it | Throws naming the signal    |
+| The process cannot start                     | Throws with the start error |
+
+### Level listener
+
+One implementation of `Listener`.
+It reads a `Microphone` and sends on only the stretches where the sound is above a level.
+It knows nothing about ffmpeg.
+
+It is created from the following.
+
+- The microphone.
+- `levelDb`: the level, in dB relative to full scale.
+- `startMs`: how long the sound must stay at or above the level to start an utterance.
+- `endMs`: how long it must stay below the level to end one.
+- `leadMs`: how much of the audio before the start is kept in the utterance.
+
+The loudness is the RMS of each 20 ms window of audio, counted in samples, so the size of the microphone's chunks does not matter.
+An utterance carries the `leadMs` before the first loud window, then everything up to its end, including the `endMs` of quiet that ended it.
+Nothing is yielded while it is quiet.
+An utterance still open when the microphone's stream ends, or the signal fires, ends there.
+A failure of the microphone is thrown by the stream, and by the audio of an utterance open at that time.
+
+To see the cutting without speaking, run the sample entry on a 16-bit PCM WAV file.
+It prints one line per utterance with its start and length, then the count.
+
+```
+node runs/level-listener.ts "<wav>" [level]
 ```
 
 ### Recorded listener and recording player

@@ -7,6 +7,7 @@ import {
 } from "@mg/voice";
 import { createSampleJevEstimator } from "./jev-estimator.ts";
 import { spawnProcess } from "./node-spawn.ts";
+import { readLevel } from "./level-argument.ts";
 import { outputPath } from "./outputs.ts";
 import {
   createDialogueCollaborators,
@@ -15,6 +16,14 @@ import {
   openSessionTrace,
 } from "./voice-dialogue.build.ts";
 import { runLive } from "./voice-dialogue.run.ts";
+import { LISTENER_LEVEL_DB } from "./voice-dialogue.values.ts";
+
+const usage = "usage: node runs/voice-dialogue.ts [microphone] [level]";
+const level = readLevel(process.argv[3], LISTENER_LEVEL_DB, usage);
+if (!level.ok) {
+  console.error(level.usage);
+  process.exit(2);
+}
 
 const need = (name: string): string => {
   const value = process.env[name];
@@ -32,10 +41,14 @@ const estimator = createSampleJevEstimator({
 
 const runTracePath = outputPath("voice-dialogue-run-trace.jsonl");
 
+const aborter = new AbortController();
+process.once("SIGINT", () => aborter.abort());
+
 process.exitCode = await runLive({
-  input: process.stdin,
   spawn: spawnProcess,
   microphone: process.argv[2],
+  levelDb: level.levelDb,
+  signal: aborter.signal,
   createCollaborators: () =>
     createDialogueCollaborators({
       transcriber: createGeminiTranscriber({ apiKey: geminiApiKey }),

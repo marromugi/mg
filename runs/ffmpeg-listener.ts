@@ -8,7 +8,7 @@ const format: AudioFormat = {
   sampleRate: 16000,
   channels: 1,
 };
-const device = ":1";
+const microphone = process.argv[2];
 const recordMs = 2000;
 
 async function* presses(): AsyncIterable<void> {
@@ -21,7 +21,7 @@ const controller = new AbortController();
 const listener = createFfmpegKeyListener({
   spawn: spawnProcess,
   keys: presses(),
-  device,
+  microphone,
   format,
 });
 

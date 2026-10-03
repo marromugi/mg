@@ -8,14 +8,12 @@ import type {
 import { printEvent } from "./voice-dialogue.build.ts";
 import { keyPresses } from "./voice-dialogue.keys.ts";
 import type { TerminalInput } from "./voice-dialogue.keys.ts";
-import {
-  LISTENER_FORMAT,
-  MICROPHONE_DEVICE,
-} from "./voice-dialogue.values.ts";
+import { LISTENER_FORMAT } from "./voice-dialogue.values.ts";
 
 export type LiveOptions = {
   input: TerminalInput;
   spawn: SpawnProcess;
+  microphone?: string | undefined;
   createCollaborators: () => Promise<DialogueCollaborators>;
   dialogue: RunDialogue;
   openTrace: () => Promise<SessionTrace>;
@@ -58,7 +56,7 @@ export const runLive = async (
         listener: createFfmpegKeyListener({
           spawn: options.spawn,
           keys: keyPresses(options.input, abort),
-          device: MICROPHONE_DEVICE,
+          microphone: options.microphone,
           format: LISTENER_FORMAT,
         }),
         player: createFfmpegPlayer({ spawn: options.spawn }),

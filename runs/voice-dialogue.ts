@@ -35,6 +35,7 @@ const runTracePath = outputPath("voice-dialogue-run-trace.jsonl");
 process.exitCode = await runLive({
   input: process.stdin,
   spawn: spawnProcess,
+  microphone: process.argv[2],
   createCollaborators: () =>
     createDialogueCollaborators({
       transcriber: createGeminiTranscriber({ apiKey: geminiApiKey }),

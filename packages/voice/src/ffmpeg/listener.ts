@@ -2,14 +2,15 @@ import type { AudioChunk, AudioFormat } from "../audio.js";
 import type { HeardUtterance, Listener } from "../listener.js";
 import type { SpawnedProcess, SpawnProcess } from "./process.js";
 
-const argsFor = (device: string, format: AudioFormat): string[] => [
+// An audio-only AVFoundation input is ":<name>"; ffmpeg matches the name.
+const argsFor = (microphone: string, format: AudioFormat): string[] => [
   "-hide_banner",
   "-loglevel",
   "error",
   "-f",
   "avfoundation",
   "-i",
-  device,
+  `:${microphone}`,
   "-f",
   "s16le",
   "-ar",
@@ -94,16 +95,18 @@ async function* audioOf(
 }
 
 // A key press while idle starts an utterance, and the next press ends it.
-// The audio is the microphone read through ffmpeg in `format`.
+// The audio is the microphone read through ffmpeg in `format`. The
+// microphone is named as macOS shows it; without a name it is the
+// system's default input.
 export const createFfmpegKeyListener = ({
   spawn,
   keys,
-  device,
+  microphone = "default",
   format,
 }: {
   spawn: SpawnProcess;
   keys: AsyncIterable<void>;
-  device: string;
+  microphone?: string | undefined;
   format: AudioFormat;
 }): Listener => ({
   async *listen(signal): AsyncIterable<HeardUtterance> {
@@ -125,7 +128,7 @@ export const createFfmpegKeyListener = ({
         pending = undefined;
         const recording = record(
           spawn,
-          argsFor(device, format),
+          argsFor(microphone, format),
           signal,
         );
         recording.outcome.catch(() => {});

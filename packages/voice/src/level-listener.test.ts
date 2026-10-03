@@ -154,6 +154,21 @@ describe("level listener", () => {
     );
   });
 
+  test("throws a RangeError naming the format when a window would hold no audio", async () => {
+    const zeroChannels: Microphone = {
+      async *open() {
+        yield {
+          format: { ...format, channels: 0 },
+          data: new Uint8Array(40),
+        };
+      },
+    };
+    await expect(heard(zeroChannels)).rejects.toThrow(RangeError);
+    await expect(heard(zeroChannels)).rejects.toThrow(
+      "1000 Hz with 0 channels",
+    );
+  });
+
   test("ends without error once the signal has fired", async () => {
     const controller = new AbortController();
     const microphone: Microphone = {

@@ -20,6 +20,10 @@ if (path === undefined || extra.length > 0 || !level.ok) {
 
 try {
   const chunks = wavChunks(path, await readFile(path));
+  if (chunks.length === 0) {
+    console.log("utterances: 0");
+    process.exit(0);
+  }
   const whole = Buffer.concat(chunks.map((chunk) => chunk.data));
   const format = chunks[0].format;
   const bytesPerMs = (format.sampleRate * format.channels * 2) / 1000;

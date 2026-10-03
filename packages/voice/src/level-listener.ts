@@ -96,6 +96,11 @@ export const createLevelListener = ({
             Math.floor((format.sampleRate * WINDOW_MS) / 1000) *
             format.channels *
             2;
+          if (!(bytes > 0)) {
+            throw new RangeError(
+              `a ${WINDOW_MS} ms window holds no audio at ${format.sampleRate} Hz with ${format.channels} channels`,
+            );
+          }
           const joined = new Uint8Array(
             pending.length + chunk.data.length,
           );

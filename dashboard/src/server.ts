@@ -27,6 +27,7 @@ const { values } = parseArgs({
     "data-dir": { type: "string" },
     port: { type: "string" },
     "keychain-service": { type: "string" },
+    "exit-when-stdin-closes": { type: "boolean" },
   },
 });
 
@@ -49,6 +50,14 @@ try {
     keychainService: values["keychain-service"],
   });
   console.log(started.launchLink);
+  if (values["exit-when-stdin-closes"] === true) {
+    // A parent that holds the pipe open ends the server by dying.
+    process.stdin.resume();
+    process.stdin.on(
+      "end",
+      () => void started.close().then(() => process.exit(0)),
+    );
+  }
   process.on(
     "SIGINT",
     () => void started.close().then(() => process.exit(0)),

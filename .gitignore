@@ -7,3 +7,9 @@ storybook-static/
 *.log
 .DS_Store
 .claude/settings.local.json
+
+# dashboard desktop app
+dashboard/app/src-tauri/target/
+dashboard/app/src-tauri/gen/
+dashboard/app/src-tauri/binaries/
+dashboard/app/src-tauri/resources/

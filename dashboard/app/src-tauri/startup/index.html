@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>mg dashboard</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 13px;
+      }
+      #failure {
+        display: none;
+      }
+      #quit {
+        display: inline-block;
+        padding: 6px 16px;
+        border: 1px solid currentcolor;
+        border-radius: 6px;
+        color: inherit;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="starting">Starting the dashboard...</p>
+    <div id="failure">
+      <p>The dashboard server did not start.</p>
+      <pre id="reason"></pre>
+      <a id="quit" href="mg-quit:">Quit</a>
+    </div>
+    <script>
+      // The app calls this when the server gave no launch link.
+      function showFailure(reason) {
+        document.getElementById("starting").style.display = "none";
+        document.getElementById("reason").textContent = reason;
+        document.getElementById("failure").style.display = "block";
+      }
+    </script>
+  </body>
+</html>

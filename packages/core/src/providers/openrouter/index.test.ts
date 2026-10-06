@@ -80,6 +80,29 @@ describe("createOpenRouterProvider", () => {
     });
   });
 
+  test.each([true, false])(
+    "sends reasoning enabled %s in a one-shot and a streamed request body",
+    async (reasoning) => {
+      const { fetchStub, calls } = stubFetch(() =>
+        calls.length === 1 ? jsonResponse(okBody) : sseResponse([]),
+      );
+      const provider = createOpenRouterProvider({
+        apiKey: "test-key",
+        reasoning,
+        fetch: fetchStub,
+      });
+
+      await provider.generate(request);
+      await collectStream(provider.stream(request));
+
+      expect(
+        calls.map(
+          (call) => JSON.parse(String(call.init?.body)).reasoning,
+        ),
+      ).toEqual([{ enabled: reasoning }, { enabled: reasoning }]);
+    },
+  );
+
   test("keeps the fixed headers when a caller header differs only in case", async () => {
     const { fetchStub, calls } = stubFetch(() => jsonResponse(okBody));
     const provider = createOpenRouterProvider({

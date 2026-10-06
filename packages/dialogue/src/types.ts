@@ -106,6 +106,8 @@ export type DialogueOptions = {
 
 export type DialogueEvent =
   | { type: "utterance" }
+  // the utterance's audio has ended; not emitted when the audio throws
+  | { type: "utterance-end" }
   | { type: "transcript"; text: string; final: boolean }
   | { type: "reply-text"; delta: string }
   // text is the part of the reply the person heard

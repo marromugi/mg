@@ -230,6 +230,7 @@ export type OpenRouterRequest = {
 export const toOpenRouterRequest = (
   request: GenerateRequest,
   stream: boolean,
+  reasoning?: boolean,
 ): OpenRouterRequest => {
   const ids = resolveToolCallIds(request.messages);
   const lastUserIndex = request.messages.reduce(
@@ -259,6 +260,9 @@ export const toOpenRouterRequest = (
   }
   if (request.maxTokens !== undefined) {
     body.max_tokens = request.maxTokens;
+  }
+  if (reasoning !== undefined) {
+    body.reasoning = { enabled: reasoning };
   }
 
   return {

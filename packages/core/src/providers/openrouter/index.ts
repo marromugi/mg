@@ -154,6 +154,9 @@ export type OpenRouterOptions = {
   headers?: Record<string, string>;
   fetch?: typeof fetch;
   newToolCallId?: () => string;
+  // Whether the model reasons before it answers. Left out, nothing is
+  // sent and the model's own default applies.
+  reasoning?: boolean;
 };
 
 export const createOpenRouterProvider = (
@@ -233,6 +236,7 @@ export const createOpenRouterProvider = (
     const { body: requestBody, omitted } = toOpenRouterRequest(
       request,
       false,
+      options.reasoning,
     );
     const sent = await send(JSON.stringify(requestBody), request.halt);
     if (sent === HALTED) {
@@ -283,6 +287,7 @@ export const createOpenRouterProvider = (
     const { body: requestBody, omitted } = toOpenRouterRequest(
       request,
       true,
+      options.reasoning,
     );
     const sent = await send(JSON.stringify(requestBody), request.halt);
     if (sent === HALTED) {

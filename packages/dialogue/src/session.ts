@@ -506,14 +506,15 @@ export const runDialogue: RunDialogue = async (options, context) => {
     };
     const timer = setInterval(check, options.stopCheckMs);
 
+    const audio = (async function* () {
+      yield* utterance.audio;
+      emit({ type: "utterance-end" });
+    })();
     try {
-      for await (const event of transcriber.transcribe(
-        utterance.audio,
-        {
-          signal,
-          languages: options.languages,
-        },
-      )) {
+      for await (const event of transcriber.transcribe(audio, {
+        signal,
+        languages: options.languages,
+      })) {
         if (over) return undefined;
         if (event.type === "partial") {
           text = event.text;

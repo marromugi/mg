@@ -37,6 +37,9 @@ It can be held, released and wrapped up.
 Runs until the listener ends and the current cycle is done.
 It rejects when the listener or the player fails, and with the abort reason when its signal is aborted.
 Judgment and part failures do not end it; each shows as a `failure` event.
+It emits an `utterance` event when an utterance starts.
+It emits an `utterance-end` event once the audio of the utterance has ended, before the final transcript.
+When the audio throws, `utterance-end` is not emitted.
 It speaks replies, reports and notices one text at a time, through the reply speaker.
 
 ### `DialogueOptions`

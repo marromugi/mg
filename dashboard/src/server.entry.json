@@ -1,0 +1,7 @@
+{
+  "command": "node dashboard/dist/server.js --data-dir <dir> --keychain-service <name>",
+  "needs": [],
+  "burdens": [
+    "The API keys page writes and deletes macOS Keychain items under the service given by --keychain-service (default mg-dashboard); use a throwaway service name when checking"
+  ]
+}

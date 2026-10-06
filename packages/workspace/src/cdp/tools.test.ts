@@ -33,6 +33,9 @@ const createFakePage = (
     async snapshot() {
       return "- heading: Example";
     },
+    async url() {
+      return "https://example.com/";
+    },
     async click(role, name) {
       calls.click.push({ role, name });
     },

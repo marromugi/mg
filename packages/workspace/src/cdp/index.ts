@@ -5,7 +5,8 @@ import {
   type CdpConnectorOptions,
 } from "./browser.js";
 import { failWithLoss } from "./lost-page.js";
-import { createBrowserTools } from "./tools.js";
+import { hideSecrets } from "./hide-secrets.js";
+import { createBrowserTools, createCredentialTools } from "./tools.js";
 import { ConnectorCloseError } from "../errors.js";
 import type { Connection, Connector } from "../types.js";
 
@@ -27,17 +28,31 @@ export const createCdpConnector = (
     throw new TypeError("browser name must not be empty");
   }
   const exclusive = [options.browser];
+  const browserToolsOptions = {
+    maxOutputBytes: options.maxOutputBytes,
+    overflowDir: options.overflowDir,
+    maxSavedBytes: options.maxSavedBytes,
+  };
   const connectionOf = (
     page: BrowserPage,
     close: () => Promise<void>,
-  ): Connection => ({
-    tools: createBrowserTools(page, {
-      maxOutputBytes: options.maxOutputBytes,
-      overflowDir: options.overflowDir,
-      maxSavedBytes: options.maxSavedBytes,
-    }),
-    close,
-  });
+  ): Connection => {
+    const { credentials } = options;
+    if (credentials === undefined) {
+      return {
+        tools: createBrowserTools(page, browserToolsOptions),
+        close,
+      };
+    }
+    const hidden = hideSecrets(page);
+    return {
+      tools: [
+        ...createBrowserTools(hidden, browserToolsOptions),
+        ...createCredentialTools(hidden, credentials),
+      ],
+      close,
+    };
+  };
 
   if (endpoint === undefined) {
     const url = options.url;

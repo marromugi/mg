@@ -365,6 +365,9 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../core
+      '@mg/credentials':
+        specifier: workspace:*
+        version: link:../credentials
       '@types/ssh2':
         specifier: 1.15.6
         version: 1.15.6

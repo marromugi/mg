@@ -192,7 +192,11 @@ Adding a workspace, so the harness can also reach a remote machine over SSH and
 its browser over CDP (see `runs/loop-workspace.config.ts` for the file in the
 repo). The browser listens only on the remote machine's `127.0.0.1`, and mg reaches
 it through an SSH endpoint. mg does not start the browser: whoever runs this starts
-it on the remote machine first, and `MG_CDP_PORT` is the port it listens on:
+it on the remote machine first, and `MG_CDP_PORT` is the port it listens on.
+To let the agent sign in from the developer's saved logins, pass `credentials` (a
+`CredentialAccess` from `@mg/credentials`) to `createCdpConnector`. The connector then adds
+`browser_credentials` and `browser_fill_credential`, which fill a field by reference
+without the model seeing the value (see `runs/browser-credential.ts`):
 
 ```ts
 import { readFileSync } from "node:fs";

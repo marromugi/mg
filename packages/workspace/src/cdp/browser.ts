@@ -1,4 +1,5 @@
 import { chromium, type Page } from "playwright-core";
+import type { CredentialAccess } from "@mg/credentials";
 import type { ConnectorContext, Endpoint } from "../types.js";
 
 export type CdpConnectorOptions = (
@@ -10,11 +11,13 @@ export type CdpConnectorOptions = (
   maxOutputBytes?: number;
   overflowDir?: string;
   maxSavedBytes?: number;
+  credentials?: CredentialAccess;
 };
 
 export interface BrowserPage {
   navigate(url: string): Promise<{ url: string; title: string }>;
   snapshot(): Promise<string>;
+  url(): Promise<string>;
   click(role: string, name: string): Promise<void>;
   type(
     role: string,
@@ -49,6 +52,10 @@ class PlaywrightPage implements BrowserPage {
     return this.page
       .locator(":root")
       .ariaSnapshot({ timeout: this.timeoutMs });
+  }
+
+  async url(): Promise<string> {
+    return this.page.url();
   }
 
   async click(role: string, name: string): Promise<void> {

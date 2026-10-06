@@ -6,8 +6,10 @@ import {
   formatBytes,
 } from "@mg/bounded-output";
 import type { Tool } from "@mg/core";
+import type { CredentialAccess } from "@mg/credentials";
 import { z } from "zod";
 import type { BrowserPage } from "./browser.js";
+import type { SecretPage } from "./hide-secrets.js";
 
 export type BrowserToolsOptions = {
   maxOutputBytes?: number;
@@ -140,4 +142,96 @@ export const createBrowserTools = (
   };
 
   return [navigate, read, click, type];
+};
+
+const credentialsInput = z.object({});
+
+const fillCredentialInput = z.object({
+  role: z.string().describe("Accessibility role of the element"),
+  name: z.string().describe("Accessible name of the element"),
+  credential: z.string().describe("Name of the saved login"),
+  field: z
+    .string()
+    .describe("Field of the saved login, such as password"),
+  submit: z.boolean().optional().describe("Press Enter after filling"),
+});
+
+// The origin of the page the browser is on now. Only the top page counts.
+const currentOrigin = async (page: BrowserPage): Promise<string> => {
+  const url = await page.url();
+  let origin: string | undefined;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    origin = undefined;
+  }
+  if (origin === undefined || origin === "null") {
+    throw new Error(
+      "the current page has no origin (it is not an http or https page), " +
+        "so no saved login can be used on it",
+    );
+  }
+  return origin;
+};
+
+export const createCredentialTools = (
+  page: SecretPage,
+  access: CredentialAccess,
+): readonly Tool[] => {
+  const credentials: Tool<typeof credentialsInput> = {
+    name: "browser_credentials",
+    description:
+      "Lists the saved logins that can be used on the current page, " +
+      "with the fields of each. Values are never shown.",
+    input: credentialsInput,
+    async prepare(_input) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          context.signal?.throwIfAborted();
+          const origin = await currentOrigin(page);
+          const usable = access.usableAt(origin);
+          if (usable.length === 0) {
+            return `no saved logins can be used at ${origin}`;
+          }
+          return usable
+            .map((entry) => `${entry.name}: ${entry.fields.join(", ")}`)
+            .join("\n");
+        },
+      };
+    },
+  };
+
+  const fill: Tool<typeof fillCredentialInput> = {
+    name: "browser_fill_credential",
+    description:
+      "Fills the element with the given accessibility role and name " +
+      "with one field of a saved login, optionally submitting with " +
+      "Enter. The value goes into the page without being shown, and " +
+      "page text shows [credential <name>.<field>] where it appears. " +
+      "Only works on the sites the login is registered for.",
+    input: fillCredentialInput,
+    async prepare({ role, name, credential, field, submit }) {
+      return {
+        reach: { kind: "outside" },
+        run: async (context) => {
+          context.signal?.throwIfAborted();
+          const origin = await currentOrigin(page);
+          const value = await access.use(
+            { name: credential, field, origin },
+            { signal: context.signal },
+          );
+          await page.typeSecret(
+            role,
+            name,
+            { value, marker: `[credential ${credential}.${field}]` },
+            submit ?? false,
+          );
+          return `filled ${credential}.${field}`;
+        },
+      };
+    },
+  };
+
+  return [credentials, fill];
 };

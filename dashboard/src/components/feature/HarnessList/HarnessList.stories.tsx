@@ -2,12 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
   chatHarness,
   filesHarness,
+  judgedHarness,
 } from "../../../stories/fixtures.js";
-import { HarnessesPage } from "./HarnessesPage.js";
+import { HarnessList } from "./HarnessList.js";
 
-const meta = {
-  component: HarnessesPage,
-} satisfies Meta<typeof HarnessesPage>;
+const meta = { component: HarnessList } satisfies Meta<
+  typeof HarnessList
+>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
@@ -17,15 +18,14 @@ export const Empty: Story = {
 
 export const Populated: Story = {
   args: {
-    definitions: [chatHarness, filesHarness],
-    unreadable: ["broken.json"],
+    definitions: [chatHarness, filesHarness, judgedHarness],
+    unreadable: [],
   },
 };
 
-export const ListFailed: Story = {
+export const WithUnreadableFile: Story = {
   args: {
-    definitions: [],
-    unreadable: [],
-    failure: "ENOTDIR: not a directory",
+    definitions: [filesHarness],
+    unreadable: ["broken.json"],
   },
 };

@@ -8,7 +8,9 @@ A package on the using side that holds the screens for using harnesses day to da
 - It listens on 127.0.0.1 only, on a free port picked at start.
 - Opening the launch link starts a session. Nothing else on the network, and no other web page in the browser, can reach the server.
 - A page frame with navigation to three places: the home page, Harnesses, and API keys.
-- Harnesses and API keys show an empty state until the pages behind them are built.
+- On the Harnesses page a harness is created, edited, and deleted through a form: name, provider, model, turn limit, working folder, tools, path rules, and an optional LLM judge. A form that cannot make a valid harness is not saved and names the wrong field.
+- Each harness is kept as one JSON file under `harnesses/` in the data folder, named by an id that does not change on rename. A file that does not parse is listed by name and is not opened.
+- API keys show an empty state until the page behind it is built.
 - Generic parts (`ui`), parts that know the dashboard (`feature`), pages, and the token file, with a Storybook for them.
 
 ## Usage
@@ -43,7 +45,15 @@ To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
 
 ### `createApp(parts)`
 
-Builds the Hono app from `{ session, dataDir }`.
+Builds the Hono app from `{ session, dataDir, definitions }`. `definitions` is a `DefinitionStore`.
+
+### `DefinitionStore`
+
+`list`, `get`, `put`, and `delete` over harness definitions. `put` throws `NameTakenError` when another id holds the name. `createFileDefinitionStore({ dir })` is the one implementation.
+
+### `parseDefinition(value)`
+
+Checks a value as a harness definition and returns it, or the problems with the path of each wrong field. A definition with tools needs a working folder, and a path rule or a judge.
 
 ### `createSession(options)`
 
@@ -66,7 +76,7 @@ Takes `{ token, address }` and returns `{ middleware }`. The middleware refuses 
 
 ## Non-goals
 
-- It holds no harness parts or types.
+- It holds no harness parts. Its definition type is plain data.
 - It does not store traces. Storage stays trace's job.
 - It has no public exports. Nothing imports it.
 - It has no login. The launch link is the only way in.

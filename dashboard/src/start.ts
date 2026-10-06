@@ -2,8 +2,10 @@ import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { getRequestListener } from "@hono/node-server";
 import { createApp } from "./app.js";
+import { createFileDefinitionStore } from "./definition-store/index.js";
 import { createSession } from "./session.js";
 
 const HOST = "127.0.0.1";
@@ -54,6 +56,9 @@ export const startServer = async (options: {
   const app = createApp({
     session: createSession({ token, address }),
     dataDir: options.dataDir,
+    definitions: createFileDefinitionStore({
+      dir: join(options.dataDir, "harnesses"),
+    }),
   });
   server.on("request", getRequestListener(app.fetch));
 

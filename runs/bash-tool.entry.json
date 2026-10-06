@@ -1,0 +1,5 @@
+{
+  "command": "node runs/bash-tool.ts \"<command>\"",
+  "needs": [],
+  "burdens": []
+}

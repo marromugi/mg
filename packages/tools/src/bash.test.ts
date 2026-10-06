@@ -1,4 +1,10 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool } from "@mg/core";
@@ -23,12 +29,14 @@ describe("createBashTool", () => {
     ).resolves.toContain("[exit code: 3]");
   });
 
-  test("includes stderr", async () => {
-    const result = await (
-      await bash.prepare({ command: "echo err 1>&2" })
-    ).run({});
-    expect(result).toContain("[stderr]");
-    expect(result).toContain("err");
+  test("merges stdout and stderr in the order they arrive", async () => {
+    await expect(
+      (
+        await bash.prepare({
+          command: "echo one; echo two 1>&2; sleep 0.1; echo three",
+        })
+      ).run({}),
+    ).resolves.toBe("one\ntwo\nthree");
   });
 
   test("runs in the configured working directory", async () => {
@@ -53,11 +61,81 @@ describe("createBashTool", () => {
     ).resolves.toBe("[timed out after 50 ms]");
   });
 
-  test("returns the captured output cut at the size limit", async () => {
-    const small = createBashTool({ cwd: dir, maxOutputBytes: 4 });
+  test("returns the end of a large output and saves all of it", async () => {
+    const saved = join(dir, "saved");
+    const small = createBashTool({
+      cwd: dir,
+      maxOutputBytes: 20,
+      overflowDir: saved,
+    });
+    const result = await (
+      await small.prepare({ command: "seq 1 50" })
+    ).run({});
+    const match =
+      /^(.*)\n\[showing lines 44-50 of 50 \(20 B of 141 B\)\. Full output: (.+)\]$/s.exec(
+        result,
+      );
+    expect(match?.[1]).toBe("44\n45\n46\n47\n48\n49\n50");
+    const path = match?.[2] ?? "";
+    expect(path.startsWith(saved)).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(
+      Array.from({ length: 50 }, (_, i) => `${i + 1}\n`).join(""),
+    );
+  });
+
+  test("returns the end of a last line longer than the limit", async () => {
+    const small = createBashTool({
+      cwd: dir,
+      maxOutputBytes: 5,
+      overflowDir: join(dir, "saved"),
+    });
+    const result = await (
+      await small.prepare({ command: "printf 'abc\\nあいうえお'" })
+    ).run({});
+    expect(result).toMatch(
+      /^お\n\[showing the last 3 B of line 2 \(line is 15 B; 19 B in all\)\. Full output: .+\]$/,
+    );
+  });
+
+  test("stops a command whose output passes the saved cap", async () => {
+    const small = createBashTool({
+      cwd: dir,
+      maxOutputBytes: 10,
+      maxSavedBytes: 100,
+      overflowDir: join(dir, "saved"),
+    });
+    const result = await (
+      await small.prepare({ command: "yes" })
+    ).run({});
+    expect(result).toMatch(
+      /\]\n\[stopped: output passed 100 B; the first 100 B is saved\]$/,
+    );
+  });
+
+  test("fails with the path when the output cannot be saved", async () => {
+    const blocked = join(dir, "blocked");
+    writeFileSync(blocked, "");
+    const small = createBashTool({
+      cwd: dir,
+      maxOutputBytes: 5,
+      overflowDir: blocked,
+    });
     await expect(
-      (await small.prepare({ command: "echo 123456789" })).run({}),
-    ).resolves.toBe("1234\n[output truncated]");
+      (await small.prepare({ command: "seq 1 50" })).run({}),
+    ).rejects.toMatchObject({
+      name: "BashOutputSaveError",
+      path: expect.stringContaining(blocked) as unknown,
+    });
+  });
+
+  test("reports a timeout while a background process holds the output open", async () => {
+    const slow = createBashTool({ cwd: dir, timeoutMs: 300 });
+    const started = Date.now();
+    const result = await (
+      await slow.prepare({ command: "sleep 4 & echo started" })
+    ).run({});
+    expect(result).toBe("started\n[timed out after 300 ms]");
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 
   test("lets the abort error through", async () => {

@@ -1219,16 +1219,15 @@ describe("runDialogue", () => {
     ).toHaveLength(1);
   });
 
-  test("emits no utterance-end when the audio throws", async () => {
+  test("emits no utterance-end when the session is aborted while the audio is open", async () => {
     vi.useFakeTimers();
     const h = build();
     const audio = h.listener.utterOpen();
     await settle();
-    audio.fail(new Error("mic"));
+    h.abort.abort(new Error("stop"));
+    audio.end();
     await settle();
-    expect(
-      h.events.filter((e) => e.type === "utterance-end"),
-    ).toHaveLength(0);
+    expect(h.events.map(describeEvent)).toEqual(["utterance"]);
   });
 
   test("emits the events of one cycle in order", async () => {

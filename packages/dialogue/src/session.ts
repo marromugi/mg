@@ -508,7 +508,7 @@ export const runDialogue: RunDialogue = async (options, context) => {
 
     const audio = (async function* () {
       yield* utterance.audio;
-      emit({ type: "utterance-end" });
+      if (!over) emit({ type: "utterance-end" });
     })();
     try {
       for await (const event of transcriber.transcribe(audio, {

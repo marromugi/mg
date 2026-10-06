@@ -10,7 +10,7 @@ A package on the using side that holds the screens for using harnesses day to da
 - A page frame with navigation to three places: the home page, Harnesses, and API keys.
 - On the Harnesses page a harness is created, edited, and deleted through a form: name, provider, model, turn limit, working folder, tools, path rules, and an optional LLM judge. A form that cannot make a valid harness is not saved and names the wrong field.
 - Each harness is kept as one JSON file under `harnesses/` in the data folder, named by an id that does not change on rename. A file that does not parse is listed by name and is not opened.
-- API keys show an empty state until the page behind it is built.
+- On the API keys page the OpenRouter key is set, replaced, and deleted (after a confirmation). The page shows only whether it is set; a saved key is never drawn again. Keys are kept in the macOS Keychain, not in a file.
 - Generic parts (`ui`), parts that know the dashboard (`feature`), pages, and the token file, with a Storybook for them.
 
 ## Usage
@@ -30,10 +30,11 @@ http://127.0.0.1:<port>/enter?token=<token>
 
 Open it in a browser. It sets a session cookie and moves to the home page.
 
-| Option       | Meaning                                                                    |
-| ------------ | -------------------------------------------------------------------------- |
-| `--data-dir` | Where data is kept. Default: `~/Library/Application Support/mg-dashboard/` |
-| `--port`     | A fixed port. Default: a free port picked at start                         |
+| Option               | Meaning                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `--data-dir`         | Where data is kept. Default: `~/Library/Application Support/mg-dashboard/` |
+| `--port`             | A fixed port. Default: a free port picked at start                         |
+| `--keychain-service` | The Keychain service that keys are kept under. Default: `mg-dashboard`     |
 
 A taken port, or a data folder that cannot be created, ends the process with a non-zero code. The reason goes to stderr and no launch link is printed.
 
@@ -45,11 +46,15 @@ To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
 
 ### `createApp(parts)`
 
-Builds the Hono app from `{ session, dataDir, definitions }`. `definitions` is a `DefinitionStore`.
+Builds the Hono app from `{ session, dataDir, definitions, secrets }`. `definitions` is a `DefinitionStore` and `secrets` is a `SecretStore`.
 
 ### `DefinitionStore`
 
 `list`, `get`, `put`, and `delete` over harness definitions. `put` throws `NameTakenError` when another id holds the name. `createFileDefinitionStore({ dir })` is the one implementation.
+
+### `SecretStore`
+
+`has`, `get`, `set`, and `delete` over a secret kept under a `SecretName` (now `OPENROUTER_API_KEY`). `get` is for the server's own code; no page or log receives a value. `createKeychainSecretStore({ service, spawn? })` is the one implementation: a generic password with that service and the name as account, run through `/usr/bin/security`. A value goes to `security -i` on stdin as hex, so it is never in the process's argument list. A `security` failure other than "not found" throws a `SecretStoreError` with the exit code and stderr, with the value removed.
 
 ### `parseDefinition(value)`
 

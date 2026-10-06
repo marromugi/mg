@@ -27,6 +27,14 @@ export const WithError: Story = {
   },
 };
 
+export const Password: Story = {
+  args: {
+    name: "apiKey",
+    label: "API キー",
+    type: "password",
+  },
+};
+
 export const NumberInput: Story = {
   args: {
     name: "maxTurns",

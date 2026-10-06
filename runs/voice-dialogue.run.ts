@@ -2,6 +2,7 @@ import type { RunDialogue } from "@mg/dialogue";
 import {
   createFfmpegMicrophone,
   createFfmpegPlayer,
+  createHalfDuplex,
   createLevelListener,
 } from "@mg/voice";
 import type { SpawnProcess } from "@mg/voice";
@@ -15,6 +16,7 @@ import {
   LISTENER_FORMAT,
   LISTENER_LEAD_MS,
   LISTENER_START_MS,
+  MICROPHONE_MUTE_TAIL_MS,
 } from "./voice-dialogue.values.ts";
 
 export type LiveOptions = {
@@ -60,23 +62,28 @@ export const runLive = async (
   if (options.signal.aborted) interrupt();
   else
     options.signal.addEventListener("abort", interrupt, { once: true });
+  const joined = createHalfDuplex({
+    microphone: createFfmpegMicrophone({
+      spawn: options.spawn,
+      microphone: options.microphone,
+      format: LISTENER_FORMAT,
+    }),
+    player: createFfmpegPlayer({ spawn: options.spawn }),
+    tailMs: MICROPHONE_MUTE_TAIL_MS,
+  });
   let failure: { error: unknown } | undefined;
   try {
     await options.dialogue(
       {
         ...collaborators,
         listener: createLevelListener({
-          microphone: createFfmpegMicrophone({
-            spawn: options.spawn,
-            microphone: options.microphone,
-            format: LISTENER_FORMAT,
-          }),
+          microphone: joined.microphone,
           levelDb: options.levelDb,
           startMs: LISTENER_START_MS,
           endMs: LISTENER_END_MS,
           leadMs: LISTENER_LEAD_MS,
         }),
-        player: createFfmpegPlayer({ spawn: options.spawn }),
+        player: joined.player,
       },
       {
         signal: abort.signal,

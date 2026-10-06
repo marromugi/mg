@@ -1,5 +1,5 @@
 {
-  "name": "@mg/workspace",
+  "name": "@mg/bounded-output",
   "type": "module",
   "exports": {
     ".": {
@@ -11,13 +11,5 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@mg/bounded-output": "workspace:*",
-    "@mg/core": "workspace:*",
-    "@types/ssh2": "1.15.6",
-    "playwright-core": "1.63.0",
-    "ssh2": "1.17.0",
-    "zod": "^4.6.2"
   }
 }

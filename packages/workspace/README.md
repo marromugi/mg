@@ -302,6 +302,19 @@ When opened, it returns 4 tools.
 What `browser_read` returns is not a picture of the screen.
 It is text: the page's elements as a tree of roles (role) and names (name).
 
+A page text over `maxOutputBytes` is cut to its start.
+It ends at the end of a line whenever a whole line fits.
+The full text is saved to `<overflowDir>/<random id>.txt`, and the last line of the result gives the path.
+A small page comes back whole and leaves no file.
+The tool never deletes these files.
+
+- If the first line alone is over the limit, the first bytes of that line are returned.
+- If the text passes `maxSavedBytes`, the file keeps the first `maxSavedBytes`, and the result says so.
+- If the file cannot be written, the call fails with an `OutputSaveError` naming the path and the cause.
+- The tool description tells the LLM about the limit and the file.
+  It does not say how to read the file, because the tool does not know which other tools the agent has.
+- The cutting and the closing line come from `@mg/bounded-output`.
+
 `browser_click` and `browser_type` point at an element by role and name.
 When the element is not found, or there are several, it throws.
 The harness side returns that to the LLM as a result.
@@ -336,13 +349,15 @@ const cdpConnector = createCdpConnector({
 
 This table lists what you can set.
 
-| Option           | Meaning                                                        | Default                   |
-| ---------------- | -------------------------------------------------------------- | ------------------------- |
-| `browser`        | Name of the browser this connector drives                      | Required                  |
-| `url`            | URL of the browser's CDP endpoint                              | Either this or `endpoint` |
-| `endpoint`       | Endpoint that returns a host and port reachable from your side | Either this or `url`      |
-| `timeoutMs`      | Time limit for one operation (milliseconds)                    | `30000`                   |
-| `maxOutputBytes` | Output limit for `browser_read` (bytes)                        | `1048576`                 |
+| Option           | Meaning                                                        | Default                           |
+| ---------------- | -------------------------------------------------------------- | --------------------------------- |
+| `browser`        | Name of the browser this connector drives                      | Required                          |
+| `url`            | URL of the browser's CDP endpoint                              | Either this or `endpoint`         |
+| `endpoint`       | Endpoint that returns a host and port reachable from your side | Either this or `url`              |
+| `timeoutMs`      | Time limit for one operation (milliseconds)                    | `30000`                           |
+| `maxOutputBytes` | Output limit for `browser_read` (bytes)                        | `16384`                           |
+| `overflowDir`    | Where the full page texts are saved                            | `<os temp dir>/mg-browser-output` |
+| `maxSavedBytes`  | Most bytes saved to one file (bytes)                           | `67108864`                        |
 
 #### About tests
 

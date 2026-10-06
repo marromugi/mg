@@ -4,10 +4,11 @@ import { join } from "node:path";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import {
+  closingLine,
   createBoundedOutput,
   formatBytes,
   type BoundedOutput,
-} from "./bounded-output.js";
+} from "@mg/bounded-output";
 
 export type BashToolOptions = {
   cwd: string;
@@ -27,24 +28,6 @@ type Outcome = {
   exitCode: number | null;
   signal: NodeJS.Signals | null;
   timedOut: boolean;
-};
-
-const closingLine = (output: BoundedOutput): string | undefined => {
-  if (output.savedPath === undefined) return undefined;
-  const shown = formatBytes(Buffer.byteLength(output.text));
-  const total = formatBytes(output.totalBytes);
-  if (output.lastLinePartial) {
-    return (
-      `[showing the last ${shown} of line ${output.totalLines} ` +
-      `(line is ${formatBytes(output.lastLineBytes)}; ${total} in all). ` +
-      `Full output: ${output.savedPath}]`
-    );
-  }
-  return (
-    `[showing lines ${output.shownFromLine}-${output.totalLines} ` +
-    `of ${output.totalLines} (${shown} of ${total}). ` +
-    `Full output: ${output.savedPath}]`
-  );
 };
 
 export const createBashTool = (
@@ -72,6 +55,7 @@ export const createBashTool = (
         maxBytes: maxOutputBytes,
         dir: overflowDir,
         maxSavedBytes,
+        keep: "end",
         onStop: () => {
           child.kill();
         },

@@ -1,12 +1,22 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  closingLine,
+  createBoundedOutput,
+  formatBytes,
+} from "@mg/bounded-output";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
 import type { BrowserPage } from "./browser.js";
 
 export type BrowserToolsOptions = {
   maxOutputBytes?: number;
+  overflowDir?: string;
+  maxSavedBytes?: number;
 };
 
-const DEFAULT_MAX_OUTPUT_BYTES = 1_048_576;
+const DEFAULT_MAX_OUTPUT_BYTES = 16_384;
+const DEFAULT_MAX_SAVED_BYTES = 64 * 1024 * 1024;
 
 const navigateInput = z.object({
   url: z.string().describe("URL to navigate the browser to"),
@@ -26,21 +36,15 @@ const typeInput = z.object({
   submit: z.boolean().optional().describe("Press Enter after typing"),
 });
 
-const truncateToBytes = (text: string, maxBytes: number): string => {
-  const buffer = Buffer.from(text, "utf8");
-  if (buffer.byteLength <= maxBytes) {
-    return text;
-  }
-  return new TextDecoder("utf-8").decode(buffer.subarray(0, maxBytes), {
-    stream: true,
-  });
-};
-
 export const createBrowserTools = (
   page: BrowserPage,
   options: BrowserToolsOptions = {},
 ): readonly Tool[] => {
-  const { maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES } = options;
+  const {
+    maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES,
+    overflowDir = join(tmpdir(), "mg-browser-output"),
+    maxSavedBytes = DEFAULT_MAX_SAVED_BYTES,
+  } = options;
 
   const navigate: Tool<typeof navigateInput> = {
     name: "browser_navigate",
@@ -64,7 +68,9 @@ export const createBrowserTools = (
     name: "browser_read",
     description:
       "Returns the current page's content as an accessibility tree of " +
-      "roles and names.",
+      "roles and names. " +
+      `Output over ${formatBytes(maxOutputBytes)} is cut to its start; ` +
+      "the full text is saved to a file whose path is given at the end of the result.",
     input: readInput,
     async prepare(_input) {
       return {
@@ -72,10 +78,27 @@ export const createBrowserTools = (
         run: async (context) => {
           context.signal?.throwIfAborted();
           const snapshot = await page.snapshot();
-          const truncated = truncateToBytes(snapshot, maxOutputBytes);
-          return truncated === snapshot
-            ? snapshot
-            : `${truncated}\n[output truncated]`;
+          const output = createBoundedOutput({
+            maxBytes: maxOutputBytes,
+            dir: overflowDir,
+            maxSavedBytes,
+            keep: "start",
+            onStop: () => {},
+          });
+          output.append(Buffer.from(snapshot, "utf8"));
+          const bounded = await output.finish();
+
+          const parts: string[] = [];
+          if (bounded.text !== "") parts.push(bounded.text);
+          const closing = closingLine(bounded);
+          if (closing !== undefined) parts.push(closing);
+          if (bounded.savedCapReached) {
+            const kept = formatBytes(maxSavedBytes);
+            parts.push(
+              `[stopped: output passed ${kept}; the first ${kept} is saved]`,
+            );
+          }
+          return parts.join("\n");
         },
       };
     },

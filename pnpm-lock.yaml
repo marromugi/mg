@@ -29,6 +29,8 @@ importers:
 
   dashboard: {}
 
+  packages/bounded-output: {}
+
   packages/conversation:
     dependencies:
       '@libsql/client':
@@ -208,6 +210,9 @@ importers:
 
   packages/tools:
     dependencies:
+      '@mg/bounded-output':
+        specifier: workspace:*
+        version: link:../bounded-output
       '@mg/core':
         specifier: workspace:*
         version: link:../core
@@ -287,6 +292,9 @@ importers:
 
   packages/workspace:
     dependencies:
+      '@mg/bounded-output':
+        specifier: workspace:*
+        version: link:../bounded-output
       '@mg/core':
         specifier: workspace:*
         version: link:../core

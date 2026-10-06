@@ -31,26 +31,27 @@ If a `.env` file exists, they are read from it as well.
 
 ## Packages
 
-| Package                                               | What it does                                                                                                                           |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@mg/core`](packages/core/README.md)                 | Provider abstraction and shared tool types                                                                                             |
-| [`@mg/tools`](packages/tools/README.md)               | Built-in tools shared by harnesses                                                                                                     |
-| [`@mg/workspace`](packages/workspace/README.md)       | Connector types for reaching other machines, and opening and closing workspaces                                                        |
-| [`@mg/conversation`](packages/conversation/README.md) | Interface, types and errors for storing and loading conversations                                                                      |
-| [`@mg/memory`](packages/memory/README.md)             | Stores and loads an individual's memory (persona, per-person entries, summaries)                                                       |
-| [`@mg/persona`](packages/persona/README.md)           | Interfaces for an individual's recall and reflection, and an LLM-backed implementation                                                 |
-| [`@mg/gate`](packages/gate/README.md)                 | Gate types that decide whether an action may run, with LLM and Estimator implementations                                               |
-| [`@mg/trigger`](packages/trigger/README.md)           | Trigger types and errors that decide whether to start a run, span helpers, and an Estimator implementation                             |
-| [`@mg/harness`](packages/harness/README.md)           | Shared input and output types every harness follows, and the subagent interface                                                        |
-| [`@mg/trace`](packages/trace/README.md)               | Tracing implementation and the shared vocabulary                                                                                       |
-| [`@mg/loop`](packages/loop/README.md)                 | A loop harness that keeps calling tools                                                                                                |
-| [`@mg/runner`](packages/runner/README.md)             | Builds a harness from a config, opens a trace and runs it                                                                              |
-| [`@mg/eval`](packages/eval/README.md)                 | Interface for judging a run from its records afterwards, with rule and Estimator implementations                                       |
-| [`@mg/term`](packages/term/README.md)                 | Colors and markers for terminal output                                                                                                 |
-| [`@mg/voice`](packages/voice/README.md)               | Voice I/O types (chunks, speech synthesis, transcription, listener, player), sentence splitting, and a speech synthesis implementation |
-| [`@mg/turn`](packages/turn/README.md)                 | Types and errors for the listening decisions ①–⑥ in voice conversations, and an Estimator implementation                               |
-| [`@mg/dashboard`](dashboard/README.md)                | Screens, storage and startup needed only for everyday use                                                                              |
-| [`runs/`](runs/)                                      | Config files for each experiment                                                                                                       |
+| Package                                                   | What it does                                                                                                                           |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@mg/core`](packages/core/README.md)                     | Provider abstraction and shared tool types                                                                                             |
+| [`@mg/tools`](packages/tools/README.md)                   | Built-in tools shared by harnesses                                                                                                     |
+| [`@mg/bounded-output`](packages/bounded-output/README.md) | Cuts a text to a limit, keeps the whole in a file, and words the closing line                                                          |
+| [`@mg/workspace`](packages/workspace/README.md)           | Connector types for reaching other machines, and opening and closing workspaces                                                        |
+| [`@mg/conversation`](packages/conversation/README.md)     | Interface, types and errors for storing and loading conversations                                                                      |
+| [`@mg/memory`](packages/memory/README.md)                 | Stores and loads an individual's memory (persona, per-person entries, summaries)                                                       |
+| [`@mg/persona`](packages/persona/README.md)               | Interfaces for an individual's recall and reflection, and an LLM-backed implementation                                                 |
+| [`@mg/gate`](packages/gate/README.md)                     | Gate types that decide whether an action may run, with LLM and Estimator implementations                                               |
+| [`@mg/trigger`](packages/trigger/README.md)               | Trigger types and errors that decide whether to start a run, span helpers, and an Estimator implementation                             |
+| [`@mg/harness`](packages/harness/README.md)               | Shared input and output types every harness follows, and the subagent interface                                                        |
+| [`@mg/trace`](packages/trace/README.md)                   | Tracing implementation and the shared vocabulary                                                                                       |
+| [`@mg/loop`](packages/loop/README.md)                     | A loop harness that keeps calling tools                                                                                                |
+| [`@mg/runner`](packages/runner/README.md)                 | Builds a harness from a config, opens a trace and runs it                                                                              |
+| [`@mg/eval`](packages/eval/README.md)                     | Interface for judging a run from its records afterwards, with rule and Estimator implementations                                       |
+| [`@mg/term`](packages/term/README.md)                     | Colors and markers for terminal output                                                                                                 |
+| [`@mg/voice`](packages/voice/README.md)                   | Voice I/O types (chunks, speech synthesis, transcription, listener, player), sentence splitting, and a speech synthesis implementation |
+| [`@mg/turn`](packages/turn/README.md)                     | Types and errors for the listening decisions ①–⑥ in voice conversations, and an Estimator implementation                               |
+| [`@mg/dashboard`](dashboard/README.md)                    | Screens, storage and startup needed only for everyday use                                                                              |
+| [`runs/`](runs/)                                          | Config files for each experiment                                                                                                       |
 
 ### Where new code goes
 
@@ -59,6 +60,7 @@ If a `.env` file exists, they are read from it as well.
 | An implementation of another provider                                            | core                                         |
 | Tool types or the tool runner                                                    | core                                         |
 | Tools shared by harnesses                                                        | tools                                        |
+| Cutting a text to a limit and keeping the whole in a file                        | bounded-output                               |
 | A tool used by only one harness                                                  | that harness (written with core's types)     |
 | The subagent interface                                                           | harness                                      |
 | A connector to another machine                                                   | workspace                                    |
@@ -133,7 +135,9 @@ graph TD
   trace --> harness
   trace --> core
   harness --> core
+  tools --> bounded-output
   tools --> core
+  workspace --> bounded-output
   workspace --> core
   conversation --> core
 ```
@@ -143,8 +147,8 @@ graph TD
 - runner does not use tools, eval or memory. An individual's storage
   lives inside the individual.
 - memory and persona do not know about runner.
-- core, memory, term and voice depend on no other package in this
-  repository.
+- core, memory, term, voice and bounded-output depend on no other
+  package in this repository.
 - turn does not know about voice.
 - runs and dashboard are consumers and do not use each other.
   dashboard uses no package yet, and no package uses dashboard.

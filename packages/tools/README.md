@@ -62,6 +62,7 @@ The result is returned as one string.
 - A timeout does not throw either. The result says so.
 - If the output goes over `maxOutputBytes`, only its end is returned.
   It starts at the beginning of a line whenever a whole line fits.
+  The cutting and the closing line come from `@mg/bounded-output`.
   The full output is saved to `<overflowDir>/<random id>.txt`, and a last line gives the path.
   Small outputs leave no file.
   The tool never deletes these files.

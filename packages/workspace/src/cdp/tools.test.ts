@@ -1,6 +1,18 @@
-import { describe, expect, test } from "vitest";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, test } from "vitest";
 import { createBrowserTools } from "./tools.js";
 import type { BrowserPage } from "./browser.js";
+
+const dir = mkdtempSync(join(tmpdir(), "mg-browser-tools-"));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 type Calls = {
   navigate: string[];
@@ -74,31 +86,99 @@ describe("createBrowserTools", () => {
     );
   });
 
-  test("browser_read truncates output over the limit and marks it", async () => {
+  test("browser_read returns a small page whole and writes no file", async () => {
+    const overflowDir = join(dir, "small");
     const page = createFakePage({
-      snapshot: async () => "abcdefghij",
+      snapshot: async () => "- heading: Example\n- link: More",
     });
-    const tool = createBrowserTools(page, { maxOutputBytes: 5 }).find(
-      (t) => t.name === "browser_read",
-    )!;
+    const tool = createBrowserTools(page, {
+      maxOutputBytes: 100,
+      overflowDir,
+    }).find((t) => t.name === "browser_read")!;
 
     await expect((await tool.prepare({})).run({})).resolves.toBe(
-      "abcde\n[output truncated]",
+      "- heading: Example\n- link: More",
     );
+    expect(existsSync(overflowDir)).toBe(false);
   });
 
-  test("browser_read truncates on a code-point boundary, not mid-character", async () => {
-    const page = createFakePage({
-      snapshot: async () => "あいう",
-    });
-    const tool = createBrowserTools(page, { maxOutputBytes: 4 }).find(
-      (t) => t.name === "browser_read",
-    )!;
+  test("browser_read returns the start of a large page and saves the whole to a file", async () => {
+    const overflowDir = join(dir, "large");
+    const snapshot = "- row 1\n- row 2\n- row 3\n- row 4\n";
+    const page = createFakePage({ snapshot: async () => snapshot });
+    const tool = createBrowserTools(page, {
+      maxOutputBytes: 20,
+      overflowDir,
+    }).find((t) => t.name === "browser_read")!;
 
     const result = await (await tool.prepare({})).run({});
 
-    expect(result).toBe("あ\n[output truncated]");
-    expect(result).not.toContain("�");
+    const path = /Full output: (.+)\]$/.exec(result)?.[1] ?? "";
+    expect(result).toBe(
+      "- row 1\n- row 2\n" +
+        "[showing lines 1-2 of 4 (15 B of 32 B). " +
+        `Full output: ${path}]`,
+    );
+    expect(path.startsWith(overflowDir)).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(snapshot);
+  });
+
+  test("browser_read cuts a long first line on a character boundary", async () => {
+    const page = createFakePage({ snapshot: async () => "あいうえお" });
+    const tool = createBrowserTools(page, {
+      maxOutputBytes: 7,
+      overflowDir: join(dir, "wide"),
+    }).find((t) => t.name === "browser_read")!;
+
+    const result = await (await tool.prepare({})).run({});
+
+    expect(result).toMatch(
+      /^あい\n\[showing the first 6 B of line 1 \(line is 15 B; 15 B in all\)\. Full output: .+\]$/,
+    );
+  });
+
+  test("browser_read says when the saved copy stopped at the cap", async () => {
+    const page = createFakePage({
+      snapshot: async () => "0123456789abcdef",
+    });
+    const tool = createBrowserTools(page, {
+      maxOutputBytes: 4,
+      maxSavedBytes: 10,
+      overflowDir: join(dir, "capped"),
+    }).find((t) => t.name === "browser_read")!;
+
+    const result = await (await tool.prepare({})).run({});
+
+    expect(result).toMatch(
+      /^0123\n\[showing the first 4 B of line 1 \(line is 10 B; 10 B in all\)\. Full output: .+\]\n\[stopped: output passed 10 B; the first 10 B is saved\]$/,
+    );
+  });
+
+  test("browser_read fails with the path when the page cannot be saved", async () => {
+    const blocked = join(dir, "blocked");
+    writeFileSync(blocked, "");
+    const page = createFakePage({ snapshot: async () => "abcdefghij" });
+    const tool = createBrowserTools(page, {
+      maxOutputBytes: 5,
+      overflowDir: blocked,
+    }).find((t) => t.name === "browser_read")!;
+
+    await expect(
+      (await tool.prepare({})).run({}),
+    ).rejects.toMatchObject({
+      name: "OutputSaveError",
+      path: expect.stringContaining(blocked) as unknown,
+    });
+  });
+
+  test("browser_read description names the limit and the saved file", () => {
+    const tool = createBrowserTools(createFakePage(), {
+      maxOutputBytes: 16384,
+    }).find((t) => t.name === "browser_read")!;
+
+    expect(tool.description).toContain(
+      "Output over 16.0 KB is cut to its start; the full text is saved to a file whose path is given at the end of the result.",
+    );
   });
 
   test("browser_click calls page.click with role and name", async () => {

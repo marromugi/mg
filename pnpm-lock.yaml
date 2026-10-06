@@ -35,6 +35,21 @@ importers:
       '@hono/node-server':
         specifier: 2.1.1
         version: 2.1.1(hono@4.13.7)
+      '@mg/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@mg/gate':
+        specifier: workspace:*
+        version: link:../packages/gate
+      '@mg/harness':
+        specifier: workspace:*
+        version: link:../packages/harness
+      '@mg/runner':
+        specifier: workspace:*
+        version: link:../packages/runner
+      '@mg/tools':
+        specifier: workspace:*
+        version: link:../packages/tools
       hono:
         specifier: 4.13.7
         version: 4.13.7

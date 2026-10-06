@@ -103,6 +103,11 @@ graph TD
   runs --> gate
   runs --> credentials
   runs --> core
+  dashboard --> runner
+  dashboard --> tools
+  dashboard --> gate
+  dashboard --> harness
+  dashboard --> core
   runner --> loop
   runner --> gate
   runner --> trigger
@@ -149,9 +154,9 @@ graph TD
   repository.
 - turn does not know about voice.
 - runs and dashboard are consumers and do not use each other.
-  dashboard uses no package yet, and no package uses dashboard. Its
-  server, pages and styles come from outside libraries only (Hono,
-  React, Tailwind).
+  dashboard uses runner, harness, core, tools and gate to run a
+  harness, and no package uses dashboard. Its server, pages and styles
+  come from outside libraries (Hono, React, Tailwind).
 
 ## Development
 

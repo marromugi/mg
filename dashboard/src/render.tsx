@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { renderToString } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
 
 const Document = ({
   title,
@@ -24,3 +24,24 @@ const Document = ({
 
 export const renderPage = (title: string, page: ReactNode): string =>
   `<!DOCTYPE html>${renderToString(<Document title={title}>{page}</Document>)}`;
+
+const SLOT = <template data-stream-slot="" />;
+
+// Renders a page in two halves around `slot`, so that pieces made by
+// `renderPiece` can be sent between them while the response is open.
+export const renderPageAround = (
+  title: string,
+  build: (slot: ReactNode) => ReactNode,
+): { head: string; tail: string } => {
+  const html = renderPage(title, build(SLOT));
+  const marker = renderToString(SLOT);
+  const at = html.indexOf(marker);
+  if (at === -1) throw new Error("the page does not place the slot");
+  return {
+    head: html.slice(0, at),
+    tail: html.slice(at + marker.length),
+  };
+};
+
+export const renderPiece = (piece: ReactNode): string =>
+  renderToStaticMarkup(piece);

@@ -13,6 +13,11 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",
+    "@mg/core": "workspace:*",
+    "@mg/gate": "workspace:*",
+    "@mg/harness": "workspace:*",
+    "@mg/runner": "workspace:*",
+    "@mg/tools": "workspace:*",
     "hono": "4.13.7",
     "react": "19.3.0",
     "react-dom": "19.3.0",

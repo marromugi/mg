@@ -1,6 +1,11 @@
 import { createInterface } from "node:readline";
 import type { CredentialContext, CredentialUse } from "@mg/credentials";
 
+// 端末なら入力の改行が画面に出ます。それ以外は出ないので、ここで改行します。
+const endLine = () => {
+  if (!process.stdin.isTTY) process.stdout.write("\n");
+};
+
 // 端末で使ってよいかを聞きます。y 以外は断ります。入力が閉じたときも断ります。
 // 中断されたら、その理由で失敗します。
 export const askInTerminal = (
@@ -17,10 +22,6 @@ export const askInTerminal = (
       input: process.stdin,
       output: process.stdout,
     });
-    // 端末なら入力の改行が画面に出ます。それ以外は出ないので、ここで改行します。
-    const endLine = () => {
-      if (!process.stdin.isTTY) process.stdout.write("\n");
-    };
     const onAbort = () => {
       reject(signal?.reason);
       rl.close();

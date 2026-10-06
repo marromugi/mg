@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mg/bounded-output": "workspace:*",
     "@mg/core": "workspace:*",
     "@mg/local-path": "workspace:*",
     "zod": "^4.6.2"

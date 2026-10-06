@@ -33,6 +33,8 @@ export const createCdpConnector = (
   ): Connection => ({
     tools: createBrowserTools(page, {
       maxOutputBytes: options.maxOutputBytes,
+      overflowDir: options.overflowDir,
+      maxSavedBytes: options.maxSavedBytes,
     }),
     close,
   });

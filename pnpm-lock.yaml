@@ -94,6 +94,8 @@ importers:
         specifier: 7.3.6
         version: 7.3.6(@types/node@25.9.6)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.13)
 
+  packages/bounded-output: {}
+
   packages/conversation:
     dependencies:
       '@libsql/client':
@@ -275,6 +277,9 @@ importers:
 
   packages/tools:
     dependencies:
+      '@mg/bounded-output':
+        specifier: workspace:*
+        version: link:../bounded-output
       '@mg/core':
         specifier: workspace:*
         version: link:../core
@@ -354,6 +359,9 @@ importers:
 
   packages/workspace:
     dependencies:
+      '@mg/bounded-output':
+        specifier: workspace:*
+        version: link:../bounded-output
       '@mg/core':
         specifier: workspace:*
         version: link:../core

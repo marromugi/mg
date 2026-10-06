@@ -8,6 +8,8 @@ export type CdpConnectorOptions = (
   browser: string;
   timeoutMs?: number;
   maxOutputBytes?: number;
+  overflowDir?: string;
+  maxSavedBytes?: number;
 };
 
 export interface BrowserPage {

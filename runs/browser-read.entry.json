@@ -1,0 +1,5 @@
+{
+  "command": "node runs/browser-read.ts \"<url>\"",
+  "needs": [],
+  "burdens": ["outside"]
+}

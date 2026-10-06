@@ -123,7 +123,7 @@ describe("createBashTool", () => {
     await expect(
       (await small.prepare({ command: "seq 1 50" })).run({}),
     ).rejects.toMatchObject({
-      name: "BashOutputSaveError",
+      name: "OutputSaveError",
       path: expect.stringContaining(blocked) as unknown,
     });
   });

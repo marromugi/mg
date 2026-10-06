@@ -7,10 +7,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  parseDefinition,
-  type HarnessDefinition,
-} from "../definition/index.js";
+import type { HarnessDefinition } from "../definition/index.js";
+import { parseDefinition } from "../definition-parser/index.js";
 import { NameTakenError } from "./errors.js";
 import type { DefinitionStore } from "./store.js";
 

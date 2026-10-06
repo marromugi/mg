@@ -1,0 +1,5 @@
+{
+  "command": "pnpm --filter @mg/dashboard exec storybook build -o <dir>",
+  "needs": [],
+  "burdens": []
+}

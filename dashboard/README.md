@@ -85,7 +85,7 @@ Builds the Hono app from `{ session, dataDir, definitions, secrets, runs }`. `de
 
 ### `parseDefinition(value)`
 
-Checks a value as a harness definition and returns it, or the problems with the path of each wrong field. A definition with tools needs a working folder, and a path rule or a judge.
+From `src/definition-parser`. Checks a value as a harness definition and returns it, or the problems with the path of each wrong field. A definition with tools needs a working folder, and a path rule or a judge.
 
 ### `createSession(options)`
 

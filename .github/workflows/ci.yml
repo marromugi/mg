@@ -43,3 +43,6 @@ jobs:
 
       - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm test
+
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --filter @mg/dashboard run build-storybook

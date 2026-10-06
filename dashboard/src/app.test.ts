@@ -56,6 +56,39 @@ describe("launch link", () => {
   });
 });
 
+describe("stylesheet", () => {
+  it("is served without a session as CSS", async () => {
+    const response = await request(build(), "/styles.css");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "text/css; charset=utf-8",
+    );
+  });
+});
+
+describe("two servers", () => {
+  it("issue cookies with different names", async () => {
+    const other = createApp({
+      session: createSession({
+        token: TOKEN,
+        address: "127.0.0.1:4200",
+      }),
+      dataDir: "/unused",
+    });
+    const first = await enter(build());
+    const second = await other.request(
+      `http://127.0.0.1:4200/enter?token=${TOKEN}`,
+      { headers: { Host: "127.0.0.1:4200" } },
+    );
+
+    expect(first.pair.split("=")[0]).toBe("mg_dashboard_session_4100");
+    expect(second.headers.get("Set-Cookie")?.split("=")[0]).toBe(
+      "mg_dashboard_session_4200",
+    );
+  });
+});
+
 describe("pages", () => {
   it("shows the home page with links to Harnesses and API keys", async () => {
     const app = build();

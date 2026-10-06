@@ -58,7 +58,7 @@ Takes `{ token, address }` and returns `{ middleware }`. The middleware refuses 
 
 ## How it works
 
-- The token is made at start and works once. `/enter?token=<token>` sets the session cookie (HttpOnly, SameSite=Strict, Path=/) and redirects to `/`.
+- The token is made at start and works once. `/enter?token=<token>` sets the session cookie `mg_dashboard_session_<port>` (HttpOnly, SameSite=Strict, Path=/) and redirects to `/`.
 - Refusals are thrown by the session and turned into pages by the app.
 - Pages are rendered on the server with React and have no client bundle. They work through links and forms.
 - `pnpm build` runs `tsc`, then the Tailwind CLI, which writes `dist/styles.css` from `src/styles/tokens.css`. The server serves it at `/styles.css`.

@@ -3,7 +3,6 @@ import type { MiddlewareHandler } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 
-const COOKIE_NAME = "mg_dashboard_session";
 const ENTER_PATH = "/enter";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -21,6 +20,8 @@ export const createSession = (options: {
   address: string;
 }): Session => {
   const origin = `http://${options.address}`;
+  // Cookies are scoped by host, not port; the port keeps two servers apart.
+  const cookieName = `mg_dashboard_session_${options.address.split(":").pop()}`;
   const tokenDigest = digest(options.token);
   const sessions = new Set<string>();
   let tokenUsed = false;
@@ -51,7 +52,7 @@ export const createSession = (options: {
       tokenUsed = true;
       const id = randomBytes(32).toString("hex");
       sessions.add(id);
-      setCookie(c, COOKIE_NAME, id, {
+      setCookie(c, cookieName, id, {
         httpOnly: true,
         sameSite: "Strict",
         path: "/",
@@ -60,7 +61,7 @@ export const createSession = (options: {
       return c.redirect("/", 303);
     }
 
-    const id = getCookie(c, COOKIE_NAME);
+    const id = getCookie(c, cookieName);
     if (id === undefined || !sessions.has(id)) {
       throw new HTTPException(401);
     }

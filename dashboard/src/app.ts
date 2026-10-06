@@ -15,8 +15,8 @@ export const createApp = (parts: AppParts): Hono => {
   const app = new Hono();
 
   registerRefusals(app);
-  app.use(parts.session.middleware);
   registerStyles(app);
+  app.use(parts.session.middleware);
   registerHome(app);
   registerHarnesses(app);
   registerApiKeys(app);

@@ -4,13 +4,92 @@ A package on the using side that holds the screens for using harnesses day to da
 
 ## Features
 
-- It is a place for the using side, alongside runs.
-- The screens, storage, and startup that only day-to-day use needs are gathered here.
-- The screens, storage, and startup are added by separate issues that build the features.
-- For now it holds only this document and the package definition.
+- A local server that draws the dashboard's pages and prints one launch link.
+- It listens on 127.0.0.1 only, on a free port picked at start.
+- Opening the launch link starts a session. Nothing else on the network, and no other web page in the browser, can reach the server.
+- A page frame with navigation to three places: the home page, Harnesses, and API keys.
+- On the Harnesses page a harness is created, edited, and deleted through a form: name, provider, model, turn limit, working folder, tools, path rules, and an optional LLM judge. A form that cannot make a valid harness is not saved and names the wrong field.
+- Each harness is kept as one JSON file under `harnesses/` in the data folder, named by an id that does not change on rename. A file that does not parse is listed by name and is not opened.
+- On the API keys page the OpenRouter key is set, replaced, and deleted (after a confirmation). The page shows only whether it is set; a saved key is never drawn again. Keys are kept in the macOS Keychain, not in a file.
+- A saved harness's page has a text field and a Run button. A test run takes one input, takes the OpenRouter key from the Keychain, and runs the harness with the run package. The run page is one response that stays open: assistant text, each tool call with its input, and each tool result arrive as they happen, then the end reason with input and output token counts. A gate refusal shows as the tool result it becomes. The Stop button aborts the run and the page says it was stopped. A failed run shows the error's message. Reloading the page replays the run from its start.
+- Each run writes one JSONL trace file under `traces/` in the data folder, and the run page names its path.
+- Runs are kept in memory while the server lives, and several can go at once. After a restart a run page says the run is no longer available and names the trace folder.
+- Without the OpenRouter key a run does not start. The page names `OPENROUTER_API_KEY` and links to the API keys page.
+- Generic parts (`ui`), parts that know the dashboard (`feature`), pages, and the token file, with a Storybook for them.
+
+## Usage
+
+Build once, then start the server.
+
+```
+pnpm build
+node dashboard/dist/server.js --data-dir <dir> --port <n>
+```
+
+The first line it prints is the launch link.
+
+```
+http://127.0.0.1:<port>/enter?token=<token>
+```
+
+Open it in a browser. It sets a session cookie and moves to the home page.
+
+| Option               | Meaning                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `--data-dir`         | Where data is kept. Default: `~/Library/Application Support/mg-dashboard/` |
+| `--port`             | A fixed port. Default: a free port picked at start                         |
+| `--keychain-service` | The Keychain service that keys are kept under. Default: `mg-dashboard`     |
+
+A taken port, or a data folder that cannot be created, ends the process with a non-zero code. The reason goes to stderr and no launch link is printed.
+
+To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
+
+## API
+
+`dashboard/src/server.entry.json` declares how to run the server.
+
+### `createApp(parts)`
+
+Builds the Hono app from `{ session, dataDir, definitions, secrets, runs }`. `definitions` is a `DefinitionStore`, `secrets` is a `SecretStore`, and `runs` is a `TestRuns`.
+
+### `DefinitionStore`
+
+`list`, `get`, `put`, and `delete` over harness definitions. `put` throws `NameTakenError` when another id holds the name. `createFileDefinitionStore({ dir })` is the one implementation.
+
+### `SecretStore`
+
+`has`, `get`, `set`, and `delete` over a secret kept under a `SecretName` (now `OPENROUTER_API_KEY`). `get` is for the server's own code; no page or log receives a value. `createKeychainSecretStore({ service, spawn? })` is the one implementation: a generic password with that service and the name as account, run through `/usr/bin/security`. A value goes to `security -i` on stdin as hex, so it is never in the process's argument list. `security -i` reads a command line in pieces of 4095 characters, so a value whose command does not fit in one piece is refused before anything runs (`SecretTooLongError`, 2,010 bytes with the service `mg-dashboard`) and the page shows a field message. A `security` failure other than "not found" throws a `SecretStoreError` with the exit code and stderr, with every part of the value and of its hex removed.
+
+### `TestRuns`
+
+`start(definition, input)` turns a saved definition into a run config with `assemble` and runs it in the background. It returns `{ ok: true, runId }`, or `{ ok: false, missingSecret }` when the OpenRouter key is not set. A definition that cannot be turned into a config (for example a judge on a provider that cannot force a tool call) starts a run that ends as `failed` with the reason. `watch(runId)` gives every `TestRunEvent` of the run from its first, then the ones still to come; it is undefined for an unknown run. `stop(runId)` aborts a running run and returns true, or returns false for an unknown or ended run. `createTestRuns({ secrets, dataDir, run? })` is the one implementation; `run` defaults to the run package's `run`, and tests hand it a fake. Traces go to `<dataDir>/traces/<runId>.jsonl`.
+
+### `parseDefinition(value)`
+
+Checks a value as a harness definition and returns it, or the problems with the path of each wrong field. A definition with tools needs a working folder, and a path rule or a judge.
+
+### `createSession(options)`
+
+Takes `{ token, address }` and returns `{ middleware }`. The middleware refuses a request in this order.
+
+| Request                                                        | Answer |
+| -------------------------------------------------------------- | ------ |
+| `Host` is not `address`                                        | 403    |
+| Not GET, HEAD or OPTIONS, and `Origin` is not the server's own | 403    |
+| `/enter` with a wrong token, or a token already used           | 401    |
+| Any other path without the session cookie                      | 401    |
+
+## How it works
+
+- The token is made at start and works once. `/enter?token=<token>` sets the session cookie `mg_dashboard_session_<port>` (HttpOnly, SameSite=Strict, Path=/) and redirects to `/`.
+- Refusals are thrown by the session and turned into pages by the app.
+- Pages are rendered on the server with React and have no client bundle. They work through links and forms.
+- `pnpm build` runs `tsc`, then the Tailwind CLI, which writes `dist/styles.css` from `src/styles/tokens.css`. The server serves it at `/styles.css`.
+- Every class is checked against the token file by the lint.
 
 ## Non-goals
 
-- It holds no harness parts or types.
+- It holds no harness parts. Its definition type is plain data.
 - It does not store traces. Storage stays trace's job.
 - It has no public exports. Nothing imports it.
+- It has no login. The launch link is the only way in.

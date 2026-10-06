@@ -16,7 +16,22 @@ const chunk = (bytes: number[]): AudioChunk => ({
   data: new Uint8Array(bytes),
 });
 
-const none = (async function* (): AsyncGenerator<AudioChunk> {})();
+// Audio whose first chunk is delivered once the test releases it.
+const gatedAudio = () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const audio = (async function* (): AsyncGenerator<AudioChunk> {
+    await gate;
+    yield chunk([9, 9]);
+  })();
+  return { audio, release };
+};
+
+const sounds = (): AsyncIterable<AudioChunk> => {
+  const { audio, release } = gatedAudio();
+  release();
+  return audio;
+};
 
 // A microphone whose chunks are pushed by the test, one at a time.
 const pushedMicrophone = () => {
@@ -44,20 +59,18 @@ const pushedMicrophone = () => {
 };
 
 const fakePlayer = () => {
-  const calls: string[] = [];
   const pending: ((end: PlaybackEnd) => void)[] = [];
   const player: Player = {
-    play(index) {
-      calls.push(`play:${index}`);
-      return new Promise((resolve) => pending.push(resolve));
+    async play(_index, audio) {
+      for await (const delivered of audio) void delivered;
+      return new Promise<PlaybackEnd>((resolve) =>
+        pending.push(resolve),
+      );
     },
-    stop() {
-      calls.push("stop");
-    },
+    stop() {},
   };
   return {
     player,
-    calls,
     finish: () => pending.shift()?.({ played: true }),
   };
 };
@@ -92,7 +105,8 @@ const settle = () => new Promise<void>((r) => setTimeout(r, 0));
 describe("half duplex", () => {
   test("gives zeros of the same length for chunks that arrive while the player plays", async () => {
     const s = setup();
-    void s.joined.player.play(0, none);
+    void s.joined.player.play(0, sounds());
+    await settle();
     expect(await s.next([1, 2, 3, 4])).toEqual([0, 0, 0, 0]);
     expect(await s.next([5, 6])).toEqual([0, 0]);
   });
@@ -100,7 +114,8 @@ describe("half duplex", () => {
   test("gives zeros 499 ms after playback ended and the audio itself at 500 ms", async () => {
     const s = setup();
     s.at(1000);
-    const played = s.joined.player.play(0, none);
+    const played = s.joined.player.play(0, sounds());
+    await settle();
     s.fake.finish();
     await played;
     s.at(1499);
@@ -114,11 +129,15 @@ describe("half duplex", () => {
     expect(await s.next([7, 8, 9, 10])).toEqual([7, 8, 9, 10]);
   });
 
-  test("forwards play and stop to the given player", () => {
+  test("passes a chunk through unchanged while the audio of a play has not yielded, and gives zeros once it has", async () => {
     const s = setup();
-    void s.joined.player.play(3, none);
-    s.joined.player.stop();
-    expect(s.fake.calls).toEqual(["play:3", "stop"]);
+    const gated = gatedAudio();
+    void s.joined.player.play(0, gated.audio);
+    await settle();
+    expect(await s.next([1, 2])).toEqual([1, 2]);
+    gated.release();
+    await settle();
+    expect(await s.next([3, 4])).toEqual([0, 0]);
   });
 });
 
@@ -135,7 +154,10 @@ describe("half duplex with the level listener", () => {
       async *open() {
         for (let ms = 0; ms < 2800; ms++) {
           time = ms;
-          if (ms === 0) void joined.player.play(0, none);
+          if (ms === 0) {
+            void joined.player.play(0, sounds());
+            await settle();
+          }
           if (ms === 1000) {
             fake.finish();
             await settle();

@@ -12,8 +12,10 @@ export type HalfDuplexOptions = {
 };
 
 // Joins a microphone and a player so that the microphone hears nothing
-// while the player is sounding. A chunk that arrives while a play is in
-// flight, or less than tailMs after the last one ended, keeps its length
+// while the player is sounding. A play sounds from the first chunk of its
+// audio that reaches the given player until it returns. A chunk that
+// arrives while a play sounds, or less than tailMs after the last one
+// ended, keeps its length
 // and format and carries silence instead of its audio.
 export const createHalfDuplex = (
   options: HalfDuplexOptions,
@@ -24,12 +26,23 @@ export const createHalfDuplex = (
 
   const player: Player = {
     async play(index, audio) {
-      playing += 1;
+      let sounding = false;
+      const heard = (async function* () {
+        for await (const chunk of audio) {
+          if (!sounding) {
+            sounding = true;
+            playing += 1;
+          }
+          yield chunk;
+        }
+      })();
       try {
-        return await options.player.play(index, audio);
+        return await options.player.play(index, heard);
       } finally {
-        playing -= 1;
-        if (playing === 0) endedAt = now();
+        if (sounding) {
+          playing -= 1;
+          if (playing === 0) endedAt = now();
+        }
       }
     },
     stop: () => options.player.stop(),

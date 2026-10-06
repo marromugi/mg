@@ -137,8 +137,10 @@ A failure of the microphone is thrown by the stream.
 
 Takes a microphone, a player and `tailMs`, and returns a microphone and a player to use in their place.
 `now` is the time source in ms and defaults to `Date.now`.
-The returned player forwards `play` and `stop` and counts the plays in flight.
-A chunk of the returned microphone that arrives while a play is in flight, or less than `tailMs` after the last one ended, keeps its length and format and carries zeros.
+The returned player forwards `play` and `stop` and counts the plays that are sounding.
+A play sounds from the first chunk of its audio that reaches the given player until it returns or throws.
+A play whose audio never yields starts no tail.
+A chunk of the returned microphone that arrives while a play sounds, or less than `tailMs` after the last one ended, keeps its length and format and carries zeros.
 Other chunks pass through unchanged.
 Failures of the microphone and of the player pass through unchanged.
 

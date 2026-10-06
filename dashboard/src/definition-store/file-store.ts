@@ -84,7 +84,9 @@ export const createFileDefinitionStore = (options: {
       const definitions: HarnessDefinition[] = [];
       const unreadable: string[] = [];
       for (const id of (await ids()).sort()) {
-        const definition = await readDefinition(id);
+        const definition = VALID_ID.test(id)
+          ? await readDefinition(id)
+          : undefined;
         if (definition === undefined)
           unreadable.push(`${id}${EXTENSION}`);
         else definitions.push(definition);
@@ -103,7 +105,7 @@ export const createFileDefinitionStore = (options: {
           );
         }
         for (const id of await ids()) {
-          if (id === definition.id) continue;
+          if (id === definition.id || !VALID_ID.test(id)) continue;
           const other = await readDefinition(id);
           if (other?.name === definition.name) {
             throw new NameTakenError(definition.name);

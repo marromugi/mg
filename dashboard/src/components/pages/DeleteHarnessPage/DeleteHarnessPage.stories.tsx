@@ -9,3 +9,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = { args: { definition: filesHarness } };
+
+export const DeleteFailed: Story = {
+  args: {
+    definition: filesHarness,
+    failure: "EACCES: permission denied",
+  },
+};

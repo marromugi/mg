@@ -1,14 +1,16 @@
 import type { HarnessDefinition } from "../../../definition/index.js";
 import { AppFrame } from "../../feature/AppFrame/index.js";
 import { HarnessList } from "../../feature/HarnessList/index.js";
-import { Button, Heading } from "../../ui/index.js";
+import { Button, Heading, Notice } from "../../ui/index.js";
 
 export const HarnessesPage = ({
   definitions,
   unreadable,
+  failure,
 }: {
   definitions: readonly HarnessDefinition[];
   unreadable: readonly string[];
+  failure?: string;
 }) => (
   <AppFrame current="harnesses">
     <Heading>ハーネス</Heading>
@@ -17,6 +19,10 @@ export const HarnessesPage = ({
         ハーネスを作る
       </Button>
     </div>
-    <HarnessList definitions={definitions} unreadable={unreadable} />
+    {failure === undefined ? (
+      <HarnessList definitions={definitions} unreadable={unreadable} />
+    ) : (
+      <Notice>{`ハーネスの一覧を読み込めませんでした。${failure}`}</Notice>
+    )}
   </AppFrame>
 );

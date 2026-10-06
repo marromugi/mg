@@ -7,18 +7,24 @@ import {
 // A store for tests of the pieces above the interface. `failWith`
 // makes every put fail with that message.
 export const createMemoryStore = (
-  options: { failWith?: string } = {},
+  options: {
+    failWith?: string;
+    listFailsWith?: string;
+    deleteFailsWith?: string;
+  } = {},
 ): DefinitionStore => {
   const held = new Map<string, HarnessDefinition>();
 
   return {
     list: () =>
-      Promise.resolve({
-        definitions: [...held.values()].sort((first, second) =>
-          first.name.localeCompare(second.name),
-        ),
-        unreadable: [],
-      }),
+      options.listFailsWith !== undefined
+        ? Promise.reject(new Error(options.listFailsWith))
+        : Promise.resolve({
+            definitions: [...held.values()].sort((first, second) =>
+              first.name.localeCompare(second.name),
+            ),
+            unreadable: [],
+          }),
     get: (id) => Promise.resolve(held.get(id)),
     put: (definition) => {
       if (options.failWith !== undefined) {
@@ -36,6 +42,9 @@ export const createMemoryStore = (
       return Promise.resolve();
     },
     delete: (id) => {
+      if (options.deleteFailsWith !== undefined) {
+        return Promise.reject(new Error(options.deleteFailsWith));
+      }
       held.delete(id);
       return Promise.resolve();
     },

@@ -200,4 +200,38 @@ describe("harness editor", () => {
     expect(deleted.status).toBe(303);
     expect(afterwards).toContain("ハーネスはまだありません");
   });
+
+  it("draws the Harnesses page with the reason when the list cannot be read", async () => {
+    const dashboard = await open(
+      createMemoryStore({ listFailsWith: "ENOTDIR: not a directory" }),
+    );
+
+    const response = await dashboard.get("/harnesses");
+    const html = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(html).toContain("ENOTDIR: not a directory");
+    expect(html).toContain('href="/api-keys"');
+  });
+
+  it("redraws the delete page with the reason when the delete fails", async () => {
+    const store = createMemoryStore({
+      deleteFailsWith: "EACCES: permission denied",
+    });
+    const dashboard = await open(store);
+    await dashboard.post(
+      "/harnesses/new",
+      submit("save", FILES_HARNESS),
+    );
+    const list = await (await dashboard.get("/harnesses")).text();
+    const href =
+      /href="(\/harnesses\/(?!new")[^"/]+)"/.exec(list)?.[1] ?? "";
+
+    const response = await dashboard.post(`${href}/delete`, []);
+    const html = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(html).toContain("EACCES: permission denied");
+    expect(html).toContain("「files」を削除します。");
+  });
 });

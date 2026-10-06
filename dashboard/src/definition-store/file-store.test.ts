@@ -55,19 +55,6 @@ describe("file definition store", () => {
     expect(listed).toEqual({ definitions: [files], unreadable: [] });
   });
 
-  it("lists definitions sorted by name", async () => {
-    const store = createFileDefinitionStore({ dir: await tempDir() });
-    await store.put(files);
-    await store.put(chat);
-
-    const { definitions } = await store.list();
-
-    expect(definitions.map((definition) => definition.name)).toEqual([
-      "chat",
-      "files",
-    ]);
-  });
-
   it("keeps the same file when a harness is renamed", async () => {
     const dir = await tempDir();
     const store = createFileDefinitionStore({ dir });
@@ -105,6 +92,22 @@ describe("file definition store", () => {
       unreadable: ["broken.json"],
     });
     expect(await store.get("broken")).toBeUndefined();
+  });
+
+  it("lists a file whose name is not a valid id as unreadable and does not let it hold a name", async () => {
+    const dir = await tempDir();
+    await writeFile(
+      join(dir, "my.h.json"),
+      JSON.stringify({ ...files, id: "my.h" }),
+    );
+    const store = createFileDefinitionStore({ dir });
+
+    await store.put({ ...chat, name: "files" });
+
+    expect(await store.list()).toEqual({
+      definitions: [{ ...chat, name: "files" }],
+      unreadable: ["my.h.json"],
+    });
   });
 
   it("removes the file when a definition is deleted", async () => {

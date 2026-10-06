@@ -1,14 +1,21 @@
 import type { HarnessDefinition } from "../../../definition/index.js";
 import { AppFrame } from "../../feature/AppFrame/index.js";
-import { Button, Heading } from "../../ui/index.js";
+import { Button, Heading, Notice } from "../../ui/index.js";
 
 export const DeleteHarnessPage = ({
   definition,
+  failure,
 }: {
   definition: HarnessDefinition;
+  failure?: string;
 }) => (
   <AppFrame current="harnesses">
     <Heading>ハーネスを削除</Heading>
+    {failure === undefined ? null : (
+      <div className="mb-4">
+        <Notice>{`削除できませんでした。${failure}`}</Notice>
+      </div>
+    )}
     <p className="mb-4">
       {`「${definition.name}」を削除します。削除したものは元に戻せません。`}
     </p>

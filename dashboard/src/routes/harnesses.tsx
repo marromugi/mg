@@ -25,6 +25,9 @@ type Redraw = {
   failure?: string;
 };
 
+const reasonOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 const editor = (
   c: Context,
   target: EditorTarget,
@@ -92,16 +95,30 @@ export const registerHarnesses = (
   };
 
   app.get("/harnesses", async (c) => {
-    const { definitions, unreadable } = await store.list();
-    return c.html(
-      renderPage(
-        "ハーネス",
-        <HarnessesPage
-          definitions={definitions}
-          unreadable={unreadable}
-        />,
-      ),
-    );
+    try {
+      const { definitions, unreadable } = await store.list();
+      return c.html(
+        renderPage(
+          "ハーネス",
+          <HarnessesPage
+            definitions={definitions}
+            unreadable={unreadable}
+          />,
+        ),
+      );
+    } catch (error) {
+      return c.html(
+        renderPage(
+          "ハーネス",
+          <HarnessesPage
+            definitions={[]}
+            unreadable={[]}
+            failure={reasonOf(error)}
+          />,
+        ),
+        500,
+      );
+    }
   });
 
   app.get("/harnesses/new", (c) =>
@@ -143,7 +160,22 @@ export const registerHarnesses = (
   app.post("/harnesses/:id/delete", async (c) => {
     const id = c.req.param("id");
     if ((await store.get(id)) === undefined) return c.notFound();
-    await store.delete(id);
+    try {
+      await store.delete(id);
+    } catch (error) {
+      const definition = await store.get(id);
+      if (definition === undefined) return c.notFound();
+      return c.html(
+        renderPage(
+          "ハーネスを削除",
+          <DeleteHarnessPage
+            definition={definition}
+            failure={reasonOf(error)}
+          />,
+        ),
+        500,
+      );
+    }
     return c.redirect("/harnesses", 303);
   });
 };

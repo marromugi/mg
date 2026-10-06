@@ -21,3 +21,11 @@ export const Populated: Story = {
     unreadable: ["broken.json"],
   },
 };
+
+export const ListFailed: Story = {
+  args: {
+    definitions: [],
+    unreadable: [],
+    failure: "ENOTDIR: not a directory",
+  },
+};

@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "The window gets no Tauri command and no plugin",
+  "windows": ["main"],
+  "permissions": []
+}

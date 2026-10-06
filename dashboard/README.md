@@ -42,6 +42,23 @@ Open it in a browser. It sets a session cookie and moves to the home page.
 
 A taken port, or a data folder that cannot be created, ends the process with a non-zero code. The reason goes to stderr and no launch link is printed.
 
+### Desktop app
+
+`mg dashboard.app` starts the server, opens a window on its launch link, and stops the server when it quits. It is built on a Mac with its own command. The repo-wide `pnpm build` and CI do not build it, because they run without Rust.
+
+```
+node dashboard/app/build.mjs
+open "dashboard/app/src-tauri/target/release/bundle/macos/mg dashboard.app"
+```
+
+The build needs `cargo` and `rustc`. It builds the dashboard, bundles the server and its workspace packages into one file, copies the built stylesheet and the Node that runs the build into the app, and runs `tauri build`. The app is not signed or notarized, and it is for the Mac that built it.
+
+- The app runs the server with the options' defaults, so data is kept in `~/Library/Application Support/mg-dashboard/`.
+- One window. Closing it, or quitting the app, stops the server. Opening the app again focuses the open window.
+- If the server prints no launch link within 10 seconds, or exits first, the window shows what the server wrote to stderr and a Quit button.
+- The window may show the server's own address only. The page gets no Tauri API and no command.
+- The browser and ssh connectors and the SQLite stores are not in the bundle. The dashboard builds local tools and writes JSONL traces, so it never reaches them.
+
 To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
 
 ## API

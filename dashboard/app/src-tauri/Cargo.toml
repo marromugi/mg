@@ -1,0 +1,13 @@
+[package]
+name = "mg-dashboard"
+version = "0.1.0"
+description = "Starts the dashboard server and shows its pages in a window"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+serde_json = "1"

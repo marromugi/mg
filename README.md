@@ -29,6 +29,18 @@ node --env-file-if-exists=.env runs/example.ts
 API keys are read from the process environment.
 If a `.env` file exists, they are read from it as well.
 
+The voice dialogue entries (`runs/voice-dialogue.ts` and `runs/voice-dialogue-scripted.ts`) speak through Gemini by default.
+To speak through a server that takes OpenAI's speech requests, set these variables.
+
+| Variable          | Meaning                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `SPEECH_BASE_URL` | Server address, for example `http://127.0.0.1:8088/v1`. Turns this on                                   |
+| `SPEECH_MODEL`    | Model name. Required when the address is set                                                            |
+| `SPEECH_VOICE`    | Voice name. Required when the address is set. `none` for an Irodori-TTS server with no registered voice |
+| `SPEECH_API_KEY`  | Key sent as a bearer token. Optional                                                                    |
+
+`runs/openai-tts.ts` speaks one text through such a server and writes a WAV file.
+
 ## Packages
 
 | Package                                               | What it does                                                                                                                           |

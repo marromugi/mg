@@ -4,13 +4,14 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { createMemoryConversationStore } from "@mg/conversation";
 import { createOpenRouterProvider } from "@mg/core";
 import { runDialogue } from "@mg/dialogue";
-import {
-  createGeminiSynthesizer,
-  createGeminiTranscriber,
-} from "@mg/voice";
+import { createGeminiTranscriber } from "@mg/voice";
 import { createSampleJevEstimator } from "./jev-estimator.ts";
 import { readOneInput } from "./one-input.ts";
 import { outputPath } from "./outputs.ts";
+import {
+  createSpeechSynthesizer,
+  readSpeechSettings,
+} from "./speech-settings.ts";
 import {
   createTalkerConfig,
   createWorkerConfig,
@@ -33,6 +34,11 @@ const need = (name: string): string => {
   return value;
 };
 
+const speech = readSpeechSettings(process.env);
+if (!speech.ok) {
+  console.error(speech.message);
+  process.exit(1);
+}
 const geminiApiKey = need("GEMINI_API_KEY");
 const openRouterApiKey = need("OPENROUTER_API_KEY");
 const provider = createOpenRouterProvider({
@@ -60,11 +66,7 @@ process.exitCode = await runScripted({
   readFile,
   collaborators: {
     transcriber: createGeminiTranscriber({ apiKey: geminiApiKey }),
-    synthesizer: createGeminiSynthesizer({
-      apiKey: geminiApiKey,
-      voice: "Kore",
-      language: "ja-JP",
-    }),
+    synthesizer: createSpeechSynthesizer(speech.choice, geminiApiKey),
     estimator,
     talker: {
       config: createTalkerConfig({

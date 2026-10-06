@@ -13,6 +13,7 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Defines the listener interface `Listener`.
 - Defines the player interface `Player`.
 - Defines the microphone interface `Microphone`.
+- Holds `createOpenAiSynthesizer`, a synthesizer for any server that takes OpenAI's speech requests.
 - Holds `createGeminiTranscriber`, a transcriber built on Gemini's Live API.
 - Holds `createFfmpegPlayer`, a player that plays through ffmpeg's AudioToolbox output.
 - Holds `createFfmpegKeyListener`, a listener that records the microphone through ffmpeg, one utterance per pair of key presses.
@@ -270,6 +271,47 @@ The message is `Gemini speech request failed: <status> (body not read: the call 
 An `AbortError` met while the signal has not fired is thrown as is.
 This covers the replacement request function, the reading of a failure body, and the response stream.
 Other failures come back as 3 dedicated error types.
+
+### OpenAI speech synthesis
+
+One implementation of `SpeechSynthesizer`.
+It speaks OpenAI's speech API, so it works with any server that follows that API, such as an Irodori-TTS server.
+
+It is created from the following.
+
+- A server address, up to and including `/v1`. It cannot be omitted.
+- A model name. It cannot be omitted.
+- A voice name. It cannot be omitted.
+- A key. It can be omitted.
+- Extra headers.
+- A replacement request function.
+
+`synthesize(text, options)` sends `POST <address>/audio/speech` with the JSON `{ model, input, voice, response_format: "wav" }`.
+The `Authorization: Bearer <key>` header is sent only when a key is given.
+
+The response is read as WAV.
+Its sample rate and channel count become the format of every chunk.
+The sample data streams as chunks while the body arrives, and each chunk holds whole samples.
+A data length of 0 or 0xFFFFFFFF in the header means the data runs to the end of the body.
+Only 16-bit PCM WAV is accepted.
+
+| What happened                                   | What the call throws                                                                     |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| The server answers with a failure status        | `OpenAiSpeechHttpError`, with the status, the body, and the server's message in the text |
+| The request cannot be sent, or the body breaks  | `OpenAiSpeechTransportError`, with the cause                                             |
+| The body is not 16-bit PCM WAV, or has no audio | `OpenAiSpeechResponseError`, naming what was received                                    |
+
+`isOpenAiSpeechError` tells them apart.
+The abort signal behaves as described for `SpeechOptions`.
+If it fires while the body of a failure status is being read, the call throws `OpenAiSpeechHttpError` with that status and an empty body.
+
+To try it by hand, run the sample entry.
+It speaks one text, prints the format and the byte count, and writes a WAV file.
+
+```
+SPEECH_BASE_URL=http://127.0.0.1:8088/v1 SPEECH_MODEL=irodori-tts SPEECH_VOICE=none \
+  node runs/openai-tts.ts "<text>"
+```
 
 ### Gemini transcription
 

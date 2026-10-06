@@ -1,0 +1,5 @@
+{
+  "command": "node dashboard/dist/server.js --data-dir <dir>",
+  "needs": [],
+  "burdens": []
+}

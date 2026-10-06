@@ -147,7 +147,9 @@ graph TD
   repository.
 - turn does not know about voice.
 - runs and dashboard are consumers and do not use each other.
-  dashboard uses no package yet, and no package uses dashboard.
+  dashboard uses no package yet, and no package uses dashboard. Its
+  server, pages and styles come from outside libraries only (Hono,
+  React, Tailwind).
 
 ## Development
 

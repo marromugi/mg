@@ -79,6 +79,8 @@ export const createBashTool = (
       const timer = setTimeout(() => {
         timedOut = true;
         child.kill();
+        // A background process can keep the pipes open after the shell is gone.
+        settle(null, null);
       }, timeoutMs);
 
       const settle = (
@@ -115,9 +117,8 @@ export const createBashTool = (
         );
       });
       child.on("close", settle);
-      // A killed shell can leave a grandchild holding the pipes open.
       child.on("exit", (code, exitSignal) => {
-        if (timedOut || child.killed) settle(code, exitSignal);
+        if (child.killed) settle(code, exitSignal);
       });
     });
 

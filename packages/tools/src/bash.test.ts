@@ -128,6 +128,16 @@ describe("createBashTool", () => {
     });
   });
 
+  test("reports a timeout while a background process holds the output open", async () => {
+    const slow = createBashTool({ cwd: dir, timeoutMs: 300 });
+    const started = Date.now();
+    const result = await (
+      await slow.prepare({ command: "sleep 4 & echo started" })
+    ).run({});
+    expect(result).toBe("started\n[timed out after 300 ms]");
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   test("lets the abort error through", async () => {
     const controller = new AbortController();
     controller.abort();

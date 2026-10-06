@@ -211,16 +211,7 @@ The result is returned as one string.
 - Without a range, the whole file is returned.
 - With only `start`, the file is returned from that line to the end.
 - With character positions in the range, the first and last lines are cut at those positions.
-- If the output goes over `maxOutputBytes`, only its end is returned.
-  It starts at the beginning of a line whenever a whole line fits.
-  The full output is saved to `<overflowDir>/<random id>.txt`, and a last line gives the path.
-  Small outputs leave no file.
-  The tool never deletes these files.
-- If the last line alone is longer than the limit, the last bytes of that line are returned.
-- If the output passes `maxSavedBytes`, the command is stopped.
-  The file keeps the first `maxSavedBytes`, and the result says so.
-- If the file cannot be written, the command is stopped and the call fails with an error naming the path and the cause.
-- The tool description tells the LLM about the limit and the file.
+- If the output goes over the limit, it is truncated and marked as such.
 - An empty file returns the string `(empty file)`.
 
 It throws `FileToolError` in these cases.

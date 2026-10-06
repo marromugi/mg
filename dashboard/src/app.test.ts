@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { createSession } from "./session.js";
+import { createMemoryStore } from "./test/memory-store.js";
 
 const ADDRESS = "127.0.0.1:4100";
 const TOKEN = "launch-token";
@@ -9,6 +10,7 @@ const build = () =>
   createApp({
     session: createSession({ token: TOKEN, address: ADDRESS }),
     dataDir: "/unused",
+    definitions: createMemoryStore(),
   });
 
 const request = (
@@ -75,6 +77,7 @@ describe("two servers", () => {
         address: "127.0.0.1:4200",
       }),
       dataDir: "/unused",
+      definitions: createMemoryStore(),
     });
     const first = await enter(build());
     const second = await other.request(

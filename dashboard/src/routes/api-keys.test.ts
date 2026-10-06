@@ -3,6 +3,7 @@ import { createApp } from "../app.js";
 import { createSession } from "../session.js";
 import { createMemorySecretStore } from "../test/memory-secret-store.js";
 import { createMemoryStore } from "../test/memory-store.js";
+import { createTestRuns } from "../test-run/index.js";
 
 const ADDRESS = "127.0.0.1:4100";
 const TOKEN = "launch-token";
@@ -14,6 +15,7 @@ const open = async (secrets = createMemorySecretStore()) => {
     dataDir: "/unused",
     definitions: createMemoryStore(),
     secrets,
+    runs: createTestRuns({ secrets, dataDir: "/unused" }),
   });
   const entered = await app.request(
     `http://${ADDRESS}/enter?token=${TOKEN}`,

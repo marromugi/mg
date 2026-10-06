@@ -5,6 +5,7 @@ import {
   type EditorTarget,
 } from "../components/pages/HarnessEditorPage/index.js";
 import { DeleteHarnessPage } from "../components/pages/DeleteHarnessPage/index.js";
+import { RunNotStartedPage } from "../components/pages/RunNotStartedPage/index.js";
 import { HarnessesPage } from "../components/pages/HarnessesPage/index.js";
 import type { Problem } from "../definition/index.js";
 import type { DefinitionStore } from "../definition-store/index.js";
@@ -18,11 +19,13 @@ import {
   type Draft,
 } from "../harness-form/index.js";
 import { renderPage } from "../render.js";
+import type { TestRuns } from "../test-run/index.js";
 
 type Redraw = {
   draft: Draft;
   problems?: Problem[];
   failure?: string;
+  runProblem?: string;
 };
 
 const reasonOf = (error: unknown): string =>
@@ -42,6 +45,7 @@ const editor = (
         draft={redraw.draft}
         problems={redraw.problems ?? []}
         failure={redraw.failure}
+        runProblem={redraw.runProblem}
       />,
     ),
     status,
@@ -50,6 +54,7 @@ const editor = (
 export const registerHarnesses = (
   app: Hono,
   store: DefinitionStore,
+  runs: TestRuns,
 ): void => {
   // A form post from the editor: redraws it for the buttons that edit
   // the form, and saves it for the Save button.
@@ -144,6 +149,41 @@ export const registerHarnesses = (
     const id = c.req.param("id");
     if ((await store.get(id)) === undefined) return c.notFound();
     return submit(c, { kind: "edit", id }, id);
+  });
+
+  app.post("/harnesses/:id/runs", async (c) => {
+    const id = c.req.param("id");
+    const definition = await store.get(id);
+    if (definition === undefined) return c.notFound();
+
+    const input = (await c.req.parseBody())["input"];
+    if (typeof input !== "string") return c.text("Bad Request", 400);
+    if (input.trim() === "") {
+      return editor(
+        c,
+        { kind: "edit", id },
+        {
+          draft: draftFromDefinition(definition),
+          runProblem: "入力を書いてください",
+        },
+        422,
+      );
+    }
+
+    const started = await runs.start(definition, input);
+    if (!started.ok) {
+      return c.html(
+        renderPage(
+          "テスト実行",
+          <RunNotStartedPage
+            missingSecret={started.missingSecret}
+            harnessHref={`/harnesses/${id}`}
+          />,
+        ),
+        422,
+      );
+    }
+    return c.redirect(`/runs/${started.runId}`, 303);
   });
 
   app.get("/harnesses/:id/delete", async (c) => {

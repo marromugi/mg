@@ -1,10 +1,15 @@
-import { parseDefinition, type Problem } from "../definition/index.js";
+import type { Problem } from "../definition/index.js";
 import {
   NameTakenError,
   type DefinitionStore,
 } from "../definition-store/index.js";
-import { draftToRaw, type Draft } from "./draft.js";
-import { NAME_FIELD, toFormProblems } from "./problems.js";
+import { parseDefinition } from "../definition-parser/index.js";
+import {
+  draftToRaw,
+  NAME_FIELD,
+  toFormProblems,
+  type Draft,
+} from "../harness-form/index.js";
 
 export type SaveResult =
   | { kind: "saved" }

@@ -3,9 +3,9 @@ import {
   TOOL_NAMES,
   type HarnessDefinition,
   type PathRule,
+  type Problem,
   type ToolName,
-} from "./definition.js";
-import type { Problem } from "./errors.js";
+} from "../definition/index.js";
 
 export type ParseResult =
   | { ok: true; definition: HarnessDefinition }

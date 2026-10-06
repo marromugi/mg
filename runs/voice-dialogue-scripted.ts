@@ -34,8 +34,13 @@ const need = (name: string): string => {
 };
 
 const geminiApiKey = need("GEMINI_API_KEY");
+const openRouterApiKey = need("OPENROUTER_API_KEY");
 const provider = createOpenRouterProvider({
-  apiKey: need("OPENROUTER_API_KEY"),
+  apiKey: openRouterApiKey,
+});
+const talkerProvider = createOpenRouterProvider({
+  apiKey: openRouterApiKey,
+  reasoning: false,
 });
 const estimator = createSampleJevEstimator({
   apiKey: need("TYPESAFE_API_KEY"),
@@ -62,7 +67,10 @@ process.exitCode = await runScripted({
     }),
     estimator,
     talker: {
-      config: createTalkerConfig({ provider, jsonlPath: runTracePath }),
+      config: createTalkerConfig({
+        provider: talkerProvider,
+        jsonlPath: runTracePath,
+      }),
       store: createMemoryConversationStore(),
       id: "talker",
     },

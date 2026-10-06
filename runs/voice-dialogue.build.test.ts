@@ -408,7 +408,7 @@ describe("createWorkTrigger", () => {
 });
 
 describe("printEvent", () => {
-  test("writes one line per final transcript, reply, work action, judgment and failure", () => {
+  test("writes one line per utterance start and end, final transcript, reply, work action, judgment and failure", () => {
     const out: string[] = [];
     const err: string[] = [];
     const print = printEvent(
@@ -416,6 +416,8 @@ describe("printEvent", () => {
       (line) => err.push(line),
     );
     const events: DialogueEvent[] = [
+      { type: "utterance" },
+      { type: "utterance-end" },
       { type: "transcript", text: "こん", final: false },
       { type: "transcript", text: "こんにちは", final: true },
       { type: "reply", text: "はい" },
@@ -427,6 +429,8 @@ describe("printEvent", () => {
     for (const event of events) print(event);
 
     expect(out).toEqual([
+      "utterance: started",
+      "utterance: ended",
       "you: こんにちは",
       "talker: はい",
       "work: held",

@@ -330,6 +330,12 @@ export const printEvent =
   (out: (line: string) => void, err: (line: string) => void) =>
   (event: DialogueEvent): void => {
     switch (event.type) {
+      case "utterance":
+        out("utterance: started");
+        return;
+      case "utterance-end":
+        out("utterance: ended");
+        return;
       case "transcript":
         if (event.final) out(`you: ${event.text}`);
         return;

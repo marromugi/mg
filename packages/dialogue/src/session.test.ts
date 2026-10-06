@@ -96,6 +96,11 @@ const fakeListener = () => {
   return {
     listener,
     utter: () => utterances.push({ audio: (async function* () {})() }),
+    utterOpen: () => {
+      const audio = channel<AudioChunk>();
+      utterances.push({ audio: audio.iterate() });
+      return { end: audio.close, fail: audio.fail };
+    },
     end: () => utterances.close(),
     fail: (error: unknown) => utterances.fail(error),
   };
@@ -111,9 +116,16 @@ const fakeTranscriber = () => {
   const calls: TranscriptionCall[] = [];
   const transcriber: Transcriber = {
     accepts: [],
-    transcribe(_audio, options) {
+    transcribe(audio, options) {
       const events = channel<TranscriptEvent>();
       options?.signal?.addEventListener("abort", () => events.close());
+      void (async () => {
+        try {
+          for await (const chunk of audio) void chunk;
+        } catch {
+          // the audio failing is not what these fakes report
+        }
+      })();
       calls.push({
         partial: (text) => events.push({ type: "partial", text }),
         final: (text) => {
@@ -1172,6 +1184,50 @@ describe("runDialogue", () => {
       reason: "stop",
       text: "完了",
     });
+  });
+
+  test("emits utterance-end once the audio has ended and before the final transcript", async () => {
+    vi.useFakeTimers();
+    const h = build();
+    const audio = h.listener.utterOpen();
+    await settle();
+    const call = h.transcriber.calls.at(-1);
+    if (call === undefined) throw new Error("no transcription started");
+    expect(h.events.map(describeEvent)).toEqual(["utterance"]);
+    audio.end();
+    await settle();
+    call.final("こんにちは");
+    await settle();
+    expect(h.events.map(describeEvent).slice(0, 3)).toEqual([
+      "utterance",
+      "utterance-end",
+      "transcript:こんにちは:true",
+    ]);
+  });
+
+  test("emits utterance-end once when the transcriber fails after the audio ended", async () => {
+    vi.useFakeTimers();
+    const h = build();
+    const audio = h.listener.utterOpen();
+    await settle();
+    audio.end();
+    await settle();
+    h.transcriber.calls.at(-1)?.fail(new Error("net"));
+    await settle();
+    expect(
+      h.events.filter((e) => e.type === "utterance-end"),
+    ).toHaveLength(1);
+  });
+
+  test("emits no utterance-end when the session is aborted while the audio is open", async () => {
+    vi.useFakeTimers();
+    const h = build();
+    const audio = h.listener.utterOpen();
+    await settle();
+    h.abort.abort(new Error("stop"));
+    audio.end();
+    await settle();
+    expect(h.events.map(describeEvent)).toEqual(["utterance"]);
   });
 
   test("emits the events of one cycle in order", async () => {

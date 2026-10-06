@@ -207,6 +207,10 @@ Streaming returns events, such as pieces of text, in order.
 Talking to OpenRouter stays inside that implementation.
 The API key is taken when the provider is created.
 
+Whether the model reasons before it answers can also be set, with `reasoning`.
+`true` or `false` is sent with every request.
+When it is left out, nothing is sent and the model's own default applies.
+
 A function that makes tool-call ids can also be passed.
 Every tool call from OpenRouter gets an id the provider makes.
 The id is a UUID, unless a function is passed when the provider is created.

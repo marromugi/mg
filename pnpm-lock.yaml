@@ -55,6 +55,8 @@ importers:
         specifier: 25.9.6
         version: 25.9.6
 
+  packages/credentials: {}
+
   packages/dialogue:
     dependencies:
       '@mg/harness':
@@ -311,6 +313,9 @@ importers:
       '@mg/core':
         specifier: workspace:*
         version: link:../packages/core
+      '@mg/credentials':
+        specifier: workspace:*
+        version: link:../packages/credentials
       '@mg/dialogue':
         specifier: workspace:*
         version: link:../packages/dialogue

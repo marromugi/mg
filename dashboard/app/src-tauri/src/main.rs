@@ -72,7 +72,11 @@ fn start_server(app: &AppHandle) -> Result<(Url, StderrTail), String> {
 
     let mut child = Command::new(&node)
         .arg(&script)
-        .stdin(Stdio::null())
+        .arg("--exit-when-stdin-closes")
+        // The write end stays in `child` for the app's whole life. The
+        // kernel closes it when the app dies in any way, and the server
+        // exits on that.
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

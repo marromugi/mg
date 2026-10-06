@@ -34,11 +34,12 @@ http://127.0.0.1:<port>/enter?token=<token>
 
 Open it in a browser. It sets a session cookie and moves to the home page.
 
-| Option               | Meaning                                                                    |
-| -------------------- | -------------------------------------------------------------------------- |
-| `--data-dir`         | Where data is kept. Default: `~/Library/Application Support/mg-dashboard/` |
-| `--port`             | A fixed port. Default: a free port picked at start                         |
-| `--keychain-service` | The Keychain service that keys are kept under. Default: `mg-dashboard`     |
+| Option                     | Meaning                                                                    |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `--data-dir`               | Where data is kept. Default: `~/Library/Application Support/mg-dashboard/` |
+| `--port`                   | A fixed port. Default: a free port picked at start                         |
+| `--keychain-service`       | The Keychain service that keys are kept under. Default: `mg-dashboard`     |
+| `--exit-when-stdin-closes` | Ends the server when its standard input reaches end of file. Default: off  |
 
 A taken port, or a data folder that cannot be created, ends the process with a non-zero code. The reason goes to stderr and no launch link is printed.
 
@@ -53,7 +54,8 @@ open "dashboard/app/src-tauri/target/release/bundle/macos/mg dashboard.app"
 
 The build needs `cargo` and `rustc`. It builds the dashboard, bundles the server and its workspace packages into one file, copies the built stylesheet and the Node that runs the build into the app, and runs `tauri build`. The app is not signed or notarized, and it is for the Mac that built it.
 
-- The app runs the server with the options' defaults, so data is kept in `~/Library/Application Support/mg-dashboard/`.
+- The app runs the server with `--exit-when-stdin-closes` and holds the other end of its standard input open, so the server also ends when the app is killed or crashes.
+- Otherwise it uses the options' defaults, so data is kept in `~/Library/Application Support/mg-dashboard/`.
 - One window. Closing it, or quitting the app, stops the server. Opening the app again focuses the open window.
 - If the server prints no launch link within 10 seconds, or exits first, the window shows what the server wrote to stderr and a Quit button.
 - The window may show the server's own address only. The page gets no Tauri API and no command.

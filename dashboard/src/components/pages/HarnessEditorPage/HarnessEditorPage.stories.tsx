@@ -12,6 +12,15 @@ export const New: Story = {
   args: { target: { kind: "new" }, draft: newDraft, problems: [] },
 };
 
+export const EmptyRunInputRefused: Story = {
+  args: {
+    target: { kind: "edit", id: "0b1c2d3e" },
+    draft: filesDraft,
+    problems: [],
+    runProblem: "入力を書いてください",
+  },
+};
+
 export const Edit: Story = {
   args: {
     target: { kind: "edit", id: "0b1c2d3e" },

@@ -8,6 +8,7 @@ import { createApp } from "./app.js";
 import { createFileDefinitionStore } from "./definition-store/index.js";
 import { createKeychainSecretStore } from "./secret-store/index.js";
 import { createSession } from "./session.js";
+import { createTestRuns } from "./test-run/index.js";
 
 const HOST = "127.0.0.1";
 const DEFAULT_KEYCHAIN_SERVICE = "mg-dashboard";
@@ -56,15 +57,17 @@ export const startServer = async (options: {
   const { port } = server.address() as AddressInfo;
   const address = `${HOST}:${port}`;
   const token = randomBytes(32).toString("base64url");
+  const secrets = createKeychainSecretStore({
+    service: options.keychainService ?? DEFAULT_KEYCHAIN_SERVICE,
+  });
   const app = createApp({
     session: createSession({ token, address }),
     dataDir: options.dataDir,
     definitions: createFileDefinitionStore({
       dir: join(options.dataDir, "harnesses"),
     }),
-    secrets: createKeychainSecretStore({
-      service: options.keychainService ?? DEFAULT_KEYCHAIN_SERVICE,
-    }),
+    secrets,
+    runs: createTestRuns({ secrets, dataDir: options.dataDir }),
   });
   server.on("request", getRequestListener(app.fetch));
 

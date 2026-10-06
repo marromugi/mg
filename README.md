@@ -51,6 +51,7 @@ To speak through a server that takes OpenAI's speech requests, set these variabl
 | [`@mg/conversation`](packages/conversation/README.md) | Interface, types and errors for storing and loading conversations                                                                      |
 | [`@mg/memory`](packages/memory/README.md)             | Stores and loads an individual's memory (persona, per-person entries, summaries)                                                       |
 | [`@mg/persona`](packages/persona/README.md)           | Interfaces for an individual's recall and reflection, and an LLM-backed implementation                                                 |
+| [`@mg/credentials`](packages/credentials/README.md)   | Saved login values behind a store, handed over only for registered sites and approved uses                                             |
 | [`@mg/gate`](packages/gate/README.md)                 | Gate types that decide whether an action may run, with LLM and Estimator implementations                                               |
 | [`@mg/trigger`](packages/trigger/README.md)           | Trigger types and errors that decide whether to start a run, span helpers, and an Estimator implementation                             |
 | [`@mg/harness`](packages/harness/README.md)           | Shared input and output types every harness follows, and the subagent interface                                                        |
@@ -112,7 +113,13 @@ graph TD
   runs --> tools
   runs --> trace
   runs --> gate
+  runs --> credentials
   runs --> core
+  dashboard --> runner
+  dashboard --> tools
+  dashboard --> gate
+  dashboard --> harness
+  dashboard --> core
   runner --> loop
   runner --> gate
   runner --> trigger
@@ -159,9 +166,9 @@ graph TD
   repository.
 - turn does not know about voice.
 - runs and dashboard are consumers and do not use each other.
-  dashboard uses no package yet, and no package uses dashboard. Its
-  server, pages and styles come from outside libraries only (Hono,
-  React, Tailwind).
+  dashboard uses runner, harness, core, tools and gate to run a
+  harness, and no package uses dashboard. Its server, pages and styles
+  come from outside libraries (Hono, React, Tailwind).
 
 ## Development
 

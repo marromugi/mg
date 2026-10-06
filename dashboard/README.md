@@ -11,6 +11,10 @@ A package on the using side that holds the screens for using harnesses day to da
 - On the Harnesses page a harness is created, edited, and deleted through a form: name, provider, model, turn limit, working folder, tools, path rules, and an optional LLM judge. A form that cannot make a valid harness is not saved and names the wrong field.
 - Each harness is kept as one JSON file under `harnesses/` in the data folder, named by an id that does not change on rename. A file that does not parse is listed by name and is not opened.
 - On the API keys page the OpenRouter key is set, replaced, and deleted (after a confirmation). The page shows only whether it is set; a saved key is never drawn again. Keys are kept in the macOS Keychain, not in a file.
+- A saved harness's page has a text field and a Run button. A test run takes one input, takes the OpenRouter key from the Keychain, and runs the harness with the run package. The run page is one response that stays open: assistant text, each tool call with its input, and each tool result arrive as they happen, then the end reason with input and output token counts. A gate refusal shows as the tool result it becomes. The Stop button aborts the run and the page says it was stopped. A failed run shows the error's message. Reloading the page replays the run from its start.
+- Each run writes one JSONL trace file under `traces/` in the data folder, and the run page names its path.
+- Runs are kept in memory while the server lives, and several can go at once. After a restart a run page says the run is no longer available and names the trace folder.
+- Without the OpenRouter key a run does not start. The page names `OPENROUTER_API_KEY` and links to the API keys page.
 - Generic parts (`ui`), parts that know the dashboard (`feature`), pages, and the token file, with a Storybook for them.
 
 ## Usage
@@ -46,7 +50,7 @@ To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
 
 ### `createApp(parts)`
 
-Builds the Hono app from `{ session, dataDir, definitions, secrets }`. `definitions` is a `DefinitionStore` and `secrets` is a `SecretStore`.
+Builds the Hono app from `{ session, dataDir, definitions, secrets, runs }`. `definitions` is a `DefinitionStore`, `secrets` is a `SecretStore`, and `runs` is a `TestRuns`.
 
 ### `DefinitionStore`
 
@@ -55,6 +59,10 @@ Builds the Hono app from `{ session, dataDir, definitions, secrets }`. `definiti
 ### `SecretStore`
 
 `has`, `get`, `set`, and `delete` over a secret kept under a `SecretName` (now `OPENROUTER_API_KEY`). `get` is for the server's own code; no page or log receives a value. `createKeychainSecretStore({ service, spawn? })` is the one implementation: a generic password with that service and the name as account, run through `/usr/bin/security`. A value goes to `security -i` on stdin as hex, so it is never in the process's argument list. `security -i` reads a command line in pieces of 4095 characters, so a value whose command does not fit in one piece is refused before anything runs (`SecretTooLongError`, 2,010 bytes with the service `mg-dashboard`) and the page shows a field message. A `security` failure other than "not found" throws a `SecretStoreError` with the exit code and stderr, with every part of the value and of its hex removed.
+
+### `TestRuns`
+
+`start(definition, input)` turns a saved definition into a run config with `assemble` and runs it in the background. It returns `{ ok: true, runId }`, or `{ ok: false, missingSecret }` when the OpenRouter key is not set. A definition that cannot be turned into a config (for example a judge on a provider that cannot force a tool call) starts a run that ends as `failed` with the reason. `watch(runId)` gives every `TestRunEvent` of the run from its first, then the ones still to come; it is undefined for an unknown run. `stop(runId)` aborts a running run and returns true, or returns false for an unknown or ended run. `createTestRuns({ secrets, dataDir, run? })` is the one implementation; `run` defaults to the run package's `run`, and tests hand it a fake. Traces go to `<dataDir>/traces/<runId>.jsonl`.
 
 ### `parseDefinition(value)`
 

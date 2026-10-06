@@ -1,4 +1,5 @@
 import type { HarnessDefinition } from "../definition/index.js";
+import type { TestRunEvent } from "../test-run/index.js";
 import {
   draftFromDefinition,
   emptyDraft,
@@ -58,6 +59,60 @@ export const apiKeyUnset = {
   name: "OPENROUTER_API_KEY",
   isSet: false,
 } as const;
+
+const TRACE_DIR =
+  "/Users/me/Library/Application Support/mg-dashboard/traces";
+const TRACE_PATH = `${TRACE_DIR}/6f1c.jsonl`;
+
+export const traceDir = TRACE_DIR;
+
+export const textEvent: TestRunEvent = {
+  type: "harness",
+  event: { type: "text-delta", delta: "The note says blue." },
+};
+
+export const toolCallEvent: TestRunEvent = {
+  type: "harness",
+  event: {
+    type: "tool-call",
+    toolCall: {
+      id: "call-1",
+      name: "read_file",
+      arguments: { path: "note.txt" },
+    },
+  },
+};
+
+export const toolResultEvent: TestRunEvent = {
+  type: "harness",
+  event: {
+    type: "tool-result",
+    message: { role: "tool", toolCallId: "call-1", content: "1\tblue" },
+  },
+};
+
+export const endedEvent: TestRunEvent = {
+  type: "ended",
+  reason: "stop",
+  usage: { inputTokens: 120, outputTokens: 18 },
+  tracePath: TRACE_PATH,
+};
+
+export const stoppedEvent: TestRunEvent = {
+  type: "stopped",
+  tracePath: TRACE_PATH,
+};
+
+export const failedEvent: TestRunEvent = {
+  type: "failed",
+  message: "OpenRouter request failed: HTTP 401",
+  tracePath: TRACE_PATH,
+};
+
+export const failedBeforeRunEvent: TestRunEvent = {
+  type: "failed",
+  message: "判定 LLM は、このプロバイダでは使えません。",
+};
 
 export const newDraft = emptyDraft();
 export const filesDraft = draftFromDefinition(filesHarness);

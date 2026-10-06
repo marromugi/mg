@@ -5,6 +5,7 @@ export type EditorTargetView = {
   heading: string;
   action: string;
   deleteHref?: string;
+  runAction?: string;
 };
 
 export const useEditorTarget = (
@@ -16,4 +17,5 @@ export const useEditorTarget = (
         heading: "ハーネスを編集",
         action: `/harnesses/${target.id}`,
         deleteHref: `/harnesses/${target.id}/delete`,
+        runAction: `/harnesses/${target.id}/runs`,
       };

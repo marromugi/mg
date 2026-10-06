@@ -49,6 +49,16 @@ export const chatHarness: HarnessDefinition = {
   harness: { kind: "loop", model: "openai/gpt-5", maxTurns: 5 },
 };
 
+export const apiKeySet = {
+  name: "OPENROUTER_API_KEY",
+  isSet: true,
+} as const;
+
+export const apiKeyUnset = {
+  name: "OPENROUTER_API_KEY",
+  isSet: false,
+} as const;
+
 export const newDraft = emptyDraft();
 export const filesDraft = draftFromDefinition(filesHarness);
 export const judgedDraft = draftFromDefinition(judgedHarness);

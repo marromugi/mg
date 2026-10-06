@@ -26,6 +26,7 @@ const { values } = parseArgs({
   options: {
     "data-dir": { type: "string" },
     port: { type: "string" },
+    "keychain-service": { type: "string" },
   },
 });
 
@@ -45,6 +46,7 @@ try {
         ? DEFAULT_DATA_DIR
         : resolve(values["data-dir"]),
     port,
+    keychainService: values["keychain-service"],
   });
   console.log(started.launchLink);
   process.on(

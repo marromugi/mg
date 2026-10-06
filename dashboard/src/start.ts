@@ -6,9 +6,11 @@ import { join } from "node:path";
 import { getRequestListener } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { createFileDefinitionStore } from "./definition-store/index.js";
+import { createKeychainSecretStore } from "./secret-store/index.js";
 import { createSession } from "./session.js";
 
 const HOST = "127.0.0.1";
+const DEFAULT_KEYCHAIN_SERVICE = "mg-dashboard";
 
 export type StartedServer = {
   launchLink: string;
@@ -23,6 +25,7 @@ const reason = (error: unknown): string =>
 export const startServer = async (options: {
   dataDir: string;
   port?: number;
+  keychainService?: string;
 }): Promise<StartedServer> => {
   try {
     await mkdir(options.dataDir, { recursive: true });
@@ -58,6 +61,9 @@ export const startServer = async (options: {
     dataDir: options.dataDir,
     definitions: createFileDefinitionStore({
       dir: join(options.dataDir, "harnesses"),
+    }),
+    secrets: createKeychainSecretStore({
+      service: options.keychainService ?? DEFAULT_KEYCHAIN_SERVICE,
     }),
   });
   server.on("request", getRequestListener(app.fetch));

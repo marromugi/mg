@@ -5,10 +5,12 @@ import {
   type FieldProps,
 } from "../Field/index.js";
 
-type TextFieldProps = FieldProps & {
-  value?: string;
-  type?: "text" | "number";
-};
+// A password field takes no value: it is always drawn empty.
+type TextFieldProps = FieldProps &
+  (
+    | { type?: "text" | "number"; value?: string }
+    | { type: "password"; value?: undefined }
+  );
 
 export const TextField = ({
   name,
@@ -24,6 +26,7 @@ export const TextField = ({
       name={name}
       type={type ?? "text"}
       defaultValue={value}
+      autoComplete={type === "password" ? "new-password" : undefined}
       aria-invalid={error === undefined ? undefined : true}
       aria-describedby={useDescribedBy(name, { hint, error })}
       className={control({

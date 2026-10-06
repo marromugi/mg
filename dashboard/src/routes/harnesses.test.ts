@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import { createSession } from "../session.js";
+import { createMemorySecretStore } from "../test/memory-secret-store.js";
 import { createMemoryStore } from "../test/memory-store.js";
 
 const ADDRESS = "127.0.0.1:4100";
@@ -29,6 +30,7 @@ const open = async (store = createMemoryStore()) => {
     session: createSession({ token: TOKEN, address: ADDRESS }),
     dataDir: "/unused",
     definitions: store,
+    secrets: createMemorySecretStore(),
   });
   const entered = await app.request(
     `http://${ADDRESS}/enter?token=${TOKEN}`,

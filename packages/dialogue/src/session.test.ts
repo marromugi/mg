@@ -31,6 +31,7 @@ import type {
   DialogueEvent,
   Talker,
   TalkerReplyOptions,
+  WhileSpeaking,
   WorkEnding,
   WorkRequestOptions,
   WorkStatus,
@@ -378,6 +379,7 @@ type Config = {
   synthesizerFailsOn?: string;
   trace?: TraceSpan;
   judgeSpans?: boolean;
+  whileSpeaking?: WhileSpeaking;
 };
 
 const build = (config: Config = {}) => {
@@ -461,6 +463,7 @@ const build = (config: Config = {}) => {
           talker: "notice-talker",
         },
       },
+      whileSpeaking: config.whileSpeaking ?? { kind: "interrupt" },
       stopCheckMs: 100,
       exchangeCount: 2,
       requestLimit: 10,
@@ -1325,5 +1328,67 @@ describe("runDialogue", () => {
       what: "talker",
       reason: "append-failed",
     });
+  });
+});
+
+describe("runDialogue with whileSpeaking ignore", () => {
+  const ignoring = (config: Config = {}) =>
+    build({
+      ...config,
+      whileSpeaking: { kind: "ignore", tailMs: 500 },
+    });
+
+  test("sets aside an utterance yielded while the reply plays, and the reply plays to its end", async () => {
+    vi.useFakeTimers();
+    const h = ignoring({ player: () => "hold" });
+    await say(h, "A");
+    expect(h.player.log).toEqual(["play:0:はい。"]);
+
+    h.listener.utter();
+    await settle();
+    h.player.finishHeld({ played: true });
+    await settle();
+
+    expect(h.events.map(describeEvent)).toEqual([
+      "utterance",
+      "utterance-end",
+      "transcript:A:true",
+      "reply-text",
+      "utterance-ignored",
+      "reply:はい。",
+      "judgment:work-trigger:not fired",
+    ]);
+    expect(h.transcriber.calls).toHaveLength(1);
+    expect(h.player.log).toEqual(["play:0:はい。"]);
+    expect(h.player.stopCalls).toBe(0);
+  });
+
+  test("sets aside an utterance yielded within the tail after playback", async () => {
+    vi.useFakeTimers();
+    const h = ignoring();
+    await say(h, "A");
+    expect(h.player.texts()).toEqual(["はい。"]);
+
+    await vi.advanceTimersByTimeAsync(499);
+    h.listener.utter();
+    await settle();
+
+    expect(h.events.map(describeEvent)).toContain("utterance-ignored");
+    expect(h.transcriber.calls).toHaveLength(1);
+  });
+
+  test("starts a cycle for an utterance yielded after the tail", async () => {
+    vi.useFakeTimers();
+    const h = ignoring();
+    await say(h, "A");
+
+    await vi.advanceTimersByTimeAsync(500);
+    await say(h, "B");
+
+    expect(h.events.map(describeEvent)).not.toContain(
+      "utterance-ignored",
+    );
+    expect(h.transcriber.calls).toHaveLength(2);
+    expect(h.player.texts()).toEqual(["はい。", "はい。"]);
   });
 });

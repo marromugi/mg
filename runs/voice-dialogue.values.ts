@@ -6,6 +6,8 @@ import type {
 import type { Exchange } from "@mg/turn";
 import type { AudioFormat } from "@mg/voice";
 
+// How long after playback ended utterances are still set aside, in ms.
+export const IGNORE_TAIL_MS = 500;
 export const STOP_CHECK_MS = 2000;
 export const EXCHANGE_COUNT = 3;
 export const REQUEST_LIMIT = 500;

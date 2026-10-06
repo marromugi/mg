@@ -11,6 +11,7 @@ import type {
 } from "./voice-dialogue.build.ts";
 import { printEvent } from "./voice-dialogue.build.ts";
 import {
+  IGNORE_TAIL_MS,
   LISTENER_END_MS,
   LISTENER_FORMAT,
   LISTENER_LEAD_MS,
@@ -65,6 +66,7 @@ export const runLive = async (
     await options.dialogue(
       {
         ...collaborators,
+        whileSpeaking: { kind: "ignore", tailMs: IGNORE_TAIL_MS },
         listener: createLevelListener({
           microphone: createFfmpegMicrophone({
             spawn: options.spawn,

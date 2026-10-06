@@ -196,4 +196,15 @@ describe("runLive", () => {
       expect(await heardWith(-10)).toBe(0);
     });
   });
+
+  test("asks the dialogue to set aside utterances while it plays, with a 500 ms tail", async () => {
+    let given: unknown;
+    const t = setup({
+      dialogue: async (options) => {
+        given = options.whileSpeaking;
+      },
+    });
+    await t.run;
+    expect(given).toEqual({ kind: "ignore", tailMs: 500 });
+  });
 });

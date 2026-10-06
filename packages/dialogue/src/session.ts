@@ -110,13 +110,19 @@ export const runDialogue: RunDialogue = async (options, context) => {
 
   // Keeps the error of a device failure, which the speaker reports as text.
   let playerError: { error: unknown } | undefined;
+  let playing = 0;
+  let playedUntil = Number.NEGATIVE_INFINITY;
   const player: Player = {
     async play(index, audio) {
+      playing += 1;
       try {
         return await options.player.play(index, audio);
       } catch (error) {
         playerError = { error };
         throw error;
+      } finally {
+        playing -= 1;
+        if (playing === 0) playedUntil = Date.now();
       }
     },
     stop: () => options.player.stop(),
@@ -584,11 +590,24 @@ export const runDialogue: RunDialogue = async (options, context) => {
     }
   };
 
+  const setAside = (): boolean => {
+    const { whileSpeaking } = options;
+    if (whileSpeaking.kind === "interrupt") return false;
+    return (
+      playing > 0 || Date.now() - playedUntil < whileSpeaking.tailMs
+    );
+  };
+
+  const ignore = async (utterance: HeardUtterance) => {
+    emit({ type: "utterance-ignored" });
+    for await (const chunk of utterance.audio) void chunk;
+  };
+
   const main = async () => {
     try {
       for await (const utterance of options.listener.listen(signal)) {
         if (over) break;
-        track(cycle(utterance));
+        track(setAside() ? ignore(utterance) : cycle(utterance));
       }
     } catch (error) {
       fatal(error);

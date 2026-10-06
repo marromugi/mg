@@ -29,7 +29,7 @@ This table lists the tools included today.
 
 | Tool         | What it does                                    | Options                        |
 | ------------ | ----------------------------------------------- | ------------------------------ |
-| `bash`       | Runs one command in a shell                     | 4, including working directory |
+| `bash`       | Runs one command in a shell                     | 6, including working directory |
 | `web_search` | Searches the web through a search backend       | 3, including backend           |
 | `read_file`  | Reads a text file under the root                | 2, including root              |
 | `write_file` | Writes a whole file under the root              | 1: root                        |
@@ -40,7 +40,7 @@ This table lists the tools included today.
 
 The only argument taken from the LLM is one command string.
 
-There are 4 options when creating it.
+There are 6 options when creating it.
 Only the working directory is required.
 The others default to the values in the example when omitted.
 
@@ -49,16 +49,27 @@ createBashTool({
   cwd: "/path/to/work", // working directory
   timeoutMs: 30000, // time limit (milliseconds)
   shell: "/bin/sh", // shell to use
-  maxOutputBytes: 1048576, // output limit (bytes)
+  maxOutputBytes: 8192, // most bytes of output returned (bytes)
+  overflowDir: "/tmp/mg-bash-output", // where full outputs are saved (default: <os temp dir>/mg-bash-output)
+  maxSavedBytes: 67108864, // most bytes saved to one file (bytes)
 });
 ```
 
 The result is returned as one string.
 
-- It includes standard output, standard error, and the exit code.
+- It includes standard output and standard error merged in the order they arrive, and the exit code.
 - A non-zero exit code does not throw.
 - A timeout does not throw either. The result says so.
-- If the output goes over the limit, it is truncated and marked as such.
+- If the output goes over `maxOutputBytes`, only its end is returned.
+  It starts at the beginning of a line whenever a whole line fits.
+  The full output is saved to `<overflowDir>/<random id>.txt`, and a last line gives the path.
+  Small outputs leave no file.
+  The tool never deletes these files.
+- If the last line alone is longer than the limit, the last bytes of that line are returned.
+- If the output passes `maxSavedBytes`, the command is stopped.
+  The file keeps the first `maxSavedBytes`, and the result says so.
+- If the file cannot be written, the command is stopped and the call fails with an error naming the path and the cause.
+- The tool description tells the LLM about the limit and the file.
 - When stopped by an abort signal (AbortSignal), the exception passes through as is.
 
 ### web_search
@@ -200,7 +211,16 @@ The result is returned as one string.
 - Without a range, the whole file is returned.
 - With only `start`, the file is returned from that line to the end.
 - With character positions in the range, the first and last lines are cut at those positions.
-- If the output goes over the limit, it is truncated and marked as such.
+- If the output goes over `maxOutputBytes`, only its end is returned.
+  It starts at the beginning of a line whenever a whole line fits.
+  The full output is saved to `<overflowDir>/<random id>.txt`, and a last line gives the path.
+  Small outputs leave no file.
+  The tool never deletes these files.
+- If the last line alone is longer than the limit, the last bytes of that line are returned.
+- If the output passes `maxSavedBytes`, the command is stopped.
+  The file keeps the first `maxSavedBytes`, and the result says so.
+- If the file cannot be written, the command is stopped and the call fails with an error naming the path and the cause.
+- The tool description tells the LLM about the limit and the file.
 - An empty file returns the string `(empty file)`.
 
 It throws `FileToolError` in these cases.

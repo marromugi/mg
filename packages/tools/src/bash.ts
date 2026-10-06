@@ -1,47 +1,51 @@
-import { execFile, type ExecFileException } from "node:child_process";
+import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Tool } from "@mg/core";
 import { z } from "zod";
+import {
+  createBoundedOutput,
+  formatBytes,
+  type BoundedOutput,
+} from "./bounded-output.js";
 
 export type BashToolOptions = {
   cwd: string;
   timeoutMs?: number;
   shell?: string;
   maxOutputBytes?: number;
+  overflowDir?: string;
+  maxSavedBytes?: number;
 };
 
 const bashInput = z.object({
   command: z.string().describe("Shell command to run"),
 });
 
-type RunResult = {
-  stdout: string;
-  stderr: string;
-  error: ExecFileException | null;
+type Outcome = {
+  output: BoundedOutput;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  timedOut: boolean;
 };
 
-const run = (
-  shell: string,
-  command: string,
-  options: {
-    cwd: string;
-    timeout: number;
-    maxBuffer: number;
-    signal?: AbortSignal;
-  },
-): Promise<RunResult> =>
-  new Promise((resolve) => {
-    execFile(
-      shell,
-      ["-c", command],
-      options,
-      (error, stdout, stderr) => {
-        resolve({ stdout, stderr, error });
-      },
+const closingLine = (output: BoundedOutput): string | undefined => {
+  if (output.savedPath === undefined) return undefined;
+  const shown = formatBytes(Buffer.byteLength(output.text));
+  const total = formatBytes(output.totalBytes);
+  if (output.lastLinePartial) {
+    return (
+      `[showing the last ${shown} of line ${output.totalLines} ` +
+      `(line is ${formatBytes(output.lastLineBytes)}; ${total} in all). ` +
+      `Full output: ${output.savedPath}]`
     );
-  });
-
-const trimNewline = (text: string): string =>
-  text.endsWith("\n") ? text.slice(0, -1) : text;
+  }
+  return (
+    `[showing lines ${output.shownFromLine}-${output.totalLines} ` +
+    `of ${output.totalLines} (${shown} of ${total}). ` +
+    `Full output: ${output.savedPath}]`
+  );
+};
 
 export const createBashTool = (
   options: BashToolOptions,
@@ -50,42 +54,107 @@ export const createBashTool = (
     cwd,
     timeoutMs = 30_000,
     shell = "/bin/sh",
-    maxOutputBytes = 1_048_576,
+    maxOutputBytes = 8192,
+    overflowDir = join(tmpdir(), "mg-bash-output"),
+    maxSavedBytes = 64 * 1024 * 1024,
   } = options;
+
+  const execute = (
+    command: string,
+    signal: AbortSignal | undefined,
+  ): Promise<Outcome> =>
+    new Promise((resolve, reject) => {
+      const child = spawn(shell, ["-c", command], { cwd, signal });
+      let timedOut = false;
+      let settled = false;
+
+      const output = createBoundedOutput({
+        maxBytes: maxOutputBytes,
+        dir: overflowDir,
+        maxSavedBytes,
+        onStop: () => {
+          child.kill();
+        },
+      });
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill();
+      }, timeoutMs);
+
+      const settle = (
+        exitCode: number | null,
+        exitSignal: NodeJS.Signals | null,
+      ): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        child.stdout.destroy();
+        child.stderr.destroy();
+        output.finish().then(
+          (bounded) =>
+            resolve({
+              output: bounded,
+              exitCode,
+              signal: exitSignal,
+              timedOut,
+            }),
+          reject,
+        );
+      };
+
+      child.stdout.on("data", (chunk: Buffer) => output.append(chunk));
+      child.stderr.on("data", (chunk: Buffer) => output.append(chunk));
+      child.on("error", (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        child.kill();
+        output.finish().then(
+          () => reject(error),
+          () => reject(error),
+        );
+      });
+      child.on("close", settle);
+      // A killed shell can leave a grandchild holding the pipes open.
+      child.on("exit", (code, exitSignal) => {
+        if (timedOut || child.killed) settle(code, exitSignal);
+      });
+    });
 
   return {
     name: "bash",
     description:
       `Runs a shell command with ${shell} in the working directory ${cwd}. ` +
-      "Returns stdout, stderr and the exit code as one text.",
+      "Returns stdout and stderr merged in arrival order, and the exit code, as one text. " +
+      `Output over ${formatBytes(maxOutputBytes)} is cut to its end; ` +
+      "the full output is saved to a file whose path is given at the end of the result. " +
+      "Read that file with commands such as grep, head, tail or sed -n instead of running the command again.",
     input: bashInput,
     async prepare({ command }) {
       return {
         reach: { kind: "any-local" },
         run: async (context) => {
-          const { stdout, stderr, error } = await run(shell, command, {
-            cwd,
-            timeout: timeoutMs,
-            maxBuffer: maxOutputBytes,
-            signal: context.signal,
-          });
+          const outcome = await execute(command, context.signal);
+          const { output } = outcome;
 
           const parts: string[] = [];
-          const out = trimNewline(stdout);
-          const err = trimNewline(stderr);
-          if (out !== "") parts.push(out);
-          if (err !== "") parts.push(`[stderr]\n${err}`);
+          if (output.text !== "") parts.push(output.text);
+          const closing = closingLine(output);
+          if (closing !== undefined) parts.push(closing);
 
-          if (error === null) return parts.join("\n");
-          if (error.name === "AbortError") throw error;
-          if (error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-            parts.push("[output truncated]");
-          } else if (error.killed === true) {
+          if (output.savedCapReached) {
+            const kept = formatBytes(maxSavedBytes);
+            parts.push(
+              `[stopped: output passed ${kept}; the first ${kept} is saved]`,
+            );
+          } else if (outcome.timedOut) {
             parts.push(`[timed out after ${timeoutMs} ms]`);
-          } else if (typeof error.code === "number") {
-            parts.push(`[exit code: ${error.code}]`);
-          } else {
-            throw error;
+          } else if (outcome.exitCode === null) {
+            throw new Error(
+              `command ended by signal ${outcome.signal ?? "unknown"}`,
+            );
+          } else if (outcome.exitCode !== 0) {
+            parts.push(`[exit code: ${outcome.exitCode}]`);
           }
           return parts.join("\n");
         },

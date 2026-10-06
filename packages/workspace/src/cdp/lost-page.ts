@@ -22,5 +22,7 @@ export const failWithLoss = (
     click: (role, name) => guard(() => page.click(role, name)),
     type: (role, name, text, submit) =>
       guard(() => page.type(role, name, text, submit)),
+    typeSecret: (role, name, secret, submit) =>
+      guard(() => page.typeSecret(role, name, secret, submit)),
   };
 };

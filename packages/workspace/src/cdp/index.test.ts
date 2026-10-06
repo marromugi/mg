@@ -18,6 +18,7 @@ const fakePage: BrowserPage = {
   url: async () => "about:blank",
   click: async () => {},
   type: async () => {},
+  typeSecret: async () => {},
 };
 
 describe("createCdpConnector", () => {
@@ -389,6 +390,9 @@ describe("createCdpConnector browser tools when the endpoint is lost", () => {
         calls += 1;
       },
       type: async () => {
+        calls += 1;
+      },
+      typeSecret: async () => {
         calls += 1;
       },
       ...script,

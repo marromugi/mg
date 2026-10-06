@@ -377,6 +377,9 @@ It returns `filled <credential>.<field>`, and `submit` presses Enter after filli
 
 The value goes from the credential access to the page without passing through the model.
 For the life of the connection, every value typed this way is replaced with `[credential <name>.<field>]` in the page text, the title and URL, error messages, and the file a large `browser_read` saves.
+A field the page still holds shows the marker instead of its value in `browser_read`, whatever the characters in the value.
+Text elsewhere is replaced by matching the value as typed, as a quoted string, with whitespace collapsed, and percent-encoded.
+The origin is read again after the value is fetched, and the fill is refused if the page moved to another origin meanwhile.
 `browser_type` is unchanged and does not hide what it types.
 
 #### About tests

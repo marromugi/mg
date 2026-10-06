@@ -17,6 +17,7 @@ const failingPage: BrowserPage = {
   url: fail,
   click: fail,
   type: fail,
+  typeSecret: fail,
 };
 
 const outside = { kind: "outside" };

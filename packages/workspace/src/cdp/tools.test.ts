@@ -42,6 +42,7 @@ const createFakePage = (
     async type(role, name, text, submit) {
       calls.type.push({ role, name, text, submit });
     },
+    async typeSecret() {},
     ...overrides,
   };
   return page;

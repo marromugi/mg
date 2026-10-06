@@ -1,42 +1,68 @@
-import type { BrowserPage } from "./browser.js";
-
-export type Secret = { value: string; marker: string };
-
-export interface SecretPage extends BrowserPage {
-  typeSecret(
-    role: string,
-    name: string,
-    secret: Secret,
-    submit: boolean,
-  ): Promise<void>;
-}
+import type { BrowserPage, Secret } from "./browser.js";
 
 const escapeRegExp = (text: string): string =>
   text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Remembers every value typed through typeSecret for the life of the page
-// and replaces it with its marker in what navigate, snapshot and failures
-// give back. The URL-encoded form of a value is replaced too, because a
-// form submitted by GET puts it in the address. url() is returned as it
-// is: the caller compares origins with it and does not show it.
-export const hideSecrets = (page: BrowserPage): SecretPage => {
-  const markers = new Map<string, string>();
+// Page text collapses runs of whitespace and drops leading and trailing
+// whitespace, so a value matches with any run of whitespace in its place.
+const looseSource = (text: string): string =>
+  text.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
+
+// Forms of a value that page text and addresses show: as typed, escaped
+// like a quoted string, percent-encoded, and encoded the way a form sent
+// by GET writes it.
+const formsOf = (value: string): string[] => {
+  const encoded = encodeURIComponent(value);
+  const quoted = JSON.stringify(value).slice(1, -1);
+  const form = encoded
+    .replace(/%20/g, "+")
+    .replace(
+      /[!'()*~]/g,
+      (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+  return [
+    ...[value, quoted]
+      .filter((text) => text.trim() !== "")
+      .map(looseSource),
+    escapeRegExp(encoded),
+    escapeRegExp(form),
+  ];
+};
+
+// Replaces, with its marker, every value typed through typeSecret for the
+// life of the page, in what navigate, snapshot and failures give back. url()
+// is returned as it is: the caller compares origins with it and does not
+// show it. What a snapshot shows in a field the page still holds is
+// replaced by the page itself (see BrowserPage.typeSecret).
+export const hideSecrets = (page: BrowserPage): BrowserPage => {
+  const secrets: { source: string; marker: string }[] = [];
   let pattern: RegExp | undefined;
 
   const remember = ({ value, marker }: Secret): void => {
     if (value === "") return;
-    markers.set(value, marker);
-    markers.set(encodeURIComponent(value), marker);
-    const texts = [...markers.keys()].sort(
-      (a, b) => b.length - a.length,
+    for (const source of formsOf(value)) {
+      secrets.push({ source, marker });
+    }
+    secrets.sort((a, b) => b.source.length - a.source.length);
+    pattern = new RegExp(
+      secrets.map((s, i) => `(?<s${i}>${s.source})`).join("|"),
+      "g",
     );
-    pattern = new RegExp(texts.map(escapeRegExp).join("|"), "g");
   };
 
   const hide = (text: string): string =>
     pattern === undefined
       ? text
-      : text.replace(pattern, (found) => markers.get(found) ?? found);
+      : text.replace(pattern, (...args) => {
+          const groups = args[args.length - 1] as Record<
+            string,
+            string | undefined
+          >;
+          const index = secrets.findIndex(
+            (_, i) => groups[`s${i}`] !== undefined,
+          );
+          return secrets[index]?.marker ?? "";
+        });
 
   const hideInError = (error: unknown): unknown => {
     if (!(error instanceof Error)) return error;
@@ -72,7 +98,7 @@ export const hideSecrets = (page: BrowserPage): SecretPage => {
       guard(() => page.type(role, name, text, submit)),
     typeSecret: (role, name, secret, submit) => {
       remember(secret);
-      return guard(() => page.type(role, name, secret.value, submit));
+      return guard(() => page.typeSecret(role, name, secret, submit));
     },
   };
 };

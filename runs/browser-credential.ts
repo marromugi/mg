@@ -111,4 +111,5 @@ try {
 } finally {
   await workspace.close();
   server.close();
+  server.closeAllConnections();
 }

@@ -9,18 +9,22 @@ import type { BrowserPage } from "./browser.js";
 const dir = mkdtempSync(join(tmpdir(), "mg-cdp-credentials-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+const stored: Record<string, string> = {
+  username: "alice@example.com",
+  password: "hunter2abc",
+  quoted: 'pa"ss\\word',
+  spaced: "  lead  x  trail  ",
+  plain: "hunt er2!",
+  accented: "pässwörd日本",
+};
+
 const access = createCredentialAccess({
-  store: {
-    read: async (name, field) =>
-      `${name}.${field}` === "demo.username"
-        ? "alice@example.com"
-        : "hunter2abc",
-  },
+  store: { read: async (_name, field) => stored[field] ?? "" },
   entries: [
     {
       name: "demo",
       origins: ["http://127.0.0.1:8787"],
-      fields: ["username", "password"],
+      fields: Object.keys(stored),
     },
   ],
   approval: { needed: false },
@@ -38,8 +42,9 @@ const setup = async (
     snapshot: async () => script.snapshotText ?? "",
     url: async () => "http://127.0.0.1:8787/login",
     click: async () => {},
-    type: async (role, name, text) => {
-      typed.push({ role, name, text });
+    type: async () => {},
+    typeSecret: async (role, name, secret) => {
+      typed.push({ role, name, text: secret.value });
     },
     ...script,
   };
@@ -84,7 +89,7 @@ describe("createCdpConnector with a credential access", () => {
     const { run } = await setup();
 
     await expect(run("browser_credentials", {})).resolves.toBe(
-      "demo: username, password",
+      "demo: username, password, quoted, spaced, plain, accented",
     );
   });
 
@@ -170,6 +175,44 @@ describe("createCdpConnector with a credential access", () => {
     expect(result).not.toContain("hunter2abc");
   });
 
+  test.each([
+    [
+      "quoted",
+      'textbox "Pass": pa"ss\\word',
+      'textbox "Pass": [credential demo.quoted]',
+    ],
+    [
+      "quoted",
+      'textbox "Pass": "pa\\"ss\\\\word"',
+      'textbox "Pass": "[credential demo.quoted]"',
+    ],
+    [
+      "spaced",
+      "textbox: lead x trail",
+      "textbox: [credential demo.spaced]",
+    ],
+    [
+      "accented",
+      "textbox: pässwörd日本",
+      "textbox: [credential demo.accented]",
+    ],
+    [
+      "accented",
+      "/done?c=p%C3%A4ssw%C3%B6rd%E6%97%A5%E6%9C%AC",
+      "/done?c=[credential demo.accented]",
+    ],
+    ["plain", "/done?d=hunt+er2%21", "/done?d=[credential demo.plain]"],
+    ["plain", "/done?d=hunt%20er2!", "/done?d=[credential demo.plain]"],
+  ])(
+    "page text with %s typed shows the marker for %s",
+    async (field, shown, hidden) => {
+      const { run } = await setup({ snapshotText: shown });
+      await run("browser_fill_credential", { ...fillPassword, field });
+
+      await expect(run("browser_read", {})).resolves.toBe(hidden);
+    },
+  );
+
   test("a page title and address show the marker", async () => {
     const { run } = await setup({
       navigate: async (url) => ({ url, title: "hello hunter2abc" }),
@@ -197,5 +240,57 @@ describe("createCdpConnector with a credential access", () => {
     await expect(
       run("browser_click", { role: "button", name: "Go" }),
     ).rejects.toThrow("no button named [credential demo.password]");
+  });
+});
+
+describe("browser_fill_credential when the page moves during approval", () => {
+  test("types nothing and names both origins", async () => {
+    let current = "http://127.0.0.1:8787/login";
+    const typed: string[] = [];
+    const moving = createCredentialAccess({
+      store: { read: async () => "hunter2abc" },
+      entries: [
+        {
+          name: "demo",
+          origins: ["http://127.0.0.1:8787"],
+          fields: ["password"],
+        },
+      ],
+      approval: {
+        needed: true,
+        ask: async () => {
+          current = "https://idp.example.com/signin";
+          return true;
+        },
+      },
+    });
+    const page: BrowserPage = {
+      navigate: async (url) => ({ url, title: "" }),
+      snapshot: async () => "",
+      url: async () => current,
+      click: async () => {},
+      type: async () => {},
+      typeSecret: async (_role, _name, secret) => {
+        typed.push(secret.value);
+      },
+    };
+    const connection = await createCdpConnector(
+      {
+        url: "http://localhost:9222",
+        browser: "build-browser",
+        credentials: moving,
+      },
+      { connect: async () => ({ page, close: async () => {} }) },
+    ).open();
+    const fill = connection.tools.find(
+      (t) => t.name === "browser_fill_credential",
+    )!;
+
+    await expect(
+      (await fill.prepare(fillPassword)).run({}),
+    ).rejects.toThrow(
+      "the page moved from http://127.0.0.1:8787 to https://idp.example.com while demo.password was being approved, so nothing was typed",
+    );
+    expect(typed).toEqual([]);
   });
 });

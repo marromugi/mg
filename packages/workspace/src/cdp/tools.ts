@@ -9,7 +9,6 @@ import type { Tool } from "@mg/core";
 import type { CredentialAccess } from "@mg/credentials";
 import { z } from "zod";
 import type { BrowserPage } from "./browser.js";
-import type { SecretPage } from "./hide-secrets.js";
 
 export type BrowserToolsOptions = {
   maxOutputBytes?: number;
@@ -175,7 +174,7 @@ const currentOrigin = async (page: BrowserPage): Promise<string> => {
 };
 
 export const createCredentialTools = (
-  page: SecretPage,
+  page: BrowserPage,
   access: CredentialAccess,
 ): readonly Tool[] => {
   const credentials: Tool<typeof credentialsInput> = {
@@ -221,6 +220,12 @@ export const createCredentialTools = (
             { name: credential, field, origin },
             { signal: context.signal },
           );
+          const now = await currentOrigin(page);
+          if (now !== origin) {
+            throw new Error(
+              `the page moved from ${origin} to ${now} while ${credential}.${field} was being approved, so nothing was typed`,
+            );
+          }
           await page.typeSecret(
             role,
             name,

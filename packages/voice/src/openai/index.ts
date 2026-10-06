@@ -267,6 +267,8 @@ export const createOpenAiSynthesizer = (
         );
       }
     } catch (cause) {
+      // A failure status was already received before the signal fired.
+      if (cause instanceof OpenAiSpeechHttpError) throw cause;
       if (signal?.aborted) throw signal.reason;
       if (isAbortError(cause)) throw cause;
       if (isOpenAiSpeechError(cause)) throw cause;

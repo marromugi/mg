@@ -356,6 +356,40 @@ describe("createOpenAiSynthesizer", () => {
     expect(await pending).toBe(reason);
   });
 
+  test("throws the HTTP error with an empty body when the signal fires while a failure body is being read", async () => {
+    let markPulled: () => void = () => {};
+    const pulled = new Promise<void>((resolve) => {
+      markPulled = resolve;
+    });
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        markPulled();
+        return new Promise(() => {});
+      },
+    });
+    const { fetchStub } = stubFetch(
+      () => new Response(body, { status: 401 }),
+    );
+    const synthesizer = createOpenAiSynthesizer(options(fetchStub));
+    const controller = new AbortController();
+
+    const pending = failureOf(
+      collect(
+        synthesizer.synthesize("a", { signal: controller.signal }),
+      ),
+    );
+    await pulled;
+    controller.abort({ why: "user" });
+    const error = await pending;
+
+    expect(error).toBeInstanceOf(OpenAiSpeechHttpError);
+    expect((error as OpenAiSpeechHttpError).status).toBe(401);
+    expect((error as OpenAiSpeechHttpError).body).toBe("");
+    expect((error as OpenAiSpeechHttpError).message).toBe(
+      "OpenAI speech request failed: 401 (body not read: the call was stopped)",
+    );
+  });
+
   test("throws the signal's reason when the signal fires while waiting for the response", async () => {
     const fetchStub: typeof fetch = () =>
       new Promise<Response>(() => {});

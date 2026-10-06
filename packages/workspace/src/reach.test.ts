@@ -14,8 +14,10 @@ const failingClient: SshClient = { exec: fail, end: fail };
 const failingPage: BrowserPage = {
   navigate: fail,
   snapshot: fail,
+  url: fail,
   click: fail,
   type: fail,
+  typeSecret: fail,
 };
 
 const outside = { kind: "outside" };

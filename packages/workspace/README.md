@@ -349,15 +349,38 @@ const cdpConnector = createCdpConnector({
 
 This table lists what you can set.
 
-| Option           | Meaning                                                        | Default                           |
-| ---------------- | -------------------------------------------------------------- | --------------------------------- |
-| `browser`        | Name of the browser this connector drives                      | Required                          |
-| `url`            | URL of the browser's CDP endpoint                              | Either this or `endpoint`         |
-| `endpoint`       | Endpoint that returns a host and port reachable from your side | Either this or `url`              |
-| `timeoutMs`      | Time limit for one operation (milliseconds)                    | `30000`                           |
-| `maxOutputBytes` | Output limit for `browser_read` (bytes)                        | `16384`                           |
-| `overflowDir`    | Where the full page texts are saved                            | `<os temp dir>/mg-browser-output` |
-| `maxSavedBytes`  | Most bytes saved to one file (bytes)                           | `67108864`                        |
+| Option           | Meaning                                                             | Default                           |
+| ---------------- | ------------------------------------------------------------------- | --------------------------------- |
+| `browser`        | Name of the browser this connector drives                           | Required                          |
+| `url`            | URL of the browser's CDP endpoint                                   | Either this or `endpoint`         |
+| `endpoint`       | Endpoint that returns a host and port reachable from your side      | Either this or `url`              |
+| `timeoutMs`      | Time limit for one operation (milliseconds)                         | `30000`                           |
+| `maxOutputBytes` | Output limit for `browser_read` (bytes)                             | `16384`                           |
+| `overflowDir`    | Where the full page texts are saved                                 | `<os temp dir>/mg-browser-output` |
+| `maxSavedBytes`  | Most bytes saved to one file (bytes)                                | `67108864`                        |
+| `credentials`    | `CredentialAccess` from `@mg/credentials`; adds the two tools below | None (the tools are not offered)  |
+
+#### Filling a form from a saved login
+
+When `credentials` is given, the connector offers two more tools.
+
+| Tool name                 | What it does                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `browser_credentials`     | Lists the saved logins that can be used at the current page's origin, with their fields.          |
+| `browser_fill_credential` | Fills the element given by role and name with one field of a saved login (`credential`, `field`). |
+
+`browser_fill_credential` reads the top page's origin right before filling and asks the credential access for the value.
+A refusal or a store failure fails the tool with the reason, and nothing is typed.
+A page with no origin, such as `about:blank`, is refused.
+Fields inside frames cannot be reached.
+It returns `filled <credential>.<field>`, and `submit` presses Enter after filling.
+
+The value goes from the credential access to the page without passing through the model.
+For the life of the connection, every value typed this way is replaced with `[credential <name>.<field>]` in the page text, the title and URL, error messages, and the file a large `browser_read` saves.
+A field the page still holds shows the marker instead of its value in `browser_read`, whatever the characters in the value.
+Text elsewhere is replaced by matching the value as typed, as a quoted string, with whitespace collapsed, and percent-encoded.
+The origin is read again after the value is fetched, and the fill is refused if the page moved to another origin meanwhile.
+`browser_type` is unchanged and does not hide what it types.
 
 #### About tests
 

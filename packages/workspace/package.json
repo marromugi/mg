@@ -15,6 +15,7 @@
   "dependencies": {
     "@mg/bounded-output": "workspace:*",
     "@mg/core": "workspace:*",
+    "@mg/credentials": "workspace:*",
     "@types/ssh2": "1.15.6",
     "playwright-core": "1.63.0",
     "ssh2": "1.17.0",

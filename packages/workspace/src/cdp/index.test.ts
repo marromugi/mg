@@ -1,3 +1,4 @@
+import { createCredentialAccess } from "@mg/credentials";
 import { describe, expect, test } from "vitest";
 import { createCdpConnector } from "./index.js";
 import type { BrowserPage, BrowserSession } from "./browser.js";
@@ -14,8 +15,10 @@ const options = {
 const fakePage: BrowserPage = {
   navigate: async (url) => ({ url, title: "" }),
   snapshot: async () => "",
+  url: async () => "about:blank",
   click: async () => {},
   type: async () => {},
+  typeSecret: async () => {},
 };
 
 describe("createCdpConnector", () => {
@@ -379,10 +382,17 @@ describe("createCdpConnector browser tools when the endpoint is lost", () => {
         calls += 1;
         return "";
       },
+      url: async () => {
+        calls += 1;
+        return "about:blank";
+      },
       click: async () => {
         calls += 1;
       },
       type: async () => {
+        calls += 1;
+      },
+      typeSecret: async () => {
         calls += 1;
       },
       ...script,
@@ -398,7 +408,21 @@ describe("createCdpConnector browser tools when the endpoint is lost", () => {
       },
     };
     const connector = createCdpConnector(
-      { endpoint, browser: "build-browser" },
+      {
+        endpoint,
+        browser: "build-browser",
+        credentials: createCredentialAccess({
+          store: { read: async () => "hunter2abc" },
+          entries: [
+            {
+              name: "demo",
+              origins: ["http://127.0.0.1:8787"],
+              fields: ["password"],
+            },
+          ],
+          approval: { needed: false },
+        }),
+      },
       { connect: async () => ({ page, close: async () => {} }) },
     );
     const connection = await connector.open();
@@ -418,6 +442,16 @@ describe("createCdpConnector browser tools when the endpoint is lost", () => {
       ["browser_read", {}],
       ["browser_click", { role: "button", name: "Go" }],
       ["browser_type", { role: "textbox", name: "Search", text: "hi" }],
+      ["browser_credentials", {}],
+      [
+        "browser_fill_credential",
+        {
+          role: "textbox",
+          name: "Password",
+          credential: "demo",
+          field: "password",
+        },
+      ],
     ] as const) {
       await expect(run(name, input)).rejects.toBe(reason);
     }

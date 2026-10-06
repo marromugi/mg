@@ -33,12 +33,16 @@ const createFakePage = (
     async snapshot() {
       return "- heading: Example";
     },
+    async url() {
+      return "https://example.com/";
+    },
     async click(role, name) {
       calls.click.push({ role, name });
     },
     async type(role, name, text, submit) {
       calls.type.push({ role, name, text, submit });
     },
+    async typeSecret() {},
     ...overrides,
   };
   return page;

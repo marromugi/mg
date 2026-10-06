@@ -254,7 +254,6 @@ export const runScripted = async (
     await options.dialogue(
       {
         ...collaborators,
-        whileSpeaking: { kind: "interrupt" },
         listener: script.listener,
         player: createRecordingPlayer({
           write: options.writeWav,

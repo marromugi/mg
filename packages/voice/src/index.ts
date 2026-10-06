@@ -15,3 +15,4 @@ export * from "./recorded/player.js";
 export * from "./microphone.js";
 export * from "./level-listener.js";
 export * from "./ffmpeg/microphone.js";
+export * from "./half-duplex.js";

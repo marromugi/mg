@@ -18,6 +18,7 @@ It holds audio chunks, speech synthesis, transcription, listeners, players, and 
 - Holds `createFfmpegKeyListener`, a listener that records the microphone through ffmpeg, one utterance per pair of key presses.
 - Holds `createFfmpegMicrophone`, a microphone that reads the input device through ffmpeg.
 - Holds `createLevelListener`, a listener that cuts a microphone's stream into utterances by loudness.
+- Holds `createHalfDuplex`, which joins a microphone and a player so that the microphone hears nothing while the player is sounding.
 - Holds `createRecordedListener`, a listener that yields recorded utterances at given times.
 - Holds `createRecordingPlayer`, a player that writes each sentence to a WAV file.
 - Defines `Clock`, the time source both of them wait on.
@@ -131,6 +132,15 @@ An interface that gives one continuous stream of audio.
 `open(signal)` streams audio chunks from the moment it is opened.
 Once the signal has fired, the stream ends without error.
 A failure of the microphone is thrown by the stream.
+
+### `createHalfDuplex`
+
+Takes a microphone, a player and `tailMs`, and returns a microphone and a player to use in their place.
+`now` is the time source in ms and defaults to `Date.now`.
+The returned player forwards `play` and `stop` and counts the plays in flight.
+A chunk of the returned microphone that arrives while a play is in flight, or less than `tailMs` after the last one ended, keeps its length and format and carries zeros.
+Other chunks pass through unchanged.
+Failures of the microphone and of the player pass through unchanged.
 
 ### `Player`
 

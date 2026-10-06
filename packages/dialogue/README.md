@@ -40,9 +40,6 @@ Judgment and part failures do not end it; each shows as a `failure` event.
 It emits an `utterance` event when an utterance starts.
 It emits an `utterance-end` event once the audio of the utterance has ended, before the final transcript.
 When the audio throws, `utterance-end` is not emitted.
-It sets an utterance aside when it began while the player was playing, or less than `tailMs` after it stopped, if `whileSpeaking` is `{ kind: "ignore", tailMs }`.
-A set-aside utterance emits `utterance-ignored`, is not transcribed, starts no cycle and cuts no reply; its audio is read to the end and dropped.
-With `{ kind: "interrupt" }` a new utterance cuts what is playing.
 It speaks replies, reports and notices one text at a time, through the reply speaker.
 
 ### `DialogueOptions`

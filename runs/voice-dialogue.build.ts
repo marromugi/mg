@@ -270,7 +270,7 @@ export type DialogueCollaboratorInputs = {
 
 export type DialogueCollaborators = Omit<
   DialogueOptions,
-  "listener" | "player" | "whileSpeaking"
+  "listener" | "player"
 >;
 
 // Creates both conversations, seeds the talker's with its instruction as
@@ -335,9 +335,6 @@ export const printEvent =
         return;
       case "utterance-end":
         out("utterance: ended");
-        return;
-      case "utterance-ignored":
-        out("utterance: ignored");
         return;
       case "transcript":
         if (event.final) out(`you: ${event.text}`);

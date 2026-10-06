@@ -84,14 +84,6 @@ export type DialogueWording = {
   notices: { judgment: string; transcription: string; talker: string };
 };
 
-// What the session does with an utterance that begins while its player
-// is playing. interrupt cuts what is playing and answers the utterance.
-// ignore sets the utterance aside, also for tailMs after the playing
-// ended, so sound of the playback itself picked up by the microphone is
-// not taken as the person speaking.
-export type WhileSpeaking =
-  { kind: "interrupt" } | { kind: "ignore"; tailMs: number };
-
 export type DialogueOptions = {
   listener: Listener;
   transcriber: Transcriber;
@@ -107,7 +99,6 @@ export type DialogueOptions = {
   talker: Talker;
   worker: Worker;
   wording: DialogueWording;
-  whileSpeaking: WhileSpeaking;
   stopCheckMs: number;
   exchangeCount: number;
   requestLimit: number;
@@ -115,9 +106,6 @@ export type DialogueOptions = {
 
 export type DialogueEvent =
   | { type: "utterance" }
-  // an utterance that began while speech was playing was set aside;
-  // it starts no cycle and is not transcribed
-  | { type: "utterance-ignored" }
   // the utterance's audio has ended; not emitted when the audio throws
   | { type: "utterance-end" }
   | { type: "transcript"; text: string; final: boolean }

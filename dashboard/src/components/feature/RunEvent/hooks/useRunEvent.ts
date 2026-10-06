@@ -13,7 +13,7 @@ export type RunEventView =
       tracePath: string;
     }
   | { kind: "stopped"; tracePath: string }
-  | { kind: "failed"; message: string; tracePath: string };
+  | { kind: "failed"; message: string; tracePath?: string };
 
 export const useRunEvent = (event: TestRunEvent): RunEventView => {
   switch (event.type) {

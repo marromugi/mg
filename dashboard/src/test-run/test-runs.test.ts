@@ -192,7 +192,6 @@ describe("test runs", () => {
         type: "failed",
         message:
           "判定 LLM は、このプロバイダでは使えません。ツール呼び出しを強制できるプロバイダ（OpenRouter）を選んでください",
-        tracePath: expect.stringMatching(/\.jsonl$/) as string,
       },
     ]);
   });

@@ -30,6 +30,8 @@ exports[`story snapshots > ./feature/RunEvent/RunEvent.stories.tsx Ended 1`] = `
 
 exports[`story snapshots > ./feature/RunEvent/RunEvent.stories.tsx Failed 1`] = `"<section data-ended="" class="mt-6 flex flex-col gap-2"><div role="alert" class="rounded-container border container-p-4 border-error bg-error-bg text-error-fg">実行に失敗しました。OpenRouter request failed: HTTP 401</div><p class="text-meta">トレース: <code class="font-mono">/Users/me/Library/Application Support/mg-dashboard/traces/6f1c.jsonl</code></p></section>"`;
 
+exports[`story snapshots > ./feature/RunEvent/RunEvent.stories.tsx FailedBeforeRun 1`] = `"<section data-ended="" class="mt-6 flex flex-col gap-2"><div role="alert" class="rounded-container border container-p-4 border-error bg-error-bg text-error-fg">実行に失敗しました。判定 LLM は、このプロバイダでは使えません。</div><p class="text-meta">この実行ではトレースを書いていません。</p></section>"`;
+
 exports[`story snapshots > ./feature/RunEvent/RunEvent.stories.tsx Stopped 1`] = `"<section data-ended="" class="mt-6 flex flex-col gap-1"><h2 class="font-semibold">実行を止めました</h2><p class="text-meta">トレース: <code class="font-mono">/Users/me/Library/Application Support/mg-dashboard/traces/6f1c.jsonl</code></p></section>"`;
 
 exports[`story snapshots > ./feature/RunEvent/RunEvent.stories.tsx Text 1`] = `"<span class="whitespace-pre-wrap">The note says blue.</span>"`;

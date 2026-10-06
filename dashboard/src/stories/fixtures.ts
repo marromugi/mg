@@ -109,6 +109,11 @@ export const failedEvent: TestRunEvent = {
   tracePath: TRACE_PATH,
 };
 
+export const failedBeforeRunEvent: TestRunEvent = {
+  type: "failed",
+  message: "判定 LLM は、このプロバイダでは使えません。",
+};
+
 export const newDraft = emptyDraft();
 export const filesDraft = draftFromDefinition(filesHarness);
 export const judgedDraft = draftFromDefinition(judgedHarness);

@@ -61,7 +61,13 @@ export const RunEvent = ({ event }: { event: TestRunEvent }) => {
       return (
         <section data-ended="" className="mt-6 flex flex-col gap-2">
           <Notice>{`実行に失敗しました。${view.message}`}</Notice>
-          <TracePath path={view.tracePath} />
+          {view.tracePath === undefined ? (
+            <p className="text-meta">
+              この実行ではトレースを書いていません。
+            </p>
+          ) : (
+            <TracePath path={view.tracePath} />
+          )}
         </section>
       );
   }

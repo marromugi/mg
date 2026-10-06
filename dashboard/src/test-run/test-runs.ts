@@ -18,7 +18,9 @@ export type TestRunEvent =
       tracePath: string;
     }
   | { type: "stopped"; tracePath: string }
-  | { type: "failed"; message: string; tracePath: string };
+  // No tracePath when the run failed before `run` was called: no trace
+  // file was written.
+  | { type: "failed"; message: string; tracePath?: string };
 
 export type StartResult =
   | { ok: true; runId: string }
@@ -128,7 +130,6 @@ export const createTestRuns = (parts: {
         finish(record, {
           type: "failed",
           message: reasonOf(error),
-          tracePath,
         });
         return { ok: true, runId };
       }

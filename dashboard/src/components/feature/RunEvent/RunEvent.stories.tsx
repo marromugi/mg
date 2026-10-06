@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   endedEvent,
+  failedBeforeRunEvent,
   failedEvent,
   stoppedEvent,
   textEvent,
@@ -24,3 +25,7 @@ export const Ended: Story = { args: { event: endedEvent } };
 export const Stopped: Story = { args: { event: stoppedEvent } };
 
 export const Failed: Story = { args: { event: failedEvent } };
+
+export const FailedBeforeRun: Story = {
+  args: { event: failedBeforeRunEvent },
+};

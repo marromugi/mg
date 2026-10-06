@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { HarnessDefinition } from "../definition/index.js";
 import { createApp } from "../app.js";
 import { createSession } from "../session.js";
 import {
@@ -14,6 +15,19 @@ import type { RunEntry } from "@mg/runner";
 const ADDRESS = "127.0.0.1:4100";
 const TOKEN = "launch-token";
 
+const OLLAMA_JUDGED: HarnessDefinition = {
+  id: "h2",
+  name: "judged",
+  provider: { kind: "ollama" },
+  harness: { kind: "loop", model: "m", maxTurns: 3 },
+  means: {
+    root: "/tmp",
+    tools: ["read_file"],
+    rules: [],
+    judge: { model: "m", instruction: "Refuse deletes." },
+  },
+};
+
 const HARNESS = {
   id: "h1",
   name: "chat",
@@ -23,12 +37,15 @@ const HARNESS = {
 
 const open = async (
   run: RunEntry,
-  options: { key: boolean } = { key: true },
+  options: { key: boolean; definition?: HarnessDefinition } = {
+    key: true,
+  },
 ) => {
   const secrets = createMemorySecretStore();
   if (options.key) await secrets.set("OPENROUTER_API_KEY", "sk-test");
   const definitions = createMemoryStore();
   await definitions.put(HARNESS);
+  await definitions.put(options.definition ?? HARNESS);
   const app = createApp({
     session: createSession({ token: TOKEN, address: ADDRESS }),
     dataDir: "/data",
@@ -159,6 +176,22 @@ describe("test runs", () => {
     expect(await (await app.get(location)).text()).toContain(
       "実行に失敗しました。HTTP 401",
     );
+  });
+
+  it("shows no trace path for a run that failed before it ran", async () => {
+    const app = await open(
+      createFakeRun(() => Promise.resolve(finishedResult("stop"))),
+      { key: true, definition: OLLAMA_JUDGED },
+    );
+
+    const started = await app.post("/harnesses/h2/runs", "hi");
+    const html = await (
+      await app.get(started.headers.get("Location") ?? "")
+    ).text();
+
+    expect(html).toContain("実行に失敗しました。判定 LLM は");
+    expect(html).toContain("この実行ではトレースを書いていません");
+    expect(html).not.toContain("/data/traces");
   });
 
   it("says a run is gone and names the trace folder after a restart", async () => {

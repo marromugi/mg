@@ -35,6 +35,29 @@ const execSecurity: KeychainExec = (command, args, context) =>
     );
   });
 
+// -g は値を標準エラーに書きます。印字できる ASCII は `password: "値"`、
+// 非 ASCII や改行を含む値は `password: 0x<hex>  "..."` です。
+// -w は後者を hex だけで返すので、hex に見える本物の値と区別できません。
+const parsePassword = (stderr: string): string | undefined => {
+  const line = stderr
+    .split("\n")
+    .find((l) => l.startsWith("password: "));
+  if (line === undefined) return undefined;
+  const rest = line.slice("password: ".length);
+  if (rest.length >= 2 && rest.startsWith('"') && rest.endsWith('"')) {
+    return rest.slice(1, -1);
+  }
+  const hex = /^0x([0-9A-Fa-f]*)(?:\s|$)/.exec(rest)?.[1];
+  if (hex === undefined || hex.length % 2 !== 0) return undefined;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      Buffer.from(hex, "hex"),
+    );
+  } catch {
+    return undefined;
+  }
+};
+
 export const createKeychainStore = (
   options: { service: string },
   deps: { exec?: KeychainExec; platform?: string } = {},
@@ -61,7 +84,7 @@ export const createKeychainStore = (
             options.service,
             "-a",
             `${name}/${field}`,
-            "-w",
+            "-g",
           ],
           context,
         );
@@ -78,10 +101,16 @@ export const createKeychainStore = (
       }
       if (result.code !== 0) {
         throw new CredentialStoreError(
-          `the security command failed for ${label} with exit code ${result.code}: ${result.stderr.trim()}`,
+          `the security command failed for ${label} with exit code ${result.code}`,
         );
       }
-      return result.stdout.replace(/\r?\n$/, "");
+      const value = parsePassword(result.stderr);
+      if (value === undefined) {
+        throw new CredentialStoreError(
+          `could not read the value of ${label} from the security output`,
+        );
+      }
+      return value;
     },
   };
 };

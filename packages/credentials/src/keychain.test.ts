@@ -11,12 +11,14 @@ const execOf =
   };
 
 describe("createKeychainStore", () => {
-  it("reads one generic-password item per field and trims the newline", async () => {
+  it("reads one generic-password item per field", async () => {
     const calls: unknown[][] = [];
     const store = createKeychainStore(
       { service: "mg" },
       {
-        exec: execOf({ code: 0, stdout: "hunter2abc\n" })(calls),
+        exec: execOf({ code: 0, stderr: 'password: "hunter2abc"\n' })(
+          calls,
+        ),
         platform: "darwin",
       },
     );
@@ -29,7 +31,7 @@ describe("createKeychainStore", () => {
         "mg",
         "-a",
         "demo/password",
-        "-w",
+        "-g",
       ],
     ]);
   });
@@ -57,7 +59,35 @@ describe("createKeychainStore", () => {
       },
     );
     await expect(store.read("demo", "password")).rejects.toThrow(
-      "the security command failed for demo.password with exit code 1: denied",
+      "the security command failed for demo.password with exit code 1",
+    );
+  });
+
+  it("gives the true value of one that the security command prints as hex", async () => {
+    const store = createKeychainStore(
+      { service: "mg" },
+      {
+        exec: execOf({
+          code: 0,
+          stderr:
+            'password: 0x70C3A47373776F7264  "p\\303\\244ssword"\n',
+        })([]),
+        platform: "darwin",
+      },
+    );
+    expect(await store.read("demo", "password")).toBe("pässword");
+  });
+
+  it("fails without a guess when the security output cannot be read", async () => {
+    const store = createKeychainStore(
+      { service: "mg" },
+      {
+        exec: execOf({ code: 0, stderr: "password: 0x70C3A4zz\n" })([]),
+        platform: "darwin",
+      },
+    );
+    await expect(store.read("demo", "password")).rejects.toThrow(
+      "could not read the value of demo.password from the security output",
     );
   });
 

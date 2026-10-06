@@ -5,3 +5,14 @@ export class SecretStoreError extends Error {
     this.name = "SecretStoreError";
   }
 }
+
+// A value the store cannot write whole. Nothing was written.
+export class SecretTooLongError extends Error {
+  readonly maxBytes: number;
+
+  constructor(maxBytes: number) {
+    super(`The value is longer than ${maxBytes} bytes`);
+    this.name = "SecretTooLongError";
+    this.maxBytes = maxBytes;
+  }
+}

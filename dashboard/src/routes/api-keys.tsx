@@ -5,6 +5,7 @@ import { renderPage } from "../render.js";
 import {
   SECRET_NAMES,
   isSecretName,
+  SecretTooLongError,
   type SecretName,
   type SecretStore,
 } from "../secret-store/index.js";
@@ -90,6 +91,19 @@ export const registerApiKeys = (
     try {
       await secrets.set(name, value);
     } catch (error) {
+      if (error instanceof SecretTooLongError) {
+        return page(
+          c,
+          await statusesOrNone(),
+          {
+            problem: {
+              name,
+              message: `キーが長すぎます。${error.maxBytes} バイト以内にしてください`,
+            },
+          },
+          422,
+        );
+      }
       return page(
         c,
         await statusesOrNone(),

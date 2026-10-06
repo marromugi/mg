@@ -89,6 +89,23 @@ describe("API keys page", () => {
     expect(secrets.peek(NAME)).toBe("first-key");
   });
 
+  it("refuses a value that is too long with a message on the field and keeps the old key", async () => {
+    const secrets = createMemorySecretStore({ maxBytes: 10 });
+    const dashboard = await open(secrets);
+    await dashboard.post(`/api-keys/${NAME}`, [[NAME, "first-key"]]);
+
+    const response = await dashboard.post(`/api-keys/${NAME}`, [
+      [NAME, "k".repeat(11)],
+    ]);
+    const html = await response.text();
+
+    expect(response.status).toBe(422);
+    expect(html).toContain(
+      `<p id="${NAME}-error" class="text-meta text-error">キーが長すぎます。10 バイト以内にしてください</p>`,
+    );
+    expect(secrets.peek(NAME)).toBe("first-key");
+  });
+
   it("shows the reason a save failed without the value", async () => {
     const dashboard = await open(
       createMemorySecretStore({

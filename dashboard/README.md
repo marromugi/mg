@@ -54,7 +54,7 @@ Builds the Hono app from `{ session, dataDir, definitions, secrets }`. `definiti
 
 ### `SecretStore`
 
-`has`, `get`, `set`, and `delete` over a secret kept under a `SecretName` (now `OPENROUTER_API_KEY`). `get` is for the server's own code; no page or log receives a value. `createKeychainSecretStore({ service, spawn? })` is the one implementation: a generic password with that service and the name as account, run through `/usr/bin/security`. A value goes to `security -i` on stdin as hex, so it is never in the process's argument list. A `security` failure other than "not found" throws a `SecretStoreError` with the exit code and stderr, with the value removed.
+`has`, `get`, `set`, and `delete` over a secret kept under a `SecretName` (now `OPENROUTER_API_KEY`). `get` is for the server's own code; no page or log receives a value. `createKeychainSecretStore({ service, spawn? })` is the one implementation: a generic password with that service and the name as account, run through `/usr/bin/security`. A value goes to `security -i` on stdin as hex, so it is never in the process's argument list. `security -i` reads a command line in pieces of 4095 characters, so a value whose command does not fit in one piece is refused before anything runs (`SecretTooLongError`, 2,010 bytes with the service `mg-dashboard`) and the page shows a field message. A `security` failure other than "not found" throws a `SecretStoreError` with the exit code and stderr, with every part of the value and of its hex removed.
 
 ### `parseDefinition(value)`
 

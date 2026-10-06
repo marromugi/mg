@@ -1,4 +1,4 @@
-export { SecretStoreError } from "./errors.js";
+export { SecretStoreError, SecretTooLongError } from "./errors.js";
 export { createKeychainSecretStore } from "./keychain-store.js";
 export type { SpawnFunction, SpawnResult } from "./spawn.js";
 export {

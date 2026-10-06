@@ -139,6 +139,43 @@ describe("keychain secret store", () => {
     );
   });
 
+  it("refuses a value that does not fit one command line before running anything", async () => {
+    const { spawn, calls } = fakeSpawn(ok());
+    const store = createKeychainSecretStore({
+      service: SERVICE,
+      spawn,
+    });
+
+    await expect(
+      store.set("OPENROUTER_API_KEY", "a".repeat(2011)),
+    ).rejects.toThrow("The value is longer than 2010 bytes");
+    expect(calls).toEqual([]);
+    await store.set("OPENROUTER_API_KEY", "a".repeat(2010));
+    expect(calls).toHaveLength(1);
+  });
+
+  it("leaves no fragment of the value or of its hex in a write failure", async () => {
+    const { spawn } = fakeSpawn(
+      failed(
+        1,
+        'security: unknown command "3132333435363738393031"\nnear 6e6f70717273 echo qrst-1234 end',
+      ),
+    );
+    const store = createKeychainSecretStore({
+      service: SERVICE,
+      spawn,
+    });
+
+    await expect(
+      store.set(
+        "OPENROUTER_API_KEY",
+        "abcdefghijklmnopqrst-12345678901",
+      ),
+    ).rejects.toThrow(
+      'Keychain write of OPENROUTER_API_KEY failed (exit 1): security: unknown command "[removed]"\nnear [removed] echo [removed] end',
+    );
+  });
+
   it("fails naming the program when it cannot be started", async () => {
     const { spawn } = fakeSpawn(new Error("spawn ENOENT"));
     const store = createKeychainSecretStore({

@@ -1,4 +1,8 @@
-import type { SecretName, SecretStore } from "../secret-store/index.js";
+import {
+  SecretTooLongError,
+  type SecretName,
+  type SecretStore,
+} from "../secret-store/index.js";
 
 // A store for tests of the pieces above the interface. Each `...FailsWith`
 // makes that operation fail with the message.
@@ -7,6 +11,7 @@ export const createMemorySecretStore = (
     hasFailsWith?: string;
     setFailsWith?: string;
     deleteFailsWith?: string;
+    maxBytes?: number;
   } = {},
 ): SecretStore & { peek(name: SecretName): string | undefined } => {
   const held = new Map<SecretName, string>();
@@ -20,6 +25,12 @@ export const createMemorySecretStore = (
     set: (name, value) => {
       if (options.setFailsWith !== undefined) {
         return Promise.reject(new Error(options.setFailsWith));
+      }
+      if (
+        options.maxBytes !== undefined &&
+        Buffer.byteLength(value) > options.maxBytes
+      ) {
+        return Promise.reject(new SecretTooLongError(options.maxBytes));
       }
       held.set(name, value);
       return Promise.resolve();

@@ -11,6 +11,8 @@
     oklch(64% 0.17 265)
   );
   --color-edge: light-dark(#8884, #8884);
+  --color-surface: light-dark(#f3f3f4, #1f1f21);
+  --color-surface-raised: light-dark(#ffffff, #2c2c2f);
   --color-error: light-dark(#d33, #f66);
   --color-error-bg: light-dark(#fde8e6, #3b0d0a);
   --color-error-fg: light-dark(#3b0d0a, #fde8e6);

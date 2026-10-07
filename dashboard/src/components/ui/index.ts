@@ -3,6 +3,7 @@ export { Checkbox } from "./Checkbox/index.js";
 export { EmptyState } from "./EmptyState/index.js";
 export { FieldGroup } from "./FieldGroup/index.js";
 export { Heading } from "./Heading/index.js";
+export { Icon, type IconSource } from "./Icon/index.js";
 export { NavLink } from "./NavLink/index.js";
 export { Notice } from "./Notice/index.js";
 export { Select } from "./Select/index.js";

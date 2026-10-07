@@ -1,5 +1,6 @@
-import type { JSX, ReactNode, SVGProps } from "react";
+import type { ReactNode } from "react";
 import { tv } from "tailwind-variants";
+import { Icon, type IconSource } from "../Icon/index.js";
 
 const button = tv({
   base: "inline-flex cursor-pointer items-center rounded-control font-semibold transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97",
@@ -20,18 +21,12 @@ const button = tv({
   defaultVariants: { tone: "neutral", size: "lg" },
 });
 
-const iconStyle = tv({
-  base: "shrink-0",
-  variants: {
-    size: { sm: "size-3", md: "size-4", lg: "size-4" },
-  },
-  defaultVariants: { size: "lg" },
-});
+const ICON_SIZE = { sm: "sm", md: "md", lg: "md" } as const;
 
 type ButtonProps = {
   tone?: "primary" | "neutral" | "danger";
   size?: "sm" | "md" | "lg";
-  icon?: (props: SVGProps<SVGSVGElement>) => JSX.Element;
+  icon?: IconSource;
   iconSide?: "left" | "right";
   children: ReactNode;
 } & (
@@ -40,26 +35,25 @@ type ButtonProps = {
 );
 
 // A link when it has an href, otherwise a button that submits its form.
-// The icon is decorative, so screen readers skip it.
 export const Button = ({
   tone,
-  size,
-  icon: Icon,
+  size = "lg",
+  icon,
   iconSide = "left",
   href,
   name,
   value,
   children,
 }: ButtonProps) => {
+  const mark =
+    icon === undefined ? null : (
+      <Icon icon={icon} size={ICON_SIZE[size]} />
+    );
   const content = (
     <>
-      {Icon !== undefined && iconSide === "left" ? (
-        <Icon aria-hidden className={iconStyle({ size })} />
-      ) : null}
+      {iconSide === "left" ? mark : null}
       {children}
-      {Icon !== undefined && iconSide === "right" ? (
-        <Icon aria-hidden className={iconStyle({ size })} />
-      ) : null}
+      {iconSide === "right" ? mark : null}
     </>
   );
   return href === undefined ? (

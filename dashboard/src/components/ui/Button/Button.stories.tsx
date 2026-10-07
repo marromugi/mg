@@ -1,33 +1,6 @@
-import type { SVGProps } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { ArrowIcon, PlusIcon } from "../../../stories/icons.js";
 import { Button } from "./Button.js";
-
-const PlusIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    {...props}
-  >
-    <path d="M8 3v10M3 8h10" />
-  </svg>
-);
-
-const ArrowIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M3 8h10M9 4l4 4-4 4" />
-  </svg>
-);
 
 const meta = { component: Button } satisfies Meta<typeof Button>;
 export default meta;

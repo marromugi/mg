@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 // `label` is the option's name as text: it is what typing is matched
-// against and what the control shows once the option is chosen.
-// `content` is what the list draws in its place when given.
+// against and what the control says of a chosen option. `content` is
+// what the list draws in its place when given.
 export type Option = {
   value: string;
   label: string;

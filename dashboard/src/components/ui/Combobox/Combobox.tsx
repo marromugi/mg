@@ -1,35 +1,17 @@
-import {
-  FloatingPortal,
-  autoUpdate,
-  flip,
-  offset,
-  shift,
-  size as sizeTo,
-  useDismiss,
-  useFloating,
-  useInteractions,
-  useListNavigation,
-  useRole,
-} from "@floating-ui/react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import {
-  useRef,
-  useState,
-  type ChangeEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
+import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 import {
   Field,
   control,
   useDescribedBy,
   type FieldProps,
 } from "../Field/index.js";
-import { CheckIcon, ChevronDownIcon, Icon } from "../Icon/index.js";
-import { optionList, optionRow } from "../Options/index.js";
-import { useMatches, type Option } from "./hooks/useMatches.js";
-
-const VIEWPORT_MARGIN = 8;
+import { ChevronDownIcon, Icon } from "../Icon/index.js";
+import {
+  OptionPanel,
+  useMatches,
+  useOptionPanel,
+  type Option,
+} from "../Options/index.js";
 
 // The control's text is one step smaller than a text field's at the
 // largest size, on the same line height, so the two stay the same height.
@@ -90,49 +72,21 @@ export const Combobox = ({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<number | null>(null);
   const matches = useMatches(options, typed ?? "");
-  const rows = useRef<(HTMLElement | null)[]>([]);
 
-  const { refs, floatingStyles, context } =
-    useFloating<HTMLInputElement>({
-      open,
-      onOpenChange: (next) => {
-        setOpen(next);
-        if (!next) {
-          setTyped(null);
-          setActive(null);
-        }
-      },
-      placement: "bottom-start",
-      whileElementsMounted: autoUpdate,
-      middleware: [
-        offset(4),
-        flip({ padding: VIEWPORT_MARGIN }),
-        shift({ padding: VIEWPORT_MARGIN }),
-        sizeTo({
-          apply: ({ rects, elements }) => {
-            elements.floating.style.minWidth = `${rects.reference.width}px`;
-          },
-        }),
-      ],
-    });
-  const { getReferenceProps, getFloatingProps, getItemProps } =
-    useInteractions([
-      useRole(context, { role: "listbox" }),
-      useDismiss(context),
-      useListNavigation(context, {
-        listRef: rows,
-        activeIndex: active,
-        onNavigate: setActive,
-        virtual: true,
-        loop: true,
-      }),
-    ]);
-
-  const pick = (option: Option) => {
-    choose(option.value);
+  const close = () => {
+    setOpen(false);
     setTyped(null);
     setActive(null);
-    setOpen(false);
+  };
+  const panel = useOptionPanel({
+    open,
+    onOpenChange: (next) => (next ? setOpen(true) : close()),
+    active,
+    onNavigate: setActive,
+  });
+  const pick = (option: Option) => {
+    choose(option.value);
+    close();
   };
 
   return (
@@ -143,7 +97,7 @@ export const Combobox = ({
         data-open={open ? "" : undefined}
       >
         <input
-          ref={refs.setReference}
+          ref={panel.setControl}
           id={name}
           value={typed ?? chosen?.label ?? ""}
           placeholder={placeholder}
@@ -156,7 +110,7 @@ export const Combobox = ({
             state: error === undefined ? "default" : "error",
             className: `pr-10 ${TEXT[size]}`,
           })}
-          {...getReferenceProps({
+          {...panel.getControlProps({
             onChange: (event: ChangeEvent<HTMLInputElement>) => {
               setTyped(event.target.value);
               setActive(0);
@@ -186,66 +140,17 @@ export const Combobox = ({
           />
         </span>
       </div>
-      <FloatingPortal>
-        <MotionConfig reducedMotion="user">
-          <AnimatePresence>
-            {open ? (
-              <div
-                ref={refs.setFloating}
-                style={floatingStyles}
-                className="z-30"
-                {...getFloatingProps({
-                  // Keeps the focus in the control while a row is pressed.
-                  onMouseDown: (event: MouseEvent) =>
-                    event.preventDefault(),
-                })}
-              >
-                <motion.div
-                  className={optionList()}
-                  style={{ transformOrigin: "top left" }}
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{
-                    type: "spring",
-                    bounce: 0.2,
-                    duration: 0.25,
-                  }}
-                >
-                  {matches.length === 0 ? (
-                    <p className="px-3 control-py-2 opacity-70">
-                      {empty}
-                    </p>
-                  ) : (
-                    matches.map((option, index) => (
-                      <div
-                        key={option.value}
-                        ref={(row) => {
-                          rows.current[index] = row;
-                        }}
-                        role="option"
-                        id={`${name}-option-${option.value}`}
-                        aria-selected={index === active}
-                        className={optionRow({
-                          active: index === active ? "yes" : "no",
-                        })}
-                        {...getItemProps({
-                          onClick: () => pick(option),
-                        })}
-                      >
-                        {option.content ?? option.label}
-                        {option.value === value ? (
-                          <Icon icon={CheckIcon} tone="accent" />
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </motion.div>
-              </div>
-            ) : null}
-          </AnimatePresence>
-        </MotionConfig>
-      </FloatingPortal>
+      <OptionPanel
+        panel={panel}
+        open={open}
+        idPrefix={name}
+        options={matches}
+        active={active}
+        selection="single"
+        isChosen={(option) => option.value === value}
+        onPick={pick}
+        empty={empty}
+      />
     </Field>
   );
 };

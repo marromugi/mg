@@ -33,7 +33,7 @@ type TooltipProps = {
 // arrives without the keyboard does not show it. It moves to the other
 // side or slides along to stay inside the viewport. The label is for
 // sighted users only; whatever is inside names itself for screen
-// readers.
+// readers. With no text in `label` nothing shows.
 export const Tooltip = ({
   label,
   direction = "right",
@@ -68,7 +68,7 @@ export const Tooltip = ({
       {children}
       <MotionConfig reducedMotion="user">
         <AnimatePresence>
-          {shown ? (
+          {shown && label !== "" ? (
             <span
               ref={refs.setFloating}
               aria-hidden

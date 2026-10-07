@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { HomeIcon, ThemeIcon } from "../../../stories/icons.js";
+import { HomeIcon, ThemeIcon } from "../Icon/index.js";
 import { IconButton } from "./IconButton.js";
 
 const meta = {
@@ -28,4 +28,8 @@ export const Submit: Story = {
     name: "theme",
     value: "toggle",
   },
+};
+
+export const Small: Story = {
+  args: { icon: HomeIcon, label: "ホーム", href: "/", size: "sm" },
 };

@@ -1,6 +1,20 @@
 export { Button } from "./Button/index.js";
 export { Checkbox } from "./Checkbox/index.js";
-export { Icon, type IconSource } from "./Icon/index.js";
+export {
+  ArrowIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CloseIcon,
+  HomeIcon,
+  Icon,
+  KeyIcon,
+  ListIcon,
+  LogoIcon,
+  MinusIcon,
+  PlusIcon,
+  ThemeIcon,
+  type IconSource,
+} from "./Icon/index.js";
 export { IconButton } from "./IconButton/index.js";
 export { Sidebar } from "./Sidebar/index.js";
 export { Tooltip } from "./Tooltip/index.js";
@@ -11,3 +25,4 @@ export { Select } from "./Select/index.js";
 export { TextArea } from "./TextArea/index.js";
 export { Table, type Column } from "./Table/index.js";
 export { Header } from "./Header/index.js";
+export { Modal } from "./Modal/index.js";

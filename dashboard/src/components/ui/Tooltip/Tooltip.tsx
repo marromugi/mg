@@ -29,9 +29,10 @@ type TooltipProps = {
 };
 
 // Shows `label` beside `children`, on `direction` of them, while the
-// pointer is over them or the keyboard focus is inside them. It moves to
-// the other side or slides along to stay inside the viewport. The label
-// is for sighted users only; whatever is inside names itself for screen
+// pointer is over them or the keyboard focus is inside them; focus that
+// arrives without the keyboard does not show it. It moves to the other
+// side or slides along to stay inside the viewport. The label is for
+// sighted users only; whatever is inside names itself for screen
 // readers.
 export const Tooltip = ({
   label,
@@ -59,7 +60,9 @@ export const Tooltip = ({
       className="inline-flex"
       onMouseEnter={show}
       onMouseLeave={hide}
-      onFocus={show}
+      onFocus={(event) => {
+        if (event.target.matches(":focus-visible")) show();
+      }}
       onBlur={hide}
     >
       {children}

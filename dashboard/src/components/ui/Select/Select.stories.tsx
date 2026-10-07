@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { HomeIcon, KeyIcon, ListIcon } from "../../../stories/icons.js";
-import { Icon } from "../Icon/index.js";
+import { HomeIcon, KeyIcon, ListIcon, Icon } from "../Icon/index.js";
 import { Select } from "./Select.js";
 
 const meta: Meta<typeof Select> = {

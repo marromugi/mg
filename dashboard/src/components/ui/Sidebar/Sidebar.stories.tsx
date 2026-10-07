@@ -5,8 +5,8 @@ import {
   ListIcon,
   LogoIcon,
   ThemeIcon,
-} from "../../../stories/icons.js";
-import { Icon } from "../Icon/index.js";
+  Icon,
+} from "../Icon/index.js";
 import { IconButton } from "../IconButton/index.js";
 import { Sidebar } from "./Sidebar.js";
 

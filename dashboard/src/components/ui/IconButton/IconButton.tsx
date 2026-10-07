@@ -5,20 +5,24 @@ import type { Direction } from "../Popover/index.js";
 import { Tooltip } from "../Tooltip/index.js";
 
 const iconButton = tv({
-  base: "inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-edge bg-surface-raised transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97",
+  base: "inline-flex cursor-pointer items-center justify-center rounded-full border border-edge bg-surface-raised transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97",
   variants: {
+    size: { sm: "size-8", md: "size-10" },
     state: {
       idle: "hover:bg-edge",
       current: "text-accent-text shadow-ring",
     },
   },
-  defaultVariants: { state: "idle" },
+  defaultVariants: { size: "md", state: "idle" },
 });
+
+const ICON_SIZE = { sm: "md", md: "lg" } as const;
 
 type IconButtonProps = {
   icon: IconSource;
   label: string;
   labelSide?: Direction;
+  size?: "sm" | "md";
   state?: "idle" | "current";
 } & (
   | { href: string }
@@ -33,6 +37,7 @@ export const IconButton = ({
   icon,
   label,
   labelSide,
+  size = "md",
   state,
   ...rest
 }: IconButtonProps) => (
@@ -42,18 +47,18 @@ export const IconButton = ({
         type="submit"
         {...rest}
         aria-label={label}
-        className={iconButton({ state })}
+        className={iconButton({ size, state })}
       >
-        <Icon icon={icon} size="lg" />
+        <Icon icon={icon} size={ICON_SIZE[size]} />
       </button>
     ) : (
       <a
         href={rest.href}
         aria-label={label}
         aria-current={state === "current" ? "page" : undefined}
-        className={iconButton({ state })}
+        className={iconButton({ size, state })}
       >
-        <Icon icon={icon} size="lg" />
+        <Icon icon={icon} size={ICON_SIZE[size]} />
       </a>
     )}
   </Tooltip>

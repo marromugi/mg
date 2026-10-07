@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { PlusIcon } from "../../../stories/icons.js";
+import { PlusIcon } from "../Icon/index.js";
 import { Button } from "../Button/index.js";
 import { IconButton } from "../IconButton/index.js";
 import { Header } from "./Header.js";

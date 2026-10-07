@@ -12,3 +12,11 @@ export const Default: Story = {
     children: <Button href="/harnesses/new">作る</Button>,
   },
 };
+
+export const Below: Story = {
+  args: {
+    label: "ハーネスを作る",
+    direction: "bottom",
+    children: <Button href="/harnesses/new">作る</Button>,
+  },
+};

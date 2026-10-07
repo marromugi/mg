@@ -10,3 +10,4 @@ export { Field } from "./Field/index.js";
 export { Select } from "./Select/index.js";
 export { TextArea } from "./TextArea/index.js";
 export { Table, type Column } from "./Table/index.js";
+export { Header } from "./Header/index.js";

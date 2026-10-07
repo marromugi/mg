@@ -26,7 +26,7 @@ const createFake = (options: {
     classifyCalls,
     estimateCalls,
     model: "fake",
-    limits: { maxLabels: 255, maxLevels: 10 },
+    limits: { minLabels: 1, maxLabels: 255, maxLevels: 10 },
     estimate: (request): Promise<Estimate> => {
       estimateCalls.push(request);
       return Promise.resolve({

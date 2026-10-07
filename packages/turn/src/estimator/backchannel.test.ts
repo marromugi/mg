@@ -14,7 +14,11 @@ type ClassifyCall = [ClassifyRequest, EstimateOptions | undefined];
 const createFakeEstimator = (
   respond: (request: ClassifyRequest) => Classification,
   calls: ClassifyCall[] = [],
-  limits: EstimatorLimits = { maxLabels: 255, maxLevels: 10 },
+  limits: EstimatorLimits = {
+    minLabels: 1,
+    maxLabels: 255,
+    maxLevels: 10,
+  },
 ): Estimator => ({
   model: "fake-model",
   limits,
@@ -111,7 +115,7 @@ describe("createEstimatorBackchannelJudge", () => {
     const estimator = createFakeEstimator(
       () => ({ label: "none", probabilities: { none: 1 } }),
       [],
-      { maxLabels: 2, maxLevels: 10 },
+      { minLabels: 1, maxLabels: 2, maxLevels: 10 },
     );
 
     const create = () =>

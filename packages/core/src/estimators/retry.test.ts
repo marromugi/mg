@@ -60,7 +60,11 @@ const createScriptedEstimator = (config: {
 
   return {
     model: config.model ?? "fake-model",
-    limits: config.limits ?? { maxLabels: 7, maxLevels: 4 },
+    limits: config.limits ?? {
+      minLabels: 1,
+      maxLabels: 7,
+      maxLevels: 4,
+    },
     estimate: scriptedOperation<Estimate>(
       config.estimate,
       estimateCalls,
@@ -126,7 +130,7 @@ describe("createRetryingEstimator", () => {
   test("carries the inner estimator's model, limits and results through unchanged", async () => {
     const inner = createScriptedEstimator({
       model: "fake-model",
-      limits: { maxLabels: 7, maxLevels: 4 },
+      limits: { minLabels: 1, maxLabels: 7, maxLevels: 4 },
       estimate: [{ value: { probability: 0.8 } }],
       classify: [
         { value: { label: "yes", probabilities: { yes: 1, no: 0 } } },
@@ -136,7 +140,11 @@ describe("createRetryingEstimator", () => {
     const estimator = wrap(inner);
 
     expect(estimator.model).toBe("fake-model");
-    expect(estimator.limits).toEqual({ maxLabels: 7, maxLevels: 4 });
+    expect(estimator.limits).toEqual({
+      minLabels: 1,
+      maxLabels: 7,
+      maxLevels: 4,
+    });
 
     await expect(estimator.estimate(estimateRequest)).resolves.toEqual({
       probability: 0.8,
@@ -429,7 +437,7 @@ describe("createRetryingEstimator", () => {
     const reason = new Error("stop");
     const inner: Estimator = {
       model: "fake-model",
-      limits: { maxLabels: 7, maxLevels: 4 },
+      limits: { minLabels: 1, maxLabels: 7, maxLevels: 4 },
       estimate: async () => {
         setTimeout(() => controller.abort(reason), 10);
         throw retryableTransportError();

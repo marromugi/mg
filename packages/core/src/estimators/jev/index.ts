@@ -53,7 +53,11 @@ export class JevHttpError extends Error {
   }
 }
 
-const LIMITS: EstimatorLimits = { maxLabels: 255, maxLevels: 10 };
+const LIMITS: EstimatorLimits = {
+  minLabels: 1,
+  maxLabels: 255,
+  maxLevels: 10,
+};
 
 const isAbortError = (error: unknown): boolean =>
   typeof error === "object" &&

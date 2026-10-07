@@ -64,7 +64,7 @@ const createFakeEstimator = (
   maxLabels = 4,
 ): Estimator => ({
   model: "estimator-1",
-  limits: { maxLabels, maxLevels: 10 },
+  limits: { minLabels: 1, maxLabels, maxLevels: 10 },
   estimate: (request: EstimateRequest, _options?: EstimateOptions) =>
     estimate(request),
   classify: (request: ClassifyRequest, _options?: EstimateOptions) =>

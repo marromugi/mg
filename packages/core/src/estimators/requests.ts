@@ -10,9 +10,9 @@ export const assertClassifyRequest = (
 ): void => {
   const count = Object.keys(request.labels).length;
 
-  if (count === 0) {
+  if (count < limits.minLabels) {
     throw new RangeError(
-      "labels has 0 entries; at least 1 is required",
+      `labels has ${count} entries; the estimator accepts at least ${limits.minLabels}`,
     );
   }
 

@@ -6,6 +6,7 @@ import { createMemoryStore } from "../test/memory-store.js";
 
 const FILES: Draft = {
   name: "files",
+  avatar: "robot-1",
   provider: "openrouter",
   baseUrl: "",
   model: "openai/gpt-4o",
@@ -44,6 +45,7 @@ describe("POST /harnesses", () => {
     expect(response.status).toBe(201);
     expect(await dashboard.store.get(id)).toMatchObject({
       name: "files",
+      avatar: "robot-1",
       harness: { model: "openai/gpt-4o", maxTurns: 10 },
     });
   });
@@ -78,7 +80,7 @@ describe("POST /harnesses", () => {
       problems: [
         {
           field: "name",
-          message: "この名前は、ほかのハーネスで使われています",
+          message: "この名前は、ほかのエージェントで使われています",
         },
       ],
     });

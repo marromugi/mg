@@ -21,6 +21,7 @@ export type Outcome =
 const fieldsOf = (field: string): FieldPath<HarnessValues>[] => {
   switch (field) {
     case "name":
+    case "avatar":
     case "provider":
     case "baseUrl":
     case "tools":

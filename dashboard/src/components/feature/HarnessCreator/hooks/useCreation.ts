@@ -37,6 +37,13 @@ const rulesOf = (paths: readonly string[]): RuleDraft[] =>
         },
       ];
 
+// What the face is drawn from: the seed that was picked, or the name
+// until one is.
+export const useAvatarSeed = (
+  values: Pick<HarnessValues, "avatar" | "name">,
+): string =>
+  values.avatar === "" ? values.name.trim() : values.avatar;
+
 // Without a tool there is nothing to guard, so the folder, the paths,
 // and the gate are left out.
 export const useCreation = (values: HarnessValues): Creation => {
@@ -49,6 +56,7 @@ export const useCreation = (values: HarnessValues): Creation => {
   return {
     draft: {
       name: values.name.trim(),
+      avatar: useAvatarSeed(values),
       provider: values.provider,
       baseUrl:
         values.provider === "ollama" ? values.baseUrl.trim() : "",

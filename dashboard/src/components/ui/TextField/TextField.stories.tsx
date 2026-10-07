@@ -26,7 +26,7 @@ export const WithValueAndHint: Story = {
   args: {
     name: "name",
     label: "名前",
-    hint: "ほかのハーネスと重ならない名前にします。",
+    hint: "ほかのエージェントと重ならない名前にします。",
     value: "files",
   },
 };
@@ -36,7 +36,7 @@ export const WithError: Story = {
     name: "name",
     label: "名前",
     value: "files",
-    error: "この名前は、ほかのハーネスで使われています",
+    error: "この名前は、ほかのエージェントで使われています",
   },
 };
 

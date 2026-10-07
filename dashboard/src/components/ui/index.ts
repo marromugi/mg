@@ -32,3 +32,5 @@ export { Combobox } from "./Combobox/index.js";
 export { MultiCombobox } from "./MultiCombobox/index.js";
 export { ProgressBar } from "./ProgressBar/index.js";
 export type { Option } from "./Options/index.js";
+export { Avatar } from "./Avatar/index.js";
+export { Tag } from "./Tag/index.js";

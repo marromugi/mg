@@ -10,7 +10,7 @@ export type Step = {
 };
 
 const STEPS: readonly Step[] = [
-  { id: "name", title: "名前", fields: ["name"] },
+  { id: "name", title: "名前", fields: ["name", "avatar"] },
   {
     id: "model",
     title: "モデル",

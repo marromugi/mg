@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 const add = (
   <IconButton
     icon={PlusIcon}
-    label="ハーネスを作る"
+    label="エージェントを作る"
     labelSide="bottom"
     href="/harnesses/new"
   />
@@ -36,7 +36,7 @@ export const WithStart: Story = {
           ホーム
         </Button>
         <Button href="/harnesses" size="md">
-          ハーネス
+          エージェント
         </Button>
       </>
     ),

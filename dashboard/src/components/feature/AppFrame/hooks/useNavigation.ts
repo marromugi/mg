@@ -20,7 +20,7 @@ const PLACES: Omit<NavigationItem, "state">[] = [
   {
     place: "harnesses",
     href: "/harnesses",
-    label: "ハーネス",
+    label: "エージェント",
     icon: ListIcon,
   },
   {

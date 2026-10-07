@@ -23,10 +23,10 @@ const sent = fn();
 // button that saves it.
 const askForHarness = async () => {
   await userEvent.click(
-    screen.getByRole("button", { name: "ハーネスを作る" }),
+    screen.getByRole("button", { name: "エージェントを作る" }),
   );
   await userEvent.type(
-    await screen.findByLabelText(/ハーネス名/),
+    await screen.findByLabelText(/エージェント名/),
     "files",
   );
   await userEvent.click(screen.getByRole("button", { name: "次へ" }));
@@ -72,6 +72,7 @@ export const SavesHarness: Story = {
     await expect(sent).toHaveBeenCalledWith({
       draft: {
         name: "files",
+        avatar: "files",
         provider: "openrouter",
         baseUrl: "",
         model: "openai/gpt-4o",
@@ -97,7 +98,7 @@ export const NameTaken: Story = {
           problems: [
             {
               field: "name",
-              message: "この名前は、ほかのハーネスで使われています",
+              message: "この名前は、ほかのエージェントで使われています",
             },
           ],
         }),
@@ -109,10 +110,10 @@ export const NameTaken: Story = {
 
     await expect(
       await screen.findByText(
-        "この名前は、ほかのハーネスで使われています",
+        "この名前は、ほかのエージェントで使われています",
       ),
     ).toBeVisible();
-    await expect(screen.getByLabelText(/ハーネス名/)).toHaveValue(
+    await expect(screen.getByLabelText(/エージェント名/)).toHaveValue(
       "files",
     );
   },

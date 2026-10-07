@@ -108,9 +108,9 @@ describe("harness editor", () => {
 
     expect(response.status).toBe(422);
     expect(await response.text()).toContain(
-      "ツールを使うハーネスには、パスのルール、判定 LLM、ゲートのどれかが要ります",
+      "ツールを使うエージェントには、パスのルール、判定 LLM、ゲートのどれかが要ります",
     );
-    expect(list).toContain("ハーネスはまだありません");
+    expect(list).toContain("エージェントはまだありません");
   });
 
   it("names the field that is wrong and keeps the other values", async () => {
@@ -144,7 +144,7 @@ describe("harness editor", () => {
 
     expect(response.status).toBe(422);
     expect(await response.text()).toContain(
-      '<p id="name-error" class="text-meta text-error">この名前は、ほかのハーネスで使われています</p>',
+      '<p id="name-error" class="text-meta text-error">この名前は、ほかのエージェントで使われています</p>',
     );
   });
 
@@ -180,7 +180,7 @@ describe("harness editor", () => {
     expect(html).toContain('name="rules.1.paths"');
     expect(html).not.toContain('name="rules.2.paths"');
     expect(html).toContain('value="files"');
-    expect(list).toContain("ハーネスはまだありません");
+    expect(list).toContain("エージェントはまだありません");
   });
 
   it("asks before deleting and then removes the harness", async () => {
@@ -205,7 +205,7 @@ describe("harness editor", () => {
     );
     expect(stillListed).toContain(">files</a>");
     expect(deleted.status).toBe(303);
-    expect(afterwards).toContain("ハーネスはまだありません");
+    expect(afterwards).toContain("エージェントはまだありません");
   });
 
   it("draws the Harnesses page with the reason when the list cannot be read", async () => {

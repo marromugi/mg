@@ -87,7 +87,7 @@ const WholeFlow = () => {
     <div className="flex flex-col gap-3 p-6">
       <div>
         <Button type="button" onClick={() => setOpen(true)}>
-          ハーネスを作る
+          エージェントを作る
         </Button>
       </div>
       {created === undefined ? null : (

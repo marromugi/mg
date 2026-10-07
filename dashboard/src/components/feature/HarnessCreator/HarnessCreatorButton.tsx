@@ -14,7 +14,7 @@ export const HarnessCreatorButton = () => {
       trigger={
         <IconButton
           icon={PlusIcon}
-          label="ハーネスを作る"
+          label="エージェントを作る"
           labelSide="bottom"
         />
       }

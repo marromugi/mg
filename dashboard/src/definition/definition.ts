@@ -18,6 +18,8 @@ export type PathRule = {
 export type HarnessDefinition = {
   id: string;
   name: string;
+  // What the agent's face is drawn from.
+  avatar?: string;
   provider:
     { kind: "openrouter" } | { kind: "ollama"; baseUrl?: string };
   harness: { kind: "loop"; model: string; maxTurns: number };

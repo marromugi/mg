@@ -8,14 +8,14 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
-    label: "ハーネスを作る",
+    label: "エージェントを作る",
     children: <Button href="/harnesses/new">作る</Button>,
   },
 };
 
 export const Below: Story = {
   args: {
-    label: "ハーネスを作る",
+    label: "エージェントを作る",
     direction: "bottom",
     children: <Button href="/harnesses/new">作る</Button>,
   },

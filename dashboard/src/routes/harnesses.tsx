@@ -39,7 +39,7 @@ const editor = (
 ) =>
   c.html(
     renderPage(
-      "ハーネス",
+      "エージェント",
       <HarnessEditorPage
         target={target}
         draft={redraw.draft}
@@ -104,7 +104,7 @@ export const registerHarnesses = (
       const { definitions, unreadable } = await store.list();
       return c.html(
         renderPage(
-          "ハーネス",
+          "エージェント",
           <HarnessesPage
             definitions={definitions}
             unreadable={unreadable}
@@ -114,7 +114,7 @@ export const registerHarnesses = (
     } catch (error) {
       return c.html(
         renderPage(
-          "ハーネス",
+          "エージェント",
           <HarnessesPage
             definitions={[]}
             unreadable={[]}
@@ -191,7 +191,7 @@ export const registerHarnesses = (
     if (definition === undefined) return c.notFound();
     return c.html(
       renderPage(
-        "ハーネスを削除",
+        "エージェントを削除",
         <DeleteHarnessPage definition={definition} />,
       ),
     );
@@ -207,7 +207,7 @@ export const registerHarnesses = (
       if (definition === undefined) return c.notFound();
       return c.html(
         renderPage(
-          "ハーネスを削除",
+          "エージェントを削除",
           <DeleteHarnessPage
             definition={definition}
             failure={reasonOf(error)}

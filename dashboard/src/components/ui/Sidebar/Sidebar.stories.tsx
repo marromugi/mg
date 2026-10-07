@@ -49,7 +49,7 @@ export const Default: Story = {
         />
         <IconButton
           icon={ListIcon}
-          label="ハーネス"
+          label="エージェント"
           href="/harnesses"
         />
         <IconButton icon={KeyIcon} label="API キー" href="/api-keys" />

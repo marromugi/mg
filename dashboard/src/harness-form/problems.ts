@@ -7,6 +7,7 @@ export const FORM_FIELD = "form";
 
 const FIXED: Record<string, string> = {
   name: "name",
+  avatar: "avatar",
   "provider.kind": "provider",
   "provider.baseUrl": "baseUrl",
   "harness.model": "model",

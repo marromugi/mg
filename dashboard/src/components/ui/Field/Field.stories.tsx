@@ -16,7 +16,7 @@ export const LabelOnly: Story = {};
 
 export const WithHintAndError: Story = {
   args: {
-    hint: "ほかのハーネスと重ならない名前にします。",
+    hint: "ほかのエージェントと重ならない名前にします。",
     error: "名前を入力してください",
   },
 };

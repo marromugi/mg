@@ -34,7 +34,7 @@ export const SomeChosen: Story = {
 export const OneChosen: Story = { args: { defaultValue: ["bash"] } };
 
 export const WithHint: Story = {
-  args: { hint: "ハーネスに使わせるツールを選びます。" },
+  args: { hint: "エージェントに使わせるツールを選びます。" },
 };
 
 export const WithError: Story = {

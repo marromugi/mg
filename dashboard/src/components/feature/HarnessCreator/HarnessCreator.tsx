@@ -2,6 +2,7 @@ import { useId, useState, type ReactElement } from "react";
 import { Controller, useFieldArray } from "react-hook-form";
 import { useZodForm } from "../../../libs/hook-form/index.js";
 import {
+  Avatar,
   Button,
   Checkbox,
   CloseIcon,
@@ -16,7 +17,11 @@ import {
   TextArea,
   TextField,
 } from "../../ui/index.js";
-import { useCreation, type Creation } from "./hooks/useCreation.js";
+import {
+  useAvatarSeed,
+  useCreation,
+  type Creation,
+} from "./hooks/useCreation.js";
 import type { Outcome } from "./hooks/useOutcome.js";
 import { useSteps, type StepId } from "./hooks/useSteps.js";
 import { ModelPicker } from "./ModelPicker.js";
@@ -64,6 +69,11 @@ export const HarnessCreator = ({
   const { errors, isSubmitting } = form.formState;
   const [failure, setFailure] = useState<string>();
 
+  const name = form.watch("name");
+  const face = useAvatarSeed({
+    name,
+    avatar: form.watch("avatar"),
+  });
   const provider = form.watch("provider");
   const tools = form.watch("tools");
   const gate = form.watch("gate");
@@ -121,7 +131,7 @@ export const HarnessCreator = ({
   return (
     <Modal
       trigger={trigger}
-      title="ハーネスを作る"
+      title="エージェントを作る"
       dismiss="explicit"
       open={open}
       onOpenChange={onOpenChange}
@@ -169,15 +179,34 @@ export const HarnessCreator = ({
         )}
 
         {step.id === "name" ? (
-          <TextField
-            label="ハーネス名"
-            required
-            hint="一覧で見分けるための名前です。"
-            placeholder="files"
-            autoFocus
-            error={errors.name?.message}
-            {...form.register("name")}
-          />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar seed={face} size="lg" />
+              <div className="flex flex-col items-start gap-2">
+                <p className="text-xs opacity-70">
+                  一覧に出る顔です。名前から作り、選び直せます。
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() =>
+                    form.setValue("avatar", crypto.randomUUID())
+                  }
+                >
+                  別の顔にする
+                </Button>
+              </div>
+            </div>
+            <TextField
+              label="エージェント名"
+              required
+              hint="一覧で見分けるための名前です。"
+              placeholder="files"
+              autoFocus
+              error={errors.name?.message}
+              {...form.register("name")}
+            />
+          </div>
         ) : null}
 
         {step.id === "model" ? (
@@ -223,7 +252,7 @@ export const HarnessCreator = ({
                 <MultiCombobox
                   name={field.name}
                   label="使えるツール"
-                  hint="選ばなければ、ハーネスは会話だけをします。"
+                  hint="選ばなければ、エージェントは会話だけをします。"
                   options={toolOptions}
                   value={field.value}
                   onChange={field.onChange}

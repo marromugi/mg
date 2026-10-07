@@ -54,6 +54,7 @@ export const readSubmission = (body: Body): Submission | undefined => {
     intent,
     draft: {
       name: one(body, "name"),
+      avatar: one(body, "avatar"),
       provider: one(body, "provider"),
       baseUrl: one(body, "baseUrl"),
       model: one(body, "model"),

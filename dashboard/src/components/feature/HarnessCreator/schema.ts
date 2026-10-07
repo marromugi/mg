@@ -36,6 +36,8 @@ const requireModel = (
 export const harnessSchema = z
   .object({
     name: z.string(),
+    // What the face is drawn from; empty while it follows the name.
+    avatar: z.string(),
     provider: z.enum(["openrouter", "ollama"]),
     baseUrl: z.string(),
     model: modelChoice,
@@ -89,6 +91,7 @@ export type HarnessValues = z.infer<typeof harnessSchema>;
 
 export const emptyValues: HarnessValues = {
   name: "",
+  avatar: "",
   provider: "openrouter",
   baseUrl: "",
   model: emptyModel,

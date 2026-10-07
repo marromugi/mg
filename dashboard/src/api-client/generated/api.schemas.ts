@@ -30,6 +30,7 @@ export type HarnessDraftRulesItem = {
 
 export interface HarnessDraft {
   name: string;
+  avatar: string;
   provider: string;
   baseUrl: string;
   model: string;

@@ -31,7 +31,7 @@ export const Chosen: Story = { args: { defaultValue: "ollama" } };
 export const WithHint: Story = {
   args: {
     defaultValue: "openrouter",
-    hint: "ハーネスが呼び出す LLM の提供元です。",
+    hint: "エージェントが呼び出す LLM の提供元です。",
   },
 };
 
@@ -67,11 +67,11 @@ export const WithIcons: Story = {
       },
       {
         value: "harnesses",
-        label: "ハーネス",
+        label: "エージェント",
         content: (
           <span className="flex items-center gap-2">
             <Icon icon={ListIcon} />
-            ハーネス
+            エージェント
           </span>
         ),
       },

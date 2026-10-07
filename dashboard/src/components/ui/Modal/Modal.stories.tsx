@@ -51,7 +51,7 @@ const meta: Meta<typeof Modal> = {
   component: Modal,
   parameters: { layout: "fullscreen" },
   args: {
-    title: "ハーネスを作る",
+    title: "エージェントを作る",
     defaultOpen: true,
     actions,
     children: shortForm,
@@ -65,7 +65,7 @@ export const Default: Story = {};
 export const WithTrigger: Story = {
   args: {
     defaultOpen: false,
-    trigger: <Button>ハーネスを作る</Button>,
+    trigger: <Button>エージェントを作る</Button>,
   },
   decorators: [
     (Story) => (
@@ -77,7 +77,7 @@ export const WithTrigger: Story = {
 };
 
 export const WithoutTitle: Story = {
-  args: { title: undefined, label: "ハーネスを作る" },
+  args: { title: undefined, label: "エージェントを作る" },
 };
 
 export const WithoutCloseButton: Story = {
@@ -94,10 +94,10 @@ const KeptUntilClosed = () => {
   return (
     <div className="p-6">
       <Button type="button" onClick={() => setOpen(true)}>
-        ハーネスを作る
+        エージェントを作る
       </Button>
       <Modal
-        title="ハーネスを作る"
+        title="エージェントを作る"
         dismiss="explicit"
         open={open}
         onOpenChange={setOpen}

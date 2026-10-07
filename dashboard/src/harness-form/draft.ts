@@ -11,6 +11,7 @@ export type RuleDraft = {
 
 export type Draft = {
   name: string;
+  avatar: string;
   provider: string;
   baseUrl: string;
   model: string;
@@ -34,6 +35,7 @@ export const newRule = (): RuleDraft => ({
 
 export const emptyDraft = (): Draft => ({
   name: "",
+  avatar: "",
   provider: "openrouter",
   baseUrl: "",
   model: "",
@@ -52,6 +54,7 @@ export const draftFromDefinition = (
   definition: HarnessDefinition,
 ): Draft => ({
   name: definition.name,
+  avatar: definition.avatar ?? "",
   provider: definition.provider.kind,
   baseUrl:
     definition.provider.kind === "ollama"
@@ -104,6 +107,7 @@ const allowedOf = (effect: string): boolean | undefined =>
 export const draftToRaw = (draft: Draft, id: string): unknown => ({
   id,
   name: draft.name,
+  avatar: present(draft.avatar),
   provider:
     draft.provider === "ollama"
       ? { kind: "ollama", baseUrl: present(draft.baseUrl) }

@@ -15,6 +15,7 @@ const ruleDraft = z.object({
 const draft = z
   .object({
     name: z.string(),
+    avatar: z.string(),
     provider: z.string(),
     baseUrl: z.string(),
     model: z.string(),

@@ -7,7 +7,7 @@ describe("useNavigation", () => {
       useNavigation("home").map(({ href, label }) => ({ href, label })),
     ).toEqual([
       { href: "/", label: "ホーム" },
-      { href: "/harnesses", label: "ハーネス" },
+      { href: "/harnesses", label: "エージェント" },
       { href: "/api-keys", label: "API キー" },
     ]);
   });

@@ -96,7 +96,7 @@ describe("parseDefinition", () => {
         {
           field: "means.rules",
           message:
-            "ツールを使うハーネスには、パスのルール、判定 LLM、ゲートのどれかが要ります",
+            "ツールを使うエージェントには、パスのルール、判定 LLM、ゲートのどれかが要ります",
         },
       ],
     });

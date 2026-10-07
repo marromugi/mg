@@ -14,6 +14,7 @@ describe("useCreation", () => {
     expect(useCreation(values({}))).toEqual({
       draft: {
         name: "files",
+        avatar: "files",
         provider: "openrouter",
         baseUrl: "",
         model: "openai/gpt-4o",
@@ -124,5 +125,11 @@ describe("useCreation", () => {
       creation.draft.gate,
       creation.draft.gateQuestion,
     ]).toEqual(["", [], false, ""]);
+  });
+
+  it("keeps the face that was picked over the one of the name", () => {
+    expect(useCreation(values({ avatar: "picked" })).draft.avatar).toBe(
+      "picked",
+    );
   });
 });

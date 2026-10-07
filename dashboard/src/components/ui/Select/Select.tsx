@@ -7,6 +7,7 @@ import {
   type FieldProps,
 } from "../Field/index.js";
 import { CheckIcon, ChevronDownIcon, Icon } from "../Icon/index.js";
+import { optionList, optionRow } from "../Options/index.js";
 import { Popover } from "../Popover/index.js";
 import { useChosen, type Option } from "./hooks/useChosen.js";
 
@@ -114,7 +115,7 @@ export const Select = ({
             </Opener>
           }
         >
-          <ul className="flex flex-col rounded-container border border-edge bg-surface-raised container-p-1 text-sm around-control-py-2">
+          <ul className={optionList()}>
             {options.map((option) => (
               <li key={option.value}>
                 <button
@@ -124,7 +125,7 @@ export const Select = ({
                     choose(option.value);
                     setOpen(false);
                   }}
-                  className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-control px-3 control-py-2 text-left transition duration-160 ease-out outline-none hover:bg-edge focus-visible:bg-edge"
+                  className={optionRow()}
                 >
                   {option.content ?? option.label}
                   {option.value === value ? (

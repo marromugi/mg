@@ -115,7 +115,7 @@ export const Popover = ({
               <div
                 ref={refs.setFloating}
                 style={floatingStyles}
-                className="z-10"
+                className="z-30"
                 {...getFloatingProps()}
               >
                 <motion.div

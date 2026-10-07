@@ -26,3 +26,4 @@ export { TextArea } from "./TextArea/index.js";
 export { Table, type Column } from "./Table/index.js";
 export { Header } from "./Header/index.js";
 export { Modal } from "./Modal/index.js";
+export { Combobox } from "./Combobox/index.js";

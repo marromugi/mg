@@ -4,19 +4,21 @@ import {
   Icon,
   IconButton,
   LogoIcon,
-  PlusIcon,
   Sidebar,
 } from "../../ui/index.js";
 import { SchemeToggle } from "./SchemeToggle.js";
 import { useNavigation, type Place } from "./hooks/useNavigation.js";
 
 // The frame every page of the app sits in: the menu down the side, the
-// bar across the top, and the page's own content in the space left.
+// bar across the top with the page's `actions` at its end, and the
+// page's own content in the space left.
 export const AppFrame = ({
   current,
+  actions,
   children,
 }: {
   current: Place;
+  actions?: ReactNode;
   children?: ReactNode;
 }) => {
   const items = useNavigation(current);
@@ -43,16 +45,7 @@ export const AppFrame = ({
         ))}
       </Sidebar>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <Header
-          end={
-            <IconButton
-              icon={PlusIcon}
-              label="ハーネスを作る"
-              labelSide="bottom"
-              href="/harnesses/new"
-            />
-          }
-        />
+        <Header end={actions} />
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
     </div>

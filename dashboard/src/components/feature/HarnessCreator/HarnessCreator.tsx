@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useState, type ReactElement } from "react";
 import { Controller, useFieldArray } from "react-hook-form";
 import { useZodForm } from "../../../libs/hook-form/index.js";
 import {
@@ -28,6 +28,9 @@ import {
 import { toolOptions } from "./tools.js";
 
 type HarnessCreatorProps = {
+  // The control that opens the steps; the focus goes back to it when
+  // they close.
+  trigger?: ReactElement<Record<string, unknown>>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   // Called with what was asked for when the last step is passed.
@@ -42,6 +45,7 @@ type HarnessCreatorProps = {
 // stray press; closed part-way, it opens again where it was left. Once a
 // harness is created it starts over.
 export const HarnessCreator = ({
+  trigger,
   open,
   onOpenChange,
   onCreate,
@@ -87,6 +91,7 @@ export const HarnessCreator = ({
 
   return (
     <Modal
+      trigger={trigger}
       title="ハーネスを作る"
       dismiss="explicit"
       open={open}

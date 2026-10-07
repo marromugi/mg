@@ -1,10 +1,12 @@
 import {
   FloatingFocusManager,
+  FloatingNode,
   FloatingOverlay,
   FloatingPortal,
   useClick,
   useDismiss,
   useFloating,
+  useFloatingNodeId,
   useInteractions,
   useRole,
 } from "@floating-ui/react";
@@ -19,6 +21,7 @@ import {
   type ReactNode,
 } from "react";
 import { tv } from "tailwind-variants";
+import { Nested } from "../Floating/index.js";
 import { CloseIcon } from "../Icon/index.js";
 import { IconButton } from "../IconButton/index.js";
 import { useScrollEdges, type Edges } from "./hooks/useScrollEdges.js";
@@ -91,7 +94,7 @@ type ModalProps = {
 //
 // `trigger`, when given, is one element that passes the props it is
 // given on to a button, as Button and IconButton do.
-export const Modal = ({
+const ModalBody = ({
   trigger,
   title,
   label,
@@ -130,13 +133,18 @@ export const Modal = ({
   };
   useLayoutEffect(measure);
 
+  const nodeId = useFloatingNodeId();
   const { refs, context } = useFloating({
+    nodeId,
     open,
     onOpenChange: setOpen,
   });
   const { getReferenceProps, getFloatingProps } = useInteractions([
     useClick(context),
-    useDismiss(context, { enabled: dismiss === "easy" }),
+    useDismiss(context, {
+      enabled: dismiss === "easy",
+      capture: { escapeKey: true },
+    }),
     useRole(context, { role: "dialog" }),
   ]);
 
@@ -164,110 +172,121 @@ export const Modal = ({
             ...getReferenceProps(trigger.props),
             ref: refs.setReference,
           })}
-      <FloatingPortal>
-        <MotionConfig reducedMotion="user">
-          <AnimatePresence>
-            {open ? (
-              <FloatingOverlay
-                lockScroll
-                className="z-20 grid place-items-center p-6"
-              >
-                <motion.div
-                  aria-hidden
-                  className="absolute inset-0 bg-scrim"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.16 }}
-                />
-                <FloatingFocusManager
-                  context={context}
-                  modal
-                  returnFocus
-                  initialFocus={refs.floating}
+      <FloatingNode id={nodeId}>
+        <FloatingPortal>
+          <MotionConfig reducedMotion="user">
+            <AnimatePresence>
+              {open ? (
+                <FloatingOverlay
+                  lockScroll
+                  className="z-20 grid place-items-center p-6"
                 >
                   <motion.div
-                    ref={refs.setFloating}
-                    aria-modal
-                    aria-labelledby={
-                      title === undefined ? undefined : titleId
-                    }
-                    aria-label={label}
-                    className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-container border border-edge bg-surface-raised container-p-6 outline-none"
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94 }}
-                    transition={{
-                      type: "spring",
-                      bounce: 0.2,
-                      duration: 0.3,
-                    }}
-                    {...getFloatingProps()}
+                    aria-hidden
+                    className="absolute inset-0 bg-scrim"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.16 }}
+                  />
+                  <FloatingFocusManager
+                    context={context}
+                    modal
+                    returnFocus
+                    initialFocus={refs.floating}
                   >
-                    {title === undefined ? null : (
-                      <div className="flex min-h-8 items-center justify-between gap-3">
-                        <h2
-                          id={titleId}
-                          className="text-base font-semibold"
-                        >
-                          {title}
-                        </h2>
-                        {closeButton === "shown" ? close : null}
-                      </div>
-                    )}
-                    {title === undefined && closeButton === "shown" ? (
-                      <div className="absolute top-6 right-6 z-10">
-                        {close}
-                      </div>
-                    ) : null}
-                    <div className="relative flex min-h-0 flex-1 flex-col">
-                      <div
-                        ref={scroller}
-                        onScroll={measure}
-                        className={body({
-                          title:
-                            title === undefined ? "absent" : "present",
-                          actions:
-                            actions === undefined
-                              ? "absent"
-                              : "present",
-                        })}
-                      >
-                        {children}
-                      </div>
-                      <div
-                        className={fade({
-                          edge: "top",
-                          shown: edges.above ? "yes" : "no",
-                        })}
-                      />
-                      {actions === undefined ? (
-                        <div
-                          className={fade({
-                            edge: "bottom",
-                            shown: edges.below ? "yes" : "no",
-                          })}
-                        />
+                    <motion.div
+                      ref={refs.setFloating}
+                      aria-modal
+                      aria-labelledby={
+                        title === undefined ? undefined : titleId
+                      }
+                      aria-label={label}
+                      className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-container border border-edge bg-surface-raised container-p-6 outline-none"
+                      initial={{ opacity: 0, scale: 0.94 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.94 }}
+                      transition={{
+                        type: "spring",
+                        bounce: 0.2,
+                        duration: 0.3,
+                      }}
+                      {...getFloatingProps()}
+                    >
+                      {title === undefined ? null : (
+                        <div className="flex min-h-8 items-center justify-between gap-3">
+                          <h2
+                            id={titleId}
+                            className="text-base font-semibold"
+                          >
+                            {title}
+                          </h2>
+                          {closeButton === "shown" ? close : null}
+                        </div>
+                      )}
+                      {title === undefined &&
+                      closeButton === "shown" ? (
+                        <div className="absolute top-6 right-6 z-10">
+                          {close}
+                        </div>
                       ) : null}
-                    </div>
-                    {actions === undefined ? null : (
-                      <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 bg-surface-raised px-6 py-4">
+                      <div className="relative flex min-h-0 flex-1 flex-col">
+                        <div
+                          ref={scroller}
+                          onScroll={measure}
+                          className={body({
+                            title:
+                              title === undefined
+                                ? "absent"
+                                : "present",
+                            actions:
+                              actions === undefined
+                                ? "absent"
+                                : "present",
+                          })}
+                        >
+                          {children}
+                        </div>
                         <div
                           className={fade({
-                            edge: "above",
-                            shown: edges.below ? "yes" : "no",
+                            edge: "top",
+                            shown: edges.above ? "yes" : "no",
                           })}
                         />
-                        {actions}
+                        {actions === undefined ? (
+                          <div
+                            className={fade({
+                              edge: "bottom",
+                              shown: edges.below ? "yes" : "no",
+                            })}
+                          />
+                        ) : null}
                       </div>
-                    )}
-                  </motion.div>
-                </FloatingFocusManager>
-              </FloatingOverlay>
-            ) : null}
-          </AnimatePresence>
-        </MotionConfig>
-      </FloatingPortal>
+                      {actions === undefined ? null : (
+                        <div className="absolute inset-x-0 bottom-0 flex justify-end gap-2 bg-surface-raised px-6 py-4">
+                          <div
+                            className={fade({
+                              edge: "above",
+                              shown: edges.below ? "yes" : "no",
+                            })}
+                          />
+                          {actions}
+                        </div>
+                      )}
+                    </motion.div>
+                  </FloatingFocusManager>
+                </FloatingOverlay>
+              ) : null}
+            </AnimatePresence>
+          </MotionConfig>
+        </FloatingPortal>
+      </FloatingNode>
     </>
   );
 };
+
+export const Modal = (props: ModalProps) => (
+  <Nested>
+    <ModalBody {...props} />
+  </Nested>
+);

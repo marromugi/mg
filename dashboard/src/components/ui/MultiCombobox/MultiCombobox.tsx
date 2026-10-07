@@ -5,6 +5,7 @@ import {
   useDescribedBy,
   type FieldProps,
 } from "../Field/index.js";
+import { Nested } from "../Floating/index.js";
 import { ChevronDownIcon, Icon } from "../Icon/index.js";
 import {
   OptionPanel,
@@ -44,9 +45,11 @@ type MultiComboboxProps = FieldProps & {
 // list stays open. While the list is closed the control names a single
 // choice, or says how many are chosen with a tooltip that names them. The form submits each chosen
 // value under `name`.
-export const MultiCombobox = ({
+const MultiComboboxBody = ({
   name,
   label,
+  layout,
+  required,
   hint,
   error,
   size = "lg",
@@ -96,7 +99,14 @@ export const MultiCombobox = ({
   };
 
   return (
-    <Field name={name} label={label} hint={hint} error={error}>
+    <Field
+      name={name}
+      label={label}
+      layout={layout}
+      required={required}
+      hint={hint}
+      error={error}
+    >
       {value.map((each) => (
         <input key={each} type="hidden" name={name} value={each} />
       ))}
@@ -115,6 +125,7 @@ export const MultiCombobox = ({
             placeholder={placeholder}
             autoComplete="off"
             aria-autocomplete="list"
+            aria-required={required}
             aria-invalid={error === undefined ? undefined : true}
             aria-describedby={useDescribedBy(name, { hint, error })}
             className={control({
@@ -165,3 +176,9 @@ export const MultiCombobox = ({
     </Field>
   );
 };
+
+export const MultiCombobox = (props: MultiComboboxProps) => (
+  <Nested>
+    <MultiComboboxBody {...props} />
+  </Nested>
+);

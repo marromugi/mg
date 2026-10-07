@@ -1,4 +1,5 @@
 import {
+  FloatingNode,
   FloatingPortal,
   autoUpdate,
   flip,
@@ -8,6 +9,7 @@ import {
   useClick,
   useDismiss,
   useFloating,
+  useFloatingNodeId,
   useInteractions,
   useRole,
 } from "@floating-ui/react";
@@ -18,6 +20,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { Nested } from "../Floating/index.js";
 import {
   useOrigin,
   usePlacement,
@@ -60,7 +63,7 @@ type PopoverProps = {
 // The trigger is one element that passes the props it is given on to a
 // button, as Button and IconButton do. The popover hands it the click
 // handler, the ref, and the open state, and makes it a plain button.
-export const Popover = ({
+const PopoverBody = ({
   trigger,
   direction = "bottom",
   align = "start",
@@ -77,7 +80,9 @@ export const Popover = ({
     if (givenOpen === undefined) setOwnOpen(next);
     onOpenChange?.(next);
   };
+  const nodeId = useFloatingNodeId();
   const { refs, floatingStyles, context, placement } = useFloating({
+    nodeId,
     open,
     onOpenChange: setOpen,
     placement: usePlacement(direction, align),
@@ -96,7 +101,9 @@ export const Popover = ({
   });
   const { getReferenceProps, getFloatingProps } = useInteractions([
     useClick(context),
-    useDismiss(context),
+    // Escape is taken where the key is pressed, so the innermost open
+    // part closes first.
+    useDismiss(context, { capture: { escapeKey: true } }),
     useRole(context),
   ]);
   const origin = useOrigin(placement);
@@ -108,34 +115,42 @@ export const Popover = ({
         ...getReferenceProps(trigger.props),
         ref: refs.setReference,
       })}
-      <FloatingPortal>
-        <MotionConfig reducedMotion="user">
-          <AnimatePresence>
-            {open ? (
-              <div
-                ref={refs.setFloating}
-                style={floatingStyles}
-                className="z-30"
-                {...getFloatingProps()}
-              >
-                <motion.div
-                  style={{ transformOrigin: origin }}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{
-                    type: "spring",
-                    bounce: 0.25,
-                    duration: 0.3,
-                  }}
+      <FloatingNode id={nodeId}>
+        <FloatingPortal>
+          <MotionConfig reducedMotion="user">
+            <AnimatePresence>
+              {open ? (
+                <div
+                  ref={refs.setFloating}
+                  style={floatingStyles}
+                  className="z-30"
+                  {...getFloatingProps()}
                 >
-                  {children}
-                </motion.div>
-              </div>
-            ) : null}
-          </AnimatePresence>
-        </MotionConfig>
-      </FloatingPortal>
+                  <motion.div
+                    style={{ transformOrigin: origin }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{
+                      type: "spring",
+                      bounce: 0.25,
+                      duration: 0.3,
+                    }}
+                  >
+                    {children}
+                  </motion.div>
+                </div>
+              ) : null}
+            </AnimatePresence>
+          </MotionConfig>
+        </FloatingPortal>
+      </FloatingNode>
     </>
   );
 };
+
+export const Popover = (props: PopoverProps) => (
+  <Nested>
+    <PopoverBody {...props} />
+  </Nested>
+);

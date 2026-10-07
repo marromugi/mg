@@ -20,3 +20,5 @@ export const WithHintAndError: Story = {
     error: "名前を入力してください",
   },
 };
+
+export const Required: Story = { args: { required: true } };

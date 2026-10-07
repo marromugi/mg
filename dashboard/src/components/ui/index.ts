@@ -5,6 +5,7 @@ export {
   CheckIcon,
   ChevronDownIcon,
   CloseIcon,
+  HelpIcon,
   HomeIcon,
   Icon,
   KeyIcon,
@@ -12,6 +13,7 @@ export {
   LogoIcon,
   MinusIcon,
   PlusIcon,
+  ShieldIcon,
   ThemeIcon,
   type IconSource,
 } from "./Icon/index.js";
@@ -28,3 +30,5 @@ export { Header } from "./Header/index.js";
 export { Modal } from "./Modal/index.js";
 export { Combobox } from "./Combobox/index.js";
 export { MultiCombobox } from "./MultiCombobox/index.js";
+export { ProgressBar } from "./ProgressBar/index.js";
+export type { Option } from "./Options/index.js";

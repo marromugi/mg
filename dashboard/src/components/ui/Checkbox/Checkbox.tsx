@@ -3,11 +3,20 @@ import { tv } from "tailwind-variants";
 import { CheckIcon, Icon, MinusIcon } from "../Icon/index.js";
 
 const frame = tv({
-  base: "group/checkbox flex cursor-pointer items-center gap-3",
+  base: "group/checkbox flex cursor-pointer items-center",
   variants: {
     layout: { labelled: "py-1", bare: "" },
+    size: { sm: "gap-2 text-sm", md: "gap-3" },
   },
-  defaultVariants: { layout: "labelled" },
+  defaultVariants: { layout: "labelled", size: "md" },
+});
+
+const box = tv({
+  base: "peer col-start-1 row-start-1 cursor-pointer appearance-none rounded-control border border-edge control-py-0 transition duration-160 ease-out group-hover/checkbox:bg-edge checked:border-on-accent/30 checked:bg-accent checked:group-hover/checkbox:bg-accent/80 indeterminate:border-on-accent/30 indeterminate:bg-accent indeterminate:group-hover/checkbox:bg-accent/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97",
+  variants: {
+    size: { sm: "size-4 leading-4", md: "size-5 leading-5" },
+  },
+  defaultVariants: { size: "md" },
 });
 
 const text = tv({
@@ -38,6 +47,7 @@ type Checked =
 type CheckboxProps = {
   label: string;
   layout?: "labelled" | "bare";
+  size?: "sm" | "md";
   indeterminate?: boolean;
   name?: string;
   value?: string;
@@ -51,6 +61,7 @@ type CheckboxProps = {
 export const Checkbox = ({
   label,
   layout,
+  size,
   indeterminate = false,
   name,
   value,
@@ -64,7 +75,7 @@ export const Checkbox = ({
   }, [indeterminate]);
 
   return (
-    <label className={frame({ layout })}>
+    <label className={frame({ layout, size })}>
       <span className="grid shrink-0 place-items-center">
         <input
           ref={ref}
@@ -78,7 +89,7 @@ export const Checkbox = ({
               ? undefined
               : (event) => onChange(event.target.checked)
           }
-          className="peer col-start-1 row-start-1 size-5 cursor-pointer appearance-none rounded-control border border-edge control-py-0 leading-5 transition duration-160 ease-out group-hover/checkbox:bg-edge checked:border-on-accent/30 checked:bg-accent checked:group-hover/checkbox:bg-accent/80 indeterminate:border-on-accent/30 indeterminate:bg-accent indeterminate:group-hover/checkbox:bg-accent/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97"
+          className={box({ size })}
         />
         <Icon
           icon={CheckIcon}

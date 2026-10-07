@@ -7,7 +7,7 @@ import { Tooltip } from "../Tooltip/index.js";
 const iconButton = tv({
   base: "inline-flex cursor-pointer items-center justify-center rounded-full border border-edge bg-surface-raised transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97",
   variants: {
-    size: { sm: "size-8", md: "size-10" },
+    size: { xs: "size-5", sm: "size-8", md: "size-10" },
     state: {
       idle: "hover:bg-edge",
       current: "text-accent-text shadow-ring",
@@ -16,13 +16,13 @@ const iconButton = tv({
   defaultVariants: { size: "md", state: "idle" },
 });
 
-const ICON_SIZE = { sm: "md", md: "lg" } as const;
+const ICON_SIZE = { xs: "sm", sm: "md", md: "lg" } as const;
 
 type IconButtonProps = {
   icon: IconSource;
   label: string;
   labelSide?: Direction;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   state?: "idle" | "current";
 } & (
   | { href: string }

@@ -3,6 +3,7 @@ import {
   Field,
   control,
   useDescribedBy,
+  type ControlProps,
   type FieldProps,
 } from "../Field/index.js";
 import { useFittedHeight } from "./hooks/useFittedHeight.js";
@@ -13,11 +14,12 @@ type Height =
   | { height?: "fixed"; maxRows?: undefined }
   | { height: "content"; maxRows?: number };
 
-type TextAreaProps = FieldProps & {
-  value?: string;
-  placeholder?: string;
-  rows?: number;
-} & Height;
+type TextAreaProps = FieldProps &
+  ControlProps<"textarea"> & {
+    value?: string;
+    placeholder?: string;
+    rows?: number;
+  } & Height;
 
 // Text over several lines, at least `rows` lines tall. With `height`
 // "fixed" it can be dragged taller or shorter, never wider. With
@@ -26,6 +28,8 @@ type TextAreaProps = FieldProps & {
 export const TextArea = ({
   name,
   label,
+  layout,
+  required,
   hint,
   error,
   size,
@@ -34,8 +38,19 @@ export const TextArea = ({
   rows = 3,
   height = "fixed",
   maxRows = 12,
+  onChange,
+  ref: givenRef,
+  ...rest
 }: TextAreaProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
+  // Keeps the element for measuring and hands it to the caller's ref.
+  const setRef = (area: HTMLTextAreaElement | null) => {
+    ref.current = area;
+    if (typeof givenRef === "function") givenRef(area);
+    else if (givenRef !== undefined && givenRef !== null) {
+      givenRef.current = area;
+    }
+  };
   const fit = () => {
     const area = ref.current;
     if (area === null || height !== "content") return;
@@ -58,15 +73,25 @@ export const TextArea = ({
   useLayoutEffect(fit);
 
   return (
-    <Field name={name} label={label} hint={hint} error={error}>
+    <Field
+      name={name}
+      label={label}
+      layout={layout}
+      required={required}
+      hint={hint}
+      error={error}
+    >
       <textarea
-        ref={ref}
+        {...rest}
+        ref={setRef}
         id={name}
         name={name}
         rows={rows}
         defaultValue={value}
         placeholder={placeholder}
+        onChange={onChange}
         onInput={fit}
+        aria-required={required}
         aria-invalid={error === undefined ? undefined : true}
         aria-describedby={useDescribedBy(name, { hint, error })}
         className={control({

@@ -75,3 +75,7 @@ export const Sizes: Story = {
     </div>
   ),
 };
+
+export const Required: Story = {
+  args: { name: "name", label: "名前", required: true },
+};

@@ -17,3 +17,7 @@ export const Indeterminate: Story = { args: { indeterminate: true } };
 export const Bare: Story = {
   args: { layout: "bare", defaultChecked: true },
 };
+
+export const Small: Story = {
+  args: { size: "sm", defaultChecked: true },
+};

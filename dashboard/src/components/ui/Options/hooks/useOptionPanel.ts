@@ -6,6 +6,7 @@ import {
   size,
   useDismiss,
   useFloating,
+  useFloatingNodeId,
   useInteractions,
   useListNavigation,
   useRole,
@@ -17,7 +18,8 @@ const VIEWPORT_MARGIN = 8;
 // Ties a text control to the list of options that opens under it: where
 // the list sits, that it is as wide as the control, closing on Escape or
 // a press outside, and moving through the rows with the arrow keys while
-// the focus stays in the control.
+// the focus stays in the control. Parts that open from a row, such as a
+// row's help, count as inside the list.
 export const useOptionPanel = ({
   open,
   onOpenChange,
@@ -30,8 +32,10 @@ export const useOptionPanel = ({
   onNavigate: (active: number | null) => void;
 }) => {
   const rows = useRef<(HTMLElement | null)[]>([]);
+  const nodeId = useFloatingNodeId();
   const { refs, floatingStyles, context } =
     useFloating<HTMLInputElement>({
+      nodeId,
       open,
       onOpenChange,
       placement: "bottom-start",
@@ -50,7 +54,7 @@ export const useOptionPanel = ({
   const { getReferenceProps, getFloatingProps, getItemProps } =
     useInteractions([
       useRole(context, { role: "listbox" }),
-      useDismiss(context),
+      useDismiss(context, { capture: { escapeKey: true } }),
       useListNavigation(context, {
         listRef: rows,
         activeIndex: active,
@@ -61,6 +65,7 @@ export const useOptionPanel = ({
     ]);
 
   return {
+    nodeId,
     rows,
     setControl: refs.setReference,
     setPanel: refs.setFloating,

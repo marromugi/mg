@@ -5,6 +5,7 @@ import {
   useDescribedBy,
   type FieldProps,
 } from "../Field/index.js";
+import { Nested } from "../Floating/index.js";
 import { ChevronDownIcon, Icon } from "../Icon/index.js";
 import {
   OptionPanel,
@@ -44,9 +45,11 @@ type ComboboxProps = FieldProps & {
 // can be the value: text that was typed but not chosen is dropped when
 // the control is left, and clearing the text clears the choice. The
 // form submits the chosen option's value under `name`.
-export const Combobox = ({
+const ComboboxBody = ({
   name,
   label,
+  layout,
+  required,
   hint,
   error,
   size = "lg",
@@ -90,7 +93,14 @@ export const Combobox = ({
   };
 
   return (
-    <Field name={name} label={label} hint={hint} error={error}>
+    <Field
+      name={name}
+      label={label}
+      layout={layout}
+      required={required}
+      hint={hint}
+      error={error}
+    >
       <input type="hidden" name={name} value={value ?? ""} />
       <div
         className="group/combobox relative"
@@ -103,6 +113,7 @@ export const Combobox = ({
           placeholder={placeholder}
           autoComplete="off"
           aria-autocomplete="list"
+          aria-required={required}
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={useDescribedBy(name, { hint, error })}
           className={control({
@@ -154,3 +165,9 @@ export const Combobox = ({
     </Field>
   );
 };
+
+export const Combobox = (props: ComboboxProps) => (
+  <Nested>
+    <ComboboxBody {...props} />
+  </Nested>
+);

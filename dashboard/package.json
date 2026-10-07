@@ -14,6 +14,7 @@
   "dependencies": {
     "@floating-ui/react": "0.27.20",
     "@hono/node-server": "2.1.1",
+    "@hookform/resolvers": "5.9.1",
     "@mg/core": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
@@ -24,8 +25,10 @@
     "motion": "14.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-hook-form": "7.89.0",
     "tailwind-merge": "3.7.0",
-    "tailwind-variants": "3.3.1"
+    "tailwind-variants": "3.3.1",
+    "zod": "4.6.2"
   },
   "devDependencies": {
     "@storybook/react": "10.6.0",

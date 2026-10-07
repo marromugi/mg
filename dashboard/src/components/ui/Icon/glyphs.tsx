@@ -115,3 +115,15 @@ export const CloseIcon = (props: SVGProps<SVGSVGElement>) => (
     <path d="M4 4l8 8M12 4l-8 8" />
   </svg>
 );
+
+export const HelpIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...outline} strokeWidth="2" {...props}>
+    <path d="M5.75 6a2.25 2.25 0 114 1.4c-.7.75-1.75 1.2-1.75 2.35M8 12.5v.01" />
+  </svg>
+);
+
+export const ShieldIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...outline} {...props}>
+    <path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4z" />
+  </svg>
+);

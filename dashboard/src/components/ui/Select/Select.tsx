@@ -41,6 +41,8 @@ type SelectProps = FieldProps & {
 export const Select = ({
   name,
   label,
+  layout,
+  required,
   hint,
   error,
   size = "lg",
@@ -62,13 +64,21 @@ export const Select = ({
   const state = error === undefined ? "default" : "error";
 
   return (
-    <Field name={name} label={label} hint={hint} error={error}>
+    <Field
+      name={name}
+      label={label}
+      layout={layout}
+      required={required}
+      hint={hint}
+      error={error}
+    >
       <div className="relative pointer-fine:hidden">
         <select
           id={name}
           name={name}
           value={value ?? ""}
           onChange={(event) => choose(event.target.value)}
+          aria-required={required}
           aria-invalid={error === undefined ? undefined : true}
           aria-describedby={describedBy}
           className={control({

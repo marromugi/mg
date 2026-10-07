@@ -15,7 +15,14 @@ export const withSampleRetry = (
     ...(options?.sleep === undefined ? {} : { sleep: options.sleep }),
   });
 
+// `inside` wraps the estimator that talks to the service, below the
+// retries, so it sees each request on its own.
 export const createSampleJevEstimator = (options: {
   apiKey: string;
+  inside?: (estimator: Estimator) => Estimator;
 }): Estimator =>
-  withSampleRetry(createJevEstimator({ apiKey: options.apiKey }));
+  withSampleRetry(
+    (options.inside ?? ((estimator) => estimator))(
+      createJevEstimator({ apiKey: options.apiKey }),
+    ),
+  );

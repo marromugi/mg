@@ -25,7 +25,7 @@ const unusedProvider: Provider = {
 
 const estimator: Estimator = {
   model: "fake",
-  limits: { maxLabels: 255, maxLevels: 10 },
+  limits: { minLabels: 1, maxLabels: 255, maxLevels: 10 },
   estimate: () => Promise.reject(new Error("not used")),
   classify: () => Promise.reject(new Error("not used")),
   score: () => Promise.reject(new Error("not used")),

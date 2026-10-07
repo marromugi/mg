@@ -36,7 +36,7 @@ describe("loop-bash-jev-gate gate", () => {
     const requests: EstimateRequest[] = [];
     const estimator: Estimator = {
       model: "fake",
-      limits: { maxLabels: 255, maxLevels: 10 },
+      limits: { minLabels: 1, maxLabels: 255, maxLevels: 10 },
       estimate: async (request) => {
         requests.push(request);
         return { probability: 1 };

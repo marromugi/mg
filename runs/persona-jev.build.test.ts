@@ -18,7 +18,7 @@ const createFakeEstimator = (
   return {
     classifyCalls,
     model: "fake",
-    limits: { maxLabels: 255, maxLevels: 10 },
+    limits: { minLabels: 1, maxLabels: 255, maxLevels: 10 },
     estimate: (): Promise<Estimate> =>
       Promise.reject(new Error("not used")),
     classify: (request): Promise<Classification> => {

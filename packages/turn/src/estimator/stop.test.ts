@@ -63,7 +63,11 @@ const createFakeEstimator = (
     options: EstimateOptions | undefined,
   ) => Promise<Classification> | Classification,
   calls: ClassifyCall[] = [],
-  limits: EstimatorLimits = { maxLabels: 255, maxLevels: 10 },
+  limits: EstimatorLimits = {
+    minLabels: 1,
+    maxLabels: 255,
+    maxLevels: 10,
+  },
 ): Estimator => ({
   model: "fake-model",
   limits,

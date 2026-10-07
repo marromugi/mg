@@ -9,7 +9,11 @@ import type {
   ScoreRequest,
 } from "./types.js";
 
-const limits: EstimatorLimits = { maxLabels: 255, maxLevels: 10 };
+const limits: EstimatorLimits = {
+  minLabels: 1,
+  maxLabels: 255,
+  maxLevels: 10,
+};
 
 describe("assertClassifyRequest", () => {
   test("rejects a request with no labels", () => {
@@ -23,12 +27,36 @@ describe("assertClassifyRequest", () => {
       RangeError,
     );
     expect(() => assertClassifyRequest(request, limits)).toThrow(
-      /^labels has 0 entries; at least 1 is required$/,
+      /^labels has 0 entries; the estimator accepts at least 1$/,
     );
+  });
+
+  test("rejects a request with fewer labels than the declared minimum, but accepts one at the minimum", () => {
+    const twoMin: EstimatorLimits = {
+      minLabels: 2,
+      maxLabels: 255,
+      maxLevels: 10,
+    };
+    const one: ClassifyRequest = {
+      subject: "T",
+      question: "Q",
+      labels: { a: "x" },
+    };
+
+    expect(() => assertClassifyRequest(one, twoMin)).toThrow(
+      /^labels has 1 entries; the estimator accepts at least 2$/,
+    );
+    expect(
+      assertClassifyRequest(
+        { ...one, labels: { a: "x", b: "y" } },
+        twoMin,
+      ),
+    ).toBeUndefined();
   });
 
   test("rejects a request whose labels exceed the declared limit, but accepts one at the limit", () => {
     const tightLimits: EstimatorLimits = {
+      minLabels: 1,
       maxLabels: 2,
       maxLevels: 10,
     };
@@ -64,6 +92,7 @@ describe("assertScoreRequest", () => {
     };
 
     const tightLimits: EstimatorLimits = {
+      minLabels: 1,
       maxLabels: 255,
       maxLevels: 2,
     };
@@ -76,6 +105,7 @@ describe("assertScoreRequest", () => {
     );
 
     const looseLimits: EstimatorLimits = {
+      minLabels: 1,
       maxLabels: 255,
       maxLevels: 3,
     };

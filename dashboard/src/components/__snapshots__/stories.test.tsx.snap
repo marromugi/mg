@@ -76,6 +76,24 @@ exports[`story snapshots > ./ui/Sidebar/Sidebar.stories.tsx Default 1`] = `"<div
 
 exports[`story snapshots > ./ui/TextArea/TextArea.stories.tsx Default 1`] = `"<div class="max-w-sm"><div class="flex flex-col gap-2"><label id="paths-label" for="paths" class="text-sm font-semibold">パスのパターン</label><textarea id="paths" name="paths" rows="3" class="w-full rounded-control border bg-surface-raised transition duration-160 ease-out outline-none placeholder:opacity-50 hover:bg-surface focus:bg-surface-raised px-4 control-py-2 text-base border-edge focus-visible:border-accent block resize-y"></textarea></div></div>"`;
 
+exports[`story snapshots > ./ui/TextArea/TextArea.stories.tsx FollowsContent 1`] = `
+"<div class="max-w-sm"><div class="flex flex-col gap-2"><label id="paths-label" for="paths" class="text-sm font-semibold">パスのパターン</label><textarea id="paths" name="paths" rows="3" class="w-full rounded-control border bg-surface-raised transition duration-160 ease-out outline-none placeholder:opacity-50 hover:bg-surface focus:bg-surface-raised px-4 control-py-2 text-base border-edge focus-visible:border-accent block resize-none">.env
+secrets/**
+*.pem
+*.key
+id_rsa</textarea></div></div>"
+`;
+
+exports[`story snapshots > ./ui/TextArea/TextArea.stories.tsx FollowsContentUpToMax 1`] = `
+"<div class="max-w-sm"><div class="flex flex-col gap-2"><label id="paths-label" for="paths" class="text-sm font-semibold">パスのパターン</label><textarea id="paths" name="paths" rows="3" class="w-full rounded-control border bg-surface-raised transition duration-160 ease-out outline-none placeholder:opacity-50 hover:bg-surface focus:bg-surface-raised px-4 control-py-2 text-base border-edge focus-visible:border-accent block resize-none">.env
+secrets/**
+*.pem
+*.key
+id_rsa
+id_ed25519
+.netrc</textarea></div></div>"
+`;
+
 exports[`story snapshots > ./ui/TextArea/TextArea.stories.tsx Medium 1`] = `
 "<div class="max-w-sm"><div class="flex flex-col gap-2"><label id="paths-label" for="paths" class="text-sm font-semibold">パスのパターン</label><textarea id="paths" name="paths" rows="3" class="w-full rounded-control border bg-surface-raised transition duration-160 ease-out outline-none placeholder:opacity-50 hover:bg-surface focus:bg-surface-raised px-3 control-py-2 text-sm border-edge focus-visible:border-accent block resize-y">.env
 secrets/**</textarea></div></div>"

@@ -8,3 +8,4 @@ export { TextField } from "./TextField/index.js";
 export { Popover } from "./Popover/index.js";
 export { Field } from "./Field/index.js";
 export { Select } from "./Select/index.js";
+export { TextArea } from "./TextArea/index.js";

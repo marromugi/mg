@@ -1,4 +1,5 @@
 import { tv } from "tailwind-variants";
+import type { ButtonElementProps } from "../Button/index.js";
 import { Icon, type IconSource } from "../Icon/index.js";
 import { Tooltip } from "../Tooltip/index.js";
 
@@ -18,27 +19,24 @@ type IconButtonProps = {
   label: string;
   state?: "idle" | "current";
 } & (
-  | { href: string; name?: undefined; value?: undefined }
-  | { href?: undefined; name?: string; value?: string }
+  | { href: string }
+  | ({ href?: undefined } & Omit<ButtonElementProps, "aria-label">)
 );
 
 // A round control that shows only an icon; `label` is its name for
 // screen readers and the text of its tooltip. A link when it has an
-// href, otherwise a button that submits its form.
+// href, otherwise a button, which submits its form unless told otherwise.
 export const IconButton = ({
   icon,
   label,
   state,
-  href,
-  name,
-  value,
+  ...rest
 }: IconButtonProps) => (
   <Tooltip label={label}>
-    {href === undefined ? (
+    {rest.href === undefined ? (
       <button
         type="submit"
-        name={name}
-        value={value}
+        {...rest}
         aria-label={label}
         className={iconButton({ state })}
       >
@@ -46,7 +44,7 @@ export const IconButton = ({
       </button>
     ) : (
       <a
-        href={href}
+        href={rest.href}
         aria-label={label}
         aria-current={state === "current" ? "page" : undefined}
         className={iconButton({ state })}

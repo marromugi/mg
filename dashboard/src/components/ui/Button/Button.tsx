@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { tv } from "tailwind-variants";
 import { Icon, type IconSource } from "../Icon/index.js";
 
@@ -29,21 +29,25 @@ type ButtonProps = {
   icon?: IconSource;
   iconSide?: "left" | "right";
   children: ReactNode;
-} & (
-  | { href: string; name?: undefined; value?: undefined }
-  | { href?: undefined; name?: string; value?: string }
-);
+} & ({ href: string } | ({ href?: undefined } & ButtonElementProps));
 
-// A link when it has an href, otherwise a button that submits its form.
+// What the button element takes besides what Button itself decides.
+// `type` is "submit" unless given; another part that opens on this
+// button passes its handlers, ref, and state through here.
+export type ButtonElementProps = Omit<
+  ComponentProps<"button">,
+  "className" | "style" | "children"
+>;
+
+// A link when it has an href, otherwise a button, which submits its form
+// unless told otherwise.
 export const Button = ({
   tone,
   size = "lg",
   icon,
   iconSide = "left",
-  href,
-  name,
-  value,
   children,
+  ...rest
 }: ButtonProps) => {
   const mark =
     icon === undefined ? null : (
@@ -56,17 +60,12 @@ export const Button = ({
       {iconSide === "right" ? mark : null}
     </>
   );
-  return href === undefined ? (
-    <button
-      type="submit"
-      name={name}
-      value={value}
-      className={button({ tone, size })}
-    >
+  return rest.href === undefined ? (
+    <button type="submit" {...rest} className={button({ tone, size })}>
       {content}
     </button>
   ) : (
-    <a href={href} className={button({ tone, size })}>
+    <a href={rest.href} className={button({ tone, size })}>
       {content}
     </a>
   );

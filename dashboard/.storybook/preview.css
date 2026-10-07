@@ -1,0 +1,5 @@
+/* A story's page has the browser's own page colours for its scheme, as the app's pages do. They are set here because the Storybook frame around a story would otherwise show through. */
+html {
+  background-color: Canvas;
+  color: CanvasText;
+}

@@ -34,10 +34,13 @@
   --text-meta: 0.85rem;
 }
 
-/* Corners are derived, never picked. A control's corner is a third of its height; the height is never set, it follows from the line height plus the vertical padding, which each control declares as --control-py through control-py-*. A container's corner is the corner of the control it holds plus its own padding, declared as --container-p through container-p-*; a container that holds only text takes the text line itself as the inner shape (--control-py stays 0), so its corner is a third of the line height plus the padding. A container around real controls sets --control-py to match them. Computed in utilities, not in @theme, so 1lh and the variables resolve on the element itself. */
+/* Corners are derived, never picked. A control's corner is a third of its height; the height is never set, it follows from the line height plus the vertical padding, which each control declares as --control-py through control-py-*. A container's corner is the corner of the control it holds plus its own padding, declared as --container-p through container-p-*; a container that holds only text takes the text line itself as the inner shape (--control-py stays 0), so its corner is a third of the line height plus the padding. A container around real controls sets --control-py to match them through around-control-py-*, which declares the value without padding the container. Computed in utilities, not in @theme, so 1lh and the variables resolve on the element itself. */
 @utility control-py-* {
   --control-py: --spacing(--value(integer));
   padding-block: var(--control-py);
+}
+@utility around-control-py-* {
+  --control-py: --spacing(--value(integer));
 }
 @utility container-p-* {
   --container-p: --spacing(--value(integer));

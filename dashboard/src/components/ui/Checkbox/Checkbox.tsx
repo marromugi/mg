@@ -1,5 +1,4 @@
-import { Icon } from "../Icon/index.js";
-import { CheckIcon } from "./CheckIcon.js";
+import { CheckIcon, Icon } from "../Icon/index.js";
 
 type CheckboxProps = {
   name: string;

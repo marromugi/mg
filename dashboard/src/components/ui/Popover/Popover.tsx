@@ -4,6 +4,7 @@ import {
   flip,
   offset as offsetBy,
   shift,
+  size,
   useClick,
   useDismiss,
   useFloating,
@@ -45,6 +46,7 @@ type PopoverProps = {
   direction?: Direction;
   align?: Align;
   offset?: number;
+  width?: "content" | "trigger";
   children: ReactNode;
 } & OpenState;
 
@@ -52,6 +54,8 @@ type PopoverProps = {
 // closes on a click outside or on Escape. It moves to the other side or
 // slides along the trigger to stay inside the viewport. It draws nothing
 // of its own: `children` bring their own surface and padding.
+//
+// With `width` "trigger" it is at least as wide as its trigger.
 //
 // The trigger is one element that passes the props it is given on to a
 // button, as Button and IconButton do. The popover hands it the click
@@ -61,6 +65,7 @@ export const Popover = ({
   direction = "bottom",
   align = "start",
   offset = 8,
+  width = "content",
   open: givenOpen,
   onOpenChange,
   defaultOpen = false,
@@ -81,6 +86,12 @@ export const Popover = ({
       offsetBy(offset),
       flip({ padding: VIEWPORT_MARGIN }),
       shift({ padding: VIEWPORT_MARGIN }),
+      size({
+        apply: ({ rects, elements }) => {
+          elements.floating.style.minWidth =
+            width === "trigger" ? `${rects.reference.width}px` : "";
+        },
+      }),
     ],
   });
   const { getReferenceProps, getFloatingProps } = useInteractions([

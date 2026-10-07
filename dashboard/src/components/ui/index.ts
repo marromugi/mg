@@ -6,3 +6,5 @@ export { Sidebar } from "./Sidebar/index.js";
 export { Tooltip } from "./Tooltip/index.js";
 export { TextField } from "./TextField/index.js";
 export { Popover } from "./Popover/index.js";
+export { Field } from "./Field/index.js";
+export { Select } from "./Select/index.js";

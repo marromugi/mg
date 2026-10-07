@@ -13,3 +13,17 @@ export const CheckIcon = (props: SVGProps<SVGSVGElement>) => (
     <path d="M3.5 8.5l3 3 6-7" />
   </svg>
 );
+
+export const ChevronDownIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M4 6l4 4 4-4" />
+  </svg>
+);

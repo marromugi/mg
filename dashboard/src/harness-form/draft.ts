@@ -21,6 +21,8 @@ export type Draft = {
   judge: boolean;
   judgeModel: string;
   judgeInstruction: string;
+  gate: boolean;
+  gateQuestion: string;
 };
 
 export const newRule = (): RuleDraft => ({
@@ -42,6 +44,8 @@ export const emptyDraft = (): Draft => ({
   judge: false,
   judgeModel: "",
   judgeInstruction: "",
+  gate: false,
+  gateQuestion: "",
 });
 
 export const draftFromDefinition = (
@@ -66,6 +70,8 @@ export const draftFromDefinition = (
   judge: definition.means?.judge !== undefined,
   judgeModel: definition.means?.judge?.model ?? "",
   judgeInstruction: definition.means?.judge?.instruction ?? "",
+  gate: definition.means?.gate !== undefined,
+  gateQuestion: definition.means?.gate?.question ?? "",
 });
 
 export const withRuleAdded = (draft: Draft): Draft => ({
@@ -130,6 +136,9 @@ export const draftToRaw = (draft: Draft, id: string): unknown => ({
                 model: draft.judgeModel,
                 instruction: draft.judgeInstruction,
               }
+            : undefined,
+          gate: draft.gate
+            ? { question: draft.gateQuestion }
             : undefined,
         },
 });

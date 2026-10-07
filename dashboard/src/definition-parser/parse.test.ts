@@ -51,6 +51,39 @@ describe("parseDefinition", () => {
     });
   });
 
+  it("accepts tools with no rules when a gate is set", () => {
+    const gated = {
+      ...valid,
+      means: {
+        ...valid.means,
+        rules: [],
+        gate: { question: "Does this stay inside the folder?" },
+      },
+    };
+
+    expect(parseDefinition(gated)).toEqual({
+      ok: true,
+      definition: gated,
+    });
+  });
+
+  it("refuses a gate with no question", () => {
+    expect(
+      parseDefinition({
+        ...valid,
+        means: { ...valid.means, gate: { question: " " } },
+      }),
+    ).toEqual({
+      ok: false,
+      problems: [
+        {
+          field: "means.gate.question",
+          message: "判定の質問を入力してください",
+        },
+      ],
+    });
+  });
+
   it("refuses tools with neither a rule nor a judge", () => {
     const result = parseDefinition({
       ...valid,
@@ -63,7 +96,7 @@ describe("parseDefinition", () => {
         {
           field: "means.rules",
           message:
-            "ツールを使うハーネスには、パスのルールか判定 LLM が要ります",
+            "ツールを使うハーネスには、パスのルール、判定 LLM、ゲートのどれかが要ります",
         },
       ],
     });

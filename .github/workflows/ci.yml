@@ -45,4 +45,10 @@ jobs:
         run: pnpm test
 
       - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --filter @mg/dashboard exec playwright install --with-deps chromium
+
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm --filter @mg/dashboard run test:stories
+
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm --filter @mg/dashboard run build-storybook

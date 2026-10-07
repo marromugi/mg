@@ -1,4 +1,5 @@
 import type { Preview } from "@storybook/react-vite";
+import { mswLoader } from "msw-storybook-addon/csf3";
 import "../src/styles/tokens.css";
 import "./preview.css";
 
@@ -7,6 +8,8 @@ import "./preview.css";
 const SCHEMES = { system: "", light: "light", dark: "dark" } as const;
 
 const preview: Preview = {
+  // A story answers the API with the handlers in its `msw` parameter.
+  loaders: [mswLoader()],
   globalTypes: {
     scheme: {
       description: "配色",

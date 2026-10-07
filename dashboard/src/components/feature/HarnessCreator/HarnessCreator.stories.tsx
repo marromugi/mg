@@ -20,7 +20,7 @@ const meta = {
   args: {
     open: true,
     onOpenChange: () => {},
-    onCreate: () => {},
+    onCreate: () => Promise.resolve({ kind: "saved" }),
   },
 } satisfies Meta<typeof HarnessCreator>;
 export default meta;
@@ -101,6 +101,7 @@ const WholeFlow = () => {
         onCreate={(creation) => {
           setCreated(creation);
           setOpen(false);
+          return Promise.resolve({ kind: "saved" });
         }}
       />
     </div>

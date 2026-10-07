@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { createApi } from "./api/index.js";
 import type { DefinitionStore } from "./definition-store/index.js";
 import { registerApiKeys } from "./routes/api-keys.js";
 import { registerHarnesses } from "./routes/harnesses.js";
@@ -25,6 +26,7 @@ export const createApp = (parts: AppParts): Hono => {
   registerStyles(app);
   app.use(parts.session.middleware);
   registerHome(app);
+  app.route("/api", createApi({ definitions: parts.definitions }));
   registerHarnesses(app, parts.definitions, parts.runs);
   registerRuns(app, parts.runs, parts.dataDir);
   registerApiKeys(app, parts.secrets);

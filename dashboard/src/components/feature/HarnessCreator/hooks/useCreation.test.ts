@@ -24,8 +24,9 @@ describe("useCreation", () => {
         judge: false,
         judgeModel: "",
         judgeInstruction: "",
+        gate: false,
+        gateQuestion: "",
       },
-      gate: undefined,
     });
   });
 
@@ -97,9 +98,14 @@ describe("useCreation", () => {
         gateQuestion: " この操作は作業フォルダの中だけを変えますか ",
       }),
     );
-    expect([creation.draft.rules, creation.gate]).toEqual([
+    expect([
+      creation.draft.rules,
+      creation.draft.gate,
+      creation.draft.gateQuestion,
+    ]).toEqual([
       [],
-      { question: "この操作は作業フォルダの中だけを変えますか" },
+      true,
+      "この操作は作業フォルダの中だけを変えますか",
     ]);
   });
 
@@ -115,7 +121,8 @@ describe("useCreation", () => {
     expect([
       creation.draft.root,
       creation.draft.rules,
-      creation.gate,
-    ]).toEqual(["", [], undefined]);
+      creation.draft.gate,
+      creation.draft.gateQuestion,
+    ]).toEqual(["", [], false, ""]);
   });
 });

@@ -41,6 +41,12 @@ Open it in a browser. It sets a session cookie and moves to the home page.
 | `--keychain-service`       | The Keychain service that keys are kept under. Default: `mg-dashboard`     |
 | `--exit-when-stdin-closes` | Ends the server when its standard input reaches end of file. Default: off  |
 
+A harness's gate is judged by Jev. The server reads the Typesafe AI key for it from its own environment, and no page shows or changes it. Without the key a harness with a gate is saved but does not run.
+
+```
+TYPESAFE_API_KEY=<key> node dashboard/dist/server.js
+```
+
 A taken port, or a data folder that cannot be created, ends the process with a non-zero code. The reason goes to stderr and no launch link is printed.
 
 ### Desktop app
@@ -62,6 +68,19 @@ The build needs `cargo` and `rustc`. It builds the dashboard, bundles the server
 - The browser and ssh connectors and the SQLite stores are not in the bundle. The dashboard builds local tools and writes JSONL traces, so it never reaches them.
 
 To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
+
+The pages call the JSON API under `/api`. Its routes in `src/api` describe themselves with zod, and the hooks and msw handlers in `src/api-client/generated` are generated from them. After changing a route, generate them again:
+
+```sh
+pnpm --filter @mg/dashboard generate:api
+```
+
+Stories that call the API answer it with those handlers. To run every story in a browser, with the steps a story declares:
+
+```sh
+pnpm --filter @mg/dashboard exec playwright install chromium
+pnpm --filter @mg/dashboard test:stories
+```
 
 ## API
 

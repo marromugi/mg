@@ -16,6 +16,7 @@ const FIXED: Record<string, string> = {
   "means.rules": "rules",
   "means.judge.model": "judgeModel",
   "means.judge.instruction": "judgeInstruction",
+  "means.gate.question": "gateQuestion",
 };
 
 const RULE_FIELDS: Record<string, string> = {

@@ -9,14 +9,10 @@ const FILE_TOOLS = ["read_file", "grep", "write_file", "edit_file"];
 
 const NOT_ALLOWED_REASON = "許可していないパスです";
 
-// What comes out of the steps: the draft a harness is saved from, and
-// the gate to put in front of its tools when one was asked for. The
+// What comes out of the steps: the draft a harness is saved from. Its
 // gate is judged by Jev: an action goes through when Jev answers the
 // question with yes.
-export type Creation = {
-  draft: Draft;
-  gate: { question: string } | undefined;
-};
+export type Creation = { draft: Draft };
 
 const modelOf = (choice: ModelChoice, typed: boolean): string =>
   typed ? choice.typed.trim() : choice.listed;
@@ -45,6 +41,7 @@ const rulesOf = (paths: readonly string[]): RuleDraft[] =>
 // and the gate are left out.
 export const useCreation = (values: HarnessValues): Creation => {
   const guarded = values.tools.length > 0;
+  const gated = guarded && values.gate;
   const paths = values.paths
     .map((path) => path.value.trim())
     .filter((path) => path !== "");
@@ -66,10 +63,8 @@ export const useCreation = (values: HarnessValues): Creation => {
       judge: false,
       judgeModel: "",
       judgeInstruction: "",
+      gate: gated,
+      gateQuestion: gated ? values.gateQuestion.trim() : "",
     },
-    gate:
-      guarded && values.gate
-        ? { question: values.gateQuestion.trim() }
-        : undefined,
   };
 };

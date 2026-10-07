@@ -64,6 +64,8 @@ export const readSubmission = (body: Body): Submission | undefined => {
       judge: one(body, "judge") === "on",
       judgeModel: one(body, "judgeModel"),
       judgeInstruction: one(body, "judgeInstruction"),
+      gate: one(body, "gate") === "on",
+      gateQuestion: one(body, "gateQuestion"),
     },
   };
 };

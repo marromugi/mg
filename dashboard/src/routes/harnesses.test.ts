@@ -108,7 +108,7 @@ describe("harness editor", () => {
 
     expect(response.status).toBe(422);
     expect(await response.text()).toContain(
-      "ツールを使うハーネスには、パスのルールか判定 LLM が要ります",
+      "ツールを使うハーネスには、パスのルール、判定 LLM、ゲートのどれかが要ります",
     );
     expect(list).toContain("ハーネスはまだありません");
   });

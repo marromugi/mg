@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import type { Estimator } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
 import { run as realRun, type RunEntry } from "@mg/runner";
 import { assemble } from "../assemble/index.js";
@@ -61,6 +62,8 @@ const finish = (record: RunRecord, event: TestRunEvent): void => {
 export const createTestRuns = (parts: {
   secrets: SecretStore;
   dataDir: string;
+  // The estimator a harness's gate asks.
+  jev?: Estimator;
   run?: RunEntry;
 }): TestRuns => {
   const run = parts.run ?? realRun;
@@ -124,6 +127,7 @@ export const createTestRuns = (parts: {
         assembled = await assemble(definition, {
           secrets: parts.secrets,
           tracePath,
+          jev: parts.jev,
         });
       } catch (error) {
         records.set(runId, record);

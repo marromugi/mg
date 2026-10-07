@@ -26,5 +26,7 @@ export type HarnessDefinition = {
     tools: readonly [ToolName, ...ToolName[]];
     rules: readonly PathRule[];
     judge?: { model: string; instruction: string };
+    // Jev answers the question for each action; yes lets it through.
+    gate?: { question: string };
   };
 };

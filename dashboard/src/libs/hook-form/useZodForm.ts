@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useForm,
   type FieldValues,
+  type Resolver,
   type UseFormProps,
   type UseFormReturn,
 } from "react-hook-form";
@@ -11,13 +12,21 @@ import type { z } from "zod";
 // what the schema takes in, and what it hands to a submit handler is
 // what the schema gives out.
 export const useZodForm = <
-  Input extends FieldValues,
-  Output extends FieldValues,
+  Schema extends z.ZodType<FieldValues, FieldValues>,
 >(
-  schema: z.ZodType<Output, Input>,
-  options?: Omit<UseFormProps<Input, unknown, Output>, "resolver">,
-): UseFormReturn<Input, unknown, Output> =>
-  useForm<Input, unknown, Output>({
+  schema: Schema,
+  options?: Omit<
+    UseFormProps<z.input<Schema>, unknown, z.output<Schema>>,
+    "resolver"
+  >,
+): UseFormReturn<z.input<Schema>, unknown, z.output<Schema>> =>
+  useForm<z.input<Schema>, unknown, z.output<Schema>>({
     ...options,
-    resolver: zodResolver(schema),
+    // The resolver names its values by the widest schema, so they are
+    // narrowed back to this one's.
+    resolver: zodResolver(schema) as unknown as Resolver<
+      z.input<Schema>,
+      unknown,
+      z.output<Schema>
+    >,
   });

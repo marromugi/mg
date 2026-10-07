@@ -17,6 +17,7 @@ import {
   TextField,
 } from "../../ui/index.js";
 import { useCreation, type Creation } from "./hooks/useCreation.js";
+import type { Outcome } from "./hooks/useOutcome.js";
 import { useSteps, type StepId } from "./hooks/useSteps.js";
 import { ModelPicker } from "./ModelPicker.js";
 import { modelOptions, providerOptions } from "./models.js";
@@ -33,8 +34,9 @@ type HarnessCreatorProps = {
   trigger?: ReactElement<Record<string, unknown>>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // Called with what was asked for when the last step is passed.
-  onCreate: (creation: Creation) => void;
+  // Saves what was asked for when the last step is passed, and says how
+  // it ended.
+  onCreate: (creation: Creation) => Promise<Outcome>;
   initialValues?: HarnessValues;
   initialStep?: StepId;
 };
@@ -43,7 +45,9 @@ type HarnessCreatorProps = {
 // the next one opens, and the bar at the top shows how far along it is.
 // It closes only by its own controls, so nothing typed is lost to a
 // stray press; closed part-way, it opens again where it was left. Once a
-// harness is created it starts over.
+// harness is saved it starts over. A save that is refused goes back to
+// the first step with a problem; one that fails says why and keeps
+// everything typed.
 export const HarnessCreator = ({
   trigger,
   open,
@@ -57,7 +61,8 @@ export const HarnessCreator = ({
     defaultValues: initialValues,
   });
   const paths = useFieldArray({ control: form.control, name: "paths" });
-  const { errors } = form.formState;
+  const { errors, isSubmitting } = form.formState;
+  const [failure, setFailure] = useState<string>();
 
   const provider = form.watch("provider");
   const tools = form.watch("tools");
@@ -82,10 +87,34 @@ export const HarnessCreator = ({
       setStepId(after.id);
       return;
     }
-    await form.handleSubmit((values) => {
-      onCreate(useCreation(values));
-      form.reset(initialValues);
-      setStepId(initialStep);
+    await form.handleSubmit(async (values) => {
+      setFailure(undefined);
+      const outcome = await onCreate(useCreation(values));
+      switch (outcome.kind) {
+        case "saved":
+          form.reset(initialValues);
+          setStepId(initialStep);
+          return;
+        case "refused": {
+          for (const { at, message } of outcome.fields) {
+            form.setError(at, { message });
+          }
+          const asked = steps.find((candidate) =>
+            outcome.fields.some(({ at }) =>
+              candidate.fields.some(
+                (field) => at === field || at.startsWith(`${field}.`),
+              ),
+            ),
+          );
+          if (asked !== undefined) setStepId(asked.id);
+          if (outcome.others.length > 0) {
+            setFailure(outcome.others.join(" "));
+          }
+          return;
+        }
+        case "failed":
+          setFailure(`保存できませんでした。${outcome.reason}`);
+      }
     })();
   };
 
@@ -103,7 +132,12 @@ export const HarnessCreator = ({
               戻る
             </Button>
           )}
-          <Button type="submit" form={formId} tone="primary">
+          <Button
+            type="submit"
+            form={formId}
+            tone="primary"
+            disabled={isSubmitting}
+          >
             {last ? "作成する" : "次へ"}
           </Button>
         </>
@@ -127,6 +161,12 @@ export const HarnessCreator = ({
             {index + 1} / {steps.length}　{step.title}
           </p>
         </div>
+
+        {failure === undefined ? null : (
+          <p role="alert" className="text-xs text-error">
+            {failure}
+          </p>
+        )}
 
         {step.id === "name" ? (
           <TextField

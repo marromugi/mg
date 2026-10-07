@@ -19,6 +19,7 @@
     "@mg/harness": "workspace:*",
     "@mg/runner": "workspace:*",
     "@mg/tools": "workspace:*",
+    "@tanstack/react-table": "9.2.6",
     "hono": "4.13.7",
     "motion": "14.0.0",
     "react": "19.3.0",

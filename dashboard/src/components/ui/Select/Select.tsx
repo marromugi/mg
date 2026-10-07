@@ -100,7 +100,7 @@ export const Select = ({
               look={control({
                 size,
                 state,
-                className: `group flex cursor-pointer items-center justify-between gap-3 text-left ${TEXT[size]}`,
+                className: `group/opener flex cursor-pointer items-center justify-between gap-3 text-left ${TEXT[size]}`,
               })}
               aria-labelledby={`${name}-label`}
               aria-invalid={error === undefined ? undefined : true}
@@ -154,7 +154,7 @@ const Opener = ({
     {children}
     <Icon
       icon={ChevronDownIcon}
-      className="transition duration-160 ease-out group-aria-expanded:rotate-180"
+      className="transition duration-160 ease-out group-aria-expanded/opener:rotate-180"
     />
   </button>
 );

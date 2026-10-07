@@ -27,3 +27,16 @@ export const ChevronDownIcon = (props: SVGProps<SVGSVGElement>) => (
     <path d="M4 6l4 4 4-4" />
   </svg>
 );
+
+export const MinusIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    {...props}
+  >
+    <path d="M4 8h8" />
+  </svg>
+);

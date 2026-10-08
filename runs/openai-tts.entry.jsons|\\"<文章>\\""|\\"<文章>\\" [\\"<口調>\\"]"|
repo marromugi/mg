@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/openai-tts.ts \"<文章>\"",
+  "needs": ["SPEECH_BASE_URL", "SPEECH_MODEL", "SPEECH_VOICE"],
+  "burdens": []
+}

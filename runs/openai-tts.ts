@@ -8,6 +8,7 @@ import { readSpeechSettings } from "./speech-settings.ts";
 
 const text =
   process.argv[2] ?? "今日はいい天気ですね。散歩に行きましょう。";
+const tone = process.argv[3];
 
 const fail = (message: string): never => {
   console.error(term.paint("error", `${term.mark.error} ${message}`));
@@ -39,7 +40,10 @@ else if (settings.choice.kind !== "openai") {
   fail("SPEECH_BASE_URL is not set");
 } else {
   try {
-    const synthesizer = createOpenAiSynthesizer(settings.choice);
+    const synthesizer = createOpenAiSynthesizer({
+      ...settings.choice,
+      ...(tone !== undefined && { tone }),
+    });
     const chunks: AudioChunk[] = [];
     for await (const chunk of synthesizer.synthesize(text)) {
       chunks.push(chunk);

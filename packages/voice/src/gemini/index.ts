@@ -190,6 +190,7 @@ export type GeminiSynthesizerOptions = {
   voice: string;
   language?: string;
   speakingRate?: number;
+  tone?: string;
   model?: string;
   baseUrl?: string;
   headers?: Record<string, string>;
@@ -201,6 +202,9 @@ export const createGeminiSynthesizer = (
 ): SpeechSynthesizer => {
   if (options.language === "") {
     throw new RangeError("language must not be empty");
+  }
+  if (options.tone !== undefined && options.tone.trim() === "") {
+    throw new RangeError("tone must not be empty");
   }
   if (options.speakingRate !== undefined) {
     throw new Error(
@@ -224,7 +228,18 @@ export const createGeminiSynthesizer = (
 
   const buildBody = (text: string): string =>
     JSON.stringify({
-      contents: [{ parts: [{ text }] }],
+      contents: [
+        {
+          parts: [
+            {
+              text:
+                options.tone === undefined
+                  ? text
+                  : `${options.tone.trim()}:\n${text}`,
+            },
+          ],
+        },
+      ],
       generationConfig: {
         responseModalities: ["AUDIO"],
         speechConfig: {

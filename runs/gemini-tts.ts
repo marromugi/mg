@@ -10,6 +10,7 @@ if (apiKey === undefined) throw new Error("GEMINI_API_KEY is not set");
 
 const text =
   process.argv[2] ?? "今日はいい天気ですね。散歩に行きましょう。";
+const tone = process.argv[3];
 
 type Call = { label: string; language?: string };
 
@@ -66,6 +67,7 @@ for (const [index, call] of calls.entries()) {
     const synthesizer = createGeminiSynthesizer({
       apiKey,
       voice: "Kore",
+      ...(tone !== undefined && { tone }),
       ...(call.language !== undefined && { language: call.language }),
     });
 

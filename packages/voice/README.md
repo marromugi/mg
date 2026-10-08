@@ -229,6 +229,7 @@ It is created from the following.
 - A voice name. It cannot be omitted.
 - A language. It can be omitted.
 - A speaking rate. It can be omitted.
+- A tone. It can be omitted.
 - A model name. It can be omitted.
 - A server URL. It can be omitted.
 - Extra headers.
@@ -245,6 +246,12 @@ If no channel count is declared, it is 1.
 The language is put as is into the field that the checked API has.
 When omitted, the field is not sent and Gemini decides.
 Passing an empty string gives `RangeError` at creation time.
+
+The tone is a short text that says how to read, such as "in a low voice, slowly".
+It is fixed at creation, and every text is read in it.
+It is put in front of each text as `<tone>:` and a line break, the spoken-style direction Gemini's documentation describes.
+When omitted, the text is sent as it is.
+Passing an empty or whitespace-only string gives `RangeError` at creation time, without any request.
 
 The checked Gemini speech synthesis API has no field for speaking rate.
 Passing one gives an error at creation time, without any request.
@@ -282,12 +289,18 @@ It is created from the following.
 - A server address, up to and including `/v1`. It cannot be omitted.
 - A model name. It cannot be omitted.
 - A voice name. It cannot be omitted.
+- A tone. It can be omitted.
 - A key. It can be omitted.
 - Extra headers.
 - A replacement request function.
 
 `synthesize(text, options)` sends `POST <address>/audio/speech` with the JSON `{ model, input, voice, response_format: "wav" }`.
 The `Authorization: Bearer <key>` header is sent only when a key is given.
+
+When a tone is given, the JSON also holds `instructions: <tone>`, and every text is read in that tone.
+Without a tone, the field is left out.
+A server that ignores the field reads without the tone.
+Passing an empty or whitespace-only string gives `RangeError` at creation time, without any request.
 
 The response is read as WAV.
 Its sample rate and channel count become the format of every chunk.
@@ -310,7 +323,7 @@ It speaks one text, prints the format and the byte count, and writes a WAV file.
 
 ```
 SPEECH_BASE_URL=http://127.0.0.1:8088/v1 SPEECH_MODEL=irodori-tts SPEECH_VOICE=none \
-  node runs/openai-tts.ts "<text>"
+  node runs/openai-tts.ts "<text>" ["<tone>"]
 ```
 
 ### Gemini transcription

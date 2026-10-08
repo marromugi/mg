@@ -96,6 +96,7 @@ export type OpenAiSynthesizerOptions = {
   baseUrl: string;
   model: string;
   voice: string;
+  tone?: string;
   apiKey?: string;
   headers?: Record<string, string>;
   fetch?: typeof fetch;
@@ -104,6 +105,9 @@ export type OpenAiSynthesizerOptions = {
 export const createOpenAiSynthesizer = (
   options: OpenAiSynthesizerOptions,
 ): SpeechSynthesizer => {
+  if (options.tone !== undefined && options.tone.trim() === "") {
+    throw new RangeError("tone must not be empty");
+  }
   const url = `${options.baseUrl.replace(/\/+$/, "")}/audio/speech`;
 
   const buildHeaders = (): Headers => {
@@ -121,6 +125,9 @@ export const createOpenAiSynthesizer = (
       input: text,
       voice: options.voice,
       response_format: "wav",
+      ...(options.tone !== undefined && {
+        instructions: options.tone.trim(),
+      }),
     });
 
   async function* synthesize(

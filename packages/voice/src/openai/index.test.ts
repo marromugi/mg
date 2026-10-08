@@ -75,6 +75,52 @@ const failureOf = (promise: Promise<unknown>): Promise<unknown> =>
   );
 
 describe("createOpenAiSynthesizer", () => {
+  test("sends the tone in the instructions field of every request", async () => {
+    const { fetchStub, calls } = stubFetch(
+      () =>
+        new Response(
+          join(wavHeader(24000, 1, 2), new Uint8Array([1, 0])),
+        ),
+    );
+    const synthesizer = createOpenAiSynthesizer({
+      ...options(fetchStub),
+      tone: "in a low voice, slowly",
+    });
+
+    await collect(synthesizer.synthesize("one"));
+    await collect(synthesizer.synthesize("two"));
+
+    expect(
+      calls.map((call) => JSON.parse(String(call.init?.body))),
+    ).toEqual([
+      {
+        model: "tts-1",
+        input: "one",
+        voice: "alloy",
+        response_format: "wav",
+        instructions: "in a low voice, slowly",
+      },
+      {
+        model: "tts-1",
+        input: "two",
+        voice: "alloy",
+        response_format: "wav",
+        instructions: "in a low voice, slowly",
+      },
+    ]);
+  });
+
+  test.each(["", "  \n"])(
+    "throws RangeError at creation for the tone %j, sending nothing",
+    (tone) => {
+      const { fetchStub, calls } = stubFetch(() => new Response(""));
+      expect(() =>
+        createOpenAiSynthesizer({ ...options(fetchStub), tone }),
+      ).toThrow(RangeError);
+      expect(calls).toHaveLength(0);
+    },
+  );
+
   test("sends the model, text, voice and wav as JSON to the speech path, with no Authorization without a key", async () => {
     const { fetchStub, calls } = stubFetch(
       () =>

@@ -89,6 +89,69 @@ const collect = async <T>(iterable: AsyncIterable<T>): Promise<T[]> => {
 };
 
 describe("createGeminiSynthesizer", () => {
+  test("puts the tone as a direction in front of every text", async () => {
+    const { fetchStub, calls } = stubFetch(
+      () =>
+        new Response(
+          `data: ${JSON.stringify(audioEvent("AQ==", 24000, "STOP"))}\n\n`,
+        ),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      tone: "in a low voice, slowly",
+      fetch: fetchStub,
+    });
+
+    await collect(synthesizer.synthesize("one"));
+    await collect(synthesizer.synthesize("two"));
+
+    const texts = calls.map(
+      (call) =>
+        JSON.parse(String(call.init?.body)).contents[0].parts[0].text,
+    );
+    expect(texts).toEqual([
+      "in a low voice, slowly:\none",
+      "in a low voice, slowly:\ntwo",
+    ]);
+  });
+
+  test("sends the text as it is when no tone is given", async () => {
+    const { fetchStub, calls } = stubFetch(
+      () =>
+        new Response(
+          `data: ${JSON.stringify(audioEvent("AQ==", 24000, "STOP"))}\n\n`,
+        ),
+    );
+    const synthesizer = createGeminiSynthesizer({
+      apiKey: "k",
+      voice: "Kore",
+      fetch: fetchStub,
+    });
+
+    await collect(synthesizer.synthesize("one"));
+
+    expect(
+      JSON.parse(String(calls[0].init?.body)).contents[0].parts,
+    ).toEqual([{ text: "one" }]);
+  });
+
+  test.each(["", "  \n"])(
+    "throws RangeError at creation for the tone %j, sending nothing",
+    (tone) => {
+      const { fetchStub, calls } = stubFetch(() => new Response(""));
+      expect(() =>
+        createGeminiSynthesizer({
+          apiKey: "k",
+          voice: "Kore",
+          tone,
+          fetch: fetchStub,
+        }),
+      ).toThrow(RangeError);
+      expect(calls).toHaveLength(0);
+    },
+  );
+
   test("streams chunks in the order sent without waiting for the whole response", async () => {
     const { stream, send, close } = controlledSseBody();
     const { fetchStub } = stubFetch(

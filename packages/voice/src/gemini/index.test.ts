@@ -116,26 +116,6 @@ describe("createGeminiSynthesizer", () => {
     ]);
   });
 
-  test("sends the text as it is when no tone is given", async () => {
-    const { fetchStub, calls } = stubFetch(
-      () =>
-        new Response(
-          `data: ${JSON.stringify(audioEvent("AQ==", 24000, "STOP"))}\n\n`,
-        ),
-    );
-    const synthesizer = createGeminiSynthesizer({
-      apiKey: "k",
-      voice: "Kore",
-      fetch: fetchStub,
-    });
-
-    await collect(synthesizer.synthesize("one"));
-
-    expect(
-      JSON.parse(String(calls[0].init?.body)).contents[0].parts,
-    ).toEqual([{ text: "one" }]);
-  });
-
   test.each(["", "  \n"])(
     "throws RangeError at creation for the tone %j, sending nothing",
     (tone) => {

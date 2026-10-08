@@ -23,10 +23,23 @@ const FILES: Draft = {
 };
 
 const open = (store: DefinitionStore = createMemoryStore()) => {
-  const api = createApi({ definitions: store });
+  const api = createApi({
+    definitions: store,
+    trials: {
+      send: () => {
+        throw new Error("not used");
+      },
+    },
+  });
 
   return {
     store,
+    savePrompt: (id: string, system: string) =>
+      api.request(`/harnesses/${id}/system`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system }),
+      }),
     create: (body: unknown) =>
       api.request("/harnesses", {
         method: "POST",
@@ -157,5 +170,25 @@ describe("POST /harnesses", () => {
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ reason: "disk is full" });
+  });
+});
+
+describe("PUT /harnesses/{id}/system", () => {
+  it("saves the system prompt of a saved harness", async () => {
+    const { store, create, savePrompt } = open();
+    const { id } = (await (await create({ draft: FILES })).json()) as {
+      id: string;
+    };
+
+    const response = await savePrompt(id, "短く答えてください。");
+
+    expect(response.status).toBe(200);
+    expect((await store.get(id))?.system).toBe("短く答えてください。");
+  });
+
+  it("answers 404 for a harness that is not saved", async () => {
+    const response = await open().savePrompt("none", "短く");
+
+    expect(response.status).toBe(404);
   });
 });

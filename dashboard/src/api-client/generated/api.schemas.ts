@@ -49,3 +49,15 @@ export interface HarnessDraft {
 export interface HarnessCreation {
   draft: HarnessDraft;
 }
+
+export interface HarnessKept {
+  id: string;
+}
+
+export interface HarnessMissing {
+  reason: string;
+}
+
+export interface HarnessPrompt {
+  system: string;
+}

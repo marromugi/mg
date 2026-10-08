@@ -3,7 +3,7 @@ import { tv } from "tailwind-variants";
 import { Icon, type IconSource } from "../Icon/index.js";
 
 const button = tv({
-  base: "inline-flex cursor-pointer items-center rounded-control font-semibold transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97",
+  base: "inline-flex cursor-pointer items-center rounded-control font-semibold transition duration-160 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-97 disabled:pointer-events-none disabled:opacity-50",
   variants: {
     size: {
       sm: "gap-1 px-2 control-py-1 text-xs",

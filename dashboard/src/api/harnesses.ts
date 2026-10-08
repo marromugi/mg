@@ -74,6 +74,34 @@ const createHarness = createRoute({
   },
 });
 
+const prompt = z
+  .object({ system: z.string() })
+  .openapi("HarnessPrompt");
+
+const kept = z.object({ id: z.string() }).openapi("HarnessKept");
+
+const missing = z
+  .object({ reason: z.string() })
+  .openapi("HarnessMissing");
+
+const saveHarnessPrompt = createRoute({
+  method: "put",
+  path: "/harnesses/{id}/system",
+  operationId: "saveHarnessPrompt",
+  request: {
+    params: z.object({ id: z.string() }),
+    body: {
+      required: true,
+      content: { "application/json": { schema: prompt } },
+    },
+  },
+  responses: {
+    200: json(kept, "The system prompt was saved."),
+    404: json(missing, "No harness has this id."),
+    500: json(failed, "The harness could not be written."),
+  },
+});
+
 export const registerHarnessApi = (
   api: OpenAPIHono,
   store: DefinitionStore,
@@ -90,5 +118,33 @@ export const registerHarnessApi = (
       case "failed":
         return c.json({ reason: result.reason }, 500);
     }
+  });
+
+  // An empty prompt is saved as no prompt.
+  api.openapi(saveHarnessPrompt, async (c) => {
+    const { id } = c.req.valid("param");
+    const saved = await store.get(id);
+    if (saved === undefined) {
+      return c.json(
+        { reason: "このエージェントは見つかりません" },
+        404,
+      );
+    }
+    const { system: _old, ...rest } = saved;
+    const { system } = c.req.valid("json");
+    try {
+      await store.put(
+        system.trim() === "" ? rest : { ...rest, system },
+      );
+    } catch (error) {
+      return c.json(
+        {
+          reason:
+            error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+    return c.json({ id }, 200);
   });
 };

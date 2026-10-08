@@ -59,6 +59,83 @@
   );
 }
 
+/* A band of light that crosses the element from left to right, over and over, for something that is still working. It rests on the element's own background. */
+@utility shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-edge) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.6s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background-image: none;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* How something new comes into view: it fades in while it comes into focus. */
+@utility appear {
+  animation: appear 200ms ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@keyframes appear {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Code in a fixed-width face that wraps, as tall as its lines up to a limit. The highlighter's own background is dropped so the code rests on what it is placed on. With code-lines each line starts with its number, counted from the counter the element resets, and a line that wraps continues under its own text. */
+@utility code-block {
+  max-height: --spacing(64);
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  & pre {
+    background-color: transparent !important;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+@utility code-lines {
+  & code {
+    display: flex;
+    flex-direction: column;
+  }
+  & .line {
+    padding-left: 5ch;
+    text-indent: -5ch;
+  }
+  & .line::before {
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    width: 3ch;
+    margin-right: 2ch;
+    text-align: right;
+    text-indent: 0;
+    opacity: 0.5;
+  }
+}
+
 @utility will-change-opacity {
   will-change: opacity;
 }

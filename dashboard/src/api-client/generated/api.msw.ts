@@ -12,6 +12,8 @@ import type { RequestHandlerOptions } from "msw";
 import type {
   HarnessCreated,
   HarnessFailed,
+  HarnessKept,
+  HarnessMissing,
   HarnessRefused,
 } from "./api.schemas.js";
 
@@ -43,6 +45,34 @@ export const getCreateHarnessResponseMock422 = (
 });
 
 export const getCreateHarnessResponseMock500 = (
+  overrideResponse: Partial<Extract<HarnessFailed, object>> = {},
+): HarnessFailed => ({
+  reason: faker.string.alpha({ length: { min: 10, max: 20 } }),
+  ...overrideResponse,
+});
+
+export const getSaveHarnessPromptResponseMock = (
+  overrideResponse: Partial<Extract<HarnessKept, object>> = {},
+): HarnessKept => ({
+  id: faker.string.alpha({ length: { min: 10, max: 20 } }),
+  ...overrideResponse,
+});
+
+export const getSaveHarnessPromptResponseMock200 = (
+  overrideResponse: Partial<Extract<HarnessKept, object>> = {},
+): HarnessKept => ({
+  id: faker.string.alpha({ length: { min: 10, max: 20 } }),
+  ...overrideResponse,
+});
+
+export const getSaveHarnessPromptResponseMock404 = (
+  overrideResponse: Partial<Extract<HarnessMissing, object>> = {},
+): HarnessMissing => ({
+  reason: faker.string.alpha({ length: { min: 10, max: 20 } }),
+  ...overrideResponse,
+});
+
+export const getSaveHarnessPromptResponseMock500 = (
   overrideResponse: Partial<Extract<HarnessFailed, object>> = {},
 ): HarnessFailed => ({
   reason: faker.string.alpha({ length: { min: 10, max: 20 } }),
@@ -144,4 +174,103 @@ export const getCreateHarnessMockHandler500 = (
     options,
   );
 };
-export const getMgDashboardMock = () => [getCreateHarnessMockHandler()];
+
+export const getSaveHarnessPromptMockHandler = (
+  overrideResponse?:
+    | HarnessKept
+    | ((
+        info: Parameters<Parameters<typeof http.put>[1]>[0],
+      ) => Promise<HarnessKept> | HarnessKept),
+  options?: RequestHandlerOptions,
+) => {
+  return http.put(
+    "*/harnesses/:id/system",
+    async (info: Parameters<Parameters<typeof http.put>[1]>[0]) => {
+      return HttpResponse.json(
+        overrideResponse !== undefined
+          ? typeof overrideResponse === "function"
+            ? await overrideResponse(info)
+            : overrideResponse
+          : getSaveHarnessPromptResponseMock(),
+        { status: 200 },
+      );
+    },
+    options,
+  );
+};
+
+export const getSaveHarnessPromptMockHandler200 = (
+  overrideResponse?:
+    | HarnessKept
+    | ((
+        info: Parameters<Parameters<typeof http.put>[1]>[0],
+      ) => Promise<HarnessKept> | HarnessKept),
+  options?: RequestHandlerOptions,
+) => {
+  return http.put(
+    "*/harnesses/:id/system",
+    async (info: Parameters<Parameters<typeof http.put>[1]>[0]) => {
+      return HttpResponse.json(
+        overrideResponse !== undefined
+          ? typeof overrideResponse === "function"
+            ? await overrideResponse(info)
+            : overrideResponse
+          : getSaveHarnessPromptResponseMock200(),
+        { status: 200 },
+      );
+    },
+    options,
+  );
+};
+
+export const getSaveHarnessPromptMockHandler404 = (
+  overrideResponse?:
+    | HarnessMissing
+    | ((
+        info: Parameters<Parameters<typeof http.put>[1]>[0],
+      ) => Promise<HarnessMissing> | HarnessMissing),
+  options?: RequestHandlerOptions,
+) => {
+  return http.put(
+    "*/harnesses/:id/system",
+    async (info: Parameters<Parameters<typeof http.put>[1]>[0]) => {
+      return HttpResponse.json(
+        overrideResponse !== undefined
+          ? typeof overrideResponse === "function"
+            ? await overrideResponse(info)
+            : overrideResponse
+          : getSaveHarnessPromptResponseMock404(),
+        { status: 404 },
+      );
+    },
+    options,
+  );
+};
+
+export const getSaveHarnessPromptMockHandler500 = (
+  overrideResponse?:
+    | HarnessFailed
+    | ((
+        info: Parameters<Parameters<typeof http.put>[1]>[0],
+      ) => Promise<HarnessFailed> | HarnessFailed),
+  options?: RequestHandlerOptions,
+) => {
+  return http.put(
+    "*/harnesses/:id/system",
+    async (info: Parameters<Parameters<typeof http.put>[1]>[0]) => {
+      return HttpResponse.json(
+        overrideResponse !== undefined
+          ? typeof overrideResponse === "function"
+            ? await overrideResponse(info)
+            : overrideResponse
+          : getSaveHarnessPromptResponseMock500(),
+        { status: 500 },
+      );
+    },
+    options,
+  );
+};
+export const getMgDashboardMock = () => [
+  getCreateHarnessMockHandler(),
+  getSaveHarnessPromptMockHandler(),
+];

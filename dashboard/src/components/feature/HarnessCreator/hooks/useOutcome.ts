@@ -11,7 +11,7 @@ export type FieldProblem = {
 // problems show at; a problem that belongs to none of them is in
 // `others`.
 export type Outcome =
-  | { kind: "saved" }
+  | { kind: "saved"; id: string }
   | { kind: "refused"; fields: FieldProblem[]; others: string[] }
   | { kind: "failed"; reason: string };
 
@@ -43,7 +43,7 @@ export const useOutcome = (
 ): Outcome => {
   switch (response.status) {
     case 201:
-      return { kind: "saved" };
+      return { kind: "saved", id: response.data.id };
     case 422: {
       const fields: FieldProblem[] = [];
       const others: string[] = [];

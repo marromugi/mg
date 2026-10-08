@@ -19,6 +19,7 @@ export {
 } from "./Icon/index.js";
 export { IconButton } from "./IconButton/index.js";
 export { Sidebar } from "./Sidebar/index.js";
+export { Panel } from "./Panel/index.js";
 export { Tooltip } from "./Tooltip/index.js";
 export { TextField } from "./TextField/index.js";
 export { Popover } from "./Popover/index.js";
@@ -34,3 +35,5 @@ export { ProgressBar } from "./ProgressBar/index.js";
 export type { Option } from "./Options/index.js";
 export { Avatar } from "./Avatar/index.js";
 export { Tag } from "./Tag/index.js";
+export { CodeBlock } from "./CodeBlock/index.js";
+export { Markdown } from "./Markdown/index.js";

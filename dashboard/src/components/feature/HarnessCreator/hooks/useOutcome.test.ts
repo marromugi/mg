@@ -16,7 +16,7 @@ describe("useOutcome", () => {
   it("reads a created harness as saved", () => {
     expect(
       useOutcome({ status: 201, data: { id: "a" }, headers }),
-    ).toEqual({ kind: "saved" });
+    ).toEqual({ kind: "saved", id: "a" });
   });
 
   it("names the field of the steps a problem shows at", () => {

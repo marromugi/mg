@@ -10,15 +10,20 @@ import { SchemeToggle } from "./SchemeToggle.js";
 import { useNavigation, type Place } from "./hooks/useNavigation.js";
 
 // The frame every page of the app sits in: the menu down the side, the
-// bar across the top with the page's `actions` at its end, and the
-// page's own content in the space left.
+// bar across the top with `start` at its leading end and the page's
+// `actions` at its trailing end, and the page's own content in the
+// space left. `aside` stands beside all of that, as tall as the menu.
 export const AppFrame = ({
   current,
+  start,
   actions,
+  aside,
   children,
 }: {
   current: Place;
+  start?: ReactNode;
   actions?: ReactNode;
+  aside?: ReactNode;
   children?: ReactNode;
 }) => {
   const items = useNavigation(current);
@@ -45,9 +50,10 @@ export const AppFrame = ({
         ))}
       </Sidebar>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <Header end={actions} />
+        <Header start={start} end={actions} />
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
       </div>
+      {aside}
     </div>
   );
 };

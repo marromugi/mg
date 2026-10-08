@@ -16,6 +16,9 @@ import type {
   HarnessCreated,
   HarnessCreation,
   HarnessFailed,
+  HarnessKept,
+  HarnessMissing,
+  HarnessPrompt,
   HarnessRefused,
 } from "./api.schemas.js";
 
@@ -173,6 +176,166 @@ export const useCreateHarness = <
 > => {
   return useMutation(
     getCreateHarnessMutationOptions(options),
+    queryClient,
+  );
+};
+
+export type saveHarnessPromptResponse200 = {
+  data: HarnessKept;
+  status: 200;
+};
+
+export type saveHarnessPromptResponse404 = {
+  data: HarnessMissing;
+  status: 404;
+};
+
+export type saveHarnessPromptResponse500 = {
+  data: HarnessFailed;
+  status: 500;
+};
+
+export type saveHarnessPromptResponseSuccess =
+  saveHarnessPromptResponse200 & {
+    headers: Headers;
+  };
+export type saveHarnessPromptResponseError = (
+  saveHarnessPromptResponse404 | saveHarnessPromptResponse500
+) & {
+  headers: Headers;
+};
+
+export type saveHarnessPromptResponse =
+  saveHarnessPromptResponseSuccess | saveHarnessPromptResponseError;
+
+export const getSaveHarnessPromptUrl = (id: string) => {
+  return `/api/harnesses/${id}/system`;
+};
+
+export const saveHarnessPrompt = async (
+  id: string,
+  harnessPrompt: HarnessPrompt,
+  options?: RequestInit,
+): Promise<saveHarnessPromptResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<
+      string | readonly string[] | undefined
+    >(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  const res = await fetch(getSaveHarnessPromptUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(options?.headers),
+    },
+    body: JSON.stringify(harnessPrompt),
+  });
+
+  const body = [204, 205, 304].includes(res.status)
+    ? null
+    : await res.text();
+
+  const data: saveHarnessPromptResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as saveHarnessPromptResponse;
+};
+
+export const getSaveHarnessPromptMutationKey = () =>
+  ["saveHarnessPrompt"] as const;
+
+export const getSaveHarnessPromptMutationOptions = <
+  TError = HarnessMissing | HarnessFailed,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveHarnessPrompt>>,
+    TError,
+    SaveHarnessPromptMutationVariables,
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveHarnessPrompt>>,
+  TError,
+  SaveHarnessPromptMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSaveHarnessPromptMutationKey();
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveHarnessPrompt>>,
+    SaveHarnessPromptMutationVariables
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return saveHarnessPrompt(id, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveHarnessPromptMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveHarnessPrompt>>
+>;
+export type SaveHarnessPromptMutationBody = HarnessPrompt;
+export type SaveHarnessPromptMutationError =
+  HarnessMissing | HarnessFailed;
+export type SaveHarnessPromptMutationVariables = {
+  id: string;
+  data: HarnessPrompt;
+};
+
+export const useSaveHarnessPrompt = <
+  TError = HarnessMissing | HarnessFailed,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof saveHarnessPrompt>>,
+      TError,
+      SaveHarnessPromptMutationVariables,
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof saveHarnessPrompt>>,
+  TError,
+  SaveHarnessPromptMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSaveHarnessPromptMutationOptions(options),
     queryClient,
   );
 };

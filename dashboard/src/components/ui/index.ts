@@ -34,4 +34,3 @@ export { ProgressBar } from "./ProgressBar/index.js";
 export type { Option } from "./Options/index.js";
 export { Avatar } from "./Avatar/index.js";
 export { Tag } from "./Tag/index.js";
-export { Orb } from "./Orb/index.js";

@@ -17,7 +17,9 @@ const NO_TRIALS: Trials = { send: unused };
 
 // The OpenAPI description of the API, read from its routes. The client
 // in `src/api-client` is generated from it.
-export const apiDocument = () =>
+export const apiDocument = (): ReturnType<
+  ReturnType<typeof createApi>["getOpenAPI31Document"]
+> =>
   createApi({
     definitions: NO_STORE,
     trials: NO_TRIALS,

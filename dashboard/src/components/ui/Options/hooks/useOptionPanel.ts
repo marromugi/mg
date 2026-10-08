@@ -11,7 +11,23 @@ import {
   useListNavigation,
   useRole,
 } from "@floating-ui/react";
+import type {
+  ExtendedRefs,
+  UseInteractionsReturn,
+} from "@floating-ui/react";
 import { useRef } from "react";
+import type { CSSProperties, RefObject } from "react";
+
+export type OptionPanelState = {
+  nodeId: string | undefined;
+  rows: RefObject<(HTMLElement | null)[]>;
+  setControl: ExtendedRefs<HTMLInputElement>["setReference"];
+  setPanel: ExtendedRefs<HTMLInputElement>["setFloating"];
+  panelStyles: CSSProperties;
+  getControlProps: UseInteractionsReturn["getReferenceProps"];
+  getPanelProps: UseInteractionsReturn["getFloatingProps"];
+  getRowProps: UseInteractionsReturn["getItemProps"];
+};
 
 const VIEWPORT_MARGIN = 8;
 
@@ -30,7 +46,7 @@ export const useOptionPanel = ({
   onOpenChange: (open: boolean) => void;
   active: number | null;
   onNavigate: (active: number | null) => void;
-}) => {
+}): OptionPanelState => {
   const rows = useRef<(HTMLElement | null)[]>([]);
   const nodeId = useFloatingNodeId();
   const { refs, floatingStyles, context } =
@@ -75,5 +91,3 @@ export const useOptionPanel = ({
     getRowProps: getItemProps,
   };
 };
-
-export type OptionPanelState = ReturnType<typeof useOptionPanel>;

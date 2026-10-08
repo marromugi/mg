@@ -19,6 +19,9 @@ export const Default: Story = {};
 // What the API was sent, for a story to check.
 const sent = fn();
 
+// The harness the page was asked to open, for a story to check.
+const opened = fn();
+
 // Goes through every step for a harness with no tools, up to the
 // button that saves it.
 const askForHarness = async () => {
@@ -50,6 +53,7 @@ const askForHarness = async () => {
 };
 
 export const SavesHarness: Story = {
+  args: { onHarnessSaved: opened },
   parameters: {
     msw: {
       handlers: [
@@ -62,6 +66,7 @@ export const SavesHarness: Story = {
   },
   beforeEach: () => {
     sent.mockClear();
+    opened.mockClear();
   },
   play: async () => {
     await askForHarness();
@@ -88,6 +93,7 @@ export const SavesHarness: Story = {
         gateQuestion: "",
       },
     });
+    await expect(opened).toHaveBeenCalledWith("0b5c1f2e");
   },
 };
 

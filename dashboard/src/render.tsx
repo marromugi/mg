@@ -38,7 +38,7 @@ export const renderPage = <Name extends PageName>(
           id={PAGE_DATA_ID}
           type="application/json"
           dangerouslySetInnerHTML={{
-            __html: scriptSafe({ name, props: props as object }),
+            __html: scriptSafe({ name, props }),
           }}
         />
         <script type="module" src="/browser.js" />
@@ -46,10 +46,7 @@ export const renderPage = <Name extends PageName>(
     </html>,
   );
   const page = renderToString(
-    createElement(
-      PAGES[name] as ComponentType<object>,
-      props as object,
-    ),
+    createElement(PAGES[name] as ComponentType<object>, props),
   );
   return `<!DOCTYPE html>${shell.replace(ROOT, () => `<div id="${ROOT_ID}">${page}</div>`)}`;
 };

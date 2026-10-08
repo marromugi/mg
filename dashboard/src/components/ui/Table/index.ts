@@ -1,1 +1,1 @@
-export { Table } from "./Table.js";
+export { Table, type Column } from "./Table.js";

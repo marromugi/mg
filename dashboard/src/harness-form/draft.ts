@@ -11,16 +11,20 @@ export type RuleDraft = {
 
 export type Draft = {
   name: string;
+  avatar: string;
   provider: string;
   baseUrl: string;
   model: string;
   maxTurns: string;
+  system: string;
   tools: string[];
   root: string;
   rules: RuleDraft[];
   judge: boolean;
   judgeModel: string;
   judgeInstruction: string;
+  gate: boolean;
+  gateQuestion: string;
 };
 
 export const newRule = (): RuleDraft => ({
@@ -32,22 +36,27 @@ export const newRule = (): RuleDraft => ({
 
 export const emptyDraft = (): Draft => ({
   name: "",
+  avatar: "",
   provider: "openrouter",
   baseUrl: "",
   model: "",
   maxTurns: "",
+  system: "",
   tools: [],
   root: "",
   rules: [],
   judge: false,
   judgeModel: "",
   judgeInstruction: "",
+  gate: false,
+  gateQuestion: "",
 });
 
 export const draftFromDefinition = (
   definition: HarnessDefinition,
 ): Draft => ({
   name: definition.name,
+  avatar: definition.avatar ?? "",
   provider: definition.provider.kind,
   baseUrl:
     definition.provider.kind === "ollama"
@@ -55,6 +64,7 @@ export const draftFromDefinition = (
       : "",
   model: definition.harness.model,
   maxTurns: String(definition.harness.maxTurns),
+  system: definition.system ?? "",
   tools: [...(definition.means?.tools ?? [])],
   root: definition.means?.root ?? "",
   rules: (definition.means?.rules ?? []).map((rule) => ({
@@ -66,6 +76,8 @@ export const draftFromDefinition = (
   judge: definition.means?.judge !== undefined,
   judgeModel: definition.means?.judge?.model ?? "",
   judgeInstruction: definition.means?.judge?.instruction ?? "",
+  gate: definition.means?.gate !== undefined,
+  gateQuestion: definition.means?.gate?.question ?? "",
 });
 
 export const withRuleAdded = (draft: Draft): Draft => ({
@@ -98,6 +110,7 @@ const allowedOf = (effect: string): boolean | undefined =>
 export const draftToRaw = (draft: Draft, id: string): unknown => ({
   id,
   name: draft.name,
+  avatar: present(draft.avatar),
   provider:
     draft.provider === "ollama"
       ? { kind: "ollama", baseUrl: present(draft.baseUrl) }
@@ -110,6 +123,7 @@ export const draftToRaw = (draft: Draft, id: string): unknown => ({
         ? undefined
         : Number(draft.maxTurns),
   },
+  system: present(draft.system),
   means:
     draft.tools.length === 0
       ? undefined
@@ -130,6 +144,9 @@ export const draftToRaw = (draft: Draft, id: string): unknown => ({
                 model: draft.judgeModel,
                 instruction: draft.judgeInstruction,
               }
+            : undefined,
+          gate: draft.gate
+            ? { question: draft.gateQuestion }
             : undefined,
         },
 });

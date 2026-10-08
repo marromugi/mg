@@ -37,14 +37,14 @@ const toTuple = (
 };
 
 const NEEDS_GATE =
-  "ツールを使うハーネスには、パスのルールか判定 LLM が要ります";
+  "ツールを使うエージェントには、パスのルール、判定 LLM、ゲートのどれかが要ります";
 
 export const parseDefinition = (value: unknown): ParseResult => {
   if (!isFields(value)) {
     return {
       ok: false,
       problems: [
-        { field: "", message: "ハーネスの形式が正しくありません" },
+        { field: "", message: "エージェントの形式が正しくありません" },
       ],
     };
   }
@@ -93,7 +93,10 @@ export const parseDefinition = (value: unknown): ParseResult => {
   const readHarness = (): HarnessDefinition["harness"] | undefined => {
     const harness = value["harness"];
     if (!isFields(harness) || harness["kind"] !== "loop") {
-      return reject("harness.kind", "ハーネスの種類は loop だけです");
+      return reject(
+        "harness.kind",
+        "エージェントの種類は loop だけです",
+      );
     }
     const model = text(
       harness,
@@ -198,6 +201,21 @@ export const parseDefinition = (value: unknown): ParseResult => {
       : { model, instruction };
   };
 
+  const readGate = (
+    entry: unknown,
+  ): { question: string } | undefined => {
+    if (!isFields(entry)) {
+      return reject("means.gate", "ゲートの形式が正しくありません");
+    }
+    const question = text(
+      entry,
+      "question",
+      "means.gate.question",
+      "判定の質問を入力してください",
+    );
+    return question === undefined ? undefined : { question };
+  };
+
   const readMeans = (): Means | undefined => {
     const means = value["means"];
     if (!isFields(means)) {
@@ -229,7 +247,14 @@ export const parseDefinition = (value: unknown): ParseResult => {
         ? undefined
         : readJudge(means["judge"]);
 
-    if (rules?.length === 0 && means["judge"] === undefined) {
+    const gate =
+      means["gate"] === undefined ? undefined : readGate(means["gate"]);
+
+    if (
+      rules?.length === 0 &&
+      means["judge"] === undefined &&
+      means["gate"] === undefined
+    ) {
       reject("means.rules", NEEDS_GATE);
     }
 
@@ -239,19 +264,42 @@ export const parseDefinition = (value: unknown): ParseResult => {
       tools === undefined ||
       valid === undefined ||
       valid.length !== rules?.length ||
-      (means["judge"] !== undefined && judge === undefined)
+      (means["judge"] !== undefined && judge === undefined) ||
+      (means["gate"] !== undefined && gate === undefined)
     ) {
       return undefined;
     }
-    return judge === undefined
-      ? { root, tools, rules: valid }
-      : { root, tools, rules: valid, judge };
+    return {
+      root,
+      tools,
+      rules: valid,
+      ...(judge === undefined ? {} : { judge }),
+      ...(gate === undefined ? {} : { gate }),
+    };
   };
 
   const id = text(value, "id", "id", "id が必要です");
   const name = text(value, "name", "name", "名前を入力してください");
+  const avatar =
+    value["avatar"] === undefined
+      ? undefined
+      : text(
+          value,
+          "avatar",
+          "avatar",
+          "アイコンの形式が正しくありません",
+        );
   const provider = readProvider();
   const harness = readHarness();
+  const system =
+    value["system"] === undefined
+      ? undefined
+      : text(
+          value,
+          "system",
+          "system",
+          "システムプロンプトの形式が正しくありません",
+        );
   const means = value["means"] === undefined ? undefined : readMeans();
 
   if (
@@ -266,9 +314,14 @@ export const parseDefinition = (value: unknown): ParseResult => {
 
   return {
     ok: true,
-    definition:
-      means === undefined
-        ? { id, name, provider, harness }
-        : { id, name, provider, harness, means },
+    definition: {
+      id,
+      name,
+      ...(avatar === undefined ? {} : { avatar }),
+      provider,
+      harness,
+      ...(system === undefined ? {} : { system }),
+      ...(means === undefined ? {} : { means }),
+    },
   };
 };

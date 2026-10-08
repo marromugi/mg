@@ -88,5 +88,11 @@
       }
     }
   ],
-  "ignorePatterns": ["**/dist/**", "**/drizzle/**", ".claude/**"]
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/drizzle/**",
+    ".claude/**",
+    "dashboard/.storybook/public/**",
+    "dashboard/src/api-client/generated/**"
+  ]
 }

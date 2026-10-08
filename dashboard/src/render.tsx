@@ -1,47 +1,52 @@
-import type { ReactNode } from "react";
+import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
+import {
+  PAGES,
+  type PageName,
+  type PageProps,
+} from "./components/pages/pages.js";
 
-const Document = ({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) => (
-  <html lang="ja">
-    <head>
-      <meta charSet="utf-8" />
-      <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1"
-      />
-      <title>{title}</title>
-      <link rel="stylesheet" href="/styles.css" />
-    </head>
-    <body className="font-sans">{children}</body>
-  </html>
-);
+import { PAGE_DATA_ID, ROOT_ID, type PageData } from "./page-data.js";
 
-export const renderPage = (title: string, page: ReactNode): string =>
-  `<!DOCTYPE html>${renderToString(<Document title={title}>{page}</Document>)}`;
+const ROOT = `<div id="${ROOT_ID}"></div>`;
 
-const SLOT = <template data-stream-slot="" />;
+// JSON that cannot end the script element it sits in.
+const scriptSafe = (data: PageData): string =>
+  JSON.stringify(data).replaceAll("<", "\\u003c");
 
-// Renders a page in two halves around `slot`, so that pieces made by
-// `renderPiece` can be sent between them while the response is open.
-export const renderPageAround = (
+// The whole document for one page: the page drawn on the server, what
+// it was drawn from, and the script that takes it over in the browser.
+export const renderPage = <Name extends PageName>(
   title: string,
-  build: (slot: ReactNode) => ReactNode,
-): { head: string; tail: string } => {
-  const html = renderPage(title, build(SLOT));
-  const marker = renderToString(SLOT);
-  const at = html.indexOf(marker);
-  if (at === -1) throw new Error("the page does not place the slot");
-  return {
-    head: html.slice(0, at),
-    tail: html.slice(at + marker.length),
-  };
+  name: Name,
+  props: PageProps<Name>,
+): string => {
+  const shell = renderToStaticMarkup(
+    <html lang="ja">
+      <head>
+        <meta charSet="utf-8" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1"
+        />
+        <title>{title}</title>
+        <link rel="stylesheet" href="/styles.css" />
+      </head>
+      <body className="font-sans">
+        <div id={ROOT_ID} />
+        <script
+          id={PAGE_DATA_ID}
+          type="application/json"
+          dangerouslySetInnerHTML={{
+            __html: scriptSafe({ name, props }),
+          }}
+        />
+        <script type="module" src="/browser.js" />
+      </body>
+    </html>,
+  );
+  const page = renderToString(
+    createElement(PAGES[name] as ComponentType<object>, props),
+  );
+  return `<!DOCTYPE html>${shell.replace(ROOT, () => `<div id="${ROOT_ID}">${page}</div>`)}`;
 };
-
-export const renderPiece = (piece: ReactNode): string =>
-  renderToStaticMarkup(piece);

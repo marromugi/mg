@@ -4,11 +4,12 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { getRequestListener } from "@hono/node-server";
+import { createJevEstimator } from "@mg/core";
 import { createApp } from "./app.js";
 import { createFileDefinitionStore } from "./definition-store/index.js";
 import { createKeychainSecretStore } from "./secret-store/index.js";
 import { createSession } from "./session.js";
-import { createTestRuns } from "./test-run/index.js";
+import { createTrials } from "./trial/index.js";
 
 const HOST = "127.0.0.1";
 const DEFAULT_KEYCHAIN_SERVICE = "mg-dashboard";
@@ -27,6 +28,9 @@ export const startServer = async (options: {
   dataDir: string;
   port?: number;
   keychainService?: string;
+  // The key for Jev, which judges the gates. Without it a harness with
+  // a gate does not run.
+  jevApiKey?: string;
 }): Promise<StartedServer> => {
   try {
     await mkdir(options.dataDir, { recursive: true });
@@ -62,12 +66,17 @@ export const startServer = async (options: {
   });
   const app = createApp({
     session: createSession({ token, address }),
-    dataDir: options.dataDir,
     definitions: createFileDefinitionStore({
       dir: join(options.dataDir, "harnesses"),
     }),
-    secrets,
-    runs: createTestRuns({ secrets, dataDir: options.dataDir }),
+    trials: createTrials({
+      secrets,
+      dataDir: options.dataDir,
+      jev:
+        options.jevApiKey === undefined
+          ? undefined
+          : createJevEstimator({ apiKey: options.jevApiKey }),
+    }),
   });
   server.on("request", getRequestListener(app.fetch));
 

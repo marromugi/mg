@@ -39,7 +39,7 @@ export const saveDraft = async (
         problems: [
           {
             field: NAME_FIELD,
-            message: "この名前は、ほかのハーネスで使われています",
+            message: "この名前は、ほかのエージェントで使われています",
           },
         ],
       };

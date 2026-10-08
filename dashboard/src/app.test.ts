@@ -3,7 +3,7 @@ import { createApp } from "./app.js";
 import { createSession } from "./session.js";
 import { createMemorySecretStore } from "./test/memory-secret-store.js";
 import { createMemoryStore } from "./test/memory-store.js";
-import { createTestRuns } from "./test-run/index.js";
+import { createTrials } from "./trial/index.js";
 
 const ADDRESS = "127.0.0.1:4100";
 const TOKEN = "launch-token";
@@ -11,10 +11,8 @@ const TOKEN = "launch-token";
 const build = () =>
   createApp({
     session: createSession({ token: TOKEN, address: ADDRESS }),
-    dataDir: "/unused",
     definitions: createMemoryStore(),
-    secrets: createMemorySecretStore(),
-    runs: createTestRuns({
+    trials: createTrials({
       secrets: createMemorySecretStore(),
       dataDir: "/unused",
     }),
@@ -83,10 +81,8 @@ describe("two servers", () => {
         token: TOKEN,
         address: "127.0.0.1:4200",
       }),
-      dataDir: "/unused",
       definitions: createMemoryStore(),
-      secrets: createMemorySecretStore(),
-      runs: createTestRuns({
+      trials: createTrials({
         secrets: createMemorySecretStore(),
         dataDir: "/unused",
       }),

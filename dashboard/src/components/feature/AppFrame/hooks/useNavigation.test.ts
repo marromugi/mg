@@ -2,21 +2,26 @@ import { describe, expect, it } from "vitest";
 import { useNavigation } from "./useNavigation.js";
 
 describe("useNavigation", () => {
-  it("lists the three places and marks the current one", () => {
-    expect(useNavigation("harnesses")).toEqual([
-      { place: "home", href: "/", label: "ホーム", state: "default" },
-      {
-        place: "harnesses",
-        href: "/harnesses",
-        label: "ハーネス",
-        state: "current",
-      },
-      {
-        place: "api-keys",
-        href: "/api-keys",
-        label: "API キー",
-        state: "default",
-      },
+  it("lists the places in menu order", () => {
+    expect(
+      useNavigation("home").map(({ href, label }) => ({ href, label })),
+    ).toEqual([
+      { href: "/", label: "ホーム" },
+      { href: "/harnesses", label: "エージェント" },
+      { href: "/api-keys", label: "API キー" },
+    ]);
+  });
+
+  it("marks only the place the page belongs to as current", () => {
+    expect(
+      useNavigation("harnesses").map(({ place, state }) => [
+        place,
+        state,
+      ]),
+    ).toEqual([
+      ["home", "idle"],
+      ["harnesses", "current"],
+      ["api-keys", "idle"],
     ]);
   });
 });

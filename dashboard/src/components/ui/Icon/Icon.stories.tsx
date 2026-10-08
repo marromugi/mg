@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { PlusIcon } from "../../../stories/icons.js";
+import { PlusIcon } from "./glyphs.js";
 import { Icon } from "./Icon.js";
 
 const meta = { component: Icon } satisfies Meta<typeof Icon>;

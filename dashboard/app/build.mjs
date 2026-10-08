@@ -3,8 +3,8 @@
 //
 // The app carries a copy of Node and the server as one file, so it needs
 // neither the repo's build output nor a Node on the PATH. The bundle sits
-// at server/bin/ and the stylesheet at dist/ inside the app's resources,
-// the same two levels apart that src/routes/styles.ts expects.
+// at server/bin/ and the stylesheet and the browser script at dist/ inside the app's resources,
+// the same two levels apart that src/routes/assets.ts expects.
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -103,10 +103,12 @@ await build({
   logLevel: "warning",
 });
 
-copyFileSync(
-  join(dashboardDir, "dist", "styles.css"),
-  join(resourcesDir, "dist", "styles.css"),
-);
+for (const asset of ["styles.css", "browser.js"]) {
+  copyFileSync(
+    join(dashboardDir, "dist", asset),
+    join(resourcesDir, "dist", asset),
+  );
+}
 copyFileSync(
   process.execPath,
   join(binariesDir, `node-${hostTriple()}`),

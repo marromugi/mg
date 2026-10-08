@@ -54,16 +54,20 @@ export const readSubmission = (body: Body): Submission | undefined => {
     intent,
     draft: {
       name: one(body, "name"),
+      avatar: one(body, "avatar"),
       provider: one(body, "provider"),
       baseUrl: one(body, "baseUrl"),
       model: one(body, "model"),
       maxTurns: one(body, "maxTurns"),
+      system: one(body, "system"),
       tools: all(body, "tools"),
       root: one(body, "root"),
       rules: ruleRows(body).map((row) => readRule(body, row)),
       judge: one(body, "judge") === "on",
       judgeModel: one(body, "judgeModel"),
       judgeInstruction: one(body, "judgeInstruction"),
+      gate: one(body, "gate") === "on",
+      gateQuestion: one(body, "gateQuestion"),
     },
   };
 };

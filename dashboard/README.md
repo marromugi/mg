@@ -7,15 +7,17 @@ A package on the using side that holds the screens for using harnesses day to da
 - A local server that draws the dashboard's pages and prints one launch link.
 - It listens on 127.0.0.1 only, on a free port picked at start.
 - Opening the launch link starts a session. Nothing else on the network, and no other web page in the browser, can reach the server.
-- A page frame with navigation to three places: the home page, Harnesses, and API keys.
-- On the Harnesses page a harness is created, edited, and deleted through a form: name, provider, model, turn limit, working folder, tools, path rules, and an optional LLM judge. A form that cannot make a valid harness is not saved and names the wrong field.
+- A page frame with navigation to the home page and Agents. Each page is drawn on the server and taken over in the browser by one script, `dist/browser.js`.
+- On the Agents page an agent is created through steps, and its page opens once it is saved: name, provider, model, turn limit, system prompt, working folder, tools, path rules, and an optional LLM judge. Steps that cannot make a valid agent are not saved and name the wrong field.
 - Each harness is kept as one JSON file under `harnesses/` in the data folder, named by an id that does not change on rename. A file that does not parse is listed by name and is not opened.
-- On the API keys page the OpenRouter key is set, replaced, and deleted (after a confirmation). The page shows only whether it is set; a saved key is never drawn again. Keys are kept in the macOS Keychain, not in a file.
-- A saved harness's page has a text field and a Run button. A test run takes one input, takes the OpenRouter key from the Keychain, and runs the harness with the run package. The run page is one response that stays open: assistant text, each tool call with its input, and each tool result arrive as they happen, then the end reason with input and output token counts. A gate refusal shows as the tool result it becomes. The Stop button aborts the run and the page says it was stopped. A failed run shows the error's message. Reloading the page replays the run from its start.
-- Each run writes one JSONL trace file under `traces/` in the data folder, and the run page names its path.
-- Runs are kept in memory while the server lives, and several can go at once. After a restart a run page says the run is no longer available and names the trace folder.
-- Without the OpenRouter key a run does not start. The page names `OPENROUTER_API_KEY` and links to the API keys page.
+- The OpenRouter key is read from the macOS Keychain. No page sets it yet.
+- An agent's page shows what the agent is and has a panel to try it in. A message sent there starts a conversation, and later messages continue it. Assistant text, each tool call with its input, and each tool result arrive as they happen. Assistant text is drawn as Markdown, and none of its syntax shows while it arrives. A tool call is a card that opens to what the tool was given and what it gave back, shown as highlighted code in the language its input names; a call a guard refused is marked. The stop button cuts the answer short. A failed answer shows the error's message.
+- The system prompt is edited on the agent's page and saved with the button under it. The panel answers from the prompt as it is on the page, saved or not; a message sent after the prompt changed starts a new conversation.
+- Each answer writes one JSONL trace file under `traces/` in the data folder.
+- Conversations are kept in memory while the server lives. After a restart a message into an old conversation fails and says to start a new one.
+- Without the OpenRouter key an agent on OpenRouter does not answer, and the panel names `OPENROUTER_API_KEY`.
 - Generic parts (`ui`), parts that know the dashboard (`feature`), pages, and the token file, with a Storybook for them.
+- Each agent has a face, drawn from a seed kept with it. The faces come from [Humation](https://github.com/humation-labs/humation), whose code and drawings are MIT licensed.
 
 ## Usage
 
@@ -41,6 +43,12 @@ Open it in a browser. It sets a session cookie and moves to the home page.
 | `--keychain-service`       | The Keychain service that keys are kept under. Default: `mg-dashboard`     |
 | `--exit-when-stdin-closes` | Ends the server when its standard input reaches end of file. Default: off  |
 
+A harness's gate is judged by Jev. The server reads the Typesafe AI key for it from its own environment, and no page shows or changes it. Without the key a harness with a gate is saved but does not run.
+
+```
+TYPESAFE_API_KEY=<key> node dashboard/dist/server.js
+```
+
 A taken port, or a data folder that cannot be created, ends the process with a non-zero code. The reason goes to stderr and no launch link is printed.
 
 ### Desktop app
@@ -62,6 +70,19 @@ The build needs `cargo` and `rustc`. It builds the dashboard, bundles the server
 - The browser and ssh connectors and the SQLite stores are not in the bundle. The dashboard builds local tools and writes JSONL traces, so it never reaches them.
 
 To look at the parts alone, run `pnpm --filter @mg/dashboard storybook`.
+
+The pages call the JSON API under `/api`. Its routes in `src/api` describe themselves with zod, and the hooks and msw handlers in `src/api-client/generated` are generated from them. After changing a route, generate them again:
+
+```sh
+pnpm --filter @mg/dashboard generate:api
+```
+
+Stories that call the API answer it with those handlers. To run every story in a browser, with the steps a story declares:
+
+```sh
+pnpm --filter @mg/dashboard exec playwright install chromium
+pnpm --filter @mg/dashboard test:stories
+```
 
 ## API
 

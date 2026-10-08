@@ -7,15 +7,18 @@ export const FORM_FIELD = "form";
 
 const FIXED: Record<string, string> = {
   name: "name",
+  avatar: "avatar",
   "provider.kind": "provider",
   "provider.baseUrl": "baseUrl",
   "harness.model": "model",
   "harness.maxTurns": "maxTurns",
+  system: "system",
   "means.root": "root",
   "means.tools": "tools",
   "means.rules": "rules",
   "means.judge.model": "judgeModel",
   "means.judge.instruction": "judgeInstruction",
+  "means.gate.question": "gateQuestion",
 };
 
 const RULE_FIELDS: Record<string, string> = {

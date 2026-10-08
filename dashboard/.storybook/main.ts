@@ -24,6 +24,11 @@ const refuseBuiltins = (): Plugin => ({
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.tsx"],
   framework: "@storybook/react-vite",
+  addons: ["@storybook/addon-vitest", "msw-storybook-addon"],
+  // Holds the msw worker that answers the API calls a story makes.
+  staticDirs: ["./public"],
+  // The page colours come from the scheme tool in preview.tsx.
+  features: { backgrounds: false },
   viteFinal: (viteConfig) =>
     mergeConfig(viteConfig, {
       plugins: [refuseBuiltins(), tailwindcss()],

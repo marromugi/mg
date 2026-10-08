@@ -1,14 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { Checkbox } from "./Checkbox.js";
 
-const meta = { component: Checkbox } satisfies Meta<typeof Checkbox>;
-export default meta;
-type Story = StoryObj<typeof meta>;
-
-export const Unchecked: Story = {
+const meta: Meta<typeof Checkbox> = {
+  component: Checkbox,
   args: { name: "tools", value: "grep", label: "grep" },
 };
+export default meta;
+type Story = StoryObj<typeof Checkbox>;
 
-export const Checked: Story = {
-  args: { name: "tools", value: "grep", label: "grep", checked: true },
+export const Unchecked: Story = {};
+
+export const Checked: Story = { args: { defaultChecked: true } };
+
+export const Indeterminate: Story = { args: { indeterminate: true } };
+
+export const Bare: Story = {
+  args: { layout: "bare", defaultChecked: true },
+};
+
+export const Small: Story = {
+  args: { size: "sm", defaultChecked: true },
 };

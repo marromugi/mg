@@ -3,9 +3,15 @@ import {
   createOpenRouterProvider,
   type Provider,
   type Tool,
+  type Estimator,
   type ToolForcingProvider,
 } from "@mg/core";
-import { composeGates, createLlmGate, createRulesGate } from "@mg/gate";
+import {
+  composeGates,
+  createEstimatorGate,
+  createLlmGate,
+  createRulesGate,
+} from "@mg/gate";
 import type { RunConfig } from "@mg/runner";
 import {
   createBashTool,
@@ -31,6 +37,10 @@ const TOOLS: Record<ToolName, (root: string) => Tool> = {
   write_file: (root) => createWriteFileTool({ root }),
   edit_file: (root) => createEditFileTool({ root }),
 };
+
+// The server's environment variable that holds the key for Jev. It is
+// read by the server alone, so no page can show or change it.
+export const JEV_KEY_VARIABLE = "TYPESAFE_API_KEY";
 
 type Built = {
   provider: Provider;
@@ -59,10 +69,12 @@ const buildProvider = async (
 
 // Turns a saved definition into a config `run` can take. It throws when
 // the provider cannot run a part the definition names, or when a part
-// refuses what it was given; the caller shows the message.
+// refuses what it was given; the caller shows the message. `jev` is
+// the estimator a gate asks; without one, a harness with a gate does
+// not run.
 export const assemble = async (
   definition: HarnessDefinition,
-  parts: { secrets: SecretStore; tracePath: string },
+  parts: { secrets: SecretStore; tracePath: string; jev?: Estimator },
 ): Promise<AssembleResult> => {
   const built = await buildProvider(definition, parts.secrets);
   if ("missingSecret" in built) {
@@ -92,6 +104,20 @@ export const assemble = async (
         provider: built.judgeProvider,
         model: means.judge.model,
         instruction: means.judge.instruction,
+      }),
+    );
+  }
+
+  if (means.gate !== undefined) {
+    if (parts.jev === undefined) {
+      throw new Error(
+        `ゲートを使うには、サーバーの環境変数 ${JEV_KEY_VARIABLE} に Typesafe AI の API キーが要ります`,
+      );
+    }
+    gates.push(
+      createEstimatorGate({
+        estimator: parts.jev,
+        question: means.gate.question,
       }),
     );
   }

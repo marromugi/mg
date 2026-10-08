@@ -1,3 +1,4 @@
+import { createJevEstimator } from "@mg/core";
 import { describe, expect, it } from "vitest";
 import type { HarnessDefinition } from "../definition/index.js";
 import { createMemorySecretStore } from "../test/memory-secret-store.js";
@@ -61,6 +62,36 @@ describe("assemble", () => {
       "read_file",
       "grep",
     ]);
+    expect(result.config.gate).toBeDefined();
+  });
+
+  const GATED: HarnessDefinition = {
+    ...CHAT,
+    means: {
+      root: "/tmp",
+      tools: ["bash"],
+      rules: [],
+      gate: { question: "Does this stay inside the folder?" },
+    },
+  };
+
+  it("does not build a harness with a gate when the server has no key for Jev", async () => {
+    await expect(
+      assemble(GATED, {
+        secrets: await withKey(),
+        tracePath: "/t/r.jsonl",
+      }),
+    ).rejects.toThrow("TYPESAFE_API_KEY");
+  });
+
+  it("builds a gate for a harness guarded by the gate alone", async () => {
+    const result = await assemble(GATED, {
+      secrets: await withKey(),
+      tracePath: "/t/r.jsonl",
+      jev: createJevEstimator({ apiKey: "tk-test" }),
+    });
+
+    if (!result.ok) throw new Error("expected a config");
     expect(result.config.gate).toBeDefined();
   });
 });

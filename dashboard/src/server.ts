@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { JEV_KEY_VARIABLE } from "./assemble/index.js";
 import { startServer } from "./start.js";
 
 const DEFAULT_DATA_DIR = join(
@@ -48,6 +49,7 @@ try {
         : resolve(values["data-dir"]),
     port,
     keychainService: values["keychain-service"],
+    jevApiKey: process.env[JEV_KEY_VARIABLE] || undefined,
   });
   console.log(started.launchLink);
   if (values["exit-when-stdin-closes"] === true) {

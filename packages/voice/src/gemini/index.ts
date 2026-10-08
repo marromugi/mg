@@ -232,10 +232,15 @@ export const createGeminiSynthesizer = (
         {
           parts: [
             {
-              text:
-                options.tone === undefined
-                  ? text
-                  : `${options.tone.trim()}:\n${text}`,
+              text,
+              ...(options.tone !== undefined && {
+                annotations: [
+                  {
+                    type: "speech_metadata",
+                    style: options.tone.trim(),
+                  },
+                ],
+              }),
             },
           ],
         },

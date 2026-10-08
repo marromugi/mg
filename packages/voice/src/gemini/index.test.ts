@@ -89,7 +89,7 @@ const collect = async <T>(iterable: AsyncIterable<T>): Promise<T[]> => {
 };
 
 describe("createGeminiSynthesizer", () => {
-  test("puts the tone as a direction in front of every text", async () => {
+  test("sends the tone as the style of the text, leaving the text alone", async () => {
     const { fetchStub, calls } = stubFetch(
       () =>
         new Response(
@@ -106,13 +106,18 @@ describe("createGeminiSynthesizer", () => {
     await collect(synthesizer.synthesize("one"));
     await collect(synthesizer.synthesize("two"));
 
-    const texts = calls.map(
-      (call) =>
-        JSON.parse(String(call.init?.body)).contents[0].parts[0].text,
+    const contents = calls.map(
+      (call) => JSON.parse(String(call.init?.body)).contents,
     );
-    expect(texts).toEqual([
-      "in a low voice, slowly:\none",
-      "in a low voice, slowly:\ntwo",
+    const part = (text: string) => ({
+      text,
+      annotations: [
+        { type: "speech_metadata", style: "in a low voice, slowly" },
+      ],
+    });
+    expect(contents).toEqual([
+      [{ parts: [part("one")] }],
+      [{ parts: [part("two")] }],
     ]);
   });
 

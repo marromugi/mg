@@ -16,6 +16,7 @@ A package on the using side that holds the screens for using harnesses day to da
 - Runs are kept in memory while the server lives, and several can go at once. After a restart a run page says the run is no longer available and names the trace folder.
 - Without the OpenRouter key a run does not start. The page names `OPENROUTER_API_KEY` and links to the API keys page.
 - Generic parts (`ui`), parts that know the dashboard (`feature`), pages, and the token file, with a Storybook for them.
+- Each agent has a face, drawn from a seed kept with it. The faces come from [Humation](https://github.com/humation-labs/humation), whose code and drawings are MIT licensed.
 
 ## Usage
 

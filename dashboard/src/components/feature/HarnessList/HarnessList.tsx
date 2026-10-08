@@ -1,10 +1,87 @@
 import type { HarnessDefinition } from "../../../definition/index.js";
-import { ArrowIcon, Avatar, Icon, Tag } from "../../ui/index.js";
-import { useRows } from "./hooks/useRows.js";
+import {
+  ArrowIcon,
+  Avatar,
+  IconButton,
+  Table,
+  Tag,
+  type Column,
+} from "../../ui/index.js";
+import { useRows, type Row } from "./hooks/useRows.js";
 
-// The saved agents, one row each: the face and name, the model it
-// talks to, the tools it may use, and how they are guarded. A row
-// opens its agent.
+const COLUMNS: readonly Column<Row>[] = [
+  {
+    id: "agent",
+    header: "エージェント",
+    width: 260,
+    minWidth: 160,
+    cell: (row) => (
+      <a href={row.href} className="flex items-center gap-3">
+        <Avatar seed={row.seed} />
+        <span className="min-w-0">
+          <span className="block truncate font-semibold">
+            {row.name}
+          </span>
+          <span className="block truncate text-xs opacity-70">
+            {row.model}
+          </span>
+        </span>
+      </a>
+    ),
+  },
+  {
+    id: "provider",
+    header: "プロバイダー",
+    width: 130,
+    cell: (row) => row.provider,
+  },
+  {
+    id: "tools",
+    header: "ツール",
+    width: 280,
+    cell: (row) =>
+      row.tools.length === 0 ? (
+        <span className="text-xs opacity-70">会話のみ</span>
+      ) : (
+        <span className="flex flex-wrap gap-2">
+          {row.tools.map((tool) => (
+            <Tag key={tool}>{tool}</Tag>
+          ))}
+        </span>
+      ),
+  },
+  {
+    id: "guards",
+    header: "守り方",
+    width: 180,
+    cell: (row) => (
+      <span className="flex flex-wrap gap-2">
+        {row.guards.map((guard) => (
+          <Tag key={guard}>{guard}</Tag>
+        ))}
+      </span>
+    ),
+  },
+  {
+    id: "open",
+    header: <span className="sr-only">開く</span>,
+    width: 56,
+    resize: "fixed",
+    cell: (row) => (
+      <IconButton
+        icon={ArrowIcon}
+        label={`${row.name} を開く`}
+        labelSide="left"
+        size="sm"
+        href={row.href}
+      />
+    ),
+  },
+];
+
+// The saved agents as a table, one row each: the face and name, the
+// model it talks to, the tools it may use, and how they are guarded.
+// A row opens its agent.
 export const HarnessList = ({
   definitions,
 }: {
@@ -12,54 +89,19 @@ export const HarnessList = ({
 }) => {
   const rows = useRows(definitions);
 
+  if (rows.length === 0) {
+    return (
+      <p className="px-4 py-6 text-sm opacity-70">
+        エージェントはまだありません。右上のボタンから作れます。
+      </p>
+    );
+  }
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between rounded-control bg-surface px-4 control-py-2 text-xs">
-        <h2>エージェント</h2>
-        <p>{rows.length} 件</p>
-      </div>
-      {rows.length === 0 ? (
-        <p className="px-4 py-6 text-sm opacity-70">
-          エージェントはまだありません。右上のボタンから作れます。
-        </p>
-      ) : (
-        <ul className="flex flex-col">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <a
-                href={row.href}
-                className="flex items-center gap-4 rounded-control px-4 control-py-3 transition duration-160 ease-out hover:bg-surface"
-              >
-                <Avatar seed={row.seed} />
-                <div className="min-w-0 flex-2">
-                  <p className="truncate text-sm font-semibold">
-                    {row.name}
-                  </p>
-                  <p className="truncate text-xs opacity-70">
-                    {row.model}
-                  </p>
-                </div>
-                <p className="w-28 shrink-0 text-sm">{row.provider}</p>
-                <div className="flex min-w-0 flex-2 flex-wrap gap-2">
-                  {row.tools.length === 0 ? (
-                    <p className="text-xs opacity-70">会話のみ</p>
-                  ) : (
-                    row.tools.map((tool) => (
-                      <Tag key={tool}>{tool}</Tag>
-                    ))
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-wrap gap-2">
-                  {row.guards.map((guard) => (
-                    <Tag key={guard}>{guard}</Tag>
-                  ))}
-                </div>
-                <Icon icon={ArrowIcon} />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <Table
+      label="エージェント"
+      rows={rows}
+      rowId={(row) => row.id}
+      columns={COLUMNS}
+    />
   );
 };

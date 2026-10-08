@@ -18,6 +18,8 @@
     "@hono/node-server": "2.1.1",
     "@hono/zod-openapi": "1.6.3",
     "@hookform/resolvers": "5.9.1",
+    "@humation/assets-humation-1": "1.0.3",
+    "@humation/core": "1.0.3",
     "@mg/core": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",

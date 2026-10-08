@@ -291,6 +291,15 @@ export const parseDefinition = (value: unknown): ParseResult => {
         );
   const provider = readProvider();
   const harness = readHarness();
+  const system =
+    value["system"] === undefined
+      ? undefined
+      : text(
+          value,
+          "system",
+          "system",
+          "システムプロンプトの形式が正しくありません",
+        );
   const means = value["means"] === undefined ? undefined : readMeans();
 
   if (
@@ -311,6 +320,7 @@ export const parseDefinition = (value: unknown): ParseResult => {
       ...(avatar === undefined ? {} : { avatar }),
       provider,
       harness,
+      ...(system === undefined ? {} : { system }),
       ...(means === undefined ? {} : { means }),
     },
   };

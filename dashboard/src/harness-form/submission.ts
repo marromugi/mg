@@ -59,6 +59,7 @@ export const readSubmission = (body: Body): Submission | undefined => {
       baseUrl: one(body, "baseUrl"),
       model: one(body, "model"),
       maxTurns: one(body, "maxTurns"),
+      system: one(body, "system"),
       tools: all(body, "tools"),
       root: one(body, "root"),
       rules: ruleRows(body).map((row) => readRule(body, row)),

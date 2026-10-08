@@ -65,6 +65,7 @@ export const useCreation = (values: HarnessValues): Creation => {
         values.provider === "ollama" || values.model.custom,
       ),
       maxTurns: values.maxTurns.trim(),
+      system: values.system.trim(),
       tools: [...values.tools],
       root: guarded ? values.root.trim() : "",
       rules: guarded ? rulesOf(paths) : [],

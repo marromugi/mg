@@ -83,6 +83,7 @@ export const SavesHarness: Story = {
         judge: false,
         judgeModel: "",
         judgeInstruction: "",
+        system: "",
         gate: false,
         gateQuestion: "",
       },

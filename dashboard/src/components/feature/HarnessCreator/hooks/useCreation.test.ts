@@ -25,6 +25,7 @@ describe("useCreation", () => {
         judge: false,
         judgeModel: "",
         judgeInstruction: "",
+        system: "",
         gate: false,
         gateQuestion: "",
       },

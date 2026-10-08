@@ -86,6 +86,32 @@ describe("test runs", () => {
     expect(await drain(runs.watch(started.runId))).toEqual(seen);
   });
 
+  it("puts the system prompt before the input", async () => {
+    let sent: unknown;
+    const runs = createTestRuns({
+      secrets: await withKey(),
+      dataDir: "/data",
+      run: createFakeRun(({ messages }) => {
+        sent = messages;
+        return Promise.resolve(
+          finishedResult("stop", { inputTokens: 1, outputTokens: 1 }),
+        );
+      }),
+    });
+
+    const started = await runs.start(
+      { ...DEFINITION, system: "日本語で答えます。" },
+      "ping",
+    );
+    if (!started.ok) throw new Error("expected a started run");
+    await drain(runs.watch(started.runId));
+
+    expect(sent).toEqual([
+      { role: "system", content: "日本語で答えます。" },
+      { role: "user", content: "ping" },
+    ]);
+  });
+
   it("ends as stopped when the run is stopped while it goes", async () => {
     const runs = createTestRuns({
       secrets: await withKey(),

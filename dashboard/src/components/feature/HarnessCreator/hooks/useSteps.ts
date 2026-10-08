@@ -16,7 +16,11 @@ const STEPS: readonly Step[] = [
     title: "モデル",
     fields: ["provider", "baseUrl", "model"],
   },
-  { id: "tools", title: "ツール", fields: ["tools", "root"] },
+  {
+    id: "tools",
+    title: "指示とツール",
+    fields: ["system", "tools", "root"],
+  },
   {
     id: "security",
     title: "セキュリティ",

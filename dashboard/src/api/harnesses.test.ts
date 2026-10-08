@@ -17,6 +17,7 @@ const FILES: Draft = {
   judge: false,
   judgeModel: "",
   judgeInstruction: "",
+  system: "",
   gate: false,
   gateQuestion: "",
 };
@@ -48,6 +49,26 @@ describe("POST /harnesses", () => {
       avatar: "robot-1",
       harness: { model: "openai/gpt-4o", maxTurns: 10 },
     });
+  });
+
+  it("saves the system prompt, and leaves a blank one out", async () => {
+    const dashboard = open();
+
+    const told = await dashboard.create({
+      draft: { ...FILES, system: " 日本語で答えます。 " },
+    });
+    const blank = await dashboard.create({
+      draft: { ...FILES, name: "blank", system: "  " },
+    });
+    const toldId = ((await told.json()) as { id: string }).id;
+    const blankId = ((await blank.json()) as { id: string }).id;
+
+    expect((await dashboard.store.get(toldId))?.system).toBe(
+      "日本語で答えます。",
+    );
+    expect(await dashboard.store.get(blankId)).not.toHaveProperty(
+      "system",
+    );
   });
 
   it("names the field that is wrong and saves nothing", async () => {

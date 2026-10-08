@@ -16,6 +16,7 @@ export type Draft = {
   baseUrl: string;
   model: string;
   maxTurns: string;
+  system: string;
   tools: string[];
   root: string;
   rules: RuleDraft[];
@@ -40,6 +41,7 @@ export const emptyDraft = (): Draft => ({
   baseUrl: "",
   model: "",
   maxTurns: "",
+  system: "",
   tools: [],
   root: "",
   rules: [],
@@ -62,6 +64,7 @@ export const draftFromDefinition = (
       : "",
   model: definition.harness.model,
   maxTurns: String(definition.harness.maxTurns),
+  system: definition.system ?? "",
   tools: [...(definition.means?.tools ?? [])],
   root: definition.means?.root ?? "",
   rules: (definition.means?.rules ?? []).map((rule) => ({
@@ -120,6 +123,7 @@ export const draftToRaw = (draft: Draft, id: string): unknown => ({
         ? undefined
         : Number(draft.maxTurns),
   },
+  system: present(draft.system),
   means:
     draft.tools.length === 0
       ? undefined

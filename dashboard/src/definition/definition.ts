@@ -23,6 +23,8 @@ export type HarnessDefinition = {
   provider:
     { kind: "openrouter" } | { kind: "ollama"; baseUrl?: string };
   harness: { kind: "loop"; model: string; maxTurns: number };
+  // What the agent is told before the conversation starts.
+  system?: string;
   means?: {
     root: string;
     tools: readonly [ToolName, ...ToolName[]];

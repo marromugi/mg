@@ -245,6 +245,13 @@ export const HarnessCreator = ({
 
         {step.id === "tools" ? (
           <div className="flex flex-col gap-4">
+            <TextArea
+              label="システムプロンプト"
+              hint="エージェントの役割や、守ってほしいことを書きます。"
+              height="content"
+              error={errors.system?.message}
+              {...form.register("system")}
+            />
             <Controller
               control={form.control}
               name="tools"

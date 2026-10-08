@@ -35,6 +35,7 @@ export interface HarnessDraft {
   baseUrl: string;
   model: string;
   maxTurns: string;
+  system: string;
   tools: string[];
   root: string;
   rules: HarnessDraftRulesItem[];

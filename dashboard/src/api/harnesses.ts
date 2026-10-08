@@ -20,6 +20,7 @@ const draft = z
     baseUrl: z.string(),
     model: z.string(),
     maxTurns: z.string(),
+    system: z.string(),
     tools: z.array(z.string()),
     root: z.string(),
     rules: z.array(ruleDraft),

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Estimator } from "@mg/core";
 import type { HarnessEvent } from "@mg/harness";
 import { run as realRun, type RunEntry } from "@mg/runner";
-import { assemble } from "../assemble/index.js";
+import { assemble, openingMessages } from "../assemble/index.js";
 import type { HarnessDefinition } from "../definition/index.js";
 import type { SecretName, SecretStore } from "../secret-store/index.js";
 import { createEventLog, type EventLog } from "./event-log.js";
@@ -72,20 +72,15 @@ export const createTestRuns = (parts: {
   const execute = async (
     record: RunRecord,
     config: Parameters<RunEntry>[0],
-    input: string,
+    messages: Parameters<RunEntry>[1],
     tracePath: string,
   ): Promise<void> => {
     try {
-      const { result } = await run(
-        config,
-        [{ role: "user", content: input }],
-        {
-          signal: record.abort.signal,
-          wrapUp: record.wrapUp.signal,
-          onEvent: (event) =>
-            record.log.push({ type: "harness", event }),
-        },
-      );
+      const { result } = await run(config, messages, {
+        signal: record.abort.signal,
+        wrapUp: record.wrapUp.signal,
+        onEvent: (event) => record.log.push({ type: "harness", event }),
+      });
       finish(
         record,
         result.reason === "wrapped-up"
@@ -140,7 +135,12 @@ export const createTestRuns = (parts: {
       if (!assembled.ok) return assembled;
 
       records.set(runId, record);
-      void execute(record, assembled.config, input, tracePath);
+      void execute(
+        record,
+        assembled.config,
+        openingMessages(definition, input),
+        tracePath,
+      );
       return { ok: true, runId };
     },
 

@@ -12,6 +12,7 @@ const FIXED: Record<string, string> = {
   "provider.baseUrl": "baseUrl",
   "harness.model": "model",
   "harness.maxTurns": "maxTurns",
+  system: "system",
   "means.root": "root",
   "means.tools": "tools",
   "means.rules": "rules",

@@ -8,7 +8,7 @@ Swapping the provider or the schema library needs no rewrite.
 ## Features
 
 - Defines the shared type for providers. Also has implementations for OpenRouter and ollama.
-- Defines the shared type for model services that answer with probabilities. Also has an implementation for Jev.
+- Defines the shared type for model services that answer with probabilities. Also has implementations for Jev and for Clef, the decision models on Workers AI.
 - Defines the shared type for runnable tools.
 - Has a function that validates and runs one tool call.
 
@@ -121,7 +121,7 @@ The Estimator's `EstimatorRequestError` and `EstimatorResponseError`
 have `retryable`, which says whether a retry is possible, and `retryAfterMs`, the time to wait in milliseconds.
 `retryAfterMs` is optional.
 
-- The Jev implementation treats 408, 429 and 5xx responses as
+- The Jev and Clef implementations treat 408, 429 and 5xx responses as
   retryable failures. A request that fails to send is retryable when
   its cause code is ECONNREFUSED, ECONNRESET, ETIMEDOUT, EAI_AGAIN,
   UND_ERR_SOCKET or UND_ERR_CONNECT_TIMEOUT. Any other send failure
@@ -141,6 +141,11 @@ have `retryable`, which says whether a retry is possible, and `retryAfterMs`, th
   the call's signal first. Once the signal has fired, the signal's
   reason is thrown, whatever the failure was. Otherwise an error named
   `AbortError` passes through unwrapped.
+- A 2xx reply from the Clef implementation's service whose `success`
+  is false is an `EstimatorResponseError`. Its message quotes `errors`.
+- For a failure response the Clef implementation throws
+  `EstimatorRequestError` with a `ClefHttpError` as its cause. It holds
+  the `status` and the whole `body`, like `JevHttpError`.
 - For a failure response the Jev implementation throws
   `EstimatorRequestError` with a `JevHttpError` as its cause. The
   `JevHttpError` holds the `status` and the whole `body`. Its message is
@@ -351,8 +356,14 @@ It is created from these.
 - Extra headers.
 - A fetch function to swap in.
 
-The defaults for the model name and the URL live inside the Jev
+The Clef implementation is created from an account id and an API token
+instead of a key.
+Its model is `clef` or `clef-flash`, and `clef` is the default.
+It reads its answer from the `result` field of the Workers AI reply.
+
+The defaults for the model name and the URL live inside each
 implementation.
+The two share no code.
 
 An abort signal can be passed when asking.
 When aborted, the abort error is thrown as is.
@@ -378,7 +389,8 @@ If the arguments are wrong, it refuses at creation by throwing `RangeError`.
 The classify operation takes a subject, a question, and a description for
 each label.
 The descriptions are passed as a map keyed by label.
-One or more labels is enough.
+The smallest number of labels is declared by the implementation (see
+Declared limits).
 
 The judgment it returns is the chosen label and a probability for each label.
 Every probability is a finite number from 0 to 1.
@@ -402,11 +414,15 @@ The confidence and legend that Jev returns are not copied over.
 #### Declared limits
 
 An Estimator declares its limits as a value.
-The limits are the number of labels and the number of levels.
+The limits are the smallest and the largest number of labels, and the
+largest number of levels.
 The limits differ by implementation.
-The Jev implementation declares 255 for labels and 10 for levels.
+The Jev implementation declares 1 as the smallest number of labels, 255 as
+the largest, and 10 levels.
+The Clef implementation declares 2, 255 and 10.
 
-When a request has no labels at all, it is refused before any network call.
+When a request has fewer labels than the smallest number, it is refused
+before any network call. The message names that number.
 It is refused the same way when it goes over a limit.
 The refusal is a RangeError.
 This check runs right after the abort signal is checked.
@@ -458,7 +474,7 @@ The source is split into 5 folders.
 
 ```
 src/
-├── estimators/ types, errors and the Jev implementation for model services that answer with probabilities
+├── estimators/ types, errors and the Jev and Clef implementations for model services that answer with probabilities
 ├── http/       reader for the Retry-After header and the rules for which HTTP failures may be repeated, internal to core
 ├── providers/  provider types, errors, and the OpenRouter and ollama implementations
 ├── retry/      the retry schedule that the retries share
@@ -474,10 +490,11 @@ estimators/
   Classification           type of a classify judgment
   ScoreRequest             type of a score request
   Score                    type of a score judgment
-  EstimatorLimits          type of the limits on the number of labels and levels
+  EstimatorLimits          type of the limits on the number of labels (smallest and largest) and levels
   assertClassifyRequest    checks that a classify request fits within the limits
   assertScoreRequest       checks that a score request fits within the limits
   createJevEstimator       creates an Estimator that talks to Jev
+  createClefEstimator      creates an Estimator that talks to Clef on Workers AI
   createRetryingEstimator  creates an Estimator that retries
 
 providers/

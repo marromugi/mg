@@ -35,7 +35,11 @@ export type ScoreRequest = {
 };
 export type Score = { score: number; probabilities: number[] };
 
-export type EstimatorLimits = { maxLabels: number; maxLevels: number };
+export type EstimatorLimits = {
+  minLabels: number;
+  maxLabels: number;
+  maxLevels: number;
+};
 
 export interface Estimator {
   readonly model: string;

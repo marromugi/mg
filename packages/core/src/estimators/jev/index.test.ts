@@ -913,7 +913,11 @@ describe("createJevEstimator classify", () => {
   test("declares a limit of 255 labels and 10 levels", () => {
     const estimator = createJevEstimator({ apiKey: "key" });
 
-    expect(estimator.limits).toEqual({ maxLabels: 255, maxLevels: 10 });
+    expect(estimator.limits).toEqual({
+      minLabels: 1,
+      maxLabels: 255,
+      maxLevels: 10,
+    });
   });
 
   test("sends one POST to the systemone URL with the bearer header, JSON content type, a caller header and the model", async () => {
@@ -1045,7 +1049,7 @@ describe("createJevEstimator classify", () => {
     expect(fetchStub).not.toHaveBeenCalled();
     expect(error).toBeInstanceOf(RangeError);
     expect((error as RangeError).message).toBe(
-      "labels has 0 entries; at least 1 is required",
+      "labels has 0 entries; the estimator accepts at least 1",
     );
   });
 

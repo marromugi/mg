@@ -21,7 +21,11 @@ const createScriptedEstimator = (
   let calls = 0;
   return {
     model: "fake-model",
-    limits: { maxLabels: 7, maxLevels: 4 } satisfies EstimatorLimits,
+    limits: {
+      minLabels: 1,
+      maxLabels: 7,
+      maxLevels: 4,
+    } satisfies EstimatorLimits,
     estimate: async (
       _request: EstimateRequest,
       _options?: EstimateOptions,

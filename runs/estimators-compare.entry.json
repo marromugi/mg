@@ -1,0 +1,9 @@
+{
+  "command": "node --env-file-if-exists=.env runs/estimators-compare.ts",
+  "needs": [
+    "TYPESAFE_API_KEY",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN"
+  ],
+  "burdens": ["cost"]
+}

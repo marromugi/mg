@@ -2,9 +2,8 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AudioChunk, AudioFormat } from "@mg/voice";
-import { createOpenAiSynthesizer } from "@mg/voice";
+import { createIrodoriSynthesizer } from "@mg/voice";
 import { term } from "@mg/term";
-import { readSpeechSettings } from "./speech-settings.ts";
 
 const text =
   process.argv[2] ?? "今日はいい天気ですね。散歩に行きましょう。";
@@ -34,14 +33,17 @@ const buildWav = (data: Buffer, format: AudioFormat): Buffer => {
   return Buffer.concat([header, data]);
 };
 
-const settings = readSpeechSettings(process.env);
-if (!settings.ok) fail(settings.message);
-else if (settings.choice.kind !== "openai") {
+const baseUrl = process.env.SPEECH_BASE_URL;
+const voice = process.env.SPEECH_VOICE;
+if (baseUrl === undefined || baseUrl === "") {
   fail("SPEECH_BASE_URL is not set");
+} else if (voice === undefined || voice === "") {
+  fail("SPEECH_VOICE is not set");
 } else {
   try {
-    const synthesizer = createOpenAiSynthesizer({
-      ...settings.choice,
+    const synthesizer = createIrodoriSynthesizer({
+      baseUrl,
+      voice,
       ...(tone !== undefined && { tone }),
     });
     const chunks: AudioChunk[] = [];
@@ -50,12 +52,15 @@ else if (settings.choice.kind !== "openai") {
     }
     const format = chunks[0].format;
     const data = Buffer.concat(chunks.map((chunk) => chunk.data));
-    const wavPath = join(tmpdir(), "openai-tts.wav");
+    const wavPath = join(tmpdir(), "irodori-tts.wav");
     await writeFile(wavPath, buildWav(data, format));
+    const seconds =
+      data.length / 2 / format.channels / format.sampleRate;
     console.log(
       `format: ${format.encoding} ${format.sampleRate} Hz ${format.channels} ch`,
     );
     console.log(`bytes: ${data.length}`);
+    console.log(`duration: ${seconds.toFixed(2)} s`);
     console.log(`wav: ${wavPath}`);
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));

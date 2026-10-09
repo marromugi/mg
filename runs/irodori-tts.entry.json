@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/irodori-tts.ts \"<文章>\" [\"<口調>\"]",
+  "needs": ["SPEECH_BASE_URL", "SPEECH_VOICE"],
+  "burdens": []
+}

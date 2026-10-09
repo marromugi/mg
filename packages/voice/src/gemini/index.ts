@@ -190,6 +190,7 @@ export type GeminiSynthesizerOptions = {
   voice: string;
   language?: string;
   speakingRate?: number;
+  tone?: string;
   model?: string;
   baseUrl?: string;
   headers?: Record<string, string>;
@@ -201,6 +202,11 @@ export const createGeminiSynthesizer = (
 ): SpeechSynthesizer => {
   if (options.language === "") {
     throw new RangeError("language must not be empty");
+  }
+  if (options.tone !== undefined) {
+    throw new Error(
+      "tone is not supported: the Gemini speech API has no field for it, and a tone in front of the text is read aloud",
+    );
   }
   if (options.speakingRate !== undefined) {
     throw new Error(

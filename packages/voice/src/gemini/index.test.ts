@@ -89,6 +89,22 @@ const collect = async <T>(iterable: AsyncIterable<T>): Promise<T[]> => {
 };
 
 describe("createGeminiSynthesizer", () => {
+  test("refuses a tone at creation, sending nothing", () => {
+    const { fetchStub, calls } = stubFetch(() => new Response(""));
+
+    expect(() =>
+      createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        tone: "in a low voice, slowly",
+        fetch: fetchStub,
+      }),
+    ).toThrow(
+      "tone is not supported: the Gemini speech API has no field for it, and a tone in front of the text is read aloud",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
   test("streams chunks in the order sent without waiting for the whole response", async () => {
     const { stream, send, close } = controlledSseBody();
     const { fetchStub } = stubFetch(

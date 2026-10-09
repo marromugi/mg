@@ -248,11 +248,9 @@ The language is put as is into the field that the checked API has.
 When omitted, the field is not sent and Gemini decides.
 Passing an empty string gives `RangeError` at creation time.
 
-The tone is a short text that says how to read, such as "in a low voice, slowly".
-It is fixed at creation, and every text is read in it.
-It is sent as the `style` of a `speech_metadata` annotation on the text part, and the text stays the transcript alone.
-When omitted, no annotation is sent.
-Passing an empty or whitespace-only string gives `RangeError` at creation time, without any request.
+The checked Gemini speech synthesis API has no field for a tone either.
+A tone put in front of the text is read aloud as part of it.
+Passing a tone gives an error at creation time, without any request.
 
 The checked Gemini speech synthesis API has no field for speaking rate.
 Passing one gives an error at creation time, without any request.

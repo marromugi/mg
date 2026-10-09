@@ -89,53 +89,21 @@ const collect = async <T>(iterable: AsyncIterable<T>): Promise<T[]> => {
 };
 
 describe("createGeminiSynthesizer", () => {
-  test("sends the tone as the style of the text, leaving the text alone", async () => {
-    const { fetchStub, calls } = stubFetch(
-      () =>
-        new Response(
-          `data: ${JSON.stringify(audioEvent("AQ==", 24000, "STOP"))}\n\n`,
-        ),
-    );
-    const synthesizer = createGeminiSynthesizer({
-      apiKey: "k",
-      voice: "Kore",
-      tone: "in a low voice, slowly",
-      fetch: fetchStub,
-    });
+  test("refuses a tone at creation, sending nothing", () => {
+    const { fetchStub, calls } = stubFetch(() => new Response(""));
 
-    await collect(synthesizer.synthesize("one"));
-    await collect(synthesizer.synthesize("two"));
-
-    const contents = calls.map(
-      (call) => JSON.parse(String(call.init?.body)).contents,
+    expect(() =>
+      createGeminiSynthesizer({
+        apiKey: "k",
+        voice: "Kore",
+        tone: "in a low voice, slowly",
+        fetch: fetchStub,
+      }),
+    ).toThrow(
+      "tone is not supported: the Gemini speech API has no field for it, and a tone in front of the text is read aloud",
     );
-    const part = (text: string) => ({
-      text,
-      annotations: [
-        { type: "speech_metadata", style: "in a low voice, slowly" },
-      ],
-    });
-    expect(contents).toEqual([
-      [{ parts: [part("one")] }],
-      [{ parts: [part("two")] }],
-    ]);
+    expect(calls).toHaveLength(0);
   });
-
-  test.each(["", "  \n"])(
-    "throws RangeError at creation for the tone %j, sending nothing",
-    (tone) => {
-      const { fetchStub, calls } = stubFetch(() => new Response(""));
-      expect(() =>
-        createGeminiSynthesizer({
-          apiKey: "k",
-          voice: "Kore",
-          tone,
-          fetch: fetchStub,
-        }),
-      ).toThrow(RangeError);
-      expect(calls).toHaveLength(0);
-    },
-  );
 
   test("streams chunks in the order sent without waiting for the whole response", async () => {
     const { stream, send, close } = controlledSseBody();

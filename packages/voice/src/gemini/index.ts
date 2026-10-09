@@ -203,8 +203,10 @@ export const createGeminiSynthesizer = (
   if (options.language === "") {
     throw new RangeError("language must not be empty");
   }
-  if (options.tone !== undefined && options.tone.trim() === "") {
-    throw new RangeError("tone must not be empty");
+  if (options.tone !== undefined) {
+    throw new Error(
+      "tone is not supported: the Gemini speech API has no field for it, and a tone in front of the text is read aloud",
+    );
   }
   if (options.speakingRate !== undefined) {
     throw new Error(
@@ -228,23 +230,7 @@ export const createGeminiSynthesizer = (
 
   const buildBody = (text: string): string =>
     JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text,
-              ...(options.tone !== undefined && {
-                annotations: [
-                  {
-                    type: "speech_metadata",
-                    style: options.tone.trim(),
-                  },
-                ],
-              }),
-            },
-          ],
-        },
-      ],
+      contents: [{ parts: [{ text }] }],
       generationConfig: {
         responseModalities: ["AUDIO"],
         speechConfig: {

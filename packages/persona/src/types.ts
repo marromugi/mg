@@ -3,6 +3,12 @@ import type { TraceSpan } from "@mg/harness";
 
 export type Counterpart = { id: string; name: string };
 
+export type PersonaVoice = {
+  engine: string;
+  name: string;
+  tone?: string;
+};
+
 export type PersonaContext = {
   signal?: AbortSignal;
   trace?: TraceSpan;
@@ -46,6 +52,7 @@ export type RememberOutcome<TRead> =
 
 export interface Persona<TInput, TRead> {
   readonly id: string;
+  readonly voice?: PersonaVoice;
   recall(
     request: RecallRequest<TInput>,
     context?: PersonaContext,

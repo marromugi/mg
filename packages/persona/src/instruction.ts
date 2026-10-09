@@ -5,6 +5,7 @@ import type { RecallRead } from "./read.js";
 export const composeInstruction = (
   read: RecallRead,
   headings: RecallHeadings,
+  manner?: string,
 ): string => {
   const itemsById = new Map(
     read.items.map((item): [string, MemoryItem] => [item.id, item]),
@@ -14,6 +15,10 @@ export const composeInstruction = (
     .filter((item): item is MemoryItem => item !== undefined);
 
   const blocks: string[] = [read.persona.text];
+
+  if (manner !== undefined) {
+    blocks.push(manner);
+  }
 
   for (const counterpart of read.counterparts) {
     const lines = selectedItems

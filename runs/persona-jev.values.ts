@@ -18,3 +18,12 @@ export const personaChange = {
     "what happened in this conversation?",
   threshold: 0.57,
 };
+
+export const manner =
+  "です・ます調の話し言葉で、一度に二文までで答えます。";
+
+export const voice = {
+  engine: "irodori",
+  name: "talker",
+  tone: "落ち着いた低めの声。ゆっくりした話し方。",
+};

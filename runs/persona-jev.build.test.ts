@@ -119,6 +119,43 @@ describe("buildJevPersona recall", () => {
   });
 });
 
+describe("buildJevPersona manner and voice", () => {
+  test("recalls with the manner after the persona text", async () => {
+    const { read } = await recallWith(() => 0.1);
+    const persona = buildJevPersona({
+      store: await createStore(),
+      estimator: createFakeEstimator(() => 0.1),
+      extractorProvider: failingProvider,
+    });
+    const recalled = await persona.recall({
+      counterparts: [{ id: "user", name: "User" }],
+      conversation: "c1",
+      input: "hi",
+    });
+
+    expect(read.persona.text).toBe("I am Jev.");
+    expect(
+      recalled.instruction.startsWith(
+        "I am Jev.\n\nです・ます調の話し言葉で、一度に二文までで答えます。",
+      ),
+    ).toBe(true);
+  });
+
+  test("names the irodori talker voice with its tone", async () => {
+    const persona = buildJevPersona({
+      store: await createStore(),
+      estimator: createFakeEstimator(() => 0),
+      extractorProvider: failingProvider,
+    });
+
+    expect(persona.voice).toEqual({
+      engine: "irodori",
+      name: "talker",
+      tone: "落ち着いた低めの声。ゆっくりした話し方。",
+    });
+  });
+});
+
 describe("buildJevPersona extractorProvider", () => {
   test("is a provider that can force a tool call", async () => {
     const persona = buildJevPersona({

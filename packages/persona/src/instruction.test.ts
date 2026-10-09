@@ -50,6 +50,14 @@ describe("composeInstruction", () => {
     );
   });
 
+  test("places the manner as its own paragraph right after the persona text", () => {
+    expect(
+      composeInstruction(baseRead, headings, "Speak in two sentences."),
+    ).toBe(
+      "I am Jev.\n\nSpeak in two sentences.\n\n## About Alice\n- likes cats\n- lives in Kyoto\n\n## Earlier\nwe met",
+    );
+  });
+
   test("omits a counterpart section when none of its items were selected", () => {
     const read: RecallRead = { ...baseRead, selected: [] };
 

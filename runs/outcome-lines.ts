@@ -1,3 +1,5 @@
+import type { Message } from "@mg/core";
+import { textOf } from "@mg/core";
 import type { MemoryOutcome } from "@mg/runner";
 import { describeError } from "./show-run.ts";
 
@@ -29,4 +31,13 @@ export function judgeFailureLine(
   error: unknown,
 ): string {
   return `${judge}: ${describeError(error)}`;
+}
+
+export function replyLines(messages: readonly Message[]): string[] {
+  const last = messages
+    .filter((message) => message.role === "assistant")
+    .at(-1);
+  if (last === undefined) return [];
+  const text = textOf(last);
+  return text === "" ? [] : [`  reply: ${text}`];
 }

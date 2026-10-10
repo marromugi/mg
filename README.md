@@ -29,7 +29,23 @@ node --env-file-if-exists=.env runs/example.ts
 API keys are read from the process environment.
 If a `.env` file exists, they are read from it as well.
 
-The voice dialogue entries (`runs/voice-dialogue.ts` and `runs/voice-dialogue-scripted.ts`) speak through Gemini by default.
+The voice dialogue entries (`runs/voice-dialogue.ts` and `runs/voice-dialogue-scripted.ts`) speak as the sample persona.
+Its replies follow its way of speaking, and it remembers across sessions in the same memory file as `runs/persona-jev.ts`.
+After each reply an entry prints a `memory: ` line with what the persona's reflection did.
+
+The persona's voice names the engine (`gemini`, `openai`, or `irodori`), the voice, and the tone.
+At start the entry prints `voice: <engine> <name> (persona)`.
+It stops with exit 1 when the engine is unknown, when what the engine needs from the environment is missing, or when a tone is given to `gemini`.
+
+| Engine    | Takes from the environment                          |
+| --------- | --------------------------------------------------- |
+| `gemini`  | `GEMINI_API_KEY`                                    |
+| `openai`  | `SPEECH_BASE_URL`, `SPEECH_MODEL`, `SPEECH_API_KEY` |
+| `irodori` | `SPEECH_BASE_URL`, `SPEECH_API_KEY`                 |
+
+`SPEECH_API_KEY` is optional.
+A persona with no voice speaks in the voice the environment names, and the entry prints `voice: <engine> <name> (environment)`.
+It speaks through Gemini by default.
 To speak through a server that takes OpenAI's speech requests, set these variables.
 
 | Variable          | Meaning                                                                                                 |
@@ -39,6 +55,7 @@ To speak through a server that takes OpenAI's speech requests, set these variabl
 | `SPEECH_VOICE`    | Voice name. Required when the address is set. `none` for an Irodori-TTS server with no registered voice |
 | `SPEECH_API_KEY`  | Key sent as a bearer token. Optional                                                                    |
 
+`SPEECH_VOICE` is not used when the persona names a voice.
 `runs/openai-tts.ts` speaks one text through such a server and writes a WAV file.
 
 ## Packages

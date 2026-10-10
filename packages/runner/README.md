@@ -302,6 +302,12 @@ The function that creates the entry point, `createContinueAsPersona`, is also ex
 It takes the conversation entry point from outside and builds the entry point.
 The exported `continueAsPersona` is made by passing the existing `continueConversation`.
 
+`continueAsPersonaDetached` takes the same arguments and settles as soon as the conversation is saved.
+Its return value carries `reflection` in place of `memory` and `recorded`.
+`reflection` is a promise that never rejects and settles with both once reflection ends.
+Reflection does not stop when `options.signal` fires.
+`createContinueAsPersonaDetached` makes it the same way.
+
 ### `defineSubagent(config)`
 
 Subagents are written in the run's config.

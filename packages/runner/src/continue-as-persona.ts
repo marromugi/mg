@@ -48,6 +48,19 @@ export type PersonaOutcome<TRead> = ContinueOutcome &
     { saved: true; memory: MemoryOutcome<TRead> } | { saved: false }
   );
 
+// What follows a saved reply: the memory outcome, and whether the trace
+// was written out. It never rejects.
+export type Reflection<TRead> = Promise<{
+  memory: MemoryOutcome<TRead>;
+  recorded: Recorded;
+}>;
+
+export type DetachedPersonaOutcome<TRead> = ContinueOutcome &
+  Reference & { personaSessionId: string } & (
+    | { saved: true; reflection: Reflection<TRead> }
+    | { saved: false; recorded: Recorded }
+  );
+
 const shutdown = async (sdk: TraceSdk): Promise<Recorded> => {
   try {
     await sdk.shutdown();
@@ -57,27 +70,16 @@ const shutdown = async (sdk: TraceSdk): Promise<Recorded> => {
   }
 };
 
-export const createContinueAsPersona = (deps: {
-  continueConversation: ContinueEntry;
-}) => {
-  function continueAsPersona<TInput, TRead>(
-    config: GatedRunConfig,
-    conversation: ConversationTarget,
-    persona: PersonaTarget<TInput, TRead>,
-    options?: ContinueOptions,
-  ): Promise<PersonaOutcome<TRead>>;
-  function continueAsPersona<TInput, TRead>(
+type Deps = { continueConversation: ContinueEntry };
+
+const createStart = (deps: Deps) => {
+  async function start<TInput, TRead>(
     config: RunConfig,
     conversation: ConversationTarget,
     persona: PersonaTarget<TInput, TRead>,
-    options?: UngatedContinueOptions,
-  ): Promise<PersonaOutcome<TRead>>;
-  async function continueAsPersona<TInput, TRead>(
-    config: RunConfig,
-    conversation: ConversationTarget,
-    persona: PersonaTarget<TInput, TRead>,
-    options?: ContinueOptions,
-  ): Promise<PersonaOutcome<TRead>> {
+    options: ContinueOptions | undefined,
+    reflectionSignal: AbortSignal | undefined,
+  ): Promise<DetachedPersonaOutcome<TRead>> {
     options?.signal?.throwIfAborted();
 
     requireGates(config, options?.tools);
@@ -174,41 +176,111 @@ export const createContinueAsPersona = (deps: {
         ...outcome,
         ...reference,
         personaSessionId: sdk.sessionId,
+        saved: false,
         recorded,
       };
     }
 
-    let memory: MemoryOutcome<TRead>;
-    let rememberError: unknown;
-    try {
-      memory = await persona.persona.remember(
-        { read: recall.read, entry: outcome.entry.messages },
-        { signal: options?.signal, trace: root },
-      );
-    } catch (error) {
-      memory = { updated: false, reason: "rejected", error };
-      rememberError = error;
-    }
+    const reflection: Reflection<TRead> = (async () => {
+      let memory: MemoryOutcome<TRead>;
+      let rememberError: unknown;
+      try {
+        memory = await persona.persona.remember(
+          { read: recall.read, entry: outcome.entry.messages },
+          { signal: reflectionSignal, trace: root },
+        );
+      } catch (error) {
+        memory = { updated: false, reason: "rejected", error };
+        rememberError = error;
+      }
 
-    setSpanAttributes(root, {
-      [ATTR.personaSaved]: true,
-      [ATTR.personaUpdated]: memory.updated,
-    });
-    root.end(rememberError);
+      setSpanAttributes(root, {
+        [ATTR.personaSaved]: true,
+        [ATTR.personaUpdated]: memory.updated,
+      });
+      root.end(rememberError);
 
-    const recorded = await shutdown(sdk);
+      return { memory, recorded: await shutdown(sdk) };
+    })();
     return {
       ...outcome,
       ...reference,
       personaSessionId: sdk.sessionId,
-      recorded,
-      memory,
+      saved: true,
+      reflection,
     };
+  }
+  return start;
+};
+
+export const createContinueAsPersona = (deps: Deps) => {
+  const start = createStart(deps);
+
+  function continueAsPersona<TInput, TRead>(
+    config: GatedRunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: ContinueOptions,
+  ): Promise<PersonaOutcome<TRead>>;
+  function continueAsPersona<TInput, TRead>(
+    config: RunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: UngatedContinueOptions,
+  ): Promise<PersonaOutcome<TRead>>;
+  async function continueAsPersona<TInput, TRead>(
+    config: RunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: ContinueOptions,
+  ): Promise<PersonaOutcome<TRead>> {
+    const started = await start(
+      config,
+      conversation,
+      persona,
+      options,
+      options?.signal,
+    );
+    if (!started.saved) return started;
+    const { reflection, ...rest } = started;
+    return { ...rest, ...(await reflection) };
   }
 
   return continueAsPersona;
 };
 
+// Settles when the reply is saved. The reflection runs on after it, and
+// does not stop when options.signal fires.
+export const createContinueAsPersonaDetached = (deps: Deps) => {
+  const start = createStart(deps);
+
+  function continueAsPersonaDetached<TInput, TRead>(
+    config: GatedRunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: ContinueOptions,
+  ): Promise<DetachedPersonaOutcome<TRead>>;
+  function continueAsPersonaDetached<TInput, TRead>(
+    config: RunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: UngatedContinueOptions,
+  ): Promise<DetachedPersonaOutcome<TRead>>;
+  function continueAsPersonaDetached<TInput, TRead>(
+    config: RunConfig,
+    conversation: ConversationTarget,
+    persona: PersonaTarget<TInput, TRead>,
+    options?: ContinueOptions,
+  ): Promise<DetachedPersonaOutcome<TRead>> {
+    return start(config, conversation, persona, options, undefined);
+  }
+
+  return continueAsPersonaDetached;
+};
+
 export const continueAsPersona = createContinueAsPersona({
   continueConversation,
 });
+
+export const continueAsPersonaDetached =
+  createContinueAsPersonaDetached({ continueConversation });

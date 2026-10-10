@@ -12,7 +12,9 @@ import type {
 import { TalkerError } from "@mg/dialogue";
 import { createEstimatorGate } from "@mg/gate";
 import type { HarnessStopReason, TraceSpan } from "@mg/harness";
+import type { Counterpart, Persona } from "@mg/persona";
 import {
+  continueAsPersonaDetached,
   continueConversation,
   createRunQueue,
   defineRun,
@@ -21,6 +23,8 @@ import {
 import type {
   ContinueOutcome,
   GatedRunConfig,
+  MemoryOutcome,
+  DetachedPersonaOutcome,
   NotSavedReason,
   RunConfig,
   UngatedRunConfig,
@@ -37,6 +41,7 @@ import {
 } from "@mg/turn";
 import type { Exchange } from "@mg/turn";
 import type { SpeechSynthesizer, Transcriber } from "@mg/voice";
+import type { ReflectionQueue } from "./voice-dialogue.memory.ts";
 import {
   EXCHANGE_COUNT,
   LANGUAGES,
@@ -104,64 +109,92 @@ const keepHeard = (added: readonly Message[], heard: number) =>
     ? keepDelivered(added, { kind: "until", turn: 0, end: heard })
     : [...added];
 
-export const createTalker = ({
-  config,
-  store,
-  id,
-}: Conversation): Talker => ({
-  async reply(message, options) {
-    const ended: { reason?: HarnessStopReason } = {};
-    let outcome: ContinueOutcome;
-    try {
-      outcome = await continueConversation(
-        config,
-        {
-          store,
-          id,
-          history: { kind: "all" },
-          messages: [{ role: "user", content: message }],
-        },
-        {
-          signal: options.signal,
-          wrapUp: options.wrapUp,
-          onEvent: (event) => {
-            if (event.type === "text-delta")
-              options.onText(event.delta);
-            else if (event.type === "done") {
-              ended.reason = event.result.reason;
-            }
+export type TalkerPersona<TRead> = {
+  persona: Persona<string, TRead>;
+  counterparts: readonly Counterpart[];
+  tracePath: string;
+  reflections: ReflectionQueue;
+  // called with what the persona's reflection did after each saved reply
+  onMemory(memory: MemoryOutcome<TRead>): void;
+};
+
+// Replies as the persona: it recalls before each reply and reflects on
+// the part the person heard after it. The reply settles once it is saved;
+// the reflection runs on, and the next recall waits for it. A failed
+// recall rejects the reply.
+export const createTalker = <TRead>(
+  talker: Conversation & TalkerPersona<TRead>,
+): Talker => {
+  const { config, store, id, persona, counterparts, tracePath } =
+    talker;
+  const { reflections } = talker;
+  return {
+    async reply(message, options) {
+      const ended: { reason?: HarnessStopReason } = {};
+      await reflections.idle();
+      let outcome: DetachedPersonaOutcome<TRead>;
+      try {
+        outcome = await continueAsPersonaDetached(
+          config,
+          {
+            store,
+            id,
+            history: { kind: "all" },
+            messages: [{ role: "user", content: message }],
           },
-          keep: async (added) => {
-            if (ended.reason === "stop") {
-              options.onTextEnd();
-            } else if (ended.reason !== "wrapped-up") {
-              throw new TalkerError(
-                `the reply ended with stop reason ${ended.reason}`,
-              );
-            }
-            return keepHeard(added, await options.heard);
+          {
+            persona,
+            counterparts,
+            input: message,
+            trace: { jsonlPath: tracePath },
           },
-        },
-      );
-    } catch (error) {
-      if (error instanceof TalkerError) throw error;
-      throw new TalkerError(messageOf(error), { cause: error });
-    }
-    if (!outcome.saved) {
-      const { reason } = outcome;
-      if (
-        reason.kind === "keep-failed" &&
-        reason.error instanceof TalkerError
-      ) {
-        throw reason.error;
+          {
+            signal: options.signal,
+            wrapUp: options.wrapUp,
+            onEvent: (event) => {
+              if (event.type === "text-delta")
+                options.onText(event.delta);
+              else if (event.type === "done") {
+                ended.reason = event.result.reason;
+              }
+            },
+            keep: async (added) => {
+              if (ended.reason === "stop") {
+                options.onTextEnd();
+              } else if (ended.reason !== "wrapped-up") {
+                throw new TalkerError(
+                  `the reply ended with stop reason ${ended.reason}`,
+                );
+              }
+              return keepHeard(added, await options.heard);
+            },
+          },
+        );
+      } catch (error) {
+        if (error instanceof TalkerError) throw error;
+        throw new TalkerError(messageOf(error), { cause: error });
       }
-      throw new TalkerError(
-        `the reply was not saved (${describeNotSaved(reason)})`,
+      if (!outcome.saved) {
+        const { reason } = outcome;
+        if (
+          reason.kind === "keep-failed" &&
+          reason.error instanceof TalkerError
+        ) {
+          throw reason.error;
+        }
+        throw new TalkerError(
+          `the reply was not saved (${describeNotSaved(reason)})`,
+        );
+      }
+      reflections.add(
+        outcome.reflection.then(({ memory }) => {
+          talker.onMemory(memory);
+        }),
       );
-    }
-    return { sessionId: outcome.sessionId };
-  },
-});
+      return { sessionId: outcome.sessionId };
+    },
+  };
+};
 
 type WorkJob = { text: string; options: WorkRequestOptions };
 
@@ -258,7 +291,7 @@ export type DialogueCollaboratorInputs = {
   transcriber: Transcriber;
   synthesizer: SpeechSynthesizer;
   estimator: Estimator;
-  talker: Conversation;
+  talker: Conversation & TalkerPersona<unknown>;
   worker: {
     config: GatedRunConfig;
     store: ConversationStore;

@@ -14,6 +14,7 @@ import {
   createWorkerConfig,
 } from "./voice-dialogue.build.ts";
 import { runLive } from "./voice-dialogue.run.ts";
+import { personaOf } from "./voice-dialogue.test-helper.ts";
 
 const unusedProvider: Provider = {
   toolForcing: true,
@@ -43,6 +44,7 @@ const realCollaborators = () =>
       }),
       store: createMemoryConversationStore(),
       id: "t",
+      ...personaOf(),
     },
     worker: {
       config: createWorkerConfig({

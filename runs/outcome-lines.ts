@@ -26,6 +26,16 @@ export function memoryLines<TRead>(
   return lines;
 }
 
+// The whole outcome on one line, for entries that print a line per
+// reply.
+export function memoryLine<TRead>(
+  memory: MemoryOutcome<TRead>,
+): string {
+  return memory.updated
+    ? `memory: ${JSON.stringify(memory)}`
+    : `memory: not updated (${memory.reason}: ${describeError(memory.error)})`;
+}
+
 export function judgeFailureLine(
   judge: string,
   error: unknown,

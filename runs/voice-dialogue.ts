@@ -14,6 +14,11 @@ import {
 import { createJevPersona } from "./persona-jev.persona.ts";
 import { resolveSpeech } from "./speech-settings.ts";
 import {
+  createMemoryReport,
+  createReflectionQueue,
+  reportingReplies,
+} from "./voice-dialogue.memory.ts";
+import {
   createDialogueCollaborators,
   createTalkerConfig,
   createWorkerConfig,
@@ -53,6 +58,8 @@ const runTracePath = outputPath("voice-dialogue-run-trace.jsonl");
 const aborter = new AbortController();
 process.once("SIGINT", () => aborter.abort());
 
+const reflections = createReflectionQueue();
+const report = createMemoryReport((line) => console.log(line));
 const memoryStore = await openSamplePersonaMemory();
 try {
   const persona = createJevPersona({ store: memoryStore });
@@ -84,7 +91,8 @@ try {
             persona,
             counterparts: COUNTERPARTS,
             tracePath: outputPath("voice-dialogue-persona-trace.jsonl"),
-            onMemory: (memory) => console.log(memoryLine(memory)),
+            reflections,
+            onMemory: (memory) => report.memory(memoryLine(memory)),
           },
           worker: {
             config: createWorkerConfig({
@@ -96,7 +104,7 @@ try {
             id: "worker",
           },
         }),
-      dialogue: runDialogue,
+      dialogue: reportingReplies(runDialogue, report),
       openTrace: () =>
         openSessionTrace(
           outputPath("voice-dialogue-trace.jsonl"),
@@ -107,5 +115,7 @@ try {
     });
   }
 } finally {
+  await reflections.idle();
+  report.drain();
   await memoryStore.close();
 }

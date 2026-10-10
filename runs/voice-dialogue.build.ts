@@ -14,7 +14,7 @@ import { createEstimatorGate } from "@mg/gate";
 import type { HarnessStopReason, TraceSpan } from "@mg/harness";
 import type { Counterpart, Persona } from "@mg/persona";
 import {
-  continueAsPersona,
+  continueAsPersonaDetached,
   continueConversation,
   createRunQueue,
   defineRun,
@@ -24,7 +24,7 @@ import type {
   ContinueOutcome,
   GatedRunConfig,
   MemoryOutcome,
-  PersonaOutcome,
+  DetachedPersonaOutcome,
   NotSavedReason,
   RunConfig,
   UngatedRunConfig,
@@ -41,6 +41,7 @@ import {
 } from "@mg/turn";
 import type { Exchange } from "@mg/turn";
 import type { SpeechSynthesizer, Transcriber } from "@mg/voice";
+import type { ReflectionQueue } from "./voice-dialogue.memory.ts";
 import {
   EXCHANGE_COUNT,
   LANGUAGES,
@@ -112,23 +113,28 @@ export type TalkerPersona<TRead> = {
   persona: Persona<string, TRead>;
   counterparts: readonly Counterpart[];
   tracePath: string;
+  reflections: ReflectionQueue;
   // called with what the persona's reflection did after each saved reply
   onMemory(memory: MemoryOutcome<TRead>): void;
 };
 
 // Replies as the persona: it recalls before each reply and reflects on
-// the part the person heard after it. A failed recall rejects the reply.
+// the part the person heard after it. The reply settles once it is saved;
+// the reflection runs on, and the next recall waits for it. A failed
+// recall rejects the reply.
 export const createTalker = <TRead>(
   talker: Conversation & TalkerPersona<TRead>,
 ): Talker => {
   const { config, store, id, persona, counterparts, tracePath } =
     talker;
+  const { reflections } = talker;
   return {
     async reply(message, options) {
       const ended: { reason?: HarnessStopReason } = {};
-      let outcome: PersonaOutcome<TRead>;
+      await reflections.idle();
+      let outcome: DetachedPersonaOutcome<TRead>;
       try {
-        outcome = await continueAsPersona(
+        outcome = await continueAsPersonaDetached(
           config,
           {
             store,
@@ -180,7 +186,11 @@ export const createTalker = <TRead>(
           `the reply was not saved (${describeNotSaved(reason)})`,
         );
       }
-      talker.onMemory(outcome.memory);
+      reflections.add(
+        outcome.reflection.then(({ memory }) => {
+          talker.onMemory(memory);
+        }),
+      );
       return { sessionId: outcome.sessionId };
     },
   };

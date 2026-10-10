@@ -179,6 +179,7 @@ describe("createTalker as a persona", () => {
       ...replyOptions().options,
       heard: Promise.resolve(4),
     });
+    await persona.reflections.idle();
 
     expect(persona.remembered).toEqual([
       [
@@ -198,6 +199,69 @@ describe("createTalker as a persona", () => {
         forgotten: [],
       },
     ]);
+  });
+
+  test("settles the reply while the reflection is still running, and reports it once it ends", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t");
+    let release: () => void = () => {};
+    const persona = personaOf({
+      holdReflection: new Promise<void>(
+        (resolve) => (release = resolve),
+      ),
+    });
+    const talker = createTalker({
+      config: talkerConfig(fakeProvider([{ deltas: ["はい"] }])),
+      store,
+      id: "t",
+      ...persona,
+    });
+
+    const result = await talker.reply(
+      "こんにちは",
+      replyOptions().options,
+    );
+
+    expect(result).toEqual({ sessionId: expect.any(String) });
+    expect(persona.events).toEqual(["recall", "reflect"]);
+    expect(persona.memories).toEqual([]);
+    release();
+    await persona.reflections.idle();
+    expect(persona.events).toEqual(["recall", "reflect", "reflected"]);
+    expect(persona.memories).toHaveLength(1);
+  });
+
+  test("starts the next recall only after the earlier reflection ended", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t");
+    let release: () => void = () => {};
+    const persona = personaOf({
+      holdReflection: new Promise<void>(
+        (resolve) => (release = resolve),
+      ),
+    });
+    const talker = createTalker({
+      config: talkerConfig(fakeProvider([{ deltas: ["はい"] }])),
+      store,
+      id: "t",
+      ...persona,
+    });
+    await talker.reply("一", replyOptions().options);
+
+    const second = talker.reply("二", replyOptions().options);
+    await sleep(20);
+    expect(persona.events).toEqual(["recall", "reflect"]);
+    release();
+    await second;
+
+    expect(persona.events.slice(0, 4)).toEqual([
+      "recall",
+      "reflect",
+      "reflected",
+      "recall",
+    ]);
+    await persona.reflections.idle();
+    expect(persona.memories).toHaveLength(2);
   });
 
   test("rejects with a talker error when the persona cannot recall", async () => {

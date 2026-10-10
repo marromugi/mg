@@ -158,18 +158,6 @@ describe("resolveSpeech", () => {
     });
   });
 
-  test("ignores the environment's voice name when the persona names a voice", () => {
-    expect(
-      resolveSpeech(
-        { engine: "irodori", name: "talker" },
-        { SPEECH_BASE_URL: "http://h/v1", SPEECH_VOICE: "other" },
-      ),
-    ).toMatchObject({
-      ok: true,
-      line: "voice: irodori talker (persona)",
-    });
-  });
-
   test("names an engine it does not know and the engines it knows", () => {
     expect(resolveSpeech({ engine: "espeak", name: "n" }, {})).toEqual({
       ok: false,

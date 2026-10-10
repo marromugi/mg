@@ -27,6 +27,7 @@ import {
   createWorkTrigger,
   printEvent,
 } from "./voice-dialogue.build.ts";
+import { personaOf } from "./voice-dialogue.test-helper.ts";
 import { exchangesText } from "./voice-dialogue.values.ts";
 
 type Turn = {
@@ -141,6 +142,83 @@ const workOptions = (): WorkRequestOptions => ({
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+describe("createTalker as a persona", () => {
+  test("gives the model the persona's instruction ahead of the person's message", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t");
+    const provider = fakeProvider([{ deltas: ["はい"] }]);
+    const talker = createTalker({
+      config: talkerConfig(provider),
+      store,
+      id: "t",
+      ...personaOf(),
+    });
+
+    await talker.reply("こんにちは", replyOptions().options);
+
+    expect(provider.requests[0].messages).toEqual([
+      { role: "system", content: "ゆっくり話します" },
+      { role: "user", content: "こんにちは" },
+    ]);
+  });
+
+  test("reflects on the heard part of the reply only and reports the outcome", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t");
+    const persona = personaOf();
+    const talker = createTalker({
+      config: talkerConfig(
+        fakeProvider([{ deltas: ["一つ目。", "二つ目。"] }]),
+      ),
+      store,
+      id: "t",
+      ...persona,
+    });
+
+    await talker.reply("こんにちは", {
+      ...replyOptions().options,
+      heard: Promise.resolve(4),
+    });
+
+    expect(persona.remembered).toEqual([
+      [
+        { role: "system", content: "ゆっくり話します" },
+        { role: "user", content: "こんにちは" },
+        {
+          role: "assistant",
+          parts: [{ type: "text", text: "一つ目。" }],
+        },
+      ],
+    ]);
+    expect(persona.memories).toEqual([
+      {
+        updated: true,
+        added: ["梨が好き"],
+        personaChanged: false,
+        forgotten: [],
+      },
+    ]);
+  });
+
+  test("rejects with a talker error when the persona cannot recall", async () => {
+    const store = createMemoryConversationStore();
+    await store.create("t");
+    const talker = createTalker({
+      config: talkerConfig(fakeProvider([{ deltas: ["はい"] }])),
+      store,
+      id: "t",
+      ...personaOf({ recallFails: new Error("memory is down") }),
+    });
+
+    const reply = talker.reply("こんにちは", replyOptions().options);
+
+    await expect(reply).rejects.toBeInstanceOf(TalkerError);
+    await expect(reply).rejects.toMatchObject({
+      reason: "memory is down",
+    });
+  });
+});
+
 describe("createTalker", () => {
   test("saves only the characters that were heard and gives back the session id", async () => {
     const store = createMemoryConversationStore();
@@ -151,6 +229,7 @@ describe("createTalker", () => {
       ),
       store,
       id: "t",
+      ...personaOf(),
     });
     const { options } = replyOptions();
 
@@ -164,6 +243,7 @@ describe("createTalker", () => {
     expect(entries).toEqual([
       {
         messages: [
+          { role: "system", content: "ゆっくり話します" },
           { role: "user", content: "こんにちは" },
           {
             role: "assistant",
@@ -181,6 +261,7 @@ describe("createTalker", () => {
       config: talkerConfig(fakeProvider([{ deltas: ["はい"] }])),
       store: failingAppend(store),
       id: "t",
+      ...personaOf(),
     });
     const { options } = replyOptions();
 
@@ -199,6 +280,7 @@ describe("createTalker", () => {
       config: talkerConfig(fakeProvider([{ deltas: ["一つ目。"] }])),
       store,
       id: "t",
+      ...personaOf(),
     });
     const { options, events } = replyOptions();
 
@@ -223,6 +305,7 @@ describe("createTalker", () => {
       ),
       store,
       id: "t",
+      ...personaOf(),
     });
     const { options, events } = replyOptions();
 
@@ -255,6 +338,7 @@ describe("createTalker", () => {
       ),
       store,
       id: "t",
+      ...personaOf(),
     });
     const { options, events } = replyOptions();
 
@@ -267,7 +351,7 @@ describe("createTalker", () => {
     expect(events).toEqual(["text:一つ目。", "text:二つ目。"]);
     expect(result).toEqual({ sessionId: expect.any(String) });
     const { entries } = await store.read("t", { kind: "all" });
-    const assistant = entries[0].messages[1];
+    const assistant = entries[0].messages[2];
     expect(
       assistant.role === "assistant" ? textOf(assistant.parts) : [],
     ).toEqual(["一つ目。"]);
@@ -459,6 +543,7 @@ describe("createDialogueCollaborators", () => {
         config: talkerConfig(provider),
         store: talkerStore,
         id: "t",
+        ...personaOf(),
       },
       worker: {
         config: workerConfig(provider),
@@ -475,9 +560,11 @@ describe("createDialogueCollaborators", () => {
 
     const { entries } = await talkerStore.read("t", { kind: "all" });
     const messages = entries.flatMap((entry) => entry.messages);
-    expect(messages.filter((m) => m.role === "system")).toEqual([
-      { role: "system", content: "役割" },
-    ]);
+    expect(
+      messages.filter(
+        (m) => m.role === "system" && m.content === "役割",
+      ),
+    ).toEqual([{ role: "system", content: "役割" }]);
     expect(messages[0]).toEqual({ role: "system", content: "役割" });
   });
 });

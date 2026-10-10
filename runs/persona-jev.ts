@@ -3,14 +3,16 @@ import type { Message } from "@mg/core";
 import { createOpenRouterProvider } from "@mg/core";
 import { ConversationExistsError } from "@mg/conversation";
 import { openSqliteConversationStore } from "@mg/conversation/sqlite";
-import { PersonaExistsError } from "@mg/memory";
-import { openSqliteMemoryStore } from "@mg/memory/sqlite";
 import type { StartOptions } from "@mg/runner";
 import { continueAsPersona, defineRun, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
 import { memoryLines, replyLines } from "./outcome-lines.ts";
 import { outputPath } from "./outputs.ts";
+import {
+  COUNTERPARTS,
+  openSamplePersonaMemory,
+} from "./persona-jev.memory.ts";
 import { toMessages } from "./persona-jev.messages.ts";
 import { createJevPersona } from "./persona-jev.persona.ts";
 import { trigger } from "./trigger-jev.trigger.ts";
@@ -30,20 +32,10 @@ const runConfig = defineRun({
   trace: { jsonlPath: outputPath("trace.jsonl") },
 });
 
-const PERSONA_ID = "jev";
 const CONVERSATION_ID = "jev";
-const COUNTERPARTS = [{ id: "user", name: "User" }];
 
-const memoryStore = await openSqliteMemoryStore(
-  outputPath("persona-memory.sqlite"),
-);
+const memoryStore = await openSamplePersonaMemory();
 try {
-  try {
-    await memoryStore.create(PERSONA_ID, "I am Jev.");
-  } catch (error) {
-    if (!(error instanceof PersonaExistsError)) throw error;
-  }
-
   const conversationStore = await openSqliteConversationStore(
     outputPath("persona-conversation.sqlite"),
   );

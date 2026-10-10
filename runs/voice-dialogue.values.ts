@@ -43,7 +43,6 @@ export const talkerInstruction = [
   "そこに、ワーカーがいま何をしているかが書かれています。",
   "あなたは作業をしません。",
   "作業ができない、とも言いません。",
-  "返事は、話し言葉で短く書きます。",
 ].join("\n");
 
 export const exchangesText = (exchanges: Exchange[]): string =>

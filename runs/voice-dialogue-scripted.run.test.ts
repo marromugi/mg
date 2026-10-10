@@ -11,6 +11,7 @@ import {
 } from "./voice-dialogue.build.ts";
 import type { SessionTrace } from "./voice-dialogue.build.ts";
 import { runScripted } from "./voice-dialogue-scripted.run.ts";
+import { personaOf } from "./voice-dialogue.test-helper.ts";
 
 const flush = () =>
   new Promise<void>((resolve) => setImmediate(resolve));
@@ -156,6 +157,7 @@ const setup = (options: {
             store:
               options.talkerStore ?? createMemoryConversationStore(),
             id: "t",
+            ...personaOf(),
           },
           worker: {
             config: createWorkerConfig({

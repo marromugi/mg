@@ -3,6 +3,7 @@ import { JudgeError } from "@mg/turn";
 import { describe, expect, test } from "vitest";
 import {
   judgeFailureLine,
+  memoryLine,
   memoryLines,
   replyLines,
 } from "./outcome-lines.ts";
@@ -124,5 +125,30 @@ describe("replyLines", () => {
 
   test("writes no line when the run produced no assistant text", () => {
     expect(replyLines([{ role: "user", content: "hi" }])).toEqual([]);
+  });
+});
+
+describe("memoryLine", () => {
+  test("writes the memory result as one JSON line when the update succeeded", () => {
+    expect(
+      memoryLine({
+        updated: true,
+        added: ["m1"],
+        personaChanged: false,
+        forgotten: [],
+      }),
+    ).toBe(
+      'memory: {"updated":true,"added":["m1"],"personaChanged":false,"forgotten":[]}',
+    );
+  });
+
+  test("writes the reason on one line when memory was not updated", () => {
+    expect(
+      memoryLine({
+        updated: false,
+        reason: "write-failed",
+        error: new Error("disk"),
+      }),
+    ).toMatch(/^memory: not updated \(write-failed: .*disk.*\)$/);
   });
 });

@@ -92,6 +92,11 @@ conversation id `conversation`, and the current input `input`.
 The counterpart type is `Counterpart`, with an id `id` and a display name
 `name`.
 
+A persona may also expose a voice `voice`, of type `PersonaVoice`: an
+engine name `engine`, a voice name `name`, and an optional tone `tone`.
+The persona only names the voice. It knows no speech engine, and whoever
+runs the persona reads the voice.
+
 `Recall<TRead>` has the instruction text `instruction` and what was read
 `read`.
 
@@ -113,15 +118,18 @@ The options have the following.
 | `noneDescription` | The description text for the "none of them relate" label.               |
 | `ratio`           | The lower bound of the ratio to the chosen label's probability. 0 to 1. |
 | `headings`        | The counterpart heading `about` and the summary heading `earlier`.      |
+| `manner`          | The persona's way of speaking. Optional.                                |
 
 When a counterpart id, a display name, or the conversation id is empty, or
 when counterpart ids are duplicated, it refuses with `RangeError` before
 reading.
 
 The part that builds the instruction text is split out into a pure function,
-`composeInstruction(read, headings)`.
-It returns the instruction text from only what was read, `RecallRead`, and
-the headings.
+`composeInstruction(read, headings, manner)`.
+It returns the instruction text from only what was read, `RecallRead`, the
+headings, and the manner (optional).
+The manner is its own paragraph right after the personality text, with no
+heading.
 
 `RecallRead` has the list of counterparts `counterparts`, the conversation
 id `conversation`, the personality document `persona`, the summary
@@ -227,6 +235,8 @@ The options have the following.
 | `store`      | A `MemoryStore` from `@mg/memory`.                                                                                  |
 | `estimator`  | An `Estimator` from `@mg/core`.                                                                                     |
 | `recall`     | The recall question `question`, the none description `noneDescription`, the ratio `ratio`, and headings `headings`. |
+| `manner`     | The persona's way of speaking, a short text that every reply follows. Optional.                                     |
+| `voice`      | The persona's `PersonaVoice`: `engine`, `name` and an optional `tone`. Optional.                                    |
 | `extractor`  | An `Extractor`.                                                                                                     |
 | `keep`       | The keep question `question` and the keep threshold `threshold`.                                                    |
 | `persona`    | The personality question `question` and the personality threshold `threshold`.                                      |
@@ -237,12 +247,14 @@ The options have the following.
 The questions, description, headings, ratio, thresholds and limits have no
 defaults.
 
-The assembled persona's `id` is the id passed in, and `recall` and
+The assembled persona's `id` and `voice` are the ones passed in, and `recall` and
 `remember` hand off to the recall and reflection parts as is.
 
 At assembly time, it throws `RangeError` in these cases.
 
 - The persona id, a question, the description, or a heading is empty.
+- The manner, the voice engine, the voice name or the voice tone is given
+  but is empty or only whitespace.
 - The ratio or a threshold is not a finite number from 0 to 1.
 - The forgetting limit or the per-counterpart item limit is not an integer
   of 1 or more.
@@ -353,7 +365,7 @@ The function `createRecall` creates runs in this order.
 5. If the chosen label is `none`, 0 items are chosen. Otherwise it chooses
    the candidates whose probability is at least the chosen label's
    probability times `ratio`.
-6. Combines the personality text, each counterpart's heading and chosen
+6. Combines the personality text, the manner (if any), each counterpart's heading and chosen
    items, and the summary heading and text into the instruction text.
 
 If the context has a span `trace`, it creates an `mg.recall` span under it.

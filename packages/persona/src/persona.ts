@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { createRecall, type RecallHeadings } from "./recall.js";
 import type { RecallRead } from "./read.js";
 import { createRemember } from "./remember.js";
-import type { Extractor, Persona } from "./types.js";
+import type { Extractor, Persona, PersonaVoice } from "./types.js";
 
 export type PersonaOptions = {
   id: string;
@@ -16,6 +16,8 @@ export type PersonaOptions = {
     ratio: number;
     headings: RecallHeadings;
   };
+  manner?: string;
+  voice?: PersonaVoice;
   extractor: Extractor;
   keep: { question: string; threshold: number };
   persona: { question: string; threshold: number };
@@ -44,6 +46,21 @@ const validateOptions = (options: PersonaOptions): void => {
   ) {
     throw new RangeError(
       "The persona id, a question, a description or a heading must not be empty.",
+    );
+  }
+
+  if (options.manner !== undefined && isEmpty(options.manner)) {
+    throw new RangeError("The persona's manner must not be empty.");
+  }
+
+  if (
+    options.voice !== undefined &&
+    (isEmpty(options.voice.engine) ||
+      isEmpty(options.voice.name) ||
+      (options.voice.tone !== undefined && isEmpty(options.voice.tone)))
+  ) {
+    throw new RangeError(
+      "A voice engine, name or tone must not be empty.",
     );
   }
 
@@ -93,6 +110,7 @@ export const createPersona = (
     noneDescription: options.recall.noneDescription,
     ratio: options.recall.ratio,
     headings: options.recall.headings,
+    ...(options.manner !== undefined ? { manner: options.manner } : {}),
   });
 
   const remember = createRemember({
@@ -107,5 +125,10 @@ export const createPersona = (
     newId: options.newId ?? nanoid,
   });
 
-  return { id: options.id, recall, remember };
+  return {
+    id: options.id,
+    ...(options.voice !== undefined ? { voice: options.voice } : {}),
+    recall,
+    remember,
+  };
 };

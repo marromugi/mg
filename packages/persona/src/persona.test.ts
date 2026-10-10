@@ -274,6 +274,65 @@ describe("createPersona", () => {
     expect(added?.id).toHaveLength(21);
   });
 
+  describe("manner and voice", () => {
+    const build = (extra: Partial<PersonaOptions>) =>
+      createPersona({
+        ...validOptions({
+          store: createFakeStore(
+            () => Promise.resolve(fullView()),
+            () => Promise.resolve({}),
+          ),
+          estimator: createFakeEstimator(
+            () =>
+              Promise.resolve({
+                label: "none",
+                probabilities: { "0": 0.1, none: 0.9 },
+              }),
+            () => Promise.reject(new Error("not used")),
+          ),
+          extractor: createFakeExtractor(() =>
+            Promise.reject(new Error("not used")),
+          ),
+        }),
+        ...extra,
+      });
+
+    const request = {
+      counterparts,
+      conversation: "c1",
+      input: "hi",
+    };
+
+    test("recall puts the manner right after the persona text", async () => {
+      const persona = build({ manner: "Answer in two sentences." });
+      const result = await persona.recall(request);
+      expect(result.instruction).toBe(
+        "I am Jev.\n\nAnswer in two sentences.\n\n## Earlier\nwe met",
+      );
+    });
+
+    test("exposes the voice it was given", () => {
+      const voice = { engine: "irodori", name: "talker", tone: "calm" };
+      expect(build({ voice }).voice).toEqual(voice);
+    });
+
+    test("has no voice when none was given", () => {
+      expect(build({}).voice).toBeUndefined();
+    });
+
+    test.each([
+      ["manner", { manner: " " }],
+      ["voice engine", { voice: { engine: "", name: "a" } }],
+      ["voice name", { voice: { engine: "a", name: " " } }],
+      ["voice tone", { voice: { engine: "a", name: "b", tone: "" } }],
+    ] satisfies [string, Partial<PersonaOptions>][])(
+      "rejects an empty %s with RangeError",
+      (_, extra) => {
+        expect(() => build(extra)).toThrow(RangeError);
+      },
+    );
+  });
+
   describe("rejects with RangeError at construction", () => {
     const store = createFakeStore();
     const estimator = createFakeEstimator(

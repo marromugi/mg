@@ -21,6 +21,7 @@ export type RecallOptions = {
   noneDescription: string;
   ratio: number;
   headings: RecallHeadings;
+  manner?: string;
 };
 
 const isEmpty = (value: string): boolean => value.trim().length === 0;
@@ -64,6 +65,7 @@ export const createRecall = (
     noneDescription,
     ratio,
     headings,
+    manner,
   } = options;
 
   return async (request, context) => {
@@ -140,7 +142,7 @@ export const createRecall = (
         selected: selectedIds,
       };
 
-      const instruction = composeInstruction(read, headings);
+      const instruction = composeInstruction(read, headings, manner);
 
       return {
         recall: { instruction, read },

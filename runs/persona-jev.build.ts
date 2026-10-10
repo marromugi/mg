@@ -6,7 +6,13 @@ import type {
 import type { MemoryStore } from "@mg/memory";
 import type { Persona, RecallRead } from "@mg/persona";
 import { createLlmExtractor, createPersona } from "@mg/persona";
-import { keep, personaChange, recall } from "./persona-jev.values.ts";
+import {
+  keep,
+  manner,
+  personaChange,
+  recall,
+  voice,
+} from "./persona-jev.values.ts";
 
 const headings = { about: "## About", earlier: "## Earlier" };
 
@@ -25,6 +31,8 @@ export const buildJevPersona = (options: {
     id: "jev",
     store: options.store,
     estimator: options.estimator,
+    manner,
+    voice,
     recall: { ...recall, headings },
     extractor: createLlmExtractor({
       provider: options.extractorProvider,

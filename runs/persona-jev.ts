@@ -9,7 +9,7 @@ import type { StartOptions } from "@mg/runner";
 import { continueAsPersona, defineRun, runOnTrigger } from "@mg/runner";
 import { term } from "@mg/term";
 import type { TextTriggerInput } from "@mg/trigger";
-import { memoryLines } from "./outcome-lines.ts";
+import { memoryLines, replyLines } from "./outcome-lines.ts";
 import { outputPath } from "./outputs.ts";
 import { toMessages } from "./persona-jev.messages.ts";
 import { createJevPersona } from "./persona-jev.persona.ts";
@@ -112,6 +112,9 @@ try {
       );
 
       if (outcome.fired) {
+        for (const line of replyLines(outcome.run.result.messages)) {
+          console.log(term.paint(tone, line));
+        }
         console.log(
           term.paint(
             tone,

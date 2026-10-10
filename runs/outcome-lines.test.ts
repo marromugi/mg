@@ -1,7 +1,11 @@
 import type { MemoryOutcome } from "@mg/runner";
 import { JudgeError } from "@mg/turn";
 import { describe, expect, test } from "vitest";
-import { judgeFailureLine, memoryLines } from "./outcome-lines.ts";
+import {
+  judgeFailureLine,
+  memoryLines,
+  replyLines,
+} from "./outcome-lines.ts";
 
 describe("memoryLines", () => {
   test("writes the memory result as one JSON line when the update succeeded", () => {
@@ -100,5 +104,25 @@ describe("judgeFailureLine", () => {
     expect(judgeFailureLine("stop", error)).toBe(
       "stop: JudgeError: no answer ← Error: timeout",
     );
+  });
+});
+
+describe("replyLines", () => {
+  test("writes the text of the last assistant message as one reply line", () => {
+    expect(
+      replyLines([
+        { role: "user", content: "hi" },
+        { role: "assistant", parts: [{ type: "text", text: "first" }] },
+        { role: "user", content: "again" },
+        {
+          role: "assistant",
+          parts: [{ type: "text", text: "second" }],
+        },
+      ]),
+    ).toEqual(["  reply: second"]);
+  });
+
+  test("writes no line when the run produced no assistant text", () => {
+    expect(replyLines([{ role: "user", content: "hi" }])).toEqual([]);
   });
 });

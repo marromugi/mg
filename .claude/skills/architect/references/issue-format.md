@@ -1,29 +1,68 @@
 # Issue format
 
-The issue is the queue entry dispatcher picks up, and the record the later
-steps read: implementer builds from it, reviewer checks the PR against its
-`Request`, verifier runs its `Verification`. Keep the headings exactly as
-written here; scripts find `Design`, `Verification`, `Child issues`, and the
-`Parent:` line by heading.
+The issue is the record the later steps read: lead drives it to done,
+implementer builds each step from a body in this format, reviewer checks
+the PR against its `Request`, verifier runs its `Verification`. Keep the
+headings exactly as written here; scripts find `Design`, `Verification`,
+`Child issues`, `Open questions`, and the `Parent:` line by heading.
 
 Issues are written in English: the title, every heading, and every section.
 Everything above `To Implementer` is for people, in plain wording with no
 file names or function names. `To Implementer` is for the implementing agent
 and is as technical as needed.
 
-## When a task gets an issue
+## Which form
 
-- Work that dispatcher will pick up later, or that splits into several
-  pieces, gets issues.
-- Work finished inside the current session skips the issue. Its body, in
-  the single-issue form below, is written to a scratchpad file and handed to
-  implementer, which puts it in the PR body.
+- **Goal issue.** The default for anything left to lead. It fixes only
+  what should become possible and how to tell it is done; lead decides the
+  steps one round at a time, from the facts it finds.
+- **Single issue.** Work whose every fact is already in hand and that is
+  one step. lead builds it as its first step.
+- **Body file, no issue.** Work finished in this session, in the
+  single-issue form, written to a scratchpad file and handed to
+  implementer, which puts it in the PR body. lead writes one of these for
+  every step it builds.
 
-## Splitting
+New parents with child issues are not written; work that would split goes
+in a goal issue, and lead finds the pieces as it goes. Existing parents
+are still driven by lead.
 
-Split only where the pieces can be built and run on their own. One issue per
-piece that a person could try by itself. Order the pieces so each builds on
-merged work, and list the order in the parent.
+## Goal issue
+
+```
+## Asked
+> <the developer's words, exactly as they said them, in their language; or
+> the note's text when the goal came from a note>
+
+## Request
+<what should become possible, from the point of view of whoever uses it.
+2–4 sentences.>
+
+## Verification
+- V1: `<entry>`. <steps>. <the pass condition>
+
+## Known
+- <a fact the goal rests on>: <how it was seen — file:line, a run, a URL>
+
+## Open questions
+- <an unknown that decides how the goal is reached>
+
+## Bounds
+- <what must not change, or a call the developer made>
+```
+
+- `Asked` is never paraphrased or translated. It is what lead and the
+  maker check a move against (`software-design-theory`, How far the maker
+  goes alone); `Request` is the maker's reading of it.
+- `Verification` needs at least one runnable check; `None` is an error in
+  a goal, since lead could never tell it is done.
+- `Known`, `Open questions`, and `Bounds` take `- None` when empty.
+- `Bounds` holds every call the developer made for this goal, so later
+  rounds can read them.
+- `Known` holds only facts with their evidence. A guess goes under
+  `Open questions`.
+- No `Design`, `Decided`, or `To Implementer`. Those belong to each step's
+  body, written right before it is built.
 
 ## Single issue, or child of a parent
 
@@ -33,7 +72,8 @@ merged work, and list the order in the parent.
 2–4 sentences. A bug fix says what is seen now and what should be seen.>
 
 ## Design
-<a child's first line is `Parent: #<n>`, alone. Then the shape in a few
+<a child's first line is `Parent: #<n>`, alone; a step lead writes starts
+with `Goal: #<n>`, alone. Then the shape in a few
 sentences: which role this piece plays and the interfaces it relies on or
 adds.>
 
@@ -66,6 +106,8 @@ adds.>
 
 ## Parent issue
 
+Kept for the parents already open; architect writes no new ones.
+
 ```
 ## Request
 <the whole of what should become possible>
@@ -88,8 +130,9 @@ an error. Fenced lines never count.
 ## Note issue
 
 A defect or idea set aside for later. Its title ends in "(note)", and it has
-`## Background` and `## Handling` and no `To Implementer`, so dispatcher
-leaves it alone and `triager` finds it.
+`## Background` and `## Handling` and no `To Implementer`, so lead
+leaves it alone and architect takes it up with the other notes
+(`references/notes.md`).
 
 ## Checking and creating
 

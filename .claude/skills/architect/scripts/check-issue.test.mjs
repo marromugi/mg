@@ -43,6 +43,27 @@ Design for the test.
 1. #12 First child
 `;
 
+const BASE_GOAL = `## Asked
+
+> 声で話してほしい
+
+## Request
+
+Request for the test.
+
+## Verification
+- V1: Run \`runs/example.ts\`. It passes when it prints ok.
+
+## Known
+- None
+
+## Open questions
+- Does the server accept a tone?
+
+## Bounds
+- None
+`;
+
 async function runCheck(body) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-issue-"));
   fs.writeFileSync(path.join(dir, "body.md"), body);
@@ -83,7 +104,7 @@ test("reports a body that is neither a child nor a parent and exits 1", async ()
   assert.equal(code, 1);
   assert.equal(
     stderr,
-    'body.md:1: neither "## To Implementer" nor "## Child issues": not an architect issue\n',
+    'body.md:1: none of "## To Implementer", "## Child issues", "## Open questions": not an architect issue\n',
   );
 });
 
@@ -241,4 +262,65 @@ test("prints ok and exits 0 for prose that uses the word parent", async () => {
 
   assert.equal(code, 0);
   assert.equal(stdout, "body.md: ok\n");
+});
+
+test("prints ok and exits 0 for a goal with every section in place", async () => {
+  const { code, stdout } = await runCheck(BASE_GOAL);
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "body.md: ok\n");
+});
+
+test("reports a goal whose open questions come before what is known and exits 1", async () => {
+  const body = BASE_GOAL.replace("## Known\n- None\n\n", "").replace(
+    "## Bounds",
+    "## Known\n- None\n\n## Bounds",
+  );
+
+  const { code, stderr } = await runCheck(body);
+
+  assert.equal(code, 1);
+  assert.equal(stderr, 'body.md:12: "## Open questions" is out of order\n');
+});
+
+test("reports a goal section with no items and exits 1", async () => {
+  const body = BASE_GOAL.replace("## Bounds\n- None\n", "## Bounds\n");
+
+  const { code, stderr } = await runCheck(body);
+
+  assert.equal(code, 1);
+  assert.equal(stderr, 'body.md:18: "Bounds" needs items, or "- None"\n');
+});
+
+test("reports a goal with no runnable check and exits 1", async () => {
+  const body = BASE_GOAL.replace(
+    "- V1: Run `runs/example.ts`. It passes when it prints ok.",
+    "- None: nothing reaches it",
+  );
+
+  const { code, stderr } = await runCheck(body);
+
+  assert.equal(code, 1);
+  assert.equal(stderr, 'body.md:10: a goal needs a runnable check in "Verification"\n');
+});
+
+test("reports a goal that also carries implementer notes and exits 1", async () => {
+  const body = BASE_GOAL.concat("\n## To Implementer\n- Files / modules: none\n");
+
+  const { code, stderr } = await runCheck(body);
+
+  assert.equal(code, 1);
+  assert.equal(
+    stderr,
+    'body.md:15: a body with "## Open questions" has no "## To Implementer" or "## Child issues"\n',
+  );
+});
+
+test("reports a goal whose asked section is empty and exits 1", async () => {
+  const body = BASE_GOAL.replace("> 声で話してほしい\n", "");
+
+  const { code, stderr } = await runCheck(body);
+
+  assert.equal(code, 1);
+  assert.equal(stderr, 'body.md:1: "Asked" needs the words the work came from\n');
 });

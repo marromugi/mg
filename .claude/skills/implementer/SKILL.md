@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: "Build one piece of work that the architect skill wrote up — a GitHub issue, or, for work finished in this session, a body file with no issue. Use whenever the developer points at an issue and wants it built — \"#12 をやって\", \"issue 3 を実装して\", \"implement #7\", an issue URL, or \"start on the next issue\". Hands the work to a Sonnet agent in an isolated git worktree that may redraw the design on the spot when it does not hold, gets a PR opened, waits for CI, then hands the PR to reviewer and verifier. Do not use for work nobody has written up yet; send that to architect first."
+description: "Build one step that lead or architect wrote up as a body file, or a GitHub issue with To Implementer. Called by lead for each step of a goal and by architect for work finished in this session; when the developer points at an issue to build (\"#12 をやって\", \"implement #7\"), use lead, which calls this. Hands the work to a Sonnet agent in an isolated git worktree that may redraw the design on the spot when it does not hold, gets a PR opened, waits for CI, then hands the PR to reviewer and verifier. Do not use for work nobody has written up yet; send that to architect first."
 ---
 
 # Implementer
@@ -14,11 +14,9 @@ can be in flight. The agent owns the design while it builds: when the
 design in the issue does not hold, it redraws it and says what changed,
 rather than stopping (`software-design-theory`, principle 9).
 
-Whether an issue is ready is not decided here. dispatcher reads GitHub for
-that, once per pass, and a single named issue starts as it is. This skill
-reads the issue once, saves its text, and notes when it was last updated.
-The agent builds from that saved text, and dispatcher compares the noted
-time with GitHub's before it merges.
+Whether a step is the right next move is not decided here; lead decides
+that from the facts. This skill builds what it is handed. Merging is not
+decided here either: lead decides it, or architect for work with no issue.
 
 ## Steps
 
@@ -27,11 +25,11 @@ time with GitHub's before it merges.
 **From an issue.** Read it once:
 
 ```
-gh issue view <N> --json body,updatedAt
+gh issue view <N> --json body
 ```
 
-Write `body` to `<scratchpad>/issues/issue-<N>.md` (make the folder first)
-and keep `updatedAt`. That file is the copy to use from here on; do not
+Write `body` to `<scratchpad>/issues/issue-<N>.md` (make the folder first).
+That file is the copy to use from here on; do not
 fetch the issue again.
 
 Check that the body has a `To Implementer` section. If it does not, the
@@ -46,8 +44,8 @@ agent prompt only:
 gh issue view <P> --json body
 ```
 
-**From a body file.** architect hands over a scratchpad file in the issue
-format when the work has no issue. The file is the copy to use.
+**From a body file.** lead hands over a scratchpad file for each step, and
+architect for work with no issue. The file is the copy to use.
 
 ### 2. Spawn the implementation agent
 
@@ -148,6 +146,3 @@ developer's main checkout.
   step 5 (reviewer), and this step, from the start.
 - Still **fail** after that one retry, or **unverifiable**: leave the PR
   open and report the reason.
-
-With an issue, the result to the caller also carries the issue's
-`updatedAt` (ISO string) next to the PR number and Design changes.

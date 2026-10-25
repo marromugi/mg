@@ -172,4 +172,4 @@ Japanese, following `.claude/rules/writing.md`:
 4. Anything left open: a harm the developer declined, a fix that did not
    land, a seat that ran on a fallback model.
 
-Then stop. Merging is dispatcher's call, or the developer's.
+Then stop. Merging is lead's call, or the developer's.

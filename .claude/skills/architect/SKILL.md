@@ -1,6 +1,6 @@
 ---
 name: architect
-description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix, a refactor, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", 「ここ直して」「ちょっと調整して」, \"I want to add…\". Draws the design from the picture of the whole software following software-design-theory, decides the calls the theory leaves open on its own, and either creates thin GitHub issues for dispatcher or hands work finished in this session straight to implementer. Asks the developer only what to build when that is unclear, and anything that spends money, cannot be undone, or reaches outside this machine. Never writes implementation code; that is the implementer skill's job."
+description: "Design-first intake for any new work in this repo. Use this whenever the developer proposes something that would end in code — a feature, a change, a fix, a refactor, or any phrasing like \"〜したい\", \"〜を追加したい\", \"〜できるようにしたい\", \"〜に対応したい\", 「ここ直して」「ちょっと調整して」, \"I want to add…\". Draws the design from the picture of the whole software following software-design-theory, decides the calls the theory leaves open on its own, and either frames a goal issue for lead or hands work finished in this session straight to implementer. Asks the developer only what to build when that is unclear, and anything that spends money, cannot be undone, or reaches outside this machine. Also takes stock of note issues and observations in bulk — 「メモの issue を棚卸しして」「メモを片づけて」「溜まった気づきを整理して」「このフィードバックたちを処理して」 — closing what the code no longer has and framing the rest. Never writes implementation code; that is the implementer skill's job."
 ---
 
 # Architect
@@ -8,17 +8,20 @@ description: "Design-first intake for any new work in this repo. Use this whenev
 ## Why this skill exists
 
 The work runs as a fast loop: build, run it, find what is wrong, fix it.
-This skill makes the first move of that loop. It draws a design good enough
-to build from, writes down what should become possible and how to run it,
-and gets out of the way. Nothing reviews the design before code exists;
-the PR review and the run on the real software judge the result.
+This skill makes the first move of that loop. It writes down what should
+become possible and how to tell it is done, and gets out of the way. When
+every fact is in hand and the work is one step, it also draws the design.
+Otherwise the steps are lead's, decided round by round from what turns out
+to be true. Nothing reviews the design before code exists; the PR review
+and the run on the real software judge the result.
 
 The developer is asked only what `software-design-theory` sends them
 (What goes to the developer). Every other call is made here, and the ones
 the developer might want to overturn are listed under `Decided`.
 
 Read `software-design-theory` in full before step 2. Read
-`references/issue-format.md` before step 4.
+`references/issue-format.md` before step 4. For several notes at once,
+follow `references/notes.md`, which runs this flow for each.
 
 ## Flow
 
@@ -31,9 +34,14 @@ the default branch) and look at the code it touches.
 If what to build is unclear in a way that changes the result, ask, and
 wait. Otherwise do not ask for confirmation; carry on.
 
-Then decide whether the work gets issues (`references/issue-format.md`, When
-a task gets an issue). Work the developer wants done now, in this session,
-skips the issue.
+Then pick the form (`references/issue-format.md`, Which form). A goal
+issue is the default. A single issue or a body file only when every fact
+the design rests on is already in hand and the work is one step.
+
+**For a goal issue**, skip steps 2 and 3. Copy the developer's words into
+`Asked` as they said them. Read just enough of the code to write `Known` with its evidence, the `Open questions` that decide how the
+goal is reached, and the `Bounds`. Do not design the steps. Then go to
+step 4.
 
 ### 2. Design from the whole
 
@@ -52,13 +60,11 @@ Consider at least two whole shapes, not two variations of one, and choose
 by the principles. The rejected shapes are not written down.
 
 A fact that running something would settle — behaviour, output, timing,
-whether an outside system accepts something — goes to `prototyper`. When
-that run spends money, `prototyper` asks right before it runs. Put what it
-saw under `Decided`.
+whether an outside system accepts something — is settled by a throwaway,
+following `lead/references/run.md`, which asks right before a run that
+spends money. Put what it saw under `Decided`.
 
 If the request turns out to be infeasible, say so and stop.
-
-If the work touches UI, read `phrasing` and `composer` as well.
 
 ### 3. Decide what is left
 
@@ -74,7 +80,7 @@ following `.claude/rules/questions.md`, in Japanese following
 
 ### 4. Write the bodies
 
-Write each body in the format from `references/issue-format.md` to a
+Write each body, goal or single, in the format from `references/issue-format.md` to a
 scratchpad file, and run the check until it prints no problems:
 
 ```
@@ -88,34 +94,20 @@ in the item.
 
 ### 5. Hand over
 
-**With issues.** Create them without asking. Child bodies carry no `Parent:`
-line yet, because the parent has no number:
+**A goal issue.** Create it without asking:
 
-1. Create the parent, if there is one.
-2. Write the parent's number into each child's `Parent: #<n>` line.
-3. Run `check-issue.mjs` again on each child body.
-4. Create each child only when it prints no problems.
-5. Fill the parent's `Child issues` list with the real numbers.
-6. Keep parent lines in step. Run
-   `node .claude/skills/architect/scripts/parent-lines.mjs --dir <scratchpad>/parent-lines`
-   with an empty folder. It finds open listed children with no
-   `Parent:` line and writes their new bodies. For each written file:
-   run `check-issue.mjs`; when it prints no problems, run
-   `gh issue edit <n> --body-file <file>`; otherwise leave the issue
-   and report the problems. After each edit, read the body back with
-   `gh issue view <n> --json body` and run `check-issue.mjs` on it
-   again. Put the results in the report, and report every `skip` line.
+```
+gh issue create --title "<title>" --body-file <body.md>
+```
 
-The script never edits an issue; only architect writes issue bodies. A
-child that is being built with no PR yet cannot be seen by the script and
-may be edited. Its `verify` then fails with "body changed" and waits for
-the developer.
+Then invoke `lead` with its number.
 
-Then invoke `reconciler` with the numbers just created.
+**A single issue.** Create it the same way, then invoke `lead`.
 
 **Without an issue.** Invoke `implementer` with the body file. It builds
-from it and puts it in the PR body. When implementer returns, hand the PR
-to `dispatcher` as a PR to decide.
+from it and puts it in the PR body. When implementer returns, merge the PR
+or leave it open by `lead/references/merge.md`, skipping the issue check
+since there is no issue.
 
 A defect found along the way that the work does not need fixed becomes a
 note issue (`references/issue-format.md`, Note issue).
@@ -125,35 +117,14 @@ note issue (`references/issue-format.md`, Note issue).
 One message, Japanese, following `.claude/rules/writing.md`:
 
 - What will become possible, in a few lines.
-- The shape chosen, in a few lines.
-- Everything under `Decided`, so the developer can overturn it.
-- With issues: each issue in build order, number and title, one line each,
-  and what `reconciler` found. They can start with `implementer` and an
-  issue number, or `dispatcher` for all of them.
-- Without an issue: what `implementer` and `dispatcher` returned.
+- For a single issue or body file: the shape chosen, in a few lines, and
+  everything under `Decided`, so the developer can overturn it.
+- For a goal: its `Open questions` and `Bounds`.
+- With an issue: its number and title, and what `lead` returned.
+- Without an issue: what `implementer` returned, and whether the PR was
+  merged.
 
 After the report, stop.
-
-## Redoing a design
-
-The entry `reconciler` uses when two open issues contradict each other and
-their bodies must change. A design problem found while building does not
-come here; implementer redraws it on the spot (`software-design-theory`,
-principle 9).
-
-Input: the issue numbers, and each resolution as a decision already made.
-
-1. Read the issues and their parents from GitHub fresh.
-2. Run step 2 over them with the resolutions applied, keeping each issue's
-   `Request`.
-3. Rewrite the bodies as step 4 says. A child keeps its `Parent: #<n>`
-   line, or takes the new parent's number when it moved.
-4. Edit each with `gh issue edit <n> --body-file <file>`. Where the new
-   design contradicts work already merged, leave that work alone and open a
-   new issue instead. A child the new design drops from every `Child issues`
-   list is closed with `gh issue close <n> --comment "<parent and reason>"`.
-
-Return the list of edited, closed, and created issue numbers.
 
 ## Things to keep in mind
 

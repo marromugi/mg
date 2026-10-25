@@ -4,6 +4,7 @@ import process from "node:process";
 
 const CHILD_H2 = ["Request", "Design", "Decided", "Verification", "To Implementer"];
 const PARENT_H2 = ["Request", "Design", "Decided", "Child issues"];
+const GOAL_H2 = ["Asked", "Request", "Verification", "Known", "Open questions", "Bounds"];
 const NONE = "None";
 
 const file = process.argv[2];
@@ -49,12 +50,36 @@ const requireInOrder = (titles) => {
 
 const isChild = Boolean(find("To Implementer"));
 const isParent = Boolean(find("Child issues"));
+const isGoal = Boolean(find("Open questions"));
 
-if (isChild && isParent) {
+if (isGoal && (isChild || isParent)) {
+  fail(
+    find("Open questions").n,
+    'a body with "## Open questions" has no "## To Implementer" or "## Child issues"',
+  );
+} else if (isChild && isParent) {
   fail(find("Child issues").n, 'a body with "## To Implementer" has no "## Child issues"');
 } else if (isChild) requireInOrder(CHILD_H2);
 else if (isParent) requireInOrder(PARENT_H2);
-else fail(1, 'neither "## To Implementer" nor "## Child issues": not an architect issue');
+else if (isGoal) requireInOrder(GOAL_H2);
+else
+  fail(
+    1,
+    'none of "## To Implementer", "## Child issues", "## Open questions": not an architect issue',
+  );
+
+if (isGoal) {
+  const asked = find("Asked");
+  if (asked && !asked.lines.some(({ text }) => text.trim() !== "")) {
+    fail(asked.n, '"Asked" needs the words the work came from');
+  }
+  for (const title of ["Known", "Open questions", "Bounds"]) {
+    const section = find(title);
+    if (section && bullets(section.lines).length === 0) {
+      fail(section.n, `"${title}" needs items, or "- None"`);
+    }
+  }
+}
 
 const parentAttempts = (find("Design")?.lines ?? []).filter(({ text }) =>
   /^\s*parent\s*:/i.test(text),
@@ -78,7 +103,8 @@ if (checks) {
 
   for (const { n, item } of items) {
     if (item === NONE || /^None: \S/.test(item)) {
-      if (items.length > 1) fail(n, '"None" must be the only item in "Verification"');
+      if (isGoal) fail(n, 'a goal needs a runnable check in "Verification"');
+      else if (items.length > 1) fail(n, '"None" must be the only item in "Verification"');
       continue;
     }
     const m = /^(V\d+): (\S.*)$/.exec(item);

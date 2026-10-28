@@ -47,6 +47,7 @@ export const describeReplyLogContract = (
         kind: "scheduled",
         conversationId: "c",
         inputId: "a",
+        callIndex: 1,
         dueAt: 61000,
         note: "stand up",
       });
@@ -57,10 +58,14 @@ export const describeReplyLogContract = (
           kind: "scheduled",
           conversationId: "c",
           inputId: "a",
+          callIndex: 1,
           dueAt: 61000,
           note: "stand up",
         },
       ]);
+      expect((await log.scheduledFor("a", 1))?.dueAt).toBe(61000);
+      expect(await log.scheduledFor("a", 2)).toBeUndefined();
+      expect(await log.scheduledFor("b", 1)).toBeUndefined();
       expect(await log.hasReplyFor("a")).toBe(false);
       await log.append(entry("a", "one"));
       expect(await log.hasReplyFor("a")).toBe(true);

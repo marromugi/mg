@@ -42,6 +42,20 @@ export const createMemoryReplyLog = (): ReplyLog => {
       begun.set(inputId, entryCount);
       return { entryCount, first: true };
     },
+    scheduledFor: async (inputId, callIndex) => {
+      if (closed) {
+        throw new ReplyLogClosedError();
+      }
+      const found = records.find(
+        (record) =>
+          record.kind === "scheduled" &&
+          record.inputId === inputId &&
+          record.callIndex === callIndex,
+      );
+      return found?.kind === "scheduled"
+        ? structuredClone(found)
+        : undefined;
+    },
     hasReplyFor: async (inputId) => {
       if (closed) {
         throw new ReplyLogClosedError();

@@ -8,6 +8,7 @@ export const replies = sqliteTable("replies", {
   text: text("text"),
   reason: text("reason"),
   dueAt: integer("due_at"),
+  callIndex: integer("call_index"),
   note: text("note"),
 });
 

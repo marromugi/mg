@@ -18,7 +18,7 @@ const laterInput = z.object({
 
 export type LaterOptions = {
   inbox: Pick<Inbox, "add">;
-  replies: Pick<ReplyLog, "append">;
+  replies: Pick<ReplyLog, "append" | "scheduledFor">;
   /** The conversation the note goes into. */
   conversationId: string;
   /** The input being run, which the `scheduled` record answers. */
@@ -37,54 +37,74 @@ const describe = (error: unknown): string =>
  */
 export const createLaterTool = (
   options: LaterOptions,
-): Tool<typeof laterInput> => ({
-  name: LATER_TOOL,
-  description:
-    "Leaves a note for this conversation to be answered later. " +
-    "At the time you set, the note comes back as an input and your " +
-    "reply reaches the client like any other. " +
-    "Returns when it is due, in milliseconds since the epoch.",
-  input: laterInput,
-  async prepare({ inSeconds, note }) {
-    return {
-      reach: { kind: "none" },
-      async run() {
-        if (
-          !Number.isInteger(inSeconds) ||
-          inSeconds < MIN_LATER_SECONDS ||
-          inSeconds > MAX_LATER_SECONDS
-        ) {
-          return failure(
-            `inSeconds must be a whole number from ${MIN_LATER_SECONDS} to ${MAX_LATER_SECONDS}. Nothing was scheduled.`,
-          );
-        }
-        const dueAt = options.now() + inSeconds * 1000;
-        try {
-          await options.inbox.add(
-            options.conversationId,
-            { text: note, from: "agent" },
-            { dueAt },
-          );
-        } catch (error) {
-          return failure(
-            `the note could not be scheduled: ${describe(error)}`,
-          );
-        }
-        try {
-          await options.replies.append({
-            kind: "scheduled",
-            dueAt,
-            note,
-            conversationId: options.conversationId,
-            inputId: options.inputId,
-          });
-        } catch (error) {
-          return failure(
-            `the note is scheduled for ${dueAt} but the client could not be told: ${describe(error)}`,
-          );
-        }
-        return JSON.stringify({ dueAt });
-      },
-    };
-  },
-});
+): Tool<typeof laterInput> => {
+  // The nth call of one run is the same call when the input runs again.
+  let calls = 0;
+  return {
+    name: LATER_TOOL,
+    description:
+      "Leaves a note for this conversation to be answered later. " +
+      "At the time you set, the note comes back as an input and your " +
+      "reply reaches the client like any other. " +
+      "Returns when it is due, in milliseconds since the epoch.",
+    input: laterInput,
+    async prepare({ inSeconds, note }) {
+      return {
+        reach: { kind: "none" },
+        async run() {
+          calls += 1;
+          const callIndex = calls;
+          if (
+            !Number.isInteger(inSeconds) ||
+            inSeconds < MIN_LATER_SECONDS ||
+            inSeconds > MAX_LATER_SECONDS
+          ) {
+            return failure(
+              `inSeconds must be a whole number from ${MIN_LATER_SECONDS} to ${MAX_LATER_SECONDS}. Nothing was scheduled.`,
+            );
+          }
+          try {
+            const earlier = await options.replies.scheduledFor(
+              options.inputId,
+              callIndex,
+            );
+            if (earlier !== undefined) {
+              return JSON.stringify({ dueAt: earlier.dueAt });
+            }
+          } catch (error) {
+            return failure(
+              `the earlier schedule could not be read: ${describe(error)}`,
+            );
+          }
+          const dueAt = options.now() + inSeconds * 1000;
+          try {
+            await options.inbox.add(
+              options.conversationId,
+              { text: note, from: "agent" },
+              { dueAt },
+            );
+          } catch (error) {
+            return failure(
+              `the note could not be scheduled: ${describe(error)}`,
+            );
+          }
+          try {
+            await options.replies.append({
+              kind: "scheduled",
+              callIndex,
+              dueAt,
+              note,
+              conversationId: options.conversationId,
+              inputId: options.inputId,
+            });
+          } catch (error) {
+            return failure(
+              `the note is scheduled for ${dueAt} but the client could not be told: ${describe(error)}`,
+            );
+          }
+          return JSON.stringify({ dueAt });
+        },
+      };
+    },
+  };
+};

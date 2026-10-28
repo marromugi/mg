@@ -12,6 +12,8 @@ export type ReplyRecord =
   | (ReplyBase & {
       /** The agent set a time to get back to the conversation. */
       kind: "scheduled";
+      /** Which `later` call of the input's run set this, from 1. */
+      callIndex: number;
       /** Milliseconds since the epoch. */
       dueAt: number;
       note: string;
@@ -34,6 +36,11 @@ export interface ReplyLog {
     inputId: string,
     entryCount: number,
   ): Promise<{ entryCount: number; first: boolean }>;
+  /** The `scheduled` record the input's nth `later` call wrote, if any. */
+  scheduledFor(
+    inputId: string,
+    callIndex: number,
+  ): Promise<Extract<ReplyRecord, { kind: "scheduled" }> | undefined>;
   /**
    * Whether a `reply` or `failed` record answering the input has been
    * written. A `scheduled` record does not answer it.

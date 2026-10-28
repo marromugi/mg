@@ -37,6 +37,8 @@ to the entry. See `runs/host-server.ts`.
   naming the range, and nothing is scheduled.
   The host writes a `scheduled` reply with `dueAt` and `note`, so the
   client sees when the agent will get back.
+  If the input runs again after a stop, its nth `later` call gets the
+  time the first run set for that call, and nothing more is added.
   When the note is due it runs as an input of the same conversation.
   The agent reads it as `[note to self, set at <ISO time>]` followed
   by the note, and the reply goes to the log as usual, also after a
@@ -66,7 +68,7 @@ streaming new replies as they are written, until the client closes it.
 GET /replies?after=0
 {"cursor":1,"conversationId":"jev","inputId":"...","kind":"reply","text":"..."}
 {"cursor":2,"conversationId":"jev","inputId":"...","kind":"failed","reason":"..."}
-{"cursor":3,"conversationId":"jev","inputId":"...","kind":"scheduled","dueAt":1767225600000,"note":"..."}
+{"cursor":3,"conversationId":"jev","inputId":"...","kind":"scheduled","callIndex":1,"dueAt":1767225600000,"note":"..."}
 ```
 
 ## Usage

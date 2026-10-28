@@ -403,6 +403,7 @@ describe("the later tool", () => {
       conversationId: "talk",
       inputId: sent.id,
       kind: "scheduled",
+      callIndex: 1,
       dueAt: 61000,
       note: "stand up",
     });
@@ -452,5 +453,57 @@ describe("the later tool", () => {
       text: "result: [denied] Not executed. The policy gate rejected this action: only the later tool is allowed on the host",
     });
     expect(opened.refused).toEqual(["bash"]);
+  });
+
+  test("sets nothing more when an input that already set a time runs again", async () => {
+    const conversations = createMemoryConversationStore();
+    const inbox = createMemoryInboxStore();
+    const replies = createMemoryReplyLog();
+    const item = await inbox.add(
+      {
+        conversationId: "talk",
+        input: { text: "schedule" },
+        dueAt: 1000,
+      },
+      1000,
+    );
+    await conversations.create("talk");
+    await replies.begin(item.id, 0);
+    await replies.append({
+      kind: "scheduled",
+      conversationId: "talk",
+      inputId: item.id,
+      callIndex: 1,
+      dueAt: 61000,
+      note: "stand up",
+    });
+    host = createHost({
+      agent: ({ tools, gate }) => ({
+        name: "test",
+        provider: scriptedProvider(),
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 3,
+          stream: false,
+        },
+        tools,
+        gate,
+      }),
+      conversations,
+      inbox,
+      replies,
+      clients: [{ name: "phone", token }],
+      clock: fakeClock(),
+    });
+
+    await host.start();
+
+    const records = await readReplies(await getReplies(host), 2);
+    expect(records.map((r) => r.kind)).toEqual(["scheduled", "reply"]);
+    expect(records[1]).toMatchObject({
+      text: 'result: {"dueAt":61000}',
+    });
+    expect(await inbox.pending()).toEqual([]);
   });
 });

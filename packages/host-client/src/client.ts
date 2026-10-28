@@ -45,6 +45,12 @@ export const createHostClient = (
     request: RepliesOptions,
   ): AsyncGenerator<ReplyRecord> {
     const { signal } = request;
+    if (
+      request.conversations?.length === 0 &&
+      request.prefix === undefined
+    ) {
+      return;
+    }
     let after = request.after;
     let delay = FIRST_DELAY_MS;
     const aborted = (): boolean => signal?.aborted === true;

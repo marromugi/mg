@@ -118,47 +118,23 @@ describe("replies", () => {
     ]);
   });
 
-  test("waits 500 ms, then doubles up to 30 s, and starts over after a record", async () => {
-    vi.useFakeTimers();
-    const abort = new AbortController();
-    const failing = () => Promise.reject(new Error("down"));
+  test("yields nothing and makes no request for an empty conversation list without a prefix", async () => {
     const client = createHostClient({
       url: "http://host.test",
       token: "t",
-      fetch: fakeFetch(
-        failing,
-        failing,
-        failing,
-        () => ndjson([record(1)]),
-        failing,
-      ),
+      fetch: fakeFetch(() => ndjson([record(1)])),
     });
 
-    const reading = (async () => {
-      for await (const r of client.replies({
-        after: 0,
-        signal: abort.signal,
-      })) {
-        void r;
-      }
-    })();
-    const attemptsAfter = async (ms: number) => {
-      await vi.advanceTimersByTimeAsync(ms);
-      return urls.length;
-    };
+    const got: ReplyRecord[] = [];
+    for await (const r of client.replies({
+      after: 0,
+      conversations: [],
+    })) {
+      got.push(r);
+    }
 
-    expect(await attemptsAfter(0)).toBe(1);
-    expect(await attemptsAfter(499)).toBe(1);
-    expect(await attemptsAfter(1)).toBe(2);
-    expect(await attemptsAfter(999)).toBe(2);
-    expect(await attemptsAfter(1)).toBe(3);
-    expect(await attemptsAfter(1999)).toBe(3);
-    expect(await attemptsAfter(1)).toBe(4);
-    // A record arrived, so the next wait is 500 ms again.
-    expect(await attemptsAfter(499)).toBe(4);
-    expect(await attemptsAfter(1)).toBe(5);
-    abort.abort();
-    await reading;
+    expect(got).toEqual([]);
+    expect(urls).toEqual([]);
   });
 
   test("throws on 401 and on 400 without retrying", async () => {

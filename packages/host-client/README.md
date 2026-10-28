@@ -13,6 +13,8 @@ host's token and nothing else: it does not store cursors.
   throws `HostRequestError` with the status and the host's `error` text.
 - `replies` yields the records of the conversations you name, exactly
   by id, by prefix, or both. With neither, it yields every record.
+  An empty `conversations` list with no `prefix` matches nothing: it
+  yields nothing and makes no request.
 - Reconnects when the stream ends or fails, from the cursor of the last
   record whose step in your loop completed.
   The wait starts at 500 ms, doubles to at most 30 s, and starts over

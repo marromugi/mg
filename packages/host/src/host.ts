@@ -21,7 +21,12 @@ import { Hono } from "hono";
 import { createAdmission } from "./admission.js";
 import { createLaterOnlyGate } from "./gate.js";
 import { createLaterTool } from "./later.js";
-import type { Client, ReplyLog, ReplyRecord } from "./types.js";
+import type {
+  Client,
+  ReplyFilter,
+  ReplyLog,
+  ReplyRecord,
+} from "./types.js";
 
 /** What the host gives the agent for one run. */
 export type AgentMeans = {
@@ -336,8 +341,23 @@ export const createHost = (options: HostOptions): Host => {
         400,
       );
     }
+    const conversationIds = c.req.queries("conversation");
+    const prefix = c.req.query("prefix");
+    if (conversationIds?.includes("") === true || prefix === "") {
+      return c.json(
+        {
+          error:
+            '"conversation" and "prefix" must not be empty when given.',
+        },
+        400,
+      );
+    }
+    const filter: ReplyFilter = {
+      conversations: conversationIds,
+      prefix,
+    };
     const signal = AbortSignal.any([c.req.raw.signal, closing.signal]);
-    return new Response(ndjson(replies.watch(after, signal)), {
+    return new Response(ndjson(replies.watch(after, signal, filter)), {
       headers: { "content-type": "application/x-ndjson" },
     });
   });

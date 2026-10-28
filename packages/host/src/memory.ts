@@ -1,6 +1,18 @@
 import { ReplyLogClosedError } from "./errors.js";
-import type { NewReply, ReplyLog, ReplyRecord } from "./types.js";
+import type {
+  NewReply,
+  ReplyFilter,
+  ReplyLog,
+  ReplyRecord,
+} from "./types.js";
 import { createWatching } from "./watch.js";
+
+const matches = (record: ReplyRecord, filter?: ReplyFilter) =>
+  (filter?.conversations === undefined &&
+    filter?.prefix === undefined) ||
+  filter.conversations?.includes(record.conversationId) === true ||
+  (filter.prefix !== undefined &&
+    record.conversationId.startsWith(filter.prefix));
 
 export const createMemoryReplyLog = (): ReplyLog => {
   const records: ReplyRecord[] = [];
@@ -10,9 +22,12 @@ export const createMemoryReplyLog = (): ReplyLog => {
   const read = async (
     after: number,
     limit: number,
+    filter?: ReplyFilter,
   ): Promise<ReplyRecord[]> =>
     records
-      .filter((record) => record.cursor > after)
+      .filter(
+        (record) => record.cursor > after && matches(record, filter),
+      )
       .slice(0, limit)
       .map((record) => structuredClone(record));
 
@@ -65,13 +80,14 @@ export const createMemoryReplyLog = (): ReplyLog => {
           record.inputId === inputId && record.kind !== "scheduled",
       );
     },
-    read: async (after, limit) => {
+    read: async (after, limit, filter) => {
       if (closed) {
         throw new ReplyLogClosedError();
       }
-      return read(after, limit);
+      return read(after, limit, filter);
     },
-    watch: (after, signal) => watching.watch(after, signal),
+    watch: (after, signal, filter) =>
+      watching.watch(after, signal, filter),
     async close() {
       closed = true;
       watching.notify();

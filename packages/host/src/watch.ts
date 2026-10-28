@@ -1,4 +1,4 @@
-import type { ReplyRecord } from "./types.js";
+import type { ReplyFilter, ReplyRecord } from "./types.js";
 
 const PAGE = 100;
 
@@ -8,7 +8,11 @@ const PAGE = 100;
  * on close.
  */
 export const createWatching = (
-  read: (after: number, limit: number) => Promise<ReplyRecord[]>,
+  read: (
+    after: number,
+    limit: number,
+    filter?: ReplyFilter,
+  ) => Promise<ReplyRecord[]>,
   isClosed: () => boolean,
 ) => {
   const wakers = new Set<() => void>();
@@ -21,6 +25,7 @@ export const createWatching = (
     async *watch(
       after: number,
       signal: AbortSignal,
+      filter?: ReplyFilter,
     ): AsyncGenerator<ReplyRecord> {
       let cursor = after;
       while (!signal.aborted) {
@@ -32,7 +37,7 @@ export const createWatching = (
         wakers.add(wake);
         signal.addEventListener("abort", wake, { once: true });
         try {
-          const records = await read(cursor, PAGE);
+          const records = await read(cursor, PAGE, filter);
           if (records.length === 0) {
             if (isClosed()) {
               return;

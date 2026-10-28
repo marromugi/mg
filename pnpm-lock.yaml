@@ -287,6 +287,12 @@ importers:
         specifier: 0.31.10
         version: 0.31.10
 
+  packages/host-client:
+    devDependencies:
+      '@mg/host':
+        specifier: workspace:*
+        version: link:../host
+
   packages/inbox:
     dependencies:
       '@libsql/client':
@@ -535,6 +541,9 @@ importers:
       '@mg/host':
         specifier: workspace:*
         version: link:../packages/host
+      '@mg/host-client':
+        specifier: workspace:*
+        version: link:../packages/host-client
       '@mg/inbox':
         specifier: workspace:*
         version: link:../packages/inbox

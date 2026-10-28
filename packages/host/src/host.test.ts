@@ -191,6 +191,48 @@ describe("the host", () => {
     ).toEqual([[2, "heard: two"]]);
   });
 
+  test("streams only the conversations named by exact id or prefix", async () => {
+    const opened = open();
+    host = opened.host;
+    await host.start();
+    await send(host, "discord:a", { text: "one" });
+    await send(host, "other:b", { text: "two" });
+    await send(host, "third", { text: "three" });
+    await readReplies(await getReplies(host), 3);
+
+    const byPrefix = await readReplies(
+      await getReplies(host, "?prefix=discord:"),
+      1,
+    );
+    const both = await readReplies(
+      await getReplies(
+        host,
+        "?prefix=discord:&conversation=other:b&conversation=third",
+      ),
+      3,
+    );
+
+    expect(byPrefix.map((r) => [r.cursor, r.conversationId])).toEqual([
+      [1, "discord:a"],
+    ]);
+    expect(both.map((r) => r.cursor)).toEqual([1, 2, 3]);
+  });
+
+  test("refuses an empty conversation or prefix with 400", async () => {
+    const opened = open();
+    host = opened.host;
+    await host.start();
+
+    const prefix = await getReplies(host, "?prefix=");
+    const conversation = await getReplies(
+      host,
+      "?conversation=a&conversation=",
+    );
+
+    expect(prefix.status).toBe(400);
+    expect(conversation.status).toBe(400);
+  });
+
   test("answers two inputs of one conversation in the order sent", async () => {
     const opened = open();
     host = opened.host;

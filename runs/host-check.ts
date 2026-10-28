@@ -1,9 +1,14 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  freePort,
+  startServer as startHostServer,
+  stopAllServers,
+  stopChild,
+} from "./host-process.ts";
 
 type Reply = {
   cursor: number;
@@ -16,7 +21,6 @@ type Reply = {
   note?: string;
 };
 
-const children = new Set<ChildProcess>();
 const sent: string[] = [];
 const failures: string[] = [];
 const expectThat = (ok: boolean, message: string): void => {
@@ -25,70 +29,13 @@ const expectThat = (ok: boolean, message: string): void => {
     failures.push(message);
   }
 };
-const freePort = (): Promise<number> =>
-  new Promise((resolve, reject) => {
-    const probe = createServer();
-    probe.on("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const address = probe.address();
-      probe.close(() =>
-        typeof address === "object" && address !== null
-          ? resolve(address.port)
-          : reject(new Error("no port")),
-      );
-    });
-  });
-
-const stopChild = (child: ChildProcess): Promise<void> =>
-  new Promise((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      resolve();
-      return;
-    }
-    child.once("exit", () => resolve());
-    child.kill("SIGTERM");
-    setTimeout(() => child.kill("SIGKILL"), 10_000).unref();
-  });
-
 const startServer = (
   port: number,
   dataDir: string,
   tokensFile: string,
 ): Promise<ChildProcess> =>
-  new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [
-        "--env-file-if-exists=.env",
-        "runs/host-server.ts",
-        "--port",
-        String(port),
-        "--data-dir",
-        dataDir,
-        "--tokens",
-        tokensFile,
-      ],
-      { stdio: ["ignore", "pipe", "pipe"] },
-    );
-    children.add(child);
-    let output = "";
-    const onData = (chunk: Buffer): void => {
-      const text = chunk.toString();
-      sent.push(text);
-      output += text;
-      if (output.includes("listening on")) {
-        resolve(child);
-      }
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.once("exit", (code) =>
-      reject(
-        new Error(
-          `the server exited with ${code} before listening:\n${output}`,
-        ),
-      ),
-    );
+  startHostServer(port, dataDir, tokensFile, (text) => {
+    sent.push(text);
   });
 
 const post = async (
@@ -334,7 +281,7 @@ try {
     "no *_API_KEY value was sent to a client",
   );
 } finally {
-  await Promise.all([...children].map(stopChild));
+  await stopAllServers();
   await rm(dir, { recursive: true, force: true });
 }
 process.exitCode = failures.length === 0 ? 0 : 1;

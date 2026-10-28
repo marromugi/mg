@@ -105,11 +105,23 @@ const inbox = await openSqliteInboxStore(join(dataDir, "inbox.db"));
 const replies = await openSqliteReplyLog(join(dataDir, "replies.db"));
 
 const host = createHost({
-  agent: defineRun({
-    name: "host",
-    provider,
-    harness: { kind: "loop", model, maxTurns: 10 },
-  }),
+  agent: ({ tools, gate }) =>
+    defineRun({
+      name: "host",
+      provider,
+      harness: { kind: "loop", model, maxTurns: 10 },
+      tools,
+      gate,
+    }),
+  instruction: (now) =>
+    `The time now is ${new Date(now).toISOString()}. ` +
+    "You can get back to this conversation later with the later tool: " +
+    "give it a number of seconds and a note to yourself. " +
+    "When the time comes you read the note and answer it. " +
+    "Use it whenever the user asks you to reply or do something after a delay.",
+  onRefusal: (tool) => {
+    console.log(`gate refused ${tool ?? "a request"}`);
+  },
   conversations,
   inbox,
   replies,

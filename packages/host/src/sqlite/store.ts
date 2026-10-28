@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 import { createClient } from "@libsql/client";
-import { asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { ReplyLogClosedError } from "../errors.js";
@@ -24,9 +24,20 @@ const toRecord = (row: Row): ReplyRecord => {
     conversationId: row.conversationId,
     inputId: row.inputId,
   };
-  return row.kind === "failed"
-    ? { ...base, kind: "failed", reason: row.reason ?? "" }
-    : { ...base, kind: "reply", text: row.text ?? "" };
+  switch (row.kind) {
+    case "failed":
+      return { ...base, kind: "failed", reason: row.reason ?? "" };
+    case "scheduled":
+      return {
+        ...base,
+        kind: "scheduled",
+        callIndex: row.callIndex ?? 0,
+        dueAt: row.dueAt ?? 0,
+        note: row.note ?? "",
+      };
+    default:
+      return { ...base, kind: "reply", text: row.text ?? "" };
+  }
 };
 
 // libsql は、クエリごとに作った文レコードが回収されるまで、閉じた
@@ -107,11 +118,37 @@ export const openSqliteReplyLog = async (
     return { entryCount: row.entryCount, first: false };
   };
 
+  const scheduledFor = async (
+    inputId: string,
+    callIndex: number,
+  ): Promise<
+    Extract<ReplyRecord, { kind: "scheduled" }> | undefined
+  > => {
+    const [row] = await db
+      .select()
+      .from(replies)
+      .where(
+        and(
+          eq(replies.inputId, inputId),
+          eq(replies.kind, "scheduled"),
+          eq(replies.callIndex, callIndex),
+        ),
+      )
+      .limit(1);
+    const record = row === undefined ? undefined : toRecord(row);
+    return record?.kind === "scheduled" ? record : undefined;
+  };
+
   const hasReplyFor = async (inputId: string): Promise<boolean> => {
     const rows = await db
       .select({ cursor: replies.cursor })
       .from(replies)
-      .where(eq(replies.inputId, inputId))
+      .where(
+        and(
+          eq(replies.inputId, inputId),
+          ne(replies.kind, "scheduled"),
+        ),
+      )
       .limit(1);
     return rows.length > 0;
   };
@@ -131,6 +168,10 @@ export const openSqliteReplyLog = async (
         kind: record.kind,
         text: record.kind === "reply" ? record.text : null,
         reason: record.kind === "failed" ? record.reason : null,
+        dueAt: record.kind === "scheduled" ? record.dueAt : null,
+        callIndex:
+          record.kind === "scheduled" ? record.callIndex : null,
+        note: record.kind === "scheduled" ? record.note : null,
       })
       .returning();
     watching.notify();
@@ -151,6 +192,7 @@ export const openSqliteReplyLog = async (
     append: guarded(append),
     begin: guarded(begin),
     hasReplyFor: guarded(hasReplyFor),
+    scheduledFor: guarded(scheduledFor),
     read: guarded(read),
     watch: (after, signal) => watching.watch(after, signal),
     close,

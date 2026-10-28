@@ -21,10 +21,12 @@
     "@libsql/client": "0.18.0",
     "@mg/conversation": "workspace:*",
     "@mg/core": "workspace:*",
+    "@mg/gate": "workspace:*",
     "@mg/inbox": "workspace:*",
     "@mg/runner": "workspace:*",
     "drizzle-orm": "0.45.2",
-    "hono": "4.13.7"
+    "hono": "4.13.7",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.10"

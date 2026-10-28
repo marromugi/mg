@@ -42,11 +42,28 @@ export const createMemoryReplyLog = (): ReplyLog => {
       begun.set(inputId, entryCount);
       return { entryCount, first: true };
     },
+    scheduledFor: async (inputId, callIndex) => {
+      if (closed) {
+        throw new ReplyLogClosedError();
+      }
+      const found = records.find(
+        (record) =>
+          record.kind === "scheduled" &&
+          record.inputId === inputId &&
+          record.callIndex === callIndex,
+      );
+      return found?.kind === "scheduled"
+        ? structuredClone(found)
+        : undefined;
+    },
     hasReplyFor: async (inputId) => {
       if (closed) {
         throw new ReplyLogClosedError();
       }
-      return records.some((record) => record.inputId === inputId);
+      return records.some(
+        (record) =>
+          record.inputId === inputId && record.kind !== "scheduled",
+      );
     },
     read: async (after, limit) => {
       if (closed) {

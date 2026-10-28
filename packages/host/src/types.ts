@@ -8,11 +8,21 @@ type ReplyBase = {
 
 export type ReplyRecord =
   | (ReplyBase & { kind: "reply"; text: string })
-  | (ReplyBase & { kind: "failed"; reason: string });
+  | (ReplyBase & { kind: "failed"; reason: string })
+  | (ReplyBase & {
+      /** The agent set a time to get back to the conversation. */
+      kind: "scheduled";
+      /** Which `later` call of the input's run set this, from 1. */
+      callIndex: number;
+      /** Milliseconds since the epoch. */
+      dueAt: number;
+      note: string;
+    });
 
 export type NewReply =
   | Omit<Extract<ReplyRecord, { kind: "reply" }>, "cursor">
-  | Omit<Extract<ReplyRecord, { kind: "failed" }>, "cursor">;
+  | Omit<Extract<ReplyRecord, { kind: "failed" }>, "cursor">
+  | Omit<Extract<ReplyRecord, { kind: "scheduled" }>, "cursor">;
 
 /** Keeps replies in the order written, for clients to read from a cursor. */
 export interface ReplyLog {
@@ -26,7 +36,15 @@ export interface ReplyLog {
     inputId: string,
     entryCount: number,
   ): Promise<{ entryCount: number; first: boolean }>;
-  /** Whether a record answering the input has been written. */
+  /** The `scheduled` record the input's nth `later` call wrote, if any. */
+  scheduledFor(
+    inputId: string,
+    callIndex: number,
+  ): Promise<Extract<ReplyRecord, { kind: "scheduled" }> | undefined>;
+  /**
+   * Whether a `reply` or `failed` record answering the input has been
+   * written. A `scheduled` record does not answer it.
+   */
   hasReplyFor(inputId: string): Promise<boolean>;
   /** Up to `limit` records with a cursor above `after`, in order. */
   read(after: number, limit: number): Promise<ReplyRecord[]>;

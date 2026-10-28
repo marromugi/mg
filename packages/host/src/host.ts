@@ -1,9 +1,10 @@
-import type { Message } from "@mg/core";
+import type { Message, Tool } from "@mg/core";
 import {
   ConversationExistsError,
   type ConversationEntry,
   type ConversationStore,
 } from "@mg/conversation";
+import type { Gate } from "@mg/gate";
 import {
   createInbox,
   type Clock,
@@ -18,16 +19,33 @@ import {
 } from "@mg/runner";
 import { Hono } from "hono";
 import { createAdmission } from "./admission.js";
+import { createLaterOnlyGate } from "./gate.js";
+import { createLaterTool } from "./later.js";
 import type { Client, ReplyLog, ReplyRecord } from "./types.js";
 
+/** What the host gives the agent for one run. */
+export type AgentMeans = {
+  /** Lets the agent get back to the conversation it is running in. */
+  tools: readonly Tool[];
+  /** Allows those tools and refuses every other call. */
+  gate: Gate;
+};
+
 export type HostOptions = {
-  /** The agent every input runs on. Its gate is required when it has tools. */
-  agent: RunConfig;
+  /** Builds the agent for one input from the means the host gives it. */
+  agent: (means: AgentMeans) => RunConfig;
+  /**
+   * Told to the agent at the start of each turn, given the time now in
+   * milliseconds since the epoch.
+   */
+  instruction?: (now: number) => string;
   conversations: ConversationStore;
   inbox: InboxStore;
   replies: ReplyLog;
   clients: readonly Client[];
   clock?: Clock;
+  /** Called when the gate refuses a call; `tool` is its name, if any. */
+  onRefusal?: (tool: string | undefined) => void;
   /** Called with what went wrong outside any request. Defaults to stderr. */
   onError?: (error: Error) => void;
 };
@@ -76,13 +94,13 @@ const runAgent = (
   agent: RunConfig,
   conversations: ConversationStore,
   id: string,
-  text: string,
+  messages: [Message, ...Message[]],
 ): Promise<ContinueOutcome> => {
   const conversation = {
     store: conversations,
     id,
     history: { kind: "all" } as const,
-    messages: [{ role: "user", content: text }] as [Message],
+    messages,
   };
   return continueConversation(agent, conversation);
 };
@@ -117,12 +135,27 @@ const savedTurn = async (
   return slice.entries[0];
 };
 
-const textOf = (input: unknown): string => {
-  const text = (input as { text?: unknown } | null)?.text;
+/**
+ * What the agent reads for a stored input. A client's words go in as
+ * they are; the agent's own note is marked as one.
+ */
+const inputText = (item: InboxItem): string => {
+  const { text, from } = (item.input ?? {}) as {
+    text?: unknown;
+    from?: unknown;
+  };
   if (typeof text !== "string") {
     throw new TypeError("The stored input has no text.");
   }
-  return text;
+  if (from === undefined || from === "client") {
+    return text;
+  }
+  if (from === "agent") {
+    return `[note to self, set at ${new Date(item.addedAt).toISOString()}]\n${text}`;
+  }
+  throw new TypeError(
+    `The stored input comes from "${String(from)}", not "client" or "agent".`,
+  );
 };
 
 const ndjson = (
@@ -148,7 +181,9 @@ const ndjson = (
 };
 
 export const createHost = (options: HostOptions): Host => {
-  const { agent, conversations, replies } = options;
+  const { conversations, replies } = options;
+  const now = (): number => (options.clock ?? Date).now();
+  const gate = createLaterOnlyGate(options.onRefusal);
   const admit = createAdmission(options.clients);
   const onError =
     options.onError ??
@@ -161,7 +196,7 @@ export const createHost = (options: HostOptions): Host => {
     store: options.inbox,
     clock: options.clock,
     run: async (item: InboxItem) => {
-      const text = textOf(item.input);
+      const text = inputText(item);
       let record;
       try {
         await ensureConversation(conversations, item.conversationId);
@@ -194,11 +229,29 @@ export const createHost = (options: HostOptions): Host => {
             return;
           }
         }
+        const agent = options.agent({
+          tools: [
+            createLaterTool({
+              inbox,
+              replies,
+              conversationId: item.conversationId,
+              inputId: item.id,
+              now,
+            }),
+          ],
+          gate,
+        });
+        const user: Message = { role: "user", content: text };
         const outcome = await runAgent(
           agent,
           conversations,
           item.conversationId,
-          text,
+          options.instruction === undefined
+            ? [user]
+            : [
+                { role: "system", content: options.instruction(now()) },
+                user,
+              ],
         );
         record = outcome.saved
           ? {

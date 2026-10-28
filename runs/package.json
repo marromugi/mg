@@ -7,6 +7,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.1",
     "@mg/conversation": "workspace:*",
     "@mg/core": "workspace:*",
     "@mg/credentials": "workspace:*",
@@ -14,6 +15,7 @@
     "@mg/eval": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
+    "@mg/host": "workspace:*",
     "@mg/inbox": "workspace:*",
     "@mg/loop": "workspace:*",
     "@mg/memory": "workspace:*",

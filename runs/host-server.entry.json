@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/host-server.ts --port <port> --data-dir <dir> --tokens <file>",
+  "needs": [],
+  "burdens": []
+}

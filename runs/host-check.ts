@@ -9,9 +9,11 @@ type Reply = {
   cursor: number;
   conversationId: string;
   inputId: string;
-  kind: "reply" | "failed";
+  kind: "reply" | "failed" | "scheduled";
   text?: string;
   reason?: string;
+  dueAt?: number;
+  note?: string;
 };
 
 const children = new Set<ChildProcess>();
@@ -257,6 +259,62 @@ try {
     !restarted.replies.some((r) => r.conversationId === "denied"),
     "nothing was written for the refused input",
   );
+
+  // V1 (later): the agent sets a time itself; the note is answered after
+  // the server was stopped and started again on the same data.
+  await post(
+    base,
+    "remind",
+    { text: "20秒後に『時間です』と返してください" },
+    token,
+  );
+  const setUp = await readReplies(
+    base,
+    token,
+    (replies) =>
+      replies.some(
+        (r) => r.conversationId === "remind" && r.kind === "scheduled",
+      ),
+    120_000,
+  );
+  const scheduled = setUp.replies.find(
+    (r) => r.conversationId === "remind" && r.kind === "scheduled",
+  );
+  console.log(`scheduled: ${JSON.stringify(scheduled)}`);
+  expectThat(
+    scheduled !== undefined && scheduled.dueAt !== undefined,
+    "the agent set a time and the reply log shows it",
+  );
+  await stopChild(server);
+  expectThat(
+    scheduled !== undefined && Date.now() < scheduled.dueAt!,
+    "the server stopped before the agent's time",
+  );
+  server = await startServer(port, dataDir, tokensFile);
+  const noteDone = await readReplies(
+    base,
+    token,
+    (replies) =>
+      replies.filter(
+        (r) => r.conversationId === "remind" && r.kind === "reply",
+      ).length >= 2,
+    180_000,
+  );
+  const answers = noteDone.replies.filter(
+    (r) => r.conversationId === "remind" && r.kind === "reply",
+  );
+  const noteReply = answers[1];
+  console.log(`note reply: ${JSON.stringify(noteReply)}`);
+  expectThat(
+    answers.length === 2 &&
+      scheduled !== undefined &&
+      noteReply.cursor > scheduled.cursor &&
+      noteDone.seenAt.get(noteReply.cursor)! >= scheduled.dueAt!,
+    "one reply for the note, written after the restart at or after its due time",
+  );
+  const refusals = sent.join("").split("gate refused").length - 1;
+  console.log(`gate refusals: ${refusals}`);
+  expectThat(refusals === 0, "the gate refused no call");
   await stopChild(server);
 
   // V3: nothing the server sent contains an LLM key.

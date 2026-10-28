@@ -4,8 +4,10 @@ A package that serves one agent to remote clients over HTTP.
 A client holds only a token. It sends text to a conversation, now or for
 a set time, and reads the agent's replies.
 
-The host never reads a key. The agent's run config, the stores, the
-reply log, the client tokens and the clock are given to `createHost`.
+The host never reads a key. The stores, the reply log, the client
+tokens and the clock are given to `createHost`, with a function that
+builds the agent's run config from the tools and gate the host
+provides. `instruction` may tell the agent the time at each turn.
 How the server is started (address, port, data folder, provider) belongs
 to the entry. See `runs/host-server.ts`.
 
@@ -26,6 +28,22 @@ to the entry. See `runs/host-server.ts`.
   Cursors are whole numbers that increase, starting at 1.
 - Writes a `failed` reply with the reason when the run throws or the
   turn is not saved. The input is not run again.
+- Gives the agent one tool, `later`, built for each run and bound to
+  the conversation being run.
+  The agent sets `inSeconds` (a whole number from 1 to 604800) and a
+  `note`. The note enters the inbox for that conversation, and the
+  tool returns `{ "dueAt": <ms since epoch> }`.
+  Out of range or not a whole number: the tool returns an error
+  naming the range, and nothing is scheduled.
+  The host writes a `scheduled` reply with `dueAt` and `note`, so the
+  client sees when the agent will get back.
+  When the note is due it runs as an input of the same conversation.
+  The agent reads it as `[note to self, set at <ISO time>]` followed
+  by the note, and the reply goes to the log as usual, also after a
+  restart.
+- Runs the agent behind a gate that allows `later` and refuses every
+  other call with "only the later tool is allowed on the host".
+  `onRefusal` is told of each refusal.
 - Has 2 implementations of `ReplyLog`.
   One lives only inside the process, the other uses SQLite.
 
@@ -48,6 +66,7 @@ streaming new replies as they are written, until the client closes it.
 GET /replies?after=0
 {"cursor":1,"conversationId":"jev","inputId":"...","kind":"reply","text":"..."}
 {"cursor":2,"conversationId":"jev","inputId":"...","kind":"failed","reason":"..."}
+{"cursor":3,"conversationId":"jev","inputId":"...","kind":"scheduled","dueAt":1767225600000,"note":"..."}
 ```
 
 ## Usage
@@ -57,7 +76,7 @@ import { createHost } from "@mg/host";
 import { openSqliteReplyLog } from "@mg/host/sqlite";
 
 const host = createHost({
-  agent,
+  agent: ({ tools, gate }) => defineRun({ ...config, tools, gate }),
   conversations,
   inbox,
   replies: await openSqliteReplyLog("./replies.db"),

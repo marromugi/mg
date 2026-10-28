@@ -15,6 +15,13 @@
       "when": 1793153990252,
       "tag": "0001_begun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793154465915,
+      "tag": "0002_scheduled",
+      "breakpoints": true
     }
   ]
 }

@@ -46,7 +46,10 @@ export const createMemoryReplyLog = (): ReplyLog => {
       if (closed) {
         throw new ReplyLogClosedError();
       }
-      return records.some((record) => record.inputId === inputId);
+      return records.some(
+        (record) =>
+          record.inputId === inputId && record.kind !== "scheduled",
+      );
     },
     read: async (after, limit) => {
       if (closed) {

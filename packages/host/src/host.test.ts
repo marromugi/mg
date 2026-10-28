@@ -62,25 +62,31 @@ const echoProvider = (
   return { provider, calls };
 };
 
-const open = (options?: { fail?: Error }) => {
-  const { provider, calls } = echoProvider(options?.fail);
+const open = (options?: { fail?: Error; provider?: Provider }) => {
+  const echo = echoProvider(options?.fail);
+  const provider = options?.provider ?? echo.provider;
+  const calls = echo.calls;
   const clock = fakeClock();
   const replies = createMemoryReplyLog();
   const errors: Error[] = [];
+  const refused: (string | undefined)[] = [];
   const host = createHost({
-    agent: {
+    agent: ({ tools, gate }) => ({
       name: "test",
       provider,
       harness: { kind: "loop", model: "m", maxTurns: 3, stream: false },
-    },
+      tools,
+      gate,
+    }),
     conversations: createMemoryConversationStore(),
     inbox: createMemoryInboxStore(),
     replies,
     clients: [{ name: "phone", token }],
     clock,
     onError: (error) => errors.push(error),
+    onRefusal: (tool) => refused.push(tool),
   });
-  return { host, calls, clock, replies, errors };
+  return { host, calls, clock, replies, errors, refused };
 };
 
 const send = (
@@ -304,7 +310,7 @@ describe("the host", () => {
       0,
     );
     host = createHost({
-      agent: {
+      agent: ({ tools, gate }) => ({
         name: "test",
         provider,
         harness: {
@@ -313,7 +319,9 @@ describe("the host", () => {
           maxTurns: 3,
           stream: false,
         },
-      },
+        tools,
+        gate,
+      }),
       conversations,
       inbox,
       replies,
@@ -333,5 +341,116 @@ describe("the host", () => {
     });
     expect(calls).toEqual([]);
     expect(await replies.read(0, 10)).toHaveLength(1);
+  });
+});
+
+// Answers "schedule" with a call to `later`, "bad" with an
+// out-of-range call, "bash" with a call to a tool the host does not
+// allow; once a tool result is in, it repeats that result as text.
+// Anything else is answered with "noted: <what the agent read>".
+const scriptedProvider = (): Provider => ({
+  toolForcing: true,
+  generate: async (request) => {
+    const last = request.messages[request.messages.length - 1];
+    if (last.role === "tool") {
+      return {
+        parts: [{ type: "text", text: `result: ${last.content}` }],
+        finishReason: "stop",
+      };
+    }
+    const heard = last.role === "user" ? last.content : "";
+    const call = (name: string, args: unknown) => ({
+      parts: [
+        { type: "tool-call" as const, id: "c1", name, arguments: args },
+      ],
+      finishReason: "tool_calls" as const,
+    });
+    if (heard === "schedule") {
+      return call("later", { inSeconds: 60, note: "stand up" });
+    }
+    if (heard === "bad") {
+      return call("later", { inSeconds: 0, note: "never" });
+    }
+    if (heard === "bash") {
+      return call("bash", { command: "ls" });
+    }
+    return {
+      parts: [{ type: "text", text: `noted: ${heard}` }],
+      finishReason: "stop",
+    };
+  },
+  stream: () => {
+    throw new Error("stream is not scripted");
+  },
+});
+
+describe("the later tool", () => {
+  test("keeps what the agent set, and answers it in the same conversation when due", async () => {
+    const opened = open({ provider: scriptedProvider() });
+    host = opened.host;
+    await host.start();
+
+    const sent = (await (
+      await send(host, "talk", { text: "schedule" })
+    ).json()) as { id: string };
+
+    const [scheduled, reply] = await readReplies(
+      await getReplies(host),
+      2,
+    );
+    expect(scheduled).toEqual({
+      cursor: 1,
+      conversationId: "talk",
+      inputId: sent.id,
+      kind: "scheduled",
+      dueAt: 61000,
+      note: "stand up",
+    });
+    expect(reply).toMatchObject({
+      cursor: 2,
+      kind: "reply",
+      text: 'result: {"dueAt":61000}',
+    });
+
+    opened.clock.advance(60000);
+    const records = await readReplies(await getReplies(host), 3);
+    expect(records[2]).toMatchObject({
+      cursor: 3,
+      conversationId: "talk",
+      kind: "reply",
+      text: "noted: [note to self, set at 1970-01-01T00:00:01.000Z]\nstand up",
+    });
+  });
+
+  test("returns an error naming the allowed range and schedules nothing when the time is out of range", async () => {
+    const opened = open({ provider: scriptedProvider() });
+    host = opened.host;
+    await host.start();
+
+    await send(host, "talk", { text: "bad" });
+
+    const [reply] = await readReplies(await getReplies(host), 1);
+    expect(reply).toMatchObject({
+      kind: "reply",
+      text: "result: error: inSeconds must be a whole number from 1 to 604800. Nothing was scheduled.",
+    });
+    opened.clock.advance(1000000);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await opened.replies.read(0, 10)).toHaveLength(1);
+  });
+
+  test("refuses any other tool call with the reason", async () => {
+    const opened = open({ provider: scriptedProvider() });
+    host = opened.host;
+    await host.start();
+
+    await send(host, "talk", { text: "bash" });
+
+    const [reply] = await readReplies(await getReplies(host), 1);
+    expect(reply).toMatchObject({
+      kind: "reply",
+      text: "result: [denied] Not executed. The policy gate rejected this action: only the later tool is allowed on the host",
+    });
+    expect(opened.refused).toEqual(["bash"]);
   });
 });

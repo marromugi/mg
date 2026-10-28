@@ -7,6 +7,8 @@ export const replies = sqliteTable("replies", {
   kind: text("kind").notNull(),
   text: text("text"),
   reason: text("reason"),
+  dueAt: integer("due_at"),
+  note: text("note"),
 });
 
 export const begun = sqliteTable("begun", {

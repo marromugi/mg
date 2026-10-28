@@ -41,6 +41,32 @@ export const describeReplyLogContract = (
       await log.close();
     });
 
+    test("keeps a scheduled record, which does not count as an answer to its input", async () => {
+      const log = await open();
+      await log.append({
+        kind: "scheduled",
+        conversationId: "c",
+        inputId: "a",
+        dueAt: 61000,
+        note: "stand up",
+      });
+
+      expect(await log.read(0, 10)).toEqual([
+        {
+          cursor: 1,
+          kind: "scheduled",
+          conversationId: "c",
+          inputId: "a",
+          dueAt: 61000,
+          note: "stand up",
+        },
+      ]);
+      expect(await log.hasReplyFor("a")).toBe(false);
+      await log.append(entry("a", "one"));
+      expect(await log.hasReplyFor("a")).toBe(true);
+      await log.close();
+    });
+
     test("watches records already there, then each new one, until aborted", async () => {
       const log = await open();
       await log.append(entry("a", "one"));

@@ -4,6 +4,7 @@ import { createWatching } from "./watch.js";
 
 export const createMemoryReplyLog = (): ReplyLog => {
   const records: ReplyRecord[] = [];
+  const begun = new Map<string, number>();
   let closed = false;
 
   const read = async (
@@ -29,6 +30,23 @@ export const createMemoryReplyLog = (): ReplyLog => {
       records.push(stored);
       watching.notify();
       return structuredClone(stored);
+    },
+    begin: async (inputId, entryCount) => {
+      if (closed) {
+        throw new ReplyLogClosedError();
+      }
+      const noted = begun.get(inputId);
+      if (noted !== undefined) {
+        return { entryCount: noted, first: false };
+      }
+      begun.set(inputId, entryCount);
+      return { entryCount, first: true };
+    },
+    hasReplyFor: async (inputId) => {
+      if (closed) {
+        throw new ReplyLogClosedError();
+      }
+      return records.some((record) => record.inputId === inputId);
     },
     read: async (after, limit) => {
       if (closed) {

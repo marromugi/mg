@@ -278,4 +278,60 @@ describe("the host", () => {
       reason: expect.stringContaining("model is down"),
     });
   });
+
+  test("answers from a turn saved before a stop without calling the model again", async () => {
+    const { provider, calls } = echoProvider();
+    const conversations = createMemoryConversationStore();
+    const inbox = createMemoryInboxStore();
+    const replies = createMemoryReplyLog();
+    const item = await inbox.add(
+      { conversationId: "talk", input: { text: "hi" }, dueAt: 1000 },
+      1000,
+    );
+    await conversations.create("talk");
+    await replies.begin(item.id, 0);
+    await conversations.append(
+      "talk",
+      {
+        messages: [
+          { role: "user", content: "hi" },
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "saved answer" }],
+          },
+        ],
+      },
+      0,
+    );
+    host = createHost({
+      agent: {
+        name: "test",
+        provider,
+        harness: {
+          kind: "loop",
+          model: "m",
+          maxTurns: 3,
+          stream: false,
+        },
+      },
+      conversations,
+      inbox,
+      replies,
+      clients: [{ name: "phone", token }],
+      clock: fakeClock(),
+    });
+
+    await host.start();
+
+    const [reply] = await readReplies(await getReplies(host), 1);
+    expect(reply).toEqual({
+      cursor: 1,
+      conversationId: "talk",
+      inputId: item.id,
+      kind: "reply",
+      text: "saved answer",
+    });
+    expect(calls).toEqual([]);
+    expect(await replies.read(0, 10)).toHaveLength(1);
+  });
 });

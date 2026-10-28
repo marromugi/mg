@@ -17,6 +17,17 @@ export type NewReply =
 /** Keeps replies in the order written, for clients to read from a cursor. */
 export interface ReplyLog {
   append(record: NewReply): Promise<ReplyRecord>;
+  /**
+   * Notes how many entries the conversation held when the input began
+   * to run. The first note for an input is kept; later ones return it
+   * with `first: false`.
+   */
+  begin(
+    inputId: string,
+    entryCount: number,
+  ): Promise<{ entryCount: number; first: boolean }>;
+  /** Whether a record answering the input has been written. */
+  hasReplyFor(inputId: string): Promise<boolean>;
   /** Up to `limit` records with a cursor above `after`, in order. */
   read(after: number, limit: number): Promise<ReplyRecord[]>;
   /**

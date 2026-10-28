@@ -71,6 +71,9 @@ await host.close();
 Closing the host ends open reply streams and waits for runs in flight.
 It does not close the stores or the reply log. Close them yourself.
 
-Delivery is at least once. If the process stops after a reply is written
-and before the input is marked done, the input runs again and the client
-sees a second reply for it.
+Before an input runs, the reply log notes how many entries the
+conversation holds. If the process stops and the input runs again, the
+host answers from the turn the first run saved, or does nothing when the
+reply was already written. The model is not called a second time.
+Delivery is still at least once for the window between the model's
+answer and the save of the turn: there the input runs again.

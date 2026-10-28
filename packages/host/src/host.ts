@@ -1,6 +1,7 @@
 import type { Message } from "@mg/core";
 import {
   ConversationExistsError,
+  type ConversationEntry,
   type ConversationStore,
 } from "@mg/conversation";
 import {
@@ -99,6 +100,23 @@ const ensureConversation = async (
   }
 };
 
+/** The entry at `position`, if the conversation has grown past it. */
+const savedTurn = async (
+  conversations: ConversationStore,
+  id: string,
+  position: number,
+  length: number,
+): Promise<ConversationEntry | undefined> => {
+  if (length <= position) {
+    return undefined;
+  }
+  const slice = await conversations.read(id, {
+    kind: "last",
+    count: length - position,
+  });
+  return slice.entries[0];
+};
+
 const textOf = (input: unknown): string => {
   const text = (input as { text?: unknown } | null)?.text;
   if (typeof text !== "string") {
@@ -147,6 +165,35 @@ export const createHost = (options: HostOptions): Host => {
       let record;
       try {
         await ensureConversation(conversations, item.conversationId);
+        const { length } = await conversations.read(
+          item.conversationId,
+          {
+            kind: "all",
+          },
+        );
+        const noted = await replies.begin(item.id, length);
+        if (!noted.first) {
+          // An earlier run of this item was cut short. Reuse what it
+          // left instead of calling the model again.
+          if (await replies.hasReplyFor(item.id)) {
+            return;
+          }
+          const saved = await savedTurn(
+            conversations,
+            item.conversationId,
+            noted.entryCount,
+            length,
+          );
+          if (saved !== undefined) {
+            await replies.append({
+              kind: "reply",
+              text: replyText(saved.messages),
+              conversationId: item.conversationId,
+              inputId: item.id,
+            });
+            return;
+          }
+        }
         const outcome = await runAgent(
           agent,
           conversations,

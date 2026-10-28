@@ -8,3 +8,8 @@ export const replies = sqliteTable("replies", {
   text: text("text"),
   reason: text("reason"),
 });
+
+export const begun = sqliteTable("begun", {
+  inputId: text("input_id").primaryKey(),
+  entryCount: integer("entry_count").notNull(),
+});

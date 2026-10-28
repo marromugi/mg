@@ -4,13 +4,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 import { createClient } from "@libsql/client";
-import { asc, gt } from "drizzle-orm";
+import { asc, eq, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { ReplyLogClosedError } from "../errors.js";
 import type { NewReply, ReplyLog, ReplyRecord } from "../types.js";
 import { createWatching } from "../watch.js";
-import { replies } from "./schema.js";
+import { begun, replies } from "./schema.js";
 
 const migrationsFolder = fileURLToPath(
   new URL("../../drizzle", import.meta.url),
@@ -88,6 +88,34 @@ export const openSqliteReplyLog = async (
     return rows.map(toRecord);
   };
 
+  const begin = async (
+    inputId: string,
+    entryCount: number,
+  ): Promise<{ entryCount: number; first: boolean }> => {
+    const inserted = await db
+      .insert(begun)
+      .values({ inputId, entryCount })
+      .onConflictDoNothing()
+      .returning();
+    if (inserted.length > 0) {
+      return { entryCount, first: true };
+    }
+    const [row] = await db
+      .select()
+      .from(begun)
+      .where(eq(begun.inputId, inputId));
+    return { entryCount: row.entryCount, first: false };
+  };
+
+  const hasReplyFor = async (inputId: string): Promise<boolean> => {
+    const rows = await db
+      .select({ cursor: replies.cursor })
+      .from(replies)
+      .where(eq(replies.inputId, inputId))
+      .limit(1);
+    return rows.length > 0;
+  };
+
   const watching = createWatching(
     (after, limit) =>
       closing === undefined ? read(after, limit) : Promise.resolve([]),
@@ -121,6 +149,8 @@ export const openSqliteReplyLog = async (
 
   return {
     append: guarded(append),
+    begin: guarded(begin),
+    hasReplyFor: guarded(hasReplyFor),
     read: guarded(read),
     watch: (after, signal) => watching.watch(after, signal),
     close,

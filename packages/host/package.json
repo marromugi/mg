@@ -1,0 +1,32 @@
+{
+  "name": "@mg/host",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite/index.d.ts",
+      "default": "./dist/sqlite/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@libsql/client": "0.18.0",
+    "@mg/conversation": "workspace:*",
+    "@mg/core": "workspace:*",
+    "@mg/inbox": "workspace:*",
+    "@mg/runner": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.13.7"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
+  }
+}

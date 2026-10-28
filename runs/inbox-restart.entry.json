@@ -1,0 +1,5 @@
+{
+  "command": "node runs/inbox-restart.ts",
+  "needs": [],
+  "burdens": []
+}

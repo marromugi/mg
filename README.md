@@ -67,6 +67,7 @@ To speak through a server that takes OpenAI's speech requests, set these variabl
 | [`@mg/bounded-output`](packages/bounded-output/README.md) | Cuts a text to a limit, keeps the whole in a file, and words the closing line                                                          |
 | [`@mg/workspace`](packages/workspace/README.md)           | Connector types for reaching other machines, and opening and closing workspaces                                                        |
 | [`@mg/conversation`](packages/conversation/README.md)     | Interface, types and errors for storing and loading conversations                                                                      |
+| [`@mg/inbox`](packages/inbox/README.md)                   | Holds input until it is due and hands it to a run function, one at a time per conversation                                             |
 | [`@mg/memory`](packages/memory/README.md)                 | Stores and loads an individual's memory (persona, per-person entries, summaries)                                                       |
 | [`@mg/persona`](packages/persona/README.md)               | Interfaces for an individual's recall and reflection, and an LLM-backed implementation                                                 |
 | [`@mg/credentials`](packages/credentials/README.md)       | Saved login values behind a store, handed over only for registered sites and approved uses                                             |

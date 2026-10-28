@@ -14,6 +14,7 @@
     "@mg/eval": "workspace:*",
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
+    "@mg/inbox": "workspace:*",
     "@mg/loop": "workspace:*",
     "@mg/memory": "workspace:*",
     "@mg/persona": "workspace:*",

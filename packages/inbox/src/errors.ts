@@ -53,3 +53,18 @@ export class InboxSettleError extends Error {
     this.conversationId = conversationId;
   }
 }
+
+export class InboxCallbackError extends Error {
+  override readonly name = "InboxCallbackError";
+  readonly callback: "onSettle" | "onError";
+
+  constructor(callback: "onSettle" | "onError", cause: unknown) {
+    super(
+      `The ${callback} callback threw: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }. Delivery went on.`,
+      { cause },
+    );
+    this.callback = callback;
+  }
+}

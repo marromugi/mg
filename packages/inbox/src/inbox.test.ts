@@ -204,4 +204,25 @@ describe("createInbox", () => {
     const pending: InboxItem[] = await store.pending();
     expect(pending.map((item) => item.input)).toEqual(["later"]);
   });
+
+  test("goes on delivering when onSettle throws, and close rejects with its message", async () => {
+    const seen: unknown[] = [];
+    const inbox = createInbox({
+      store: createMemoryInboxStore(),
+      run: async (item) => {
+        seen.push(item.input);
+      },
+      onSettle: () => {
+        throw new Error("listener broke");
+      },
+    });
+    await inbox.start();
+
+    await inbox.add("c", "one");
+    await inbox.add("c", "two");
+    await tick();
+
+    expect(seen).toEqual(["one", "two"]);
+    await expect(inbox.close()).rejects.toThrow(/listener broke/);
+  });
 });

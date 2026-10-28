@@ -1,5 +1,9 @@
 import { assertJsonInput } from "./checks.js";
-import { InboxClosedError, InboxSettleError } from "./errors.js";
+import {
+  InboxCallbackError,
+  InboxClosedError,
+  InboxSettleError,
+} from "./errors.js";
 import type {
   Clock,
   InboxItem,
@@ -40,7 +44,7 @@ export interface Inbox {
   ): Promise<InboxItem>;
   /**
    * Stops arming timers and waits for runs in flight. Pending items
-   * stay in the store. Rejects with the first settle failure, if any.
+   * stay in the store. Rejects with the first settle failure or callback error, if any.
    */
   close(): Promise<void>;
 }
@@ -62,7 +66,17 @@ export const createInbox = (options: InboxOptions): Inbox => {
   const lanes = new Map<string, Lane>();
   const known = new Set<string>();
   const inFlight = new Set<Promise<void>>();
-  const settleErrors: InboxSettleError[] = [];
+  const failures: Error[] = [];
+  const notify = (
+    callback: "onSettle" | "onError",
+    call: () => void,
+  ) => {
+    try {
+      call();
+    } catch (cause) {
+      failures.push(new InboxCallbackError(callback, cause));
+    }
+  };
   let started = false;
   let closed = false;
   let cancelTimer: (() => void) | undefined;
@@ -112,14 +126,18 @@ export const createInbox = (options: InboxOptions): Inbox => {
         item.conversationId,
         cause,
       );
-      settleErrors.push(error);
-      onError?.(error);
+      failures.push(error);
+      if (onError !== undefined) {
+        notify("onError", () => onError(error));
+      }
       return;
     }
     lane.queue.shift();
     known.delete(item.id);
     lane.running = false;
-    onSettle?.(item, outcome);
+    if (onSettle !== undefined) {
+      notify("onSettle", () => onSettle(item, outcome));
+    }
   };
 
   const pump = (): void => {
@@ -195,7 +213,7 @@ export const createInbox = (options: InboxOptions): Inbox => {
       cancelTimer?.();
       cancelTimer = undefined;
       await Promise.allSettled(inFlight);
-      const first = settleErrors[0];
+      const first = failures[0];
       if (first !== undefined) {
         throw first;
       }

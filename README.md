@@ -69,6 +69,7 @@ To speak through a server that takes OpenAI's speech requests, set these variabl
 | [`@mg/conversation`](packages/conversation/README.md)     | Interface, types and errors for storing and loading conversations                                                                      |
 | [`@mg/inbox`](packages/inbox/README.md)                   | Holds input until it is due and hands it to a run function, one at a time per conversation                                             |
 | [`@mg/host`](packages/host/README.md)                     | Serves one agent over HTTP to clients that hold a token, and keeps its replies for them to read from a cursor                          |
+| [`@mg/host-client`](packages/host-client/README.md)       | Sends input to the host and reads the replies of chosen conversations, reconnecting from the last reply it gave                        |
 | [`@mg/memory`](packages/memory/README.md)                 | Stores and loads an individual's memory (persona, per-person entries, summaries)                                                       |
 | [`@mg/persona`](packages/persona/README.md)               | Interfaces for an individual's recall and reflection, and an LLM-backed implementation                                                 |
 | [`@mg/credentials`](packages/credentials/README.md)       | Saved login values behind a store, handed over only for registered sites and approved uses                                             |

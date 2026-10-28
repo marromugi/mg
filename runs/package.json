@@ -16,6 +16,7 @@
     "@mg/gate": "workspace:*",
     "@mg/harness": "workspace:*",
     "@mg/host": "workspace:*",
+    "@mg/host-client": "workspace:*",
     "@mg/inbox": "workspace:*",
     "@mg/loop": "workspace:*",
     "@mg/memory": "workspace:*",

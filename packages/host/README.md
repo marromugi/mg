@@ -71,6 +71,16 @@ GET /replies?after=0
 {"cursor":3,"conversationId":"jev","inputId":"...","kind":"scheduled","callIndex":1,"dueAt":1767225600000,"note":"..."}
 ```
 
+Name the conversations to read with `conversation` (repeatable, an
+exact id) and `prefix`. A record is sent if its conversation id equals
+any `conversation` or starts with `prefix`. With neither, every record
+is sent. An empty value gets `400`. Cursors are those of the whole log,
+so a client resumes from the last cursor it handled.
+
+```
+GET /replies?after=0&prefix=discord:&conversation=other:b
+```
+
 ## Usage
 
 ```ts

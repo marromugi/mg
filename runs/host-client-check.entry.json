@@ -1,0 +1,5 @@
+{
+  "command": "node --env-file-if-exists=.env runs/host-client-check.ts",
+  "needs": [],
+  "burdens": []
+}

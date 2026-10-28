@@ -4,11 +4,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 import { createClient } from "@libsql/client";
-import { and, asc, eq, gt, ne } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { ReplyLogClosedError } from "../errors.js";
-import type { NewReply, ReplyLog, ReplyRecord } from "../types.js";
+import type {
+  NewReply,
+  ReplyFilter,
+  ReplyLog,
+  ReplyRecord,
+} from "../types.js";
 import { createWatching } from "../watch.js";
 import { begun, replies } from "./schema.js";
 
@@ -47,6 +52,19 @@ const collectGarbage = ((): (() => void) => {
   setFlagsFromString("--expose-gc");
   return runInNewContext("gc") as () => void;
 })();
+
+/** The condition for a filter; no condition when it names nothing. */
+const matching = (filter?: ReplyFilter) => {
+  const conditions = [
+    filter?.conversations === undefined
+      ? undefined
+      : inArray(replies.conversationId, [...filter.conversations]),
+    filter?.prefix === undefined
+      ? undefined
+      : sql`substr(${replies.conversationId}, 1, length(${filter.prefix})) = ${filter.prefix}`,
+  ].filter((condition) => condition !== undefined);
+  return conditions.length === 0 ? undefined : or(...conditions);
+};
 
 export const openSqliteReplyLog = async (
   path: string,
@@ -89,11 +107,12 @@ export const openSqliteReplyLog = async (
   const read = async (
     after: number,
     limit: number,
+    filter?: ReplyFilter,
   ): Promise<ReplyRecord[]> => {
     const rows = await db
       .select()
       .from(replies)
-      .where(gt(replies.cursor, after))
+      .where(and(gt(replies.cursor, after), matching(filter)))
       .orderBy(asc(replies.cursor))
       .limit(limit);
     return rows.map(toRecord);
@@ -154,8 +173,10 @@ export const openSqliteReplyLog = async (
   };
 
   const watching = createWatching(
-    (after, limit) =>
-      closing === undefined ? read(after, limit) : Promise.resolve([]),
+    (after, limit, filter) =>
+      closing === undefined
+        ? read(after, limit, filter)
+        : Promise.resolve([]),
     () => closing !== undefined,
   );
 
@@ -194,7 +215,8 @@ export const openSqliteReplyLog = async (
     hasReplyFor: guarded(hasReplyFor),
     scheduledFor: guarded(scheduledFor),
     read: guarded(read),
-    watch: (after, signal) => watching.watch(after, signal),
+    watch: (after, signal, filter) =>
+      watching.watch(after, signal, filter),
     close,
   };
 };

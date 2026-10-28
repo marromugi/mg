@@ -24,6 +24,16 @@ export type NewReply =
   | Omit<Extract<ReplyRecord, { kind: "failed" }>, "cursor">
   | Omit<Extract<ReplyRecord, { kind: "scheduled" }>, "cursor">;
 
+/**
+ * Narrows a read to some conversations. A record matches if its
+ * conversation id equals one of `conversations` or starts with
+ * `prefix`. With neither given, every record matches.
+ */
+export type ReplyFilter = {
+  conversations?: readonly string[];
+  prefix?: string;
+};
+
 /** Keeps replies in the order written, for clients to read from a cursor. */
 export interface ReplyLog {
   append(record: NewReply): Promise<ReplyRecord>;
@@ -46,13 +56,24 @@ export interface ReplyLog {
    * written. A `scheduled` record does not answer it.
    */
   hasReplyFor(inputId: string): Promise<boolean>;
-  /** Up to `limit` records with a cursor above `after`, in order. */
-  read(after: number, limit: number): Promise<ReplyRecord[]>;
+  /**
+   * Up to `limit` records with a cursor above `after`, in order, that
+   * match the filter. Cursors stay those of the whole log.
+   */
+  read(
+    after: number,
+    limit: number,
+    filter?: ReplyFilter,
+  ): Promise<ReplyRecord[]>;
   /**
    * Records above `after`, then each new one as it is written. Ends
    * when the signal aborts or the log closes.
    */
-  watch(after: number, signal: AbortSignal): AsyncIterable<ReplyRecord>;
+  watch(
+    after: number,
+    signal: AbortSignal,
+    filter?: ReplyFilter,
+  ): AsyncIterable<ReplyRecord>;
   close(): Promise<void>;
 }
 

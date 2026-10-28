@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { ReplyLog, ReplyRecord } from "./types.js";
+import type { ReplyFilter, ReplyLog, ReplyRecord } from "./types.js";
 
 const entry = (inputId: string, text: string) =>
   ({
@@ -7,6 +7,14 @@ const entry = (inputId: string, text: string) =>
     conversationId: "c",
     inputId,
     text,
+  }) as const;
+
+const inConversation = (id: string, inputId: string) =>
+  ({
+    kind: "reply",
+    conversationId: id,
+    inputId,
+    text: inputId,
   }) as const;
 
 export const describeReplyLogContract = (
@@ -89,6 +97,55 @@ export const describeReplyLogContract = (
       await watching;
 
       expect(seen.map((r) => r.cursor)).toEqual([1, 2]);
+      await log.close();
+    });
+
+    test("reads and watches only records of the named conversations, with cursors of the whole log", async () => {
+      const log = await open();
+      await log.append(inConversation("discord:a", "1"));
+      await log.append(inConversation("other:b", "2"));
+      await log.append(inConversation("discord:c", "3"));
+      await log.append(inConversation("discordx", "4"));
+      await log.append(inConversation("odd%_", "5"));
+      await log.append(inConversation("oddxx", "6"));
+
+      const cursors = async (filter: ReplyFilter) =>
+        (await log.read(0, 10, filter)).map((r) => r.cursor);
+
+      expect(await cursors({ prefix: "discord:" })).toEqual([1, 3]);
+      expect(await cursors({ conversations: ["other:b"] })).toEqual([
+        2,
+      ]);
+      expect(
+        await cursors({
+          conversations: ["other:b"],
+          prefix: "discord:",
+        }),
+      ).toEqual([1, 2, 3]);
+      expect(await cursors({ prefix: "odd%_" })).toEqual([5]);
+      expect(await cursors({})).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(
+        (await log.read(1, 1, { prefix: "discord:" })).map(
+          (r) => r.cursor,
+        ),
+      ).toEqual([3]);
+
+      const abort = new AbortController();
+      const seen: number[] = [];
+      const watching = (async () => {
+        for await (const record of log.watch(0, abort.signal, {
+          prefix: "discord:",
+        })) {
+          seen.push(record.cursor);
+        }
+      })();
+      await log.append(inConversation("other:b", "7"));
+      await log.append(inConversation("discord:a", "8"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      abort.abort();
+      await watching;
+
+      expect(seen).toEqual([1, 3, 8]);
       await log.close();
     });
   });
